@@ -36,6 +36,10 @@ and 443 open to the internet, Caddy obtains a Let's Encrypt certificate by itsel
 
 The solver publishes no port and sits on an internal network only `web` and `worker` can reach.
 
+Open `https://<server>/` and log in as `admin` with `INITIAL_ADMIN_PASSWORD` from `.env`. The first
+start created that account; you must choose a new password at first login, and from then on the
+variable is ignored.
+
 ## Develop
 
 ```bash
