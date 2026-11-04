@@ -12,6 +12,10 @@ export default defineConfig({
       httpClient: "fetch",
       mode: "single",
       clean: true,
+      override: {
+        mutator: { path: "./src/api/fetcher.ts", name: "apiFetch" },
+        fetch: { includeHttpResponseReturnType: false },
+      },
     },
   },
   zod: {

@@ -25,6 +25,228 @@
         },
         "description": "Always 200 while this process is alive; the body says what it can reach."
       }
+    },
+    "/api/ops/health": {
+      "get": {
+        "operationId": "getInstallationHealth",
+        "summary": "Installation Health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationHealth"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/ops/technical-settings": {
+      "get": {
+        "operationId": "getTechnicalSettings",
+        "summary": "Get Technical Settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalSettingsSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateTechnicalSettings",
+        "summary": "Update Technical Settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalSettingsSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TechnicalSettingsSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/auth/session": {
+      "get": {
+        "operationId": "getSession",
+        "summary": "Session",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionState"
+                }
+              }
+            }
+          }
+        },
+        "description": "Who is signed in, if anyone. The SPA calls this first: it also sets the CSRF cookie.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "Login",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRefusal"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "Locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRefusal"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "Sign Out",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "operationId": "changePassword",
+        "summary": "Change Password",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordRefusal"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -85,6 +307,293 @@
         ],
         "title": "SolverHealth",
         "type": "object"
+      },
+      "Disk": {
+        "properties": {
+          "total_bytes": {
+            "title": "Total Bytes",
+            "type": "integer"
+          },
+          "free_bytes": {
+            "title": "Free Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_bytes",
+          "free_bytes"
+        ],
+        "title": "Disk",
+        "type": "object"
+      },
+      "InstallationHealth": {
+        "properties": {
+          "database": {
+            "title": "Database",
+            "type": "boolean"
+          },
+          "solver": {
+            "$ref": "#/components/schemas/SolverHealth"
+          },
+          "database_size_bytes": {
+            "title": "Database Size Bytes",
+            "type": "integer"
+          },
+          "disk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Disk"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queue": {
+            "$ref": "#/components/schemas/Queue"
+          },
+          "last_backup": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always empty until backups exist.",
+            "title": "Last Backup"
+          }
+        },
+        "required": [
+          "database",
+          "solver",
+          "database_size_bytes",
+          "disk",
+          "queue",
+          "last_backup"
+        ],
+        "title": "InstallationHealth",
+        "type": "object"
+      },
+      "Queue": {
+        "properties": {
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "workers": {
+            "title": "Workers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "waiting",
+          "running",
+          "failed",
+          "workers"
+        ],
+        "title": "Queue",
+        "type": "object"
+      },
+      "TechnicalSettingsSchema": {
+        "properties": {
+          "time_limit_cap_seconds": {
+            "maximum": 86400,
+            "minimum": 1,
+            "title": "Time Limit Cap Seconds",
+            "type": "integer"
+          },
+          "backup_time": {
+            "examples": [
+              "02:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "title": "Backup Time",
+            "type": "string"
+          },
+          "backup_retention_days": {
+            "maximum": 3650,
+            "minimum": 1,
+            "title": "Backup Retention Days",
+            "type": "integer"
+          },
+          "close_time": {
+            "examples": [
+              "02:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "title": "Close Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time_limit_cap_seconds",
+          "backup_time",
+          "backup_retention_days",
+          "close_time"
+        ],
+        "title": "TechnicalSettingsSchema",
+        "type": "object"
+      },
+      "Me": {
+        "properties": {
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "must_change_password": {
+            "title": "Must Change Password",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "username",
+          "full_name",
+          "role",
+          "must_change_password"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "system_admin",
+          "cno",
+          "deputy_cno",
+          "unit_manager",
+          "staff_nurse"
+        ],
+        "title": "Role",
+        "type": "string"
+      },
+      "SessionState": {
+        "properties": {
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Me"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "SessionState",
+        "type": "object"
+      },
+      "LoginRefusal": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "locked_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Until"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "LoginRefusal",
+        "type": "object"
+      },
+      "LoginBody": {
+        "properties": {
+          "username": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          },
+          "password": {
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginBody",
+        "type": "object"
+      },
+      "ChangePasswordRefusal": {
+        "properties": {
+          "current_password": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Current Password",
+            "type": "array"
+          },
+          "new_password": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "New Password",
+            "type": "array"
+          }
+        },
+        "title": "ChangePasswordRefusal",
+        "type": "object"
+      },
+      "ChangePasswordBody": {
+        "properties": {
+          "current_password": {
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordBody",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "SignedIn": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sessionid"
       }
     }
   },

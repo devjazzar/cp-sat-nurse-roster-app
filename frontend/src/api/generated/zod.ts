@@ -19,3 +19,138 @@ export const GetHealthResponse = zod.object({
   "workers": zod.union([zod.int(),zod.null()]).optional()
 })
 })
+
+
+/**
+ * @summary Installation Health
+ */
+export const GetInstallationHealthResponse = zod.object({
+  "database": zod.boolean(),
+  "solver": zod.object({
+  "reachable": zod.boolean(),
+  "version": zod.union([zod.string(),zod.null()]).optional(),
+  "workers": zod.union([zod.int(),zod.null()]).optional()
+}),
+  "database_size_bytes": zod.int(),
+  "disk": zod.union([zod.object({
+  "total_bytes": zod.int(),
+  "free_bytes": zod.int()
+}),zod.null()]),
+  "queue": zod.object({
+  "waiting": zod.int(),
+  "running": zod.int(),
+  "failed": zod.int(),
+  "workers": zod.int()
+}),
+  "last_backup": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('Always empty until backups exist.')
+})
+
+
+/**
+ * @summary Get Technical Settings
+ */
+export const getTechnicalSettingsResponseTimeLimitCapSecondsMax = 86400;
+
+export const getTechnicalSettingsResponseBackupTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const getTechnicalSettingsResponseBackupRetentionDaysMax = 3650;
+
+export const getTechnicalSettingsResponseCloseTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+
+
+export const GetTechnicalSettingsResponse = zod.object({
+  "time_limit_cap_seconds": zod.int().min(1).max(getTechnicalSettingsResponseTimeLimitCapSecondsMax),
+  "backup_time": zod.string().regex(getTechnicalSettingsResponseBackupTimeRegExp),
+  "backup_retention_days": zod.int().min(1).max(getTechnicalSettingsResponseBackupRetentionDaysMax),
+  "close_time": zod.string().regex(getTechnicalSettingsResponseCloseTimeRegExp)
+})
+
+
+/**
+ * @summary Update Technical Settings
+ */
+export const updateTechnicalSettingsBodyTimeLimitCapSecondsMax = 86400;
+
+export const updateTechnicalSettingsBodyBackupTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateTechnicalSettingsBodyBackupRetentionDaysMax = 3650;
+
+export const updateTechnicalSettingsBodyCloseTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+
+
+export const UpdateTechnicalSettingsBody = zod.object({
+  "time_limit_cap_seconds": zod.int().min(1).max(updateTechnicalSettingsBodyTimeLimitCapSecondsMax),
+  "backup_time": zod.string().regex(updateTechnicalSettingsBodyBackupTimeRegExp),
+  "backup_retention_days": zod.int().min(1).max(updateTechnicalSettingsBodyBackupRetentionDaysMax),
+  "close_time": zod.string().regex(updateTechnicalSettingsBodyCloseTimeRegExp)
+})
+
+export const updateTechnicalSettingsResponseTimeLimitCapSecondsMax = 86400;
+
+export const updateTechnicalSettingsResponseBackupTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateTechnicalSettingsResponseBackupRetentionDaysMax = 3650;
+
+export const updateTechnicalSettingsResponseCloseTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+
+
+export const UpdateTechnicalSettingsResponse = zod.object({
+  "time_limit_cap_seconds": zod.int().min(1).max(updateTechnicalSettingsResponseTimeLimitCapSecondsMax),
+  "backup_time": zod.string().regex(updateTechnicalSettingsResponseBackupTimeRegExp),
+  "backup_retention_days": zod.int().min(1).max(updateTechnicalSettingsResponseBackupRetentionDaysMax),
+  "close_time": zod.string().regex(updateTechnicalSettingsResponseCloseTimeRegExp)
+})
+
+
+/**
+ * Who is signed in, if anyone. The SPA calls this first: it also sets the CSRF cookie.
+ * @summary Session
+ */
+export const GetSessionResponse = zod.object({
+  "user": zod.union([zod.object({
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "must_change_password": zod.boolean()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Login
+ */
+export const loginBodyUsernameMax = 150;
+
+
+
+
+export const LoginBody = zod.object({
+  "username": zod.string().min(1).max(loginBodyUsernameMax),
+  "password": zod.string().min(1)
+})
+
+export const LoginResponse = zod.object({
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "must_change_password": zod.boolean()
+})
+
+
+/**
+ * @summary Sign Out
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Change Password
+ */
+export const ChangePasswordBody = zod.object({
+  "current_password": zod.string(),
+  "new_password": zod.string()
+})
+
+export const ChangePasswordResponse = zod.object({
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "must_change_password": zod.boolean()
+})

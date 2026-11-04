@@ -5,5 +5,16 @@
  * OpenAPI spec version: 1
  */
 
+export * from './changePasswordBody';
+export * from './changePasswordRefusal';
+export * from './disk';
 export * from './health';
+export * from './installationHealth';
+export * from './loginBody';
+export * from './loginRefusal';
+export * from './me';
+export * from './queue';
+export * from './role';
+export * from './sessionState';
 export * from './solverHealth';
+export * from './technicalSettingsSchema';
