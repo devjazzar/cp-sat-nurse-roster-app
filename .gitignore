@@ -1,0 +1,26 @@
+# Secrets and local configuration
+.env
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Solver outputs (mirrors the solver's own ignore list; the committed fixtures live under tests/fixtures)
+solver/roster*.csv
+solver/result*.json
+solver/request*.json
+solver/problem.json
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
