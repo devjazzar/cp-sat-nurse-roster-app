@@ -1,0 +1,139 @@
+"""Shared fairness arithmetic used by the model, the validator and the reports.
+
+Integer units: shares and targets in thousandths of a shift, balances in tenths.
+"""
+from __future__ import annotations
+
+from .problem import Nurse, Problem
+
+
+def fair_shifts(p: Problem) -> list[str]:
+    dep = p.department
+    return [s for s in dep.fair_shifts if s in dep.shifts]
+
+
+def share_m(p: Problem) -> dict[str, int]:
+    """Each fair shift's share of demand, in thousandths, from headcount midpoints. The
+    shares sum to exactly 1000 (the rounding residual goes to the largest share), so a
+    nurse's per-shift targets add up to the shifts she works and no bias is carried into
+    the night balance month after month."""
+    dep, demand = p.department, {}
+    for hc in dep.headcounts:
+        if hc.shift in fair_shifts(p):
+            demand[hc.shift] = sum((hc.weekend_min + hc.weekend_max) if p.is_weekend(d)
+                                   else (hc.weekday_min + hc.weekday_max) for d in range(p.days))
+    names = fair_shifts(p)
+    if not names:
+        return {}
+    tot = sum(demand.values())
+    if tot == 0:                                             # no demand at all: equal shares
+        demand = {s: 1 for s in names}
+        tot = len(names)
+    out = {s: round(1000 * demand.get(s, 0) / tot) for s in names}
+    big = max(names, key=lambda s: demand.get(s, 0))
+    out[big] += 1000 - sum(out.values())
+    return out
+
+
+def coverage_divisor(p: Problem) -> int:
+    """Largest number of headcounts one shift satisfies at once (1 without `also_counts`):
+    summed headcounts over-count the people needed by up to this factor."""
+    return max(coverage(p).values(), default=1)
+
+
+def coverage(p: Problem) -> dict[str, int]:
+    """Headcounts each shift counts toward, for the shifts some nurse may actually work: an
+    `also_counts` entry nobody is allowed to work satisfies nothing and must not lower the
+    people needed (or the fair share)."""
+    usable = set()
+    for nu in p.nurses:
+        usable |= set(nu.allowed_shifts) if nu.allowed_shifts is not None else set(p.department.shifts)
+    cover: dict[str, int] = {}
+    for hc in p.department.headcounts:
+        for s in [hc.shift] + list(hc.also_counts):
+            if s in usable:
+                cover[s] = cover.get(s, 0) + 1
+    return cover
+
+
+def weekend_available(p: Problem, nurse: Nurse) -> tuple[int, int]:
+    """(weekend days the nurse is not on leave, weekend days in the month)."""
+    leave = set(nurse.unavailable)
+    we = [d for d in range(p.days) if p.is_weekend(d)]
+    return sum(1 for d in we if d not in leave), len(we)
+
+
+def friday_slots_m(p: Problem) -> float:
+    """The problem-wide part of `friday_expected_m` (weekend slots per nurse, thousandths,
+    before proration): O(nurses) through `coverage`, so callers looping over nurses pass it
+    in as `per` and pay it once."""
+    dep, n = p.department, max(1, len(p.nurses))
+    slots = sum((hc.weekend_min + hc.weekend_max) / 2 for hc in dep.headcounts
+                for d in range(p.days) if p.is_weekend(d)) / coverage_divisor(p)
+    return 1000 * slots / n
+
+
+def friday_expected_m(p: Problem, nurse: Nurse | None = None, per: float | None = None) -> int:
+    """Fair number of weekend (Friday) shifts per nurse, in thousandths of a shift. For a
+    given nurse it is prorated by the weekend days she is not on leave, so a month of leave
+    neither penalises her nor builds a Friday debt in the carried balance. With overlapping
+    coverage (`also_counts`) one person can satisfy several headcounts, so the summed
+    midpoints are divided by that multiplicity: the share is of people, not of headcounts.
+    `per`: `friday_slots_m(p)` when the caller already has it."""
+    if per is None:
+        per = friday_slots_m(p)
+    if nurse is None:
+        return round(per)
+    avail, total = weekend_available(p, nurse)
+    return round(per * avail / total) if total else 0
+
+
+def flexible(p: Problem, nurse: Nurse) -> bool:
+    """True when the nurse may work every fair shift (so a D/N mix can be fair)."""
+    allowed = set(nurse.allowed_shifts) if nurse.allowed_shifts is not None else set(p.department.shifts)
+    return set(fair_shifts(p)) <= allowed
+
+
+def adj_tenths(balance: float, p: Problem) -> int:
+    """Carried balance (shifts, + = ahead of fair share) clamped to the per-month cap, in
+    tenths of a shift. 0 when cross-month fairness is off."""
+    dep = p.department
+    if not dep.carry_fairness:
+        return 0
+    cap = dep.carry_cap
+    return round(max(-cap, min(cap, balance)) * 10)
+
+
+def shift_adj_tenths(p: Problem, nurse: Nurse, shift: str) -> int:
+    """Target adjustment for `shift`: the night balance lowers the night target and raises
+    the day target by the same amount (they mirror in a two-shift unit)."""
+    dep = p.department
+    a = adj_tenths(nurse.night_balance, p)
+    if shift == dep.night_shift:
+        return a
+    if shift == dep.day_shift:
+        return -a
+    return 0
+
+
+def balances_out(p: Problem, nurse: Nurse, row: list[int], *, share: dict[str, int] | None = None,
+                 per: float | None = None) -> tuple[float, float]:
+    """(night_balance, friday_balance) to carry into next month, given this month's row.
+    The night balance moves only when nights are a fair shift for this nurse (otherwise her
+    nights have no fair share to compare with); the Friday balance compares her Fridays
+    with the expectation prorated for her leave. `share` / `per`: `share_m(p)` and
+    `friday_slots_m(p)` when the caller loops over nurses and has them already."""
+    dep = p.department
+    if share is None:
+        share = share_m(p)
+    idx = {s: i for i, s in enumerate(dep.shifts)}
+    k = sum(1 for v in row if v >= 0)
+    night_out = nurse.night_balance
+    if flexible(p, nurse) and dep.night_shift in fair_shifts(p):
+        nights = sum(1 for v in row if v == idx[dep.night_shift])
+        night_out += nights - share[dep.night_shift] * k / 1000
+    friday_out = nurse.friday_balance
+    if dep.fair_weekends:
+        fridays = sum(1 for d, v in enumerate(row) if v >= 0 and p.is_weekend(d))
+        friday_out += fridays - friday_expected_m(p, nurse, per) / 1000
+    return round(night_out, 2), round(friday_out, 2)
