@@ -5,16 +5,29 @@
  * OpenAPI spec version: 1
  */
 
+export * from './auditEntrySchema';
+export * from './auditEntrySchemaAfter';
+export * from './auditEntrySchemaBefore';
+export * from './auditFilterOptions';
+export * from './auditFilters';
+export * from './auditPage';
 export * from './changePasswordBody';
 export * from './changePasswordRefusal';
 export * from './disk';
 export * from './health';
 export * from './installationHealth';
+export * from './listAuditEntriesParams';
 export * from './loginBody';
 export * from './loginRefusal';
+export * from './managedUser';
 export * from './me';
+export * from './newUserBody';
+export * from './newUserBodyRole';
+export * from './newUserRefusal';
 export * from './queue';
+export * from './reactivateRefusal';
 export * from './role';
 export * from './sessionState';
 export * from './solverHealth';
 export * from './technicalSettingsSchema';
+export * from './userWithPassword';

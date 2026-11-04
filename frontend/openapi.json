@@ -247,6 +247,357 @@
           }
         ]
       }
+    },
+    "/api/users": {
+      "get": {
+        "operationId": "listUsers",
+        "summary": "List Users",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ManagedUser"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createUser",
+        "summary": "New User",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserWithPassword"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewUserRefusal"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewUserBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/users/{user_id}/deactivate": {
+      "post": {
+        "operationId": "deactivateUser",
+        "summary": "Deactivate User",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedUser"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/users/{user_id}/reactivate": {
+      "post": {
+        "operationId": "reactivateUser",
+        "summary": "Reactivate User",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedUser"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReactivateRefusal"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/users/{user_id}/reset-password": {
+      "post": {
+        "operationId": "resetUserPassword",
+        "summary": "Reset User Password",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserWithPassword"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/audit/entries": {
+      "get": {
+        "operationId": "listAuditEntries",
+        "summary": "Entries",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "user",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A username, any case: what they did and what was done to them.",
+              "title": "User"
+            },
+            "required": false,
+            "description": "A username, any case: what they did and what was done to them."
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "older_than",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Older Than"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "audit"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/audit/filter-options": {
+      "get": {
+        "operationId": "getAuditFilterOptions",
+        "summary": "Filter Options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditFilterOptions"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "audit"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -586,6 +937,349 @@
           "new_password"
         ],
         "title": "ChangePasswordBody",
+        "type": "object"
+      },
+      "ManagedUser": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "must_change_password": {
+            "title": "Must Change Password",
+            "type": "boolean"
+          },
+          "last_login": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In the hospital's time zone.",
+            "title": "Last Login"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "role",
+          "is_active",
+          "must_change_password",
+          "last_login"
+        ],
+        "title": "ManagedUser",
+        "type": "object"
+      },
+      "UserWithPassword": {
+        "description": "The only answers that ever hold a password. They ask not to be stored.",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/ManagedUser"
+          },
+          "generated_password": {
+            "title": "Generated Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "generated_password"
+        ],
+        "title": "UserWithPassword",
+        "type": "object"
+      },
+      "NewUserRefusal": {
+        "properties": {
+          "username": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Username",
+            "type": "array"
+          },
+          "role": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Role",
+            "type": "array"
+          }
+        },
+        "title": "NewUserRefusal",
+        "type": "object"
+      },
+      "NewUserBody": {
+        "properties": {
+          "username": {
+            "maxLength": 150,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "title": "Username",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "cno",
+              "deputy_cno",
+              "unit_manager"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "full_name",
+          "role"
+        ],
+        "title": "NewUserBody",
+        "type": "object"
+      },
+      "ReactivateRefusal": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ReactivateRefusal",
+        "type": "object"
+      },
+      "AuditFilters": {
+        "properties": {
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A username, any case: what they did and what was done to them.",
+            "title": "User"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "older_than": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Older Than"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "AuditFilters",
+        "type": "object"
+      },
+      "AuditEntrySchema": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "at": {
+            "description": "In the hospital's time zone, which the date filters also use.",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty for the system, and for a failed login with an unknown username.",
+            "title": "Actor"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "actor",
+          "action",
+          "target",
+          "before",
+          "after",
+          "ip"
+        ],
+        "title": "AuditEntrySchema",
+        "type": "object"
+      },
+      "AuditPage": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEntrySchema"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "older_than": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pass as `older_than` for the next page. Empty on the last page.",
+            "title": "Older Than"
+          }
+        },
+        "required": [
+          "entries",
+          "older_than"
+        ],
+        "title": "AuditPage",
+        "type": "object"
+      },
+      "AuditFilterOptions": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "users": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actions",
+          "users"
+        ],
+        "title": "AuditFilterOptions",
         "type": "object"
       }
     },

@@ -13,8 +13,10 @@ import { Route as SignedInRouteImport } from './routes/_signed-in'
 import { Route as ChangePasswordRouteImport } from './routes/change-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
+import { Route as SignedInAuditLogRouteImport } from './routes/_signed-in/audit-log'
 import { Route as SignedInHealthRouteImport } from './routes/_signed-in/health'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
+import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
 
 const SignedInRoute = SignedInRouteImport.update({
   id: '/_signed-in',
@@ -35,6 +37,11 @@ const SignedInIndexRoute = SignedInIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInAuditLogRoute = SignedInAuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInHealthRoute = SignedInHealthRouteImport.update({
   id: '/health',
   path: '/health',
@@ -45,19 +52,28 @@ const SignedInSettingsRoute = SignedInSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInUsersRoute = SignedInUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => SignedInRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
+  '/audit-log': typeof SignedInAuditLogRoute
   '/health': typeof SignedInHealthRoute
   '/settings': typeof SignedInSettingsRoute
+  '/users': typeof SignedInUsersRoute
 }
 export interface FileRoutesByTo {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
+  '/audit-log': typeof SignedInAuditLogRoute
   '/health': typeof SignedInHealthRoute
   '/settings': typeof SignedInSettingsRoute
+  '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
 }
 export interface FileRoutesById {
@@ -65,22 +81,40 @@ export interface FileRoutesById {
   '/_signed-in': typeof SignedInRouteWithChildren
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
+  '/_signed-in/audit-log': typeof SignedInAuditLogRoute
   '/_signed-in/health': typeof SignedInHealthRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
+  '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/change-password' | '/login' | '/health' | '/settings'
+  fullPaths:
+    | '/'
+    | '/change-password'
+    | '/login'
+    | '/audit-log'
+    | '/health'
+    | '/settings'
+    | '/users'
   fileRoutesByTo: FileRoutesByTo
-  to: '/change-password' | '/login' | '/health' | '/settings' | '/'
+  to:
+    | '/change-password'
+    | '/login'
+    | '/audit-log'
+    | '/health'
+    | '/settings'
+    | '/users'
+    | '/'
   id:
     | '__root__'
     | '/_signed-in'
     | '/change-password'
     | '/login'
+    | '/_signed-in/audit-log'
     | '/_signed-in/health'
     | '/_signed-in/settings'
+    | '/_signed-in/users'
     | '/_signed-in/'
   fileRoutesById: FileRoutesById
 }
@@ -120,6 +154,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInIndexRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/audit-log': {
+      id: '/_signed-in/audit-log'
+      path: '/audit-log'
+      fullPath: '/audit-log'
+      preLoaderRoute: typeof SignedInAuditLogRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/health': {
       id: '/_signed-in/health'
       path: '/health'
@@ -134,18 +175,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInSettingsRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/users': {
+      id: '/_signed-in/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof SignedInUsersRouteImport
+      parentRoute: typeof SignedInRoute
+    }
   }
 }
 
 interface SignedInRouteChildren {
+  SignedInAuditLogRoute: typeof SignedInAuditLogRoute
   SignedInHealthRoute: typeof SignedInHealthRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
+  SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
 }
 
 const SignedInRouteChildren: SignedInRouteChildren = {
+  SignedInAuditLogRoute: SignedInAuditLogRoute,
   SignedInHealthRoute: SignedInHealthRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
+  SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,
 }
 

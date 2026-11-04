@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router"
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -31,7 +31,8 @@ function start(path: string, handlers: Record<string, Handler | Answer>) {
       const method = init.method ?? "GET"
       const body = init.body ? JSON.parse(init.body as string) : undefined
       calls.push({ url, method, body, headers: new Headers(init.headers) })
-      const handler = handlers[`${method} ${url}`]
+      // An exact match first, then one that ignores the query string.
+      const handler = handlers[`${method} ${url}`] ?? handlers[`${method} ${url.split("?")[0]}`]
       if (!handler) throw new Error(`no answer for ${method} ${url}`)
       const answer = typeof handler === "function" ? handler({ url, method, body }) : handler
       const status = answer.status ?? 200
@@ -63,14 +64,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -91,10 +92,10 @@ describe("route guards", () => {
     expect(router.state.location.pathname).toBe("/health")
   })
 
-  it.each(["/health", "/settings"])("%s is not for another role", async (path) => {
+  it.each(["/health", "/settings", "/users", "/audit-log"])("%s is not for another role", async (path) => {
     const { router, calls } = start(path, session(NURSE))
 
-    expect(await screen.findByText(/nothing here for your role/)).toBeInTheDocument()
+    expect(await screen.findByText(/approved roster will be shown here/)).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/")
     expect(screen.queryByRole("link", { name: "Technical settings" })).not.toBeInTheDocument()
     expect(calls.map((call) => call.url)).toEqual(["/api/auth/session"])
@@ -457,5 +458,325 @@ describe("the technical settings page", () => {
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("save again")
+  })
+})
+
+describe("each role's navigation and home", () => {
+  const navLinks = () => within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link").map((link) => link.textContent)
+
+  it("the System Admin reaches their pages and nothing of the roster", async () => {
+    start("/", admin())
+
+    await screen.findByRole("heading", { name: "Health" })
+    expect(navLinks()).toEqual(["Health", "Technical settings", "Users", "Audit log", "Change password"])
+    expect(screen.getByText("admin · System Admin")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["cno", "CNO", /rules, its units and its nurses/],
+    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/],
+    ["staff_nurse", "Staff Nurse", /approved roster will be shown here/],
+  ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says) => {
+    const { router, calls } = start("/", session({ ...ME, username: "someone", full_name: "Some One", role }))
+
+    expect(await screen.findByText(says)).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/")
+    expect(screen.getByRole("heading", { level: 1, name: "Some One" })).toBeInTheDocument()
+    expect(screen.getByText(`someone · ${name}`)).toBeInTheDocument()
+    expect(navLinks()).toEqual(["Home", "Change password"])
+    expect(calls.map((call) => call.url)).toEqual(["/api/auth/session"])
+  })
+})
+
+const CNO = {
+  id: "019a0000-0000-7000-8000-000000000001", username: "fatimah", full_name: "Fatimah Al-Otaibi", role: "cno",
+  is_active: true, must_change_password: false, last_login: null,
+}
+const MANAGER = { ...CNO, id: "019a0000-0000-7000-8000-000000000002", username: "khalid", full_name: "Khalid Omar", role: "unit_manager" }
+
+describe("the users page", () => {
+  const page = (users: unknown[], extra = {}) => admin({ "GET /api/users": { body: users }, ...extra })
+
+  it("lists the users with their state", async () => {
+    start("/users", page([CNO, { ...MANAGER, is_active: false, must_change_password: true }]))
+
+    const row = (await screen.findByRole("cell", { name: "khalid" })).closest("tr")!
+    expect(within(row).getByText("Deactivated")).toBeInTheDocument()
+    expect(within(row).getByText("Password change due")).toBeInTheDocument()
+    expect(within(row).getByText("Never")).toBeInTheDocument()
+    expect(document.title).toBe("Users · Nurse roster")
+  })
+
+  it("offers no nurse and no second System Admin to create", async () => {
+    start("/users", page([]))
+
+    const options = within(await screen.findByLabelText("Role")).getAllByRole("option").map((option) => option.textContent)
+    expect(options).toEqual(["Choose a role", "CNO", "Deputy CNO", "Unit Manager"])
+    expect(screen.getByText(/There are no users yet/)).toBeInTheDocument()
+  })
+
+  it("a role already held cannot be chosen, and says who holds it", async () => {
+    start("/users", page([CNO, MANAGER]))
+
+    const select = await screen.findByLabelText("Role")
+    expect(within(select).getByRole("option", { name: "CNO (fatimah holds this role)" })).toBeDisabled()
+    expect(within(select).getByRole("option", { name: "Unit Manager" })).toBeEnabled()
+  })
+
+  async function fillNewUser(user: ReturnType<typeof userEvent.setup>, role = "cno") {
+    await user.selectOptions(await screen.findByLabelText("Role"), role)
+    await user.type(screen.getByLabelText("Full name"), "Fatimah Al-Otaibi")
+    await user.type(screen.getByLabelText("Username"), "fatimah")
+    await user.click(screen.getByRole("button", { name: "Create user" }))
+  }
+
+  it("creates a user and shows the password until Done, and then never again", async () => {
+    let users: unknown[] = []
+    const { user, calls, router } = start("/users", admin({
+      "GET /api/users": () => ({ body: users }),
+      "POST /api/users": () => {
+        users = [CNO]
+        return { status: 201, body: { user: { ...CNO, must_change_password: true }, generated_password: "abcd-efgh-jkmn-pqrs" } }
+      },
+    }))
+
+    await fillNewUser(user)
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Password for fatimah" })
+    expect(within(dialog).getByLabelText("Generated password")).toHaveValue("abcd-efgh-jkmn-pqrs")
+    expect(within(dialog).getByText(/only time it is shown/)).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")!.body).toEqual({ role: "cno", full_name: "Fatimah Al-Otaibi", username: "fatimah" })
+
+    await user.keyboard("{Escape}")
+    expect(screen.getByRole("alertdialog", { name: "Password for fatimah" })).toBeInTheDocument()
+    // A blocked navigation never settles, so this one cannot be awaited.
+    act(() => void router.navigate({ to: "/health" }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(router.state.location.pathname).toBe("/users")
+
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(screen.queryByDisplayValue("abcd-efgh-jkmn-pqrs")).not.toBeInTheDocument()
+    expect(await screen.findByRole("cell", { name: "fatimah" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Username")).toHaveValue("")
+  })
+
+  it("says the password was copied", async () => {
+    const writeText = vi.fn(async () => {})
+    const { user } = start("/users", page([], {
+      "POST /api/users": { status: 201, body: { user: CNO, generated_password: "abcd-efgh-jkmn-pqrs" } },
+    }))
+    await fillNewUser(user)
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+
+    await user.click(await screen.findByRole("button", { name: "Copy password" }))
+
+    expect(await screen.findByText("Copied.")).toBeInTheDocument()
+    expect(writeText).toHaveBeenCalledWith("abcd-efgh-jkmn-pqrs")
+  })
+
+  it("checks the form before asking the server", async () => {
+    const { user, calls } = start("/users", page([]))
+
+    await user.click(await screen.findByRole("button", { name: "Create user" }))
+
+    expect(await screen.findByText("Choose a role.")).toBeInTheDocument()
+    expect(screen.getByText("Enter their full name.")).toBeInTheDocument()
+    expect(screen.getByText("Enter a username.")).toBeInTheDocument()
+    await user.type(screen.getByLabelText("Username"), "has space")
+    expect(await screen.findByText(/only letters, digits/)).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+  })
+
+  it("shows a second CNO's refusal on the role, focused", async () => {
+    const { user } = start("/users", page([], {
+      "POST /api/users": { status: 409, body: { role: ["fatimah is already the CNO. Deactivate that user first."], username: [] } },
+    }))
+
+    await fillNewUser(user)
+
+    expect(await screen.findByText(/fatimah is already the CNO/)).toBeInTheDocument()
+    expect(screen.getByLabelText("Role")).toHaveFocus()
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  })
+
+  it("shows a taken username on the username, focused", async () => {
+    const { user } = start("/users", page([], {
+      "POST /api/users": { status: 409, body: { role: [], username: ["This username is taken."] } },
+    }))
+
+    await fillNewUser(user)
+
+    expect(await screen.findByText("This username is taken.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Username")).toHaveFocus()
+  })
+
+  it("deactivates after asking, and Cancel does nothing", async () => {
+    let users = [CNO]
+    const url = `/api/users/${CNO.id}/deactivate`
+    const { user, calls } = start("/users", admin({
+      "GET /api/users": () => ({ body: users }),
+      [`POST ${url}`]: () => {
+        users = [{ ...CNO, is_active: false }]
+        return { body: users[0] }
+      },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Deactivate fatimah" }))
+    expect(screen.getByRole("alertdialog", { name: "Deactivate fatimah?" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+
+    await user.click(screen.getByRole("button", { name: "Deactivate fatimah" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Deactivate" }))
+
+    expect(await screen.findByRole("button", { name: "Reactivate fatimah" })).toBeInTheDocument()
+    expect(screen.getByRole("status")).toHaveTextContent("fatimah is deactivated.")
+  })
+
+  it("a refused reactivation says why and stays open", async () => {
+    const { user } = start("/users", page([{ ...CNO, is_active: false }], {
+      [`POST /api/users/${CNO.id}/reactivate`]: { status: 409, body: { detail: "successor is already the CNO. Deactivate that user first." } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Reactivate fatimah" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Reactivate" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("successor is already the CNO")
+    expect(screen.getByRole("alertdialog", { name: "Reactivate fatimah?" })).toBeInTheDocument()
+  })
+
+  it("a reset shows the new password once", async () => {
+    const { user } = start("/users", page([CNO], {
+      [`POST /api/users/${CNO.id}/reset-password`]: { body: { user: CNO, generated_password: "wxyz-wxyz-wxyz-wxyz" } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Reset password of fatimah" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Reset password" }))
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Password for fatimah" })
+    expect(within(dialog).getByLabelText("Generated password")).toHaveValue("wxyz-wxyz-wxyz-wxyz")
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    await waitFor(() => expect(screen.queryByDisplayValue("wxyz-wxyz-wxyz-wxyz")).not.toBeInTheDocument())
+  })
+})
+
+describe("the audit log page", () => {
+  const ENTRY = {
+    id: 7, at: "2026-11-06T00:30:15+03:00", actor: "admin", action: "user.deactivated", target: "fatimah",
+    before: { is_active: true }, after: { is_active: false }, ip: "10.1.2.3",
+  }
+  const OPTIONS = { "GET /api/audit/filter-options": { body: { actions: ["auth.login", "user.deactivated", "later.action"], users: ["admin", "fatimah"] } } }
+  function auditStart(path: string, answer: (params: URLSearchParams) => Answer) {
+    return start(path, admin({
+      ...OPTIONS,
+      "GET /api/audit/entries": ({ url }: { url: string }) => answer(new URL(url, "http://x").searchParams),
+    }))
+  }
+
+  it("shows each entry in hospital time, with what changed", async () => {
+    auditStart("/audit-log", () => ({ body: { entries: [ENTRY, { ...ENTRY, id: 6, actor: null, action: "auth.login_failed", target: "nobody", before: null, after: null, ip: null }, { ...ENTRY, id: 5, actor: null, action: "later.action" }], older_than: null } }))
+
+    const row = (await screen.findAllByText("2026-11-06 00:30:15"))[0].closest("tr")!
+    expect(within(row).getByText("admin")).toBeInTheDocument()
+    expect(within(row).getByText("Deactivated user")).toBeInTheDocument()
+    expect(within(row).getByText("fatimah")).toBeInTheDocument()
+    expect(within(row).getByText("is_active: true → false")).toBeInTheDocument()
+    expect(within(row).getByText("10.1.2.3")).toBeInTheDocument()
+    expect(screen.getByText("Unknown")).toBeInTheDocument()
+    expect(screen.getByText("System")).toBeInTheDocument()
+    expect(document.title).toBe("Audit log · Nurse roster")
+  })
+
+  it("applies the filters to the address and the request, and clears them", async () => {
+    const seen: string[] = []
+    const { user, router } = auditStart("/audit-log", (params) => {
+      seen.push(params.toString())
+      return { body: { entries: [ENTRY], older_than: null } }
+    })
+
+    await user.type(await screen.findByLabelText("User"), "fatimah")
+    await waitFor(() => expect(within(screen.getByLabelText("Action")).getByRole("option", { name: "Logged in" })).toBeInTheDocument())
+    await user.selectOptions(screen.getByLabelText("Action"), "auth.login")
+    await user.type(screen.getByLabelText("From"), "2026-11-01")
+    await user.type(screen.getByLabelText("To"), "2026-11-05")
+    await user.click(screen.getByRole("button", { name: "Apply filters" }))
+
+    await waitFor(() => expect(seen.at(-1)).toBe("user=fatimah&action=auth.login&date_from=2026-11-01&date_to=2026-11-05"))
+    expect(router.state.location.search).toEqual({ user: "fatimah", action: "auth.login", date_from: "2026-11-01", date_to: "2026-11-05" })
+
+    await user.click(screen.getByRole("link", { name: "Clear filters" }))
+
+    await waitFor(() => expect(seen.at(-1)).toBe(""))
+    expect(screen.getByLabelText("User")).toHaveValue("")
+  })
+
+  it("the form follows the address, including a username of digits", async () => {
+    const seen: string[] = []
+    auditStart("/audit-log?user=12345&action=auth.login", (params) => {
+      seen.push(params.toString())
+      return { body: { entries: [], older_than: null } }
+    })
+
+    expect(await screen.findByText(/No entries match/)).toBeInTheDocument()
+    expect(screen.getByLabelText("User")).toHaveValue("12345")
+    expect(screen.getByLabelText("Action")).toHaveValue("auth.login")
+    expect(seen.at(-1)).toBe("user=12345&action=auth.login")
+  })
+
+  it("drops a date that is not one from the address", async () => {
+    const seen: string[] = []
+    auditStart("/audit-log?date_from=nonsense&date_to=2026-11-05", (params) => {
+      seen.push(params.toString())
+      return { body: { entries: [], older_than: null } }
+    })
+
+    await screen.findByText(/No entries match/)
+    expect(seen.at(-1)).toBe("date_to=2026-11-05")
+  })
+
+  it("the table can be scrolled from the keyboard", async () => {
+    auditStart("/audit-log", () => ({ body: { entries: [ENTRY], older_than: null } }))
+
+    expect(await screen.findByRole("region", { name: "Audit entries" })).toHaveAttribute("tabindex", "0")
+  })
+
+  it("refuses an end date before the start date", async () => {
+    const seen: string[] = []
+    const { user } = auditStart("/audit-log", (params) => {
+      seen.push(params.toString())
+      return { body: { entries: [], older_than: null } }
+    })
+
+    await user.type(await screen.findByLabelText("From"), "2026-11-05")
+    await user.type(screen.getByLabelText("To"), "2026-11-01")
+    await user.click(screen.getByRole("button", { name: "Apply filters" }))
+
+    expect(await screen.findByText("This is before the start date.")).toBeInTheDocument()
+    expect(seen.every((params) => params === "")).toBe(true)
+  })
+
+  it("walks to older entries keeping the filters, and back to the newest", async () => {
+    const seen: string[] = []
+    const { user } = auditStart("/audit-log?action=auth.login", (params) => {
+      seen.push(params.toString())
+      return params.get("older_than")
+        ? { body: { entries: [{ ...ENTRY, id: 3, target: "older-one" }], older_than: null } }
+        : { body: { entries: [ENTRY], older_than: 7 } }
+    })
+
+    await user.click(await screen.findByRole("link", { name: "Older entries" }))
+
+    expect(await screen.findByText("older-one")).toBeInTheDocument()
+    expect(seen.at(-1)).toBe("action=auth.login&older_than=7")
+    expect(screen.queryByRole("link", { name: "Older entries" })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Entries" })).toHaveFocus())
+
+    await user.click(screen.getByRole("link", { name: "Newest entries" }))
+
+    await waitFor(() => expect(seen.at(-1)).toBe("action=auth.login"))
   })
 })

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -19,11 +19,10 @@ import { FormField } from "@/components/form-field"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
+import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/settings")({
-  beforeLoad: ({ context }) => {
-    if (context.user.role !== Role.system_admin) throw redirect({ to: "/" })
-  },
+  beforeLoad: onlyFor(Role.system_admin),
   staticData: { title: "Technical settings" },
   component: SettingsPage,
 })
@@ -91,7 +90,7 @@ function SettingsPage() {
   const settings = useGetTechnicalSettings()
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <h1 className="text-xl font-medium">Technical settings</h1>
       {settings.isPending && <p>Loading…</p>}
       {settings.isError && <p role="alert">The settings could not be read. Reload the page to try again.</p>}

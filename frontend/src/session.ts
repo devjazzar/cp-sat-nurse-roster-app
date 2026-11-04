@@ -1,8 +1,8 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
+import { redirect, useNavigate } from "@tanstack/react-router"
 
 import { getGetSessionQueryKey, getGetSessionQueryOptions, useLogout } from "@/api/generated/endpoints"
-import type { Me, SessionState } from "@/api/generated/model"
+import type { Me, Role, SessionState } from "@/api/generated/model"
 
 /** Who is signed in. The answer is cached until login, logout, a password change or a 401 changes
  *  it, so a route guard costs no request. Nothing here polls: see SESSION_SAVE_EVERY_REQUEST. */
@@ -17,6 +17,14 @@ export function setCurrentUser(queryClient: QueryClient, user: Me | null) {
 
 export function cachedUser(queryClient: QueryClient): Me | null {
   return queryClient.getQueryData<SessionState>(getGetSessionQueryKey())?.user ?? null
+}
+
+/** A route's `beforeLoad` for a page only these roles may see. It mirrors what the API enforces, so
+ *  someone who follows an old link lands on their home instead of on a page of refusals. */
+export function onlyFor(...roles: Role[]) {
+  return ({ context }: { context: { user: Me } }) => {
+    if (!roles.includes(context.user.role)) throw redirect({ to: "/" })
+  }
 }
 
 export function useSignOut() {

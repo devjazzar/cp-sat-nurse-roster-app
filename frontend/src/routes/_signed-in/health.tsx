@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import type { ReactNode } from "react"
 
 import { useGetInstallationHealth } from "@/api/generated/endpoints"
@@ -6,11 +6,10 @@ import { Role } from "@/api/generated/model"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/health")({
-  beforeLoad: ({ context }) => {
-    if (context.user.role !== Role.system_admin) throw redirect({ to: "/" })
-  },
+  beforeLoad: onlyFor(Role.system_admin),
   staticData: { title: "Health" },
   component: HealthPage,
 })
@@ -40,7 +39,7 @@ function HealthPage() {
   const health = useGetInstallationHealth()
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-medium">Health</h1>
         <Button variant="outline" size="sm" onClick={() => health.refetch()} disabled={health.isFetching}>Refresh</Button>

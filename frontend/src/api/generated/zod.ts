@@ -154,3 +154,147 @@ export const ChangePasswordResponse = zod.object({
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "must_change_password": zod.boolean()
 })
+
+
+/**
+ * @summary List Users
+ */
+export const ListUsersResponseItem = zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+})
+export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+/**
+ * @summary New User
+ */
+export const createUserBodyUsernameMax = 150;
+
+
+export const createUserBodyUsernameRegExp = new RegExp('^[A-Za-z0-9._-]+$');
+export const createUserBodyFullNameMax = 200;
+
+
+
+export const CreateUserBody = zod.object({
+  "username": zod.string().min(1).max(createUserBodyUsernameMax).regex(createUserBodyUsernameRegExp),
+  "full_name": zod.string().min(1).max(createUserBodyFullNameMax),
+  "role": zod.enum(['cno', 'deputy_cno', 'unit_manager'])
+})
+
+export const CreateUserResponse = zod.object({
+  "user": zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+}),
+  "generated_password": zod.string()
+}).describe('The only answers that ever hold a password. They ask not to be stored.')
+
+
+/**
+ * @summary Deactivate User
+ */
+export const DeactivateUserParams = zod.object({
+  "user_id": zod.uuid()
+})
+
+export const DeactivateUserResponse = zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+})
+
+
+/**
+ * @summary Reactivate User
+ */
+export const ReactivateUserParams = zod.object({
+  "user_id": zod.uuid()
+})
+
+export const ReactivateUserResponse = zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+})
+
+
+/**
+ * @summary Reset User Password
+ */
+export const ResetUserPasswordParams = zod.object({
+  "user_id": zod.uuid()
+})
+
+export const ResetUserPasswordResponse = zod.object({
+  "user": zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+}),
+  "generated_password": zod.string()
+}).describe('The only answers that ever hold a password. They ask not to be stored.')
+
+
+/**
+ * @summary Entries
+ */
+export const listAuditEntriesQueryLimitDefault = 50;
+export const listAuditEntriesQueryLimitMax = 200;
+
+
+
+export const ListAuditEntriesQueryParams = zod.object({
+  "user": zod.union([zod.string(),zod.null()]).optional().describe('A username, any case: what they did and what was done to them.'),
+  "action": zod.union([zod.string(),zod.null()]).optional(),
+  "date_from": zod.union([zod.iso.date(),zod.null()]).optional(),
+  "date_to": zod.union([zod.iso.date(),zod.null()]).optional(),
+  "older_than": zod.union([zod.int(),zod.null()]).optional(),
+  "limit": zod.int().min(1).max(listAuditEntriesQueryLimitMax).default(listAuditEntriesQueryLimitDefault)
+})
+
+export const ListAuditEntriesResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.int(),
+  "at": zod.iso.datetime({"offset":true}).describe('In the hospital\'s time zone, which the date filters also use.'),
+  "actor": zod.union([zod.string(),zod.null()]).describe('Empty for the system, and for a failed login with an unknown username.'),
+  "action": zod.string(),
+  "target": zod.string(),
+  "before": zod.union([zod.record(zod.string(), zod.unknown()),zod.null()]),
+  "after": zod.union([zod.record(zod.string(), zod.unknown()),zod.null()]),
+  "ip": zod.union([zod.string(),zod.null()])
+})),
+  "older_than": zod.union([zod.int(),zod.null()]).describe('Pass as `older_than` for the next page. Empty on the last page.')
+})
+
+
+/**
+ * @summary Filter Options
+ */
+export const GetAuditFilterOptionsResponse = zod.object({
+  "actions": zod.array(zod.string()),
+  "users": zod.array(zod.string())
+})

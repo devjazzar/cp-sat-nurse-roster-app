@@ -3,6 +3,7 @@ import type { FieldError as HookFormError, UseFormRegisterReturn } from "react-h
 
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { NativeSelect } from "@/components/ui/native-select"
 
 type FormFieldProps = {
   label: string
@@ -25,6 +26,28 @@ export function FormField({ label, description, registration, error, ...input }:
         {...input} {...registration} />
       {description && <FieldDescription id={descriptionId}>{description}</FieldDescription>}
       {/* Tied to its input and read when the input takes focus, so not an alert of its own. */}
+      <FieldError id={errorId} role={undefined} errors={error ? [error] : undefined} />
+    </Field>
+  )
+}
+
+type SelectFieldProps = {
+  label: string
+  registration: UseFormRegisterReturn
+  error?: HookFormError
+  children: ReactNode
+}
+
+/** The same for a native select, which is what a phone handles best. */
+export function SelectField({ label, registration, error, children }: SelectFieldProps) {
+  const id = `field-${registration.name}`
+  const errorId = error ? `${id}-error` : undefined
+  return (
+    <Field data-invalid={!!error || undefined}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <NativeSelect id={id} aria-invalid={!!error || undefined} aria-describedby={errorId} {...registration}>
+        {children}
+      </NativeSelect>
       <FieldError id={errorId} role={undefined} errors={error ? [error] : undefined} />
     </Field>
   )
