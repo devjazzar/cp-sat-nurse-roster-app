@@ -18,3 +18,4 @@ class AuditEntry(models.Model):
 
     class Meta:
         ordering = ["-id"]
+        indexes = [models.Index(fields=["action", "-id"], name="audit_action_newest_first")]

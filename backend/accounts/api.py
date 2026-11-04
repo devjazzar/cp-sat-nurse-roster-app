@@ -1,22 +1,31 @@
 from datetime import datetime
+from typing import Annotated, Literal
+from uuid import UUID
 
 from django.contrib.auth import logout, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.http import HttpRequest
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.http import HttpRequest, HttpResponse
 from django.middleware.csrf import get_token
 from ninja import Router, Schema, Status
 from ninja.errors import HttpError
 from ninja.utils import check_csrf
-from pydantic import Field, field_validator
+from pydantic import Field, StringConstraints, field_validator
 
 from accounts.authz import SignedIn
 from accounts.login import LoginRefused, attempt_login
 from accounts.models import Role, User
+from accounts.provisioning import RoleTaken, UsernameTaken, create_user, deactivate, reactivate, reset_password
 from audit.log import record
 
 router = Router(tags=["auth"])
+users_router = Router(tags=["users"], auth=SignedIn(Role.SYSTEM_ADMIN))
+
+# The System Admin's users are these three: never a nurse, and never their own account.
+MANAGED_ROLES = (Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER)
 
 
 class Me(Schema):
@@ -58,14 +67,14 @@ class ChangePasswordRefusal(Schema):
     new_password: list[str] = []
 
 
-@router.get("/session", response=SessionState, operation_id="getSession")
+@router.get("/session", response=SessionState, auth=None, operation_id="getSession")
 def session(request: HttpRequest) -> SessionState:
     """Who is signed in, if anyone. The SPA calls this first: it also sets the CSRF cookie."""
     get_token(request)
     return SessionState(user=request.user if request.user.is_authenticated else None)
 
 
-@router.post("/login", response={200: Me, 401: LoginRefusal, 423: LoginRefusal}, operation_id="login")
+@router.post("/login", response={200: Me, 401: LoginRefusal, 423: LoginRefusal}, auth=None, operation_id="login")
 def login(request: HttpRequest, body: LoginBody):
     # Ninja exempts its views from Django's middleware and checks CSRF in the session auth, which
     # this one endpoint cannot have.
@@ -107,3 +116,93 @@ def change_password(request: HttpRequest, body: ChangePasswordBody):
         record("auth.password_changed", actor=user, target=user.username, after={"forced": forced}, request=request)
     update_session_auth_hash(request, user)  # this session stays; any other one of theirs ends
     return Status(200, user)
+
+
+class ManagedUser(Schema):
+    id: UUID
+    username: str
+    full_name: str
+    role: Role
+    is_active: bool
+    must_change_password: bool
+    last_login: datetime | None = Field(description="In the hospital's time zone.")
+
+    @staticmethod
+    def resolve_last_login(user: User) -> datetime | None:
+        return timezone.localtime(user.last_login) if user.last_login else None
+
+
+class NewUserBody(Schema):
+    username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=150,
+                                               pattern=r"^[A-Za-z0-9._-]+$")]
+    full_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    role: Literal[Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER]
+
+    @field_validator("full_name")
+    @classmethod
+    def no_nul(cls, value: str) -> str:
+        if "\x00" in value:
+            raise ValueError("not a possible name")
+        return value
+
+
+class NewUserRefusal(Schema):
+    username: list[str] = []
+    role: list[str] = []
+
+
+class UserWithPassword(Schema):
+    """The only answers that ever hold a password. They ask not to be stored."""
+    user: ManagedUser
+    generated_password: str
+
+
+class ReactivateRefusal(Schema):
+    detail: str
+
+
+def _role_taken(refused: RoleTaken) -> str:
+    return (f"{refused.holder.username} is already the {Role(refused.holder.role).label}. "
+            "Deactivate that user first.")
+
+
+def _managed_or_404(user_id: UUID) -> User:
+    return get_object_or_404(User, pk=user_id, role__in=MANAGED_ROLES)
+
+
+@users_router.get("", response=list[ManagedUser], operation_id="listUsers")
+def list_users(request: HttpRequest):
+    return User.objects.filter(role__in=MANAGED_ROLES).order_by("username")
+
+
+@users_router.post("", response={201: UserWithPassword, 409: NewUserRefusal}, operation_id="createUser")
+def new_user(request: HttpRequest, response: HttpResponse, body: NewUserBody):
+    try:
+        user, password = create_user(request, username=body.username, full_name=body.full_name, role=body.role)
+    except UsernameTaken:
+        return Status(409, NewUserRefusal(username=["This username is taken."]))
+    except RoleTaken as refused:
+        return Status(409, NewUserRefusal(role=[_role_taken(refused)]))
+    response["Cache-Control"] = "no-store"
+    return Status(201, UserWithPassword(user=user, generated_password=password))
+
+
+@users_router.post("/{user_id}/deactivate", response=ManagedUser, operation_id="deactivateUser")
+def deactivate_user(request: HttpRequest, user_id: UUID):
+    return deactivate(request, _managed_or_404(user_id).pk)
+
+
+@users_router.post("/{user_id}/reactivate", response={200: ManagedUser, 409: ReactivateRefusal},
+                   operation_id="reactivateUser")
+def reactivate_user(request: HttpRequest, user_id: UUID):
+    try:
+        return Status(200, reactivate(request, _managed_or_404(user_id).pk))
+    except RoleTaken as refused:
+        return Status(409, ReactivateRefusal(detail=_role_taken(refused)))
+
+
+@users_router.post("/{user_id}/reset-password", response=UserWithPassword, operation_id="resetUserPassword")
+def reset_user_password(request: HttpRequest, response: HttpResponse, user_id: UUID):
+    user, password = reset_password(request, _managed_or_404(user_id).pk)
+    response["Cache-Control"] = "no-store"
+    return UserWithPassword(user=user, generated_password=password)

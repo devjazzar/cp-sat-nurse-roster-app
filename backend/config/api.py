@@ -1,10 +1,18 @@
 """The JSON API. The OpenAPI document is not served: `manage.py export_openapi_schema` writes
-it for the frontend's generated client (see frontend/orval.config.ts)."""
+it for the frontend's generated client (see frontend/orval.config.ts).
+
+Every endpoint is signed-in unless it says `auth=None`, and names its roles with
+`accounts.authz.SignedIn`. accounts/tests/test_authorization.py walks every endpoint to hold this."""
 from ninja import NinjaAPI
 
 from accounts.api import router as accounts_router
+from accounts.api import users_router
+from accounts.authz import SignedIn
+from audit.api import router as audit_router
 from ops.api import router as ops_router
 
-api = NinjaAPI(title="Nurse roster", version="1", openapi_url=None, docs_url=None)
+api = NinjaAPI(title="Nurse roster", version="1", openapi_url=None, docs_url=None, auth=SignedIn())
 api.add_router("", ops_router)
 api.add_router("/auth", accounts_router)
+api.add_router("/users", users_router)
+api.add_router("/audit", audit_router)

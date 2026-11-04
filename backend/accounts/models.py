@@ -1,6 +1,10 @@
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.db import models
-from django.db.models.functions import UUID7
+from django.db.models.functions import UUID7, Lower
+
+# A role only one active user may hold. A deactivated CNO does not block their successor, and
+# nothing is ever deleted, so the old account stays for the audit log.
+ONE_OF_A_KIND_CONSTRAINTS = ("accounts_one_active_cno", "accounts_one_active_deputy_cno")
 
 
 class Role(models.TextChoices):
@@ -35,6 +39,12 @@ class User(AbstractBaseUser):
         constraints = [
             models.UniqueConstraint(fields=["role"], condition=models.Q(role=Role.SYSTEM_ADMIN),
                                     name="accounts_one_system_admin"),
+            models.UniqueConstraint(fields=["role"], condition=models.Q(role=Role.CNO, is_active=True),
+                                    name="accounts_one_active_cno"),
+            models.UniqueConstraint(fields=["role"], condition=models.Q(role=Role.DEPUTY_CNO, is_active=True),
+                                    name="accounts_one_active_deputy_cno"),
+            # "Fatimah" and "fatimah" as two people would make the audit log lie.
+            models.UniqueConstraint(Lower("username"), name="accounts_username_any_case"),
         ]
 
 
