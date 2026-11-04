@@ -29,6 +29,8 @@ import type {
   ChangePasswordBody,
   ChangePasswordRefusal,
   Health,
+  HospitalRules,
+  HospitalRulesState,
   InstallationHealth,
   ListAuditEntriesParams,
   LoginBody,
@@ -1420,3 +1422,199 @@ export function useGetAuditFilterOptions<TData = Awaited<ReturnType<typeof getAu
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
+export const getGetHospitalRulesUrl = () => {
+
+
+
+
+  return `/api/hospital/rules`
+}
+
+/**
+ * @summary Get Rules
+ */
+export const getHospitalRules = async ( options?: Parameters<typeof apiFetch>[1]): Promise<HospitalRulesState> => {
+
+  return apiFetch<HospitalRulesState>(getGetHospitalRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHospitalRulesQueryKey = () => {
+    return [
+    `/api/hospital/rules`
+    ] as const;
+    }
+
+
+export const getGetHospitalRulesQueryOptions = <TData = Awaited<ReturnType<typeof getHospitalRules>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalRules>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHospitalRulesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHospitalRules>>> = ({ signal }) => getHospitalRules({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHospitalRules>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHospitalRulesQueryResult = NonNullable<Awaited<ReturnType<typeof getHospitalRules>>>
+export type GetHospitalRulesQueryError = unknown
+
+
+export function useGetHospitalRules<TData = Awaited<ReturnType<typeof getHospitalRules>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalRules>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHospitalRules>>,
+          TError,
+          Awaited<ReturnType<typeof getHospitalRules>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHospitalRules<TData = Awaited<ReturnType<typeof getHospitalRules>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalRules>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHospitalRules>>,
+          TError,
+          Awaited<ReturnType<typeof getHospitalRules>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHospitalRules<TData = Awaited<ReturnType<typeof getHospitalRules>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalRules>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Rules
+ */
+
+export function useGetHospitalRules<TData = Awaited<ReturnType<typeof getHospitalRules>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalRules>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetHospitalRulesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateHospitalRulesUrl = () => {
+
+
+
+
+  return `/api/hospital/rules`
+}
+
+/**
+ * Saving is the review: it clears the flag even when nothing else changed.
+ * @summary Update Rules
+ */
+export const updateHospitalRules = async (hospitalRules: HospitalRules, options?: Parameters<typeof apiFetch>[1]): Promise<HospitalRulesState> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<HospitalRulesState>(getUpdateHospitalRulesUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(hospitalRules)
+  }
+);}
+
+
+
+
+
+export const getUpdateHospitalRulesMutationKey = () => ['updateHospitalRules'] as const;
+
+export const getUpdateHospitalRulesMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateHospitalRules>>, TError,UpdateHospitalRulesMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateHospitalRules>>, TError,UpdateHospitalRulesMutationVariables, TContext> => {
+
+const mutationKey = getUpdateHospitalRulesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateHospitalRules>>, UpdateHospitalRulesMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateHospitalRules(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateHospitalRulesMutationResult = NonNullable<Awaited<ReturnType<typeof updateHospitalRules>>>
+    export type UpdateHospitalRulesMutationBody = HospitalRules
+    export type UpdateHospitalRulesMutationError = unknown
+    export type UpdateHospitalRulesMutationVariables = {data: HospitalRules}
+
+    /**
+ * @summary Update Rules
+ */
+export const useUpdateHospitalRules = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateHospitalRules>>, TError,UpdateHospitalRulesMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateHospitalRules>>,
+        TError,
+        UpdateHospitalRulesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateHospitalRulesMutationOptions(options), queryClient);
+    }

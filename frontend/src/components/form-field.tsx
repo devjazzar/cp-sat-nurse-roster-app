@@ -1,9 +1,10 @@
 import type { ComponentProps, ReactNode } from "react"
 import type { FieldError as HookFormError, UseFormRegisterReturn } from "react-hook-form"
 
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
+import { cn } from "@/lib/utils"
 
 type FormFieldProps = {
   label: string
@@ -49,6 +50,29 @@ export function SelectField({ label, registration, error, children }: SelectFiel
         {children}
       </NativeSelect>
       <FieldError id={errorId} role={undefined} errors={error ? [error] : undefined} />
+    </Field>
+  )
+}
+
+export const CHECKBOX = "size-4 shrink-0 accent-primary outline-none focus-visible:ring-3 focus-visible:ring-ring"
+
+type CheckboxFieldProps = {
+  label: string
+  description?: ReactNode
+  registration: UseFormRegisterReturn
+}
+
+/** A switch for a rule. Native, so a phone and a screen reader get what they already know. */
+export function CheckboxField({ label, description, registration }: CheckboxFieldProps) {
+  const id = `field-${registration.name}`
+  const descriptionId = description ? `${id}-description` : undefined
+  return (
+    <Field orientation="horizontal">
+      <input id={id} type="checkbox" aria-describedby={descriptionId} className={cn(CHECKBOX, "mt-0.5")} {...registration} />
+      <FieldContent>
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        {description && <FieldDescription id={descriptionId}>{description}</FieldDescription>}
+      </FieldContent>
     </Field>
   )
 }

@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInAuditLogRouteImport } from './routes/_signed-in/audit-log'
 import { Route as SignedInHealthRouteImport } from './routes/_signed-in/health'
+import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/hospital-rules'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
 
@@ -47,6 +48,11 @@ const SignedInHealthRoute = SignedInHealthRouteImport.update({
   path: '/health',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInHospitalRulesRoute = SignedInHospitalRulesRouteImport.update({
+  id: '/hospital-rules',
+  path: '/hospital-rules',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInSettingsRoute = SignedInSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/audit-log': typeof SignedInAuditLogRoute
   '/health': typeof SignedInHealthRoute
+  '/hospital-rules': typeof SignedInHospitalRulesRoute
   '/settings': typeof SignedInSettingsRoute
   '/users': typeof SignedInUsersRoute
 }
@@ -72,6 +79,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audit-log': typeof SignedInAuditLogRoute
   '/health': typeof SignedInHealthRoute
+  '/hospital-rules': typeof SignedInHospitalRulesRoute
   '/settings': typeof SignedInSettingsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_signed-in/audit-log': typeof SignedInAuditLogRoute
   '/_signed-in/health': typeof SignedInHealthRoute
+  '/_signed-in/hospital-rules': typeof SignedInHospitalRulesRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit-log'
     | '/health'
+    | '/hospital-rules'
     | '/settings'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
@@ -103,6 +113,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit-log'
     | '/health'
+    | '/hospital-rules'
     | '/settings'
     | '/users'
     | '/'
@@ -113,6 +124,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_signed-in/audit-log'
     | '/_signed-in/health'
+    | '/_signed-in/hospital-rules'
     | '/_signed-in/settings'
     | '/_signed-in/users'
     | '/_signed-in/'
@@ -168,6 +180,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInHealthRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/hospital-rules': {
+      id: '/_signed-in/hospital-rules'
+      path: '/hospital-rules'
+      fullPath: '/hospital-rules'
+      preLoaderRoute: typeof SignedInHospitalRulesRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/settings': {
       id: '/_signed-in/settings'
       path: '/settings'
@@ -188,6 +207,7 @@ declare module '@tanstack/react-router' {
 interface SignedInRouteChildren {
   SignedInAuditLogRoute: typeof SignedInAuditLogRoute
   SignedInHealthRoute: typeof SignedInHealthRoute
+  SignedInHospitalRulesRoute: typeof SignedInHospitalRulesRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
@@ -196,6 +216,7 @@ interface SignedInRouteChildren {
 const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInAuditLogRoute: SignedInAuditLogRoute,
   SignedInHealthRoute: SignedInHealthRoute,
+  SignedInHospitalRulesRoute: SignedInHospitalRulesRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,

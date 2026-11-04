@@ -598,6 +598,69 @@
           }
         ]
       }
+    },
+    "/api/hospital/rules": {
+      "get": {
+        "operationId": "getHospitalRules",
+        "summary": "Get Rules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HospitalRulesState"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateHospitalRules",
+        "summary": "Update Rules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HospitalRulesState"
+                }
+              }
+            }
+          }
+        },
+        "description": "Saving is the review: it clears the flag even when nothing else changed.",
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HospitalRules"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1280,6 +1343,242 @@
           "users"
         ],
         "title": "AuditFilterOptions",
+        "type": "object"
+      },
+      "HospitalRules": {
+        "additionalProperties": false,
+        "properties": {
+          "hours_per_day": {
+            "maximum": 24,
+            "minimum": 0,
+            "title": "Hours Per Day",
+            "type": "integer"
+          },
+          "ramadan_hours_per_day": {
+            "maximum": 24,
+            "minimum": 0,
+            "title": "Ramadan Hours Per Day",
+            "type": "integer"
+          },
+          "breastfeeding_reduction": {
+            "maximum": 24,
+            "minimum": 0,
+            "title": "Breastfeeding Reduction",
+            "type": "integer"
+          },
+          "weekend_weekdays": {
+            "description": "0 is Monday and 6 is Sunday.",
+            "items": {
+              "maximum": 6,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "title": "Weekend Weekdays",
+            "type": "array"
+          },
+          "forbidden_successions": {
+            "description": "Pairs of shift codes: the shift today, and the shift that may not follow it tomorrow.",
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "title": "Forbidden Successions",
+            "type": "array"
+          },
+          "forbidden_successions_enabled": {
+            "title": "Forbidden Successions Enabled",
+            "type": "boolean"
+          },
+          "hours_rule_enabled": {
+            "title": "Hours Rule Enabled",
+            "type": "boolean"
+          },
+          "overtime_caps_enabled": {
+            "title": "Overtime Caps Enabled",
+            "type": "boolean"
+          },
+          "overtime_month_cap": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Overtime Month Cap",
+            "type": "integer"
+          },
+          "overtime_year_cap": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Overtime Year Cap",
+            "type": "integer"
+          },
+          "dept_overtime_cap": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Dept Overtime Cap",
+            "type": "integer"
+          },
+          "weights": {
+            "$ref": "#/components/schemas/Weights"
+          }
+        },
+        "required": [
+          "hours_per_day",
+          "ramadan_hours_per_day",
+          "breastfeeding_reduction",
+          "weekend_weekdays",
+          "forbidden_successions",
+          "forbidden_successions_enabled",
+          "hours_rule_enabled",
+          "overtime_caps_enabled",
+          "overtime_month_cap",
+          "overtime_year_cap",
+          "dept_overtime_cap",
+          "weights"
+        ],
+        "title": "HospitalRules",
+        "type": "object"
+      },
+      "HospitalRulesState": {
+        "properties": {
+          "rules": {
+            "$ref": "#/components/schemas/HospitalRules"
+          },
+          "needs_review": {
+            "description": "Still the seeded defaults: nobody has saved them yet.",
+            "title": "Needs Review",
+            "type": "boolean"
+          },
+          "shift_codes": {
+            "description": "What a forbidden succession may name.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Shift Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules",
+          "needs_review",
+          "shift_codes"
+        ],
+        "title": "HospitalRulesState",
+        "type": "object"
+      },
+      "Weights": {
+        "additionalProperties": false,
+        "properties": {
+          "night_rest": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Night Rest",
+            "type": "integer"
+          },
+          "dept_overtime": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Dept Overtime",
+            "type": "integer"
+          },
+          "nurse_overtime": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Nurse Overtime",
+            "type": "integer"
+          },
+          "nurse_shortfall": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Nurse Shortfall",
+            "type": "integer"
+          },
+          "avoidable_shortfall": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Avoidable Shortfall",
+            "type": "integer"
+          },
+          "fair_day": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Fair Day",
+            "type": "integer"
+          },
+          "fair_night": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Fair Night",
+            "type": "integer"
+          },
+          "fair_weekend": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Fair Weekend",
+            "type": "integer"
+          },
+          "score_deficit": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Score Deficit",
+            "type": "integer"
+          },
+          "score_spread": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Score Spread",
+            "type": "integer"
+          },
+          "excess_weekend": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Excess Weekend",
+            "type": "integer"
+          },
+          "shift_switch": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Shift Switch",
+            "type": "integer"
+          },
+          "undesired_day": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Undesired Day",
+            "type": "integer"
+          },
+          "desired_day": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Desired Day",
+            "type": "integer"
+          },
+          "change": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Change",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "night_rest",
+          "dept_overtime",
+          "nurse_overtime",
+          "nurse_shortfall",
+          "avoidable_shortfall",
+          "fair_day",
+          "fair_night",
+          "fair_weekend",
+          "score_deficit",
+          "score_spread",
+          "excess_weekend",
+          "shift_switch",
+          "undesired_day",
+          "desired_day",
+          "change"
+        ],
+        "title": "Weights",
         "type": "object"
       }
     },

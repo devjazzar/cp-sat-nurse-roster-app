@@ -16,14 +16,16 @@ const ADMIN_PAGES = linkOptions([
   { to: "/users", label: "Users" },
   { to: "/audit-log", label: "Audit log" },
 ])
-const HOME_ONLY = linkOptions([{ to: "/", label: "Home", activeOptions: { exact: true } }])
+const HOME = { to: "/", label: "Home", activeOptions: { exact: true } } as const
+const HOME_ONLY = linkOptions([HOME])
+const HOME_AND_RULES = linkOptions([HOME, { to: "/hospital-rules", label: "Hospital rules" }])
 
 /** What each role reaches from the header. A role's pages join its list as their tickets land; the
  *  API refuses the rest whatever this says. */
 export const NAVIGATION = {
   system_admin: ADMIN_PAGES,
-  cno: HOME_ONLY,
-  deputy_cno: HOME_ONLY,
+  cno: HOME_AND_RULES,
+  deputy_cno: HOME_AND_RULES,
   unit_manager: HOME_ONLY,
   staff_nurse: HOME_ONLY,
 } satisfies Record<Role, unknown>

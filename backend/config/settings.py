@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "procrastinate.contrib.django",
     "accounts",
     "audit",
+    "hospital",
     "ops",
 ]
 

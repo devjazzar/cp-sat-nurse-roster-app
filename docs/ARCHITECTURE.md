@@ -75,6 +75,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Technical settings: time limit cap, backup schedule, close time | yes | | | | |
 | Audit log, solve history (all units), health page, backups | yes | | | | |
 | Hospital rules and weights, shift catalogue, leave types, public holidays, Ramadan dates | | yes | | | |
+| Read the hospital rules and weights | | yes | yes | | |
 | Create, rename, archive units; assign each unit its manager | | yes | | | |
 | Add nurses (form or CSV import), transfer, deactivate, export staff list | | yes | | | |
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
@@ -283,7 +284,7 @@ only. Visual design is decided later; the architecture does not depend on it.
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types,
 holidays and Ramadan, units and managers, nurses with import and export, roster overview and
-approvals); Deputy CNO (roster overview, approvals); Unit Manager (unit rules, nurses, request
+approvals); Deputy CNO (roster overview, approvals, hospital rules to read); Unit Manager (unit rules, nurses, request
 windows and requests, swaps, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close); Staff Nurse (unit roster, own summary,
 requests, swaps, notifications, password).

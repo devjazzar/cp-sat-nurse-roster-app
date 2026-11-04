@@ -52,6 +52,7 @@ const ACTION_NAMES: Record<string, string> = {
   "auth.login_failed": "Failed login",
   "auth.logout": "Logged out",
   "auth.password_changed": "Changed own password",
+  "hospital_rules.changed": "Changed hospital rules",
   "technical_settings.changed": "Changed technical settings",
   "user.created": "Created user",
   "user.deactivated": "Deactivated user",

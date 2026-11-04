@@ -298,3 +298,326 @@ export const GetAuditFilterOptionsResponse = zod.object({
   "actions": zod.array(zod.string()),
   "users": zod.array(zod.string())
 })
+
+
+/**
+ * @summary Get Rules
+ */
+export const getHospitalRulesResponseRulesHoursPerDayMin = 0;
+export const getHospitalRulesResponseRulesHoursPerDayMax = 24;
+
+export const getHospitalRulesResponseRulesRamadanHoursPerDayMin = 0;
+export const getHospitalRulesResponseRulesRamadanHoursPerDayMax = 24;
+
+export const getHospitalRulesResponseRulesBreastfeedingReductionMin = 0;
+export const getHospitalRulesResponseRulesBreastfeedingReductionMax = 24;
+
+export const getHospitalRulesResponseRulesWeekendWeekdaysItemMin = 0;
+export const getHospitalRulesResponseRulesWeekendWeekdaysItemMax = 6;
+
+export const getHospitalRulesResponseRulesForbiddenSuccessionsItemMin = 2;
+export const getHospitalRulesResponseRulesForbiddenSuccessionsItemMax = 2;
+
+export const getHospitalRulesResponseRulesOvertimeMonthCapMin = 0;
+export const getHospitalRulesResponseRulesOvertimeMonthCapMax = 1000000;
+
+export const getHospitalRulesResponseRulesOvertimeYearCapMin = 0;
+export const getHospitalRulesResponseRulesOvertimeYearCapMax = 1000000;
+
+export const getHospitalRulesResponseRulesDeptOvertimeCapMin = 0;
+export const getHospitalRulesResponseRulesDeptOvertimeCapMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsNightRestMin = 0;
+export const getHospitalRulesResponseRulesWeightsNightRestMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsDeptOvertimeMin = 0;
+export const getHospitalRulesResponseRulesWeightsDeptOvertimeMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsNurseOvertimeMin = 0;
+export const getHospitalRulesResponseRulesWeightsNurseOvertimeMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsNurseShortfallMin = 0;
+export const getHospitalRulesResponseRulesWeightsNurseShortfallMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsAvoidableShortfallMin = 0;
+export const getHospitalRulesResponseRulesWeightsAvoidableShortfallMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsFairDayMin = 0;
+export const getHospitalRulesResponseRulesWeightsFairDayMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsFairNightMin = 0;
+export const getHospitalRulesResponseRulesWeightsFairNightMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsFairWeekendMin = 0;
+export const getHospitalRulesResponseRulesWeightsFairWeekendMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsScoreDeficitMin = 0;
+export const getHospitalRulesResponseRulesWeightsScoreDeficitMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsScoreSpreadMin = 0;
+export const getHospitalRulesResponseRulesWeightsScoreSpreadMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsExcessWeekendMin = 0;
+export const getHospitalRulesResponseRulesWeightsExcessWeekendMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsShiftSwitchMin = 0;
+export const getHospitalRulesResponseRulesWeightsShiftSwitchMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsUndesiredDayMin = 0;
+export const getHospitalRulesResponseRulesWeightsUndesiredDayMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsDesiredDayMin = 0;
+export const getHospitalRulesResponseRulesWeightsDesiredDayMax = 1000000;
+
+export const getHospitalRulesResponseRulesWeightsChangeMin = 0;
+export const getHospitalRulesResponseRulesWeightsChangeMax = 1000000;
+
+
+
+export const GetHospitalRulesResponse = zod.object({
+  "rules": zod.object({
+  "hours_per_day": zod.int().min(getHospitalRulesResponseRulesHoursPerDayMin).max(getHospitalRulesResponseRulesHoursPerDayMax),
+  "ramadan_hours_per_day": zod.int().min(getHospitalRulesResponseRulesRamadanHoursPerDayMin).max(getHospitalRulesResponseRulesRamadanHoursPerDayMax),
+  "breastfeeding_reduction": zod.int().min(getHospitalRulesResponseRulesBreastfeedingReductionMin).max(getHospitalRulesResponseRulesBreastfeedingReductionMax),
+  "weekend_weekdays": zod.array(zod.int().min(getHospitalRulesResponseRulesWeekendWeekdaysItemMin).max(getHospitalRulesResponseRulesWeekendWeekdaysItemMax)).describe('0 is Monday and 6 is Sunday.'),
+  "forbidden_successions": zod.array(zod.array(zod.string()).min(getHospitalRulesResponseRulesForbiddenSuccessionsItemMin).max(getHospitalRulesResponseRulesForbiddenSuccessionsItemMax)).describe('Pairs of shift codes: the shift today, and the shift that may not follow it tomorrow.'),
+  "forbidden_successions_enabled": zod.boolean(),
+  "hours_rule_enabled": zod.boolean(),
+  "overtime_caps_enabled": zod.boolean(),
+  "overtime_month_cap": zod.int().min(getHospitalRulesResponseRulesOvertimeMonthCapMin).max(getHospitalRulesResponseRulesOvertimeMonthCapMax),
+  "overtime_year_cap": zod.int().min(getHospitalRulesResponseRulesOvertimeYearCapMin).max(getHospitalRulesResponseRulesOvertimeYearCapMax),
+  "dept_overtime_cap": zod.int().min(getHospitalRulesResponseRulesDeptOvertimeCapMin).max(getHospitalRulesResponseRulesDeptOvertimeCapMax),
+  "weights": zod.object({
+  "night_rest": zod.int().min(getHospitalRulesResponseRulesWeightsNightRestMin).max(getHospitalRulesResponseRulesWeightsNightRestMax),
+  "dept_overtime": zod.int().min(getHospitalRulesResponseRulesWeightsDeptOvertimeMin).max(getHospitalRulesResponseRulesWeightsDeptOvertimeMax),
+  "nurse_overtime": zod.int().min(getHospitalRulesResponseRulesWeightsNurseOvertimeMin).max(getHospitalRulesResponseRulesWeightsNurseOvertimeMax),
+  "nurse_shortfall": zod.int().min(getHospitalRulesResponseRulesWeightsNurseShortfallMin).max(getHospitalRulesResponseRulesWeightsNurseShortfallMax),
+  "avoidable_shortfall": zod.int().min(getHospitalRulesResponseRulesWeightsAvoidableShortfallMin).max(getHospitalRulesResponseRulesWeightsAvoidableShortfallMax),
+  "fair_day": zod.int().min(getHospitalRulesResponseRulesWeightsFairDayMin).max(getHospitalRulesResponseRulesWeightsFairDayMax),
+  "fair_night": zod.int().min(getHospitalRulesResponseRulesWeightsFairNightMin).max(getHospitalRulesResponseRulesWeightsFairNightMax),
+  "fair_weekend": zod.int().min(getHospitalRulesResponseRulesWeightsFairWeekendMin).max(getHospitalRulesResponseRulesWeightsFairWeekendMax),
+  "score_deficit": zod.int().min(getHospitalRulesResponseRulesWeightsScoreDeficitMin).max(getHospitalRulesResponseRulesWeightsScoreDeficitMax),
+  "score_spread": zod.int().min(getHospitalRulesResponseRulesWeightsScoreSpreadMin).max(getHospitalRulesResponseRulesWeightsScoreSpreadMax),
+  "excess_weekend": zod.int().min(getHospitalRulesResponseRulesWeightsExcessWeekendMin).max(getHospitalRulesResponseRulesWeightsExcessWeekendMax),
+  "shift_switch": zod.int().min(getHospitalRulesResponseRulesWeightsShiftSwitchMin).max(getHospitalRulesResponseRulesWeightsShiftSwitchMax),
+  "undesired_day": zod.int().min(getHospitalRulesResponseRulesWeightsUndesiredDayMin).max(getHospitalRulesResponseRulesWeightsUndesiredDayMax),
+  "desired_day": zod.int().min(getHospitalRulesResponseRulesWeightsDesiredDayMin).max(getHospitalRulesResponseRulesWeightsDesiredDayMax),
+  "change": zod.int().min(getHospitalRulesResponseRulesWeightsChangeMin).max(getHospitalRulesResponseRulesWeightsChangeMax)
+})
+}),
+  "needs_review": zod.boolean().describe('Still the seeded defaults: nobody has saved them yet.'),
+  "shift_codes": zod.array(zod.string()).describe('What a forbidden succession may name.')
+})
+
+
+/**
+ * Saving is the review: it clears the flag even when nothing else changed.
+ * @summary Update Rules
+ */
+export const updateHospitalRulesBodyHoursPerDayMin = 0;
+export const updateHospitalRulesBodyHoursPerDayMax = 24;
+
+export const updateHospitalRulesBodyRamadanHoursPerDayMin = 0;
+export const updateHospitalRulesBodyRamadanHoursPerDayMax = 24;
+
+export const updateHospitalRulesBodyBreastfeedingReductionMin = 0;
+export const updateHospitalRulesBodyBreastfeedingReductionMax = 24;
+
+export const updateHospitalRulesBodyWeekendWeekdaysItemMin = 0;
+export const updateHospitalRulesBodyWeekendWeekdaysItemMax = 6;
+
+export const updateHospitalRulesBodyForbiddenSuccessionsItemMin = 2;
+export const updateHospitalRulesBodyForbiddenSuccessionsItemMax = 2;
+
+export const updateHospitalRulesBodyOvertimeMonthCapMin = 0;
+export const updateHospitalRulesBodyOvertimeMonthCapMax = 1000000;
+
+export const updateHospitalRulesBodyOvertimeYearCapMin = 0;
+export const updateHospitalRulesBodyOvertimeYearCapMax = 1000000;
+
+export const updateHospitalRulesBodyDeptOvertimeCapMin = 0;
+export const updateHospitalRulesBodyDeptOvertimeCapMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsNightRestMin = 0;
+export const updateHospitalRulesBodyWeightsNightRestMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsDeptOvertimeMin = 0;
+export const updateHospitalRulesBodyWeightsDeptOvertimeMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsNurseOvertimeMin = 0;
+export const updateHospitalRulesBodyWeightsNurseOvertimeMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsNurseShortfallMin = 0;
+export const updateHospitalRulesBodyWeightsNurseShortfallMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsAvoidableShortfallMin = 0;
+export const updateHospitalRulesBodyWeightsAvoidableShortfallMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsFairDayMin = 0;
+export const updateHospitalRulesBodyWeightsFairDayMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsFairNightMin = 0;
+export const updateHospitalRulesBodyWeightsFairNightMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsFairWeekendMin = 0;
+export const updateHospitalRulesBodyWeightsFairWeekendMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsScoreDeficitMin = 0;
+export const updateHospitalRulesBodyWeightsScoreDeficitMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsScoreSpreadMin = 0;
+export const updateHospitalRulesBodyWeightsScoreSpreadMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsExcessWeekendMin = 0;
+export const updateHospitalRulesBodyWeightsExcessWeekendMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsShiftSwitchMin = 0;
+export const updateHospitalRulesBodyWeightsShiftSwitchMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsUndesiredDayMin = 0;
+export const updateHospitalRulesBodyWeightsUndesiredDayMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsDesiredDayMin = 0;
+export const updateHospitalRulesBodyWeightsDesiredDayMax = 1000000;
+
+export const updateHospitalRulesBodyWeightsChangeMin = 0;
+export const updateHospitalRulesBodyWeightsChangeMax = 1000000;
+
+
+
+export const UpdateHospitalRulesBody = zod.object({
+  "hours_per_day": zod.int().min(updateHospitalRulesBodyHoursPerDayMin).max(updateHospitalRulesBodyHoursPerDayMax),
+  "ramadan_hours_per_day": zod.int().min(updateHospitalRulesBodyRamadanHoursPerDayMin).max(updateHospitalRulesBodyRamadanHoursPerDayMax),
+  "breastfeeding_reduction": zod.int().min(updateHospitalRulesBodyBreastfeedingReductionMin).max(updateHospitalRulesBodyBreastfeedingReductionMax),
+  "weekend_weekdays": zod.array(zod.int().min(updateHospitalRulesBodyWeekendWeekdaysItemMin).max(updateHospitalRulesBodyWeekendWeekdaysItemMax)).describe('0 is Monday and 6 is Sunday.'),
+  "forbidden_successions": zod.array(zod.array(zod.string()).min(updateHospitalRulesBodyForbiddenSuccessionsItemMin).max(updateHospitalRulesBodyForbiddenSuccessionsItemMax)).describe('Pairs of shift codes: the shift today, and the shift that may not follow it tomorrow.'),
+  "forbidden_successions_enabled": zod.boolean(),
+  "hours_rule_enabled": zod.boolean(),
+  "overtime_caps_enabled": zod.boolean(),
+  "overtime_month_cap": zod.int().min(updateHospitalRulesBodyOvertimeMonthCapMin).max(updateHospitalRulesBodyOvertimeMonthCapMax),
+  "overtime_year_cap": zod.int().min(updateHospitalRulesBodyOvertimeYearCapMin).max(updateHospitalRulesBodyOvertimeYearCapMax),
+  "dept_overtime_cap": zod.int().min(updateHospitalRulesBodyDeptOvertimeCapMin).max(updateHospitalRulesBodyDeptOvertimeCapMax),
+  "weights": zod.object({
+  "night_rest": zod.int().min(updateHospitalRulesBodyWeightsNightRestMin).max(updateHospitalRulesBodyWeightsNightRestMax),
+  "dept_overtime": zod.int().min(updateHospitalRulesBodyWeightsDeptOvertimeMin).max(updateHospitalRulesBodyWeightsDeptOvertimeMax),
+  "nurse_overtime": zod.int().min(updateHospitalRulesBodyWeightsNurseOvertimeMin).max(updateHospitalRulesBodyWeightsNurseOvertimeMax),
+  "nurse_shortfall": zod.int().min(updateHospitalRulesBodyWeightsNurseShortfallMin).max(updateHospitalRulesBodyWeightsNurseShortfallMax),
+  "avoidable_shortfall": zod.int().min(updateHospitalRulesBodyWeightsAvoidableShortfallMin).max(updateHospitalRulesBodyWeightsAvoidableShortfallMax),
+  "fair_day": zod.int().min(updateHospitalRulesBodyWeightsFairDayMin).max(updateHospitalRulesBodyWeightsFairDayMax),
+  "fair_night": zod.int().min(updateHospitalRulesBodyWeightsFairNightMin).max(updateHospitalRulesBodyWeightsFairNightMax),
+  "fair_weekend": zod.int().min(updateHospitalRulesBodyWeightsFairWeekendMin).max(updateHospitalRulesBodyWeightsFairWeekendMax),
+  "score_deficit": zod.int().min(updateHospitalRulesBodyWeightsScoreDeficitMin).max(updateHospitalRulesBodyWeightsScoreDeficitMax),
+  "score_spread": zod.int().min(updateHospitalRulesBodyWeightsScoreSpreadMin).max(updateHospitalRulesBodyWeightsScoreSpreadMax),
+  "excess_weekend": zod.int().min(updateHospitalRulesBodyWeightsExcessWeekendMin).max(updateHospitalRulesBodyWeightsExcessWeekendMax),
+  "shift_switch": zod.int().min(updateHospitalRulesBodyWeightsShiftSwitchMin).max(updateHospitalRulesBodyWeightsShiftSwitchMax),
+  "undesired_day": zod.int().min(updateHospitalRulesBodyWeightsUndesiredDayMin).max(updateHospitalRulesBodyWeightsUndesiredDayMax),
+  "desired_day": zod.int().min(updateHospitalRulesBodyWeightsDesiredDayMin).max(updateHospitalRulesBodyWeightsDesiredDayMax),
+  "change": zod.int().min(updateHospitalRulesBodyWeightsChangeMin).max(updateHospitalRulesBodyWeightsChangeMax)
+})
+})
+
+export const updateHospitalRulesResponseRulesHoursPerDayMin = 0;
+export const updateHospitalRulesResponseRulesHoursPerDayMax = 24;
+
+export const updateHospitalRulesResponseRulesRamadanHoursPerDayMin = 0;
+export const updateHospitalRulesResponseRulesRamadanHoursPerDayMax = 24;
+
+export const updateHospitalRulesResponseRulesBreastfeedingReductionMin = 0;
+export const updateHospitalRulesResponseRulesBreastfeedingReductionMax = 24;
+
+export const updateHospitalRulesResponseRulesWeekendWeekdaysItemMin = 0;
+export const updateHospitalRulesResponseRulesWeekendWeekdaysItemMax = 6;
+
+export const updateHospitalRulesResponseRulesForbiddenSuccessionsItemMin = 2;
+export const updateHospitalRulesResponseRulesForbiddenSuccessionsItemMax = 2;
+
+export const updateHospitalRulesResponseRulesOvertimeMonthCapMin = 0;
+export const updateHospitalRulesResponseRulesOvertimeMonthCapMax = 1000000;
+
+export const updateHospitalRulesResponseRulesOvertimeYearCapMin = 0;
+export const updateHospitalRulesResponseRulesOvertimeYearCapMax = 1000000;
+
+export const updateHospitalRulesResponseRulesDeptOvertimeCapMin = 0;
+export const updateHospitalRulesResponseRulesDeptOvertimeCapMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsNightRestMin = 0;
+export const updateHospitalRulesResponseRulesWeightsNightRestMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsDeptOvertimeMin = 0;
+export const updateHospitalRulesResponseRulesWeightsDeptOvertimeMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsNurseOvertimeMin = 0;
+export const updateHospitalRulesResponseRulesWeightsNurseOvertimeMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsNurseShortfallMin = 0;
+export const updateHospitalRulesResponseRulesWeightsNurseShortfallMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsAvoidableShortfallMin = 0;
+export const updateHospitalRulesResponseRulesWeightsAvoidableShortfallMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsFairDayMin = 0;
+export const updateHospitalRulesResponseRulesWeightsFairDayMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsFairNightMin = 0;
+export const updateHospitalRulesResponseRulesWeightsFairNightMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsFairWeekendMin = 0;
+export const updateHospitalRulesResponseRulesWeightsFairWeekendMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsScoreDeficitMin = 0;
+export const updateHospitalRulesResponseRulesWeightsScoreDeficitMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsScoreSpreadMin = 0;
+export const updateHospitalRulesResponseRulesWeightsScoreSpreadMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsExcessWeekendMin = 0;
+export const updateHospitalRulesResponseRulesWeightsExcessWeekendMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsShiftSwitchMin = 0;
+export const updateHospitalRulesResponseRulesWeightsShiftSwitchMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsUndesiredDayMin = 0;
+export const updateHospitalRulesResponseRulesWeightsUndesiredDayMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsDesiredDayMin = 0;
+export const updateHospitalRulesResponseRulesWeightsDesiredDayMax = 1000000;
+
+export const updateHospitalRulesResponseRulesWeightsChangeMin = 0;
+export const updateHospitalRulesResponseRulesWeightsChangeMax = 1000000;
+
+
+
+export const UpdateHospitalRulesResponse = zod.object({
+  "rules": zod.object({
+  "hours_per_day": zod.int().min(updateHospitalRulesResponseRulesHoursPerDayMin).max(updateHospitalRulesResponseRulesHoursPerDayMax),
+  "ramadan_hours_per_day": zod.int().min(updateHospitalRulesResponseRulesRamadanHoursPerDayMin).max(updateHospitalRulesResponseRulesRamadanHoursPerDayMax),
+  "breastfeeding_reduction": zod.int().min(updateHospitalRulesResponseRulesBreastfeedingReductionMin).max(updateHospitalRulesResponseRulesBreastfeedingReductionMax),
+  "weekend_weekdays": zod.array(zod.int().min(updateHospitalRulesResponseRulesWeekendWeekdaysItemMin).max(updateHospitalRulesResponseRulesWeekendWeekdaysItemMax)).describe('0 is Monday and 6 is Sunday.'),
+  "forbidden_successions": zod.array(zod.array(zod.string()).min(updateHospitalRulesResponseRulesForbiddenSuccessionsItemMin).max(updateHospitalRulesResponseRulesForbiddenSuccessionsItemMax)).describe('Pairs of shift codes: the shift today, and the shift that may not follow it tomorrow.'),
+  "forbidden_successions_enabled": zod.boolean(),
+  "hours_rule_enabled": zod.boolean(),
+  "overtime_caps_enabled": zod.boolean(),
+  "overtime_month_cap": zod.int().min(updateHospitalRulesResponseRulesOvertimeMonthCapMin).max(updateHospitalRulesResponseRulesOvertimeMonthCapMax),
+  "overtime_year_cap": zod.int().min(updateHospitalRulesResponseRulesOvertimeYearCapMin).max(updateHospitalRulesResponseRulesOvertimeYearCapMax),
+  "dept_overtime_cap": zod.int().min(updateHospitalRulesResponseRulesDeptOvertimeCapMin).max(updateHospitalRulesResponseRulesDeptOvertimeCapMax),
+  "weights": zod.object({
+  "night_rest": zod.int().min(updateHospitalRulesResponseRulesWeightsNightRestMin).max(updateHospitalRulesResponseRulesWeightsNightRestMax),
+  "dept_overtime": zod.int().min(updateHospitalRulesResponseRulesWeightsDeptOvertimeMin).max(updateHospitalRulesResponseRulesWeightsDeptOvertimeMax),
+  "nurse_overtime": zod.int().min(updateHospitalRulesResponseRulesWeightsNurseOvertimeMin).max(updateHospitalRulesResponseRulesWeightsNurseOvertimeMax),
+  "nurse_shortfall": zod.int().min(updateHospitalRulesResponseRulesWeightsNurseShortfallMin).max(updateHospitalRulesResponseRulesWeightsNurseShortfallMax),
+  "avoidable_shortfall": zod.int().min(updateHospitalRulesResponseRulesWeightsAvoidableShortfallMin).max(updateHospitalRulesResponseRulesWeightsAvoidableShortfallMax),
+  "fair_day": zod.int().min(updateHospitalRulesResponseRulesWeightsFairDayMin).max(updateHospitalRulesResponseRulesWeightsFairDayMax),
+  "fair_night": zod.int().min(updateHospitalRulesResponseRulesWeightsFairNightMin).max(updateHospitalRulesResponseRulesWeightsFairNightMax),
+  "fair_weekend": zod.int().min(updateHospitalRulesResponseRulesWeightsFairWeekendMin).max(updateHospitalRulesResponseRulesWeightsFairWeekendMax),
+  "score_deficit": zod.int().min(updateHospitalRulesResponseRulesWeightsScoreDeficitMin).max(updateHospitalRulesResponseRulesWeightsScoreDeficitMax),
+  "score_spread": zod.int().min(updateHospitalRulesResponseRulesWeightsScoreSpreadMin).max(updateHospitalRulesResponseRulesWeightsScoreSpreadMax),
+  "excess_weekend": zod.int().min(updateHospitalRulesResponseRulesWeightsExcessWeekendMin).max(updateHospitalRulesResponseRulesWeightsExcessWeekendMax),
+  "shift_switch": zod.int().min(updateHospitalRulesResponseRulesWeightsShiftSwitchMin).max(updateHospitalRulesResponseRulesWeightsShiftSwitchMax),
+  "undesired_day": zod.int().min(updateHospitalRulesResponseRulesWeightsUndesiredDayMin).max(updateHospitalRulesResponseRulesWeightsUndesiredDayMax),
+  "desired_day": zod.int().min(updateHospitalRulesResponseRulesWeightsDesiredDayMin).max(updateHospitalRulesResponseRulesWeightsDesiredDayMax),
+  "change": zod.int().min(updateHospitalRulesResponseRulesWeightsChangeMin).max(updateHospitalRulesResponseRulesWeightsChangeMax)
+})
+}),
+  "needs_review": zod.boolean().describe('Still the seeded defaults: nobody has saved them yet.'),
+  "shift_codes": zod.array(zod.string()).describe('What a forbidden succession may name.')
+})

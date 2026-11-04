@@ -44,7 +44,8 @@ def label(method, path):
 
 
 def test_the_walk_found_the_endpoints():
-    assert {"GET /api/users", "GET /api/audit/entries", "PUT /api/ops/technical-settings"} <= {
+    assert {"GET /api/users", "GET /api/audit/entries", "PUT /api/ops/technical-settings",
+            "PUT /api/hospital/rules"} <= {
         label(method, path) for method, path, _ in ENDPOINTS}
 
 
@@ -57,8 +58,7 @@ def test_only_the_named_endpoints_leave_the_role_open():
 
 
 def test_every_role_is_refused_somewhere():
-    # The System Admin joins once something exists that is not theirs: rosters, units, nurses.
-    assert {role for _, _, role in REFUSED_ROLES} >= set(Role) - {Role.SYSTEM_ADMIN}
+    assert {role for _, _, role in REFUSED_ROLES} == set(Role)
 
 
 @pytest.mark.parametrize("method, path, role", REFUSED_ROLES)
