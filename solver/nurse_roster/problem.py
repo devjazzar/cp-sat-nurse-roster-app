@@ -670,10 +670,19 @@ def needed_history(dep: DepartmentRules, general: GeneralRules | None = None) ->
     return need
 
 
+MAX_JSON_DEPTH = 200         # far beyond any real request, far below what can overflow a stack
+
+
 def read_json(path: str | Path, *, where: str = "problem") -> object:
-    """The file's JSON value, with the two input-side guards every reader needs: a repeated
+    return parse_json(Path(path).read_text(), where=where)
+
+
+def parse_json(text: str | bytes, *, where: str = "problem") -> object:
+    """The text's JSON value, with the two input-side guards every reader needs: a repeated
     key is an ambiguity the user has to resolve (`json.loads` would keep the last one), and a
-    few thousand nested brackets must not surface as a RecursionError."""
+    few thousand nested brackets must not surface as a RecursionError. Python 3.14's parser
+    takes such nesting without complaint, so the depth is measured here as well, or the
+    RecursionError would only move on to whatever walks the value next."""
     def no_duplicate_keys(pairs: list) -> dict:
         out: dict = {}
         for k, v in pairs:
@@ -682,9 +691,17 @@ def read_json(path: str | Path, *, where: str = "problem") -> object:
             out[k] = v
         return out
     try:
-        return json.loads(Path(path).read_text(), object_pairs_hook=no_duplicate_keys)
+        value = json.loads(text, object_pairs_hook=no_duplicate_keys)
     except RecursionError:
         raise ValueError(f"{where}: JSON nested too deeply") from None
+    stack = [(value, 1)]
+    while stack:
+        v, depth = stack.pop()
+        if isinstance(v, (dict, list)):
+            if depth > MAX_JSON_DEPTH:
+                raise ValueError(f"{where}: JSON nested too deeply")
+            stack.extend((c, depth + 1) for c in (v.values() if isinstance(v, dict) else v))
+    return value
 
 
 def _is_int(v) -> bool:
