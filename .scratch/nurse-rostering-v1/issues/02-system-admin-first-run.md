@@ -39,3 +39,12 @@ Things a later ticket should know:
 - **Expired sessions:** nothing runs `clearsessions` yet, so rows accumulate. Ticket 22 should schedule it.
 - **Frontend:** routes are files under `src/routes`, with `src/routeTree.gen.ts` committed because `tsc` runs before Vite in the build. Generated calls go through `src/api/fetcher.ts`, which throws `ApiError` on a non-2xx answer, so generated types describe success only and refusal bodies are cast from `error.body`.
 - **Dev overlay:** Vite's proxy does not pass the browser's Host on, so `DEBUG` trusts the origin `http://localhost:5173` for CSRF.
+
+**Interface review (2026-11-05).** The `better-*` skills' review of this ticket blocked it on focus contrast and on errors with no way forward; every finding is now fixed. For later pages:
+
+- **Page names:** give a route `staticData: { title }`. `__root.tsx` sets the tab title from it and moves focus to `main[tabindex]` after a client-side navigation. Use `tabIndex={-1}` on any other page's `main` that should take focus.
+- **Buttons:** `Button` is `focusableWhenDisabled`, so a disabled one has `aria-disabled` rather than native `disabled`. Test it with `toHaveAttribute("aria-disabled", "true")`, not `toBeDisabled()`.
+- **Forms:** use `FormField`, which ties errors to the input. For server refusals, call `setError` with `{ shouldFocus: true }`.
+- **Live regions:** render `role="status"` empty first and change its text.
+- **Tokens:** `--ring` (4.73:1 on white) and `--input` (3.36:1) now meet 3:1, and destructive fills use `--destructive-foreground` (4.76:1). The dark values are computed only, because nothing can switch the theme yet.
+

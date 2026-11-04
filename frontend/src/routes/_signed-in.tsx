@@ -34,12 +34,12 @@ function SignedInLayout() {
           )}
           <Link to="/change-password" className={linkClass}>Change password</Link>
         </nav>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ms-auto flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{user.username}</span>
           <Button variant="outline" size="sm" onClick={signOut.run} disabled={signOut.pending}>Log out</Button>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl p-4">
+      <main tabIndex={-1} className="mx-auto max-w-3xl p-4 outline-none">
         <Outlet />
       </main>
     </div>

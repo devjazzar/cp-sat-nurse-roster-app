@@ -17,6 +17,7 @@ export const Route = createFileRoute("/login")({
   beforeLoad: async ({ context }) => {
     if (await currentUser(context.queryClient)) throw redirect({ to: "/" })
   },
+  staticData: { title: "Log in" },
   component: LoginPage,
 })
 
@@ -29,7 +30,9 @@ function refusalMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 423) {
     const until = (error.body as LoginRefusal).locked_until
     const time = until ? new Date(until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null
-    return `Too many failed logins. This account is locked${time ? ` until ${time}` : ""}.`
+    return time
+      ? `Too many failed logins. This account is locked until ${time}. Try again then.`
+      : "Too many failed logins. This account is locked. Try again later."
   }
   if (error instanceof ApiError && error.status === 401) return "Wrong username or password."
   return "The login could not be completed. Try again."
@@ -58,7 +61,7 @@ function LoginPage() {
     <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Nurse roster</CardTitle>
+          <CardTitle><h1>Nurse roster</h1></CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} noValidate>

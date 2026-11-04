@@ -11,6 +11,7 @@ export const Route = createFileRoute("/_signed-in/health")({
   beforeLoad: ({ context }) => {
     if (context.user.role !== Role.system_admin) throw redirect({ to: "/" })
   },
+  staticData: { title: "Health" },
   component: HealthPage,
 })
 
@@ -25,7 +26,7 @@ function Row({ name, children }: { name: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <dt>{name}</dt>
-      <dd className="text-right text-muted-foreground">{children}</dd>
+      <dd className="text-end text-muted-foreground tabular-nums">{children}</dd>
     </div>
   )
 }
@@ -44,12 +45,15 @@ function HealthPage() {
         <h1 className="text-xl font-medium">Health</h1>
         <Button variant="outline" size="sm" onClick={() => health.refetch()} disabled={health.isFetching}>Refresh</Button>
       </div>
-      {health.isPending && <p>Checking the installation…</p>}
-      {health.isError && <p role="alert">The health of the installation could not be read.</p>}
+      {/* Always rendered, so a screen reader hears each Refresh; only the first load shows it. */}
+      <p role="status" className={health.isPending ? undefined : "sr-only"}>
+        {health.isFetching ? "Checking the installation…" : health.isSuccess ? "Checked." : ""}
+      </p>
+      {health.isError && <p role="alert">The health of the installation could not be read. Refresh to try again.</p>}
       {health.data && (
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle>Services</CardTitle></CardHeader>
+            <CardHeader><CardTitle><h2>Services</h2></CardTitle></CardHeader>
             <CardContent>
               <dl className="flex flex-col gap-2">
                 <Row name="Solver"><Reachability reachable={health.data.solver.reachable} /></Row>
@@ -60,7 +64,7 @@ function HealthPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Queue</CardTitle></CardHeader>
+            <CardHeader><CardTitle><h2>Queue</h2></CardTitle></CardHeader>
             <CardContent>
               <dl className="flex flex-col gap-2">
                 <Row name="Workers alive">{health.data.queue.workers}</Row>
@@ -71,7 +75,7 @@ function HealthPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Storage</CardTitle></CardHeader>
+            <CardHeader><CardTitle><h2>Storage</h2></CardTitle></CardHeader>
             <CardContent>
               <dl className="flex flex-col gap-2">
                 <Row name="Database size">{formatBytes(health.data.database_size_bytes)}</Row>
@@ -87,7 +91,7 @@ function HealthPage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Backups</CardTitle></CardHeader>
+            <CardHeader><CardTitle><h2>Backups</h2></CardTitle></CardHeader>
             <CardContent>
               <dl className="flex flex-col gap-2">
                 <Row name="Last backup">

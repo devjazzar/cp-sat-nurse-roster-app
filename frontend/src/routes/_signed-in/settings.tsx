@@ -24,6 +24,7 @@ export const Route = createFileRoute("/_signed-in/settings")({
   beforeLoad: ({ context }) => {
     if (context.user.role !== Role.system_admin) throw redirect({ to: "/" })
   },
+  staticData: { title: "Technical settings" },
   component: SettingsPage,
 })
 
@@ -75,8 +76,11 @@ function SettingsForm({ current }: { current: TechnicalSettingsSchema }) {
         <FormField label="Month close time" type="time"
           description="Hospital time, on the first day after a month."
           registration={form.register("close_time")} error={errors.close_time} />
-        {update.isError && <p role="alert" className="text-sm text-destructive">The settings could not be saved.</p>}
-        {update.isSuccess && !isDirty && <p role="status" className="text-sm text-muted-foreground">Saved.</p>}
+        {update.isError && <p role="alert" className="text-sm text-destructive">The settings could not be saved. Check your connection and save again.</p>}
+        {/* Always rendered, because a live region mounted with its text may never be read out. */}
+        <p role="status" className="text-sm text-muted-foreground empty:sr-only">
+          {update.isSuccess && !isDirty ? "Saved." : ""}
+        </p>
         <Button type="submit" disabled={update.isPending || !isDirty} className="self-start">Save</Button>
       </FieldGroup>
     </form>
@@ -90,7 +94,7 @@ function SettingsPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-medium">Technical settings</h1>
       {settings.isPending && <p>Loading…</p>}
-      {settings.isError && <p role="alert">The settings could not be read.</p>}
+      {settings.isError && <p role="alert">The settings could not be read. Reload the page to try again.</p>}
       {settings.data && (
         <Card>
           <CardContent>

@@ -19,13 +19,14 @@ export const Route = createFileRoute("/change-password")({
     if (!user) throw redirect({ to: "/login" })
     return { forced: user.must_change_password }
   },
+  staticData: { title: "Change password" },
   component: ChangePasswordPage,
 })
 
 const schema = z
   .object({
     current_password: z.string().min(1, "Enter your current password."),
-    new_password: z.string().min(10, "At least 10 characters."),
+    new_password: z.string().min(10, "Use at least 10 characters."),
     repeat: z.string(),
   })
   .refine((data) => data.new_password === data.repeat, {
@@ -58,7 +59,7 @@ function ChangePasswordPage() {
             const refusal = error.body as ChangePasswordRefusal
             for (const field of ["current_password", "new_password"] as const) {
               const messages = refusal[field]
-              if (messages?.length) form.setError(field, { message: messages.join(" ") })
+              if (messages?.length) form.setError(field, { message: messages.join(" ") }, { shouldFocus: true })
             }
           } else {
             form.setError("root", { message: "The password could not be changed. Try again." })
@@ -72,7 +73,7 @@ function ChangePasswordPage() {
     <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>{forced ? "Choose a new password" : "Change your password"}</CardTitle>
+          <CardTitle><h1>{forced ? "Choose a new password" : "Change your password"}</h1></CardTitle>
           {forced && <CardDescription>You must replace the password you were given before going on.</CardDescription>}
         </CardHeader>
         <CardContent>
@@ -90,7 +91,7 @@ function ChangePasswordPage() {
               {forced ? (
                 <Button type="button" variant="ghost" onClick={signOut.run} disabled={signOut.pending}>Log out</Button>
               ) : (
-                <Link to="/" className="text-center text-sm text-muted-foreground hover:text-foreground">Back</Link>
+                <Link to="/" className="text-center text-sm text-muted-foreground hover:text-foreground">Back to home</Link>
               )}
             </FieldGroup>
           </form>

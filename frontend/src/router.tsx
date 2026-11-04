@@ -1,5 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query"
-import { createRouter, type RouterHistory } from "@tanstack/react-router"
+import { createRouter, Link, type RouterHistory } from "@tanstack/react-router"
 
 import { ApiError } from "@/api/fetcher"
 import { cachedUser, setCurrentUser } from "@/session"
@@ -45,10 +45,17 @@ export function createAppRouter(queryClient: QueryClient, history?: RouterHistor
       </main>
     ),
     defaultNotFoundComponent: () => (
-      <main className="flex min-h-svh items-center justify-center p-4">
+      <main className="flex min-h-svh flex-col items-center justify-center gap-2 p-4">
         <p>There is no such page.</p>
+        <Link to="/" className="underline underline-offset-4">Go to the home page</Link>
       </main>
     ),
+    defaultPendingComponent: () => (
+      <main className="flex min-h-svh items-center justify-center p-4">
+        <p role="status">Loading…</p>
+      </main>
+    ),
+    defaultPendingMs: 200,
   })
   onSessionEnded = () => void router.navigate({ to: "/login" })
   return router
@@ -57,5 +64,9 @@ export function createAppRouter(queryClient: QueryClient, history?: RouterHistor
 declare module "@tanstack/react-router" {
   interface Register {
     router: ReturnType<typeof createAppRouter>
+  }
+  interface StaticDataRouteOption {
+    /** The page's name, for the browser tab and for a screen reader arriving on it. */
+    title?: string
   }
 }

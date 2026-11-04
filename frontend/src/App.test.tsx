@@ -115,6 +115,50 @@ describe("route guards", () => {
   })
 })
 
+describe("arriving on a page", () => {
+  it("names the page in the title and moves focus to the new page", async () => {
+    const { user } = start("/health", admin())
+    await screen.findByText("Solver")
+    expect(document.title).toBe("Health · Nurse roster")
+    // Not on the first load: the keyboard starts from the top of the page.
+    expect(document.activeElement).toBe(document.body)
+
+    await user.click(screen.getByRole("link", { name: "Technical settings" }))
+
+    await screen.findByLabelText("Backup time")
+    await waitFor(() => expect(document.title).toBe("Technical settings · Nurse roster"))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("main")))
+  })
+
+  it("the login page keeps focus on its first field and has a heading", async () => {
+    start("/login", session(null))
+
+    expect(await screen.findByLabelText("Username")).toHaveFocus()
+    expect(screen.getByRole("heading", { level: 1, name: "Nurse roster" })).toBeInTheDocument()
+    await waitFor(() => expect(document.title).toBe("Log in · Nurse roster"))
+  })
+
+  it("shows that it is loading while the session is read", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})))
+    const queryClient = createQueryClient()
+    const router = createAppRouter(queryClient, createMemoryHistory({ initialEntries: ["/"] }))
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText("Loading…")).toBeInTheDocument()
+  })
+
+  it("a page that does not exist offers the way home", async () => {
+    start("/no-such-page", session(ME))
+
+    expect(await screen.findByText("There is no such page.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Go to the home page" })).toHaveAttribute("href", "/")
+  })
+})
+
 describe("login", () => {
   async function fill(user: ReturnType<typeof userEvent.setup>, username = "admin", password = "secret-password") {
     await user.type(await screen.findByLabelText("Username"), username)
@@ -245,8 +289,12 @@ describe("changing the password", () => {
 
     await fill(user, "one-time-password", "password1234")
 
-    expect(await screen.findByText("This password is too common.")).toBeInTheDocument()
+    const refusal = await screen.findByText("This password is too common.")
     expect(router.state.location.pathname).toBe("/change-password")
+    const field = screen.getByLabelText("New password")
+    await waitFor(() => expect(field).toHaveFocus())
+    expect(field).toHaveAttribute("aria-invalid", "true")
+    expect(field.getAttribute("aria-describedby")?.split(" ")).toContain(refusal.id)
   })
 
   it("after a refusal the user can try again with a better password", async () => {
@@ -290,7 +338,7 @@ describe("changing the password", () => {
 
     await fill(user, "one-time-password", "short", "different")
 
-    expect(await screen.findByText("At least 10 characters.")).toBeInTheDocument()
+    expect(await screen.findByText("Use at least 10 characters.")).toBeInTheDocument()
     expect(screen.getByText("The two passwords differ.")).toBeInTheDocument()
     expect(calls.filter((call) => call.method === "POST")).toEqual([])
   })
@@ -299,7 +347,7 @@ describe("changing the password", () => {
     start("/change-password", session(ME))
 
     expect(await screen.findByText("Change your password")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Back" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Back to home" })).toBeInTheDocument()
   })
 })
 
@@ -308,6 +356,7 @@ describe("the health page", () => {
     start("/health", admin())
 
     expect(await screen.findByText("Solver")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 2, name: "Services" })).toBeInTheDocument()
     expect(screen.getAllByText("Reachable")).toHaveLength(2)
     expect(screen.getByText("0.1.0")).toBeInTheDocument()
     expect(screen.getByText("Jobs waiting").nextSibling).toHaveTextContent("2")
@@ -340,12 +389,14 @@ describe("the health page", () => {
     await user.click(screen.getByRole("button", { name: "Refresh" }))
 
     await waitFor(() => expect(reads()).toBe(2))
+    expect(screen.getByRole("button", { name: "Refresh" })).toHaveFocus()
+    expect(await screen.findByText("Checked.")).toHaveAttribute("role", "status")
   })
 
   it("says so when the health cannot be read", async () => {
     start("/health", admin({ "GET /api/ops/health": { status: 500, body: {} } }))
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not be read")
+    expect(await screen.findByRole("alert")).toHaveTextContent("Refresh to try again")
   })
 })
 
@@ -359,7 +410,7 @@ describe("the technical settings page", () => {
     expect(screen.getByLabelText("Backup time")).toHaveValue("02:00")
     expect(screen.getByLabelText("Backup retention (days)")).toHaveValue(30)
     expect(screen.getByLabelText("Month close time")).toHaveValue("00:30")
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true")
 
     await user.clear(cap)
     await user.type(cap, "600")
@@ -367,9 +418,11 @@ describe("the technical settings page", () => {
     await user.type(screen.getByLabelText("Month close time"), "01:00")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Saved")
+    expect(await screen.findByText("Saved.")).toHaveAttribute("role", "status")
+    // The button turned unavailable under the pointer or keyboard without dropping focus.
+    expect(screen.getByRole("button", { name: "Save" })).toHaveFocus()
     expect(calls.find((call) => call.method === "PUT")!.body).toEqual(saved)
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true")
   })
 
   it.each([["0", "At least 1 second."], ["86401", "At most 86400 seconds."]])("refuses a cap of %s", async (value, says) => {
@@ -403,6 +456,6 @@ describe("the technical settings page", () => {
     await user.type(cap, "600")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not be saved")
+    expect(await screen.findByRole("alert")).toHaveTextContent("save again")
   })
 })
