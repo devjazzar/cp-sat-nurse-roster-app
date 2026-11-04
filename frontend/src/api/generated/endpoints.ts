@@ -32,15 +32,25 @@ import type {
   HospitalRules,
   HospitalRulesState,
   InstallationHealth,
+  LeaveTypeBody,
+  LeaveTypeSchema,
   ListAuditEntriesParams,
+  ListPublicHolidaysParams,
+  ListRamadanMonthsParams,
   LoginBody,
   LoginRefusal,
   ManagedUser,
   Me,
   NewUserBody,
   NewUserRefusal,
+  PublicHolidayBody,
+  PublicHolidaySchema,
+  RamadanFix,
+  RamadanMonth,
   ReactivateRefusal,
   SessionState,
+  ShiftBody,
+  ShiftSchema,
   TechnicalSettingsSchema,
   UserWithPassword
 } from './model';
@@ -1617,4 +1627,1196 @@ export const useUpdateHospitalRules = <TError = unknown,
         TContext
       > => {
       return useMutation(getUpdateHospitalRulesMutationOptions(options), queryClient);
+    }
+
+export const getListShiftsUrl = () => {
+
+
+
+
+  return `/api/hospital/shifts`
+}
+
+/**
+ * Retired shifts too: a code on an old roster still needs its name.
+ * @summary List Shifts
+ */
+export const listShifts = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ShiftSchema[]> => {
+
+  return apiFetch<ShiftSchema[]>(getListShiftsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListShiftsQueryKey = () => {
+    return [
+    `/api/hospital/shifts`
+    ] as const;
+    }
+
+
+export const getListShiftsQueryOptions = <TData = Awaited<ReturnType<typeof listShifts>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShifts>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListShiftsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShifts>>> = ({ signal }) => listShifts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShifts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListShiftsQueryResult = NonNullable<Awaited<ReturnType<typeof listShifts>>>
+export type ListShiftsQueryError = unknown
+
+
+export function useListShifts<TData = Awaited<ReturnType<typeof listShifts>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShifts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShifts>>,
+          TError,
+          Awaited<ReturnType<typeof listShifts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShifts<TData = Awaited<ReturnType<typeof listShifts>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShifts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShifts>>,
+          TError,
+          Awaited<ReturnType<typeof listShifts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShifts<TData = Awaited<ReturnType<typeof listShifts>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShifts>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Shifts
+ */
+
+export function useListShifts<TData = Awaited<ReturnType<typeof listShifts>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShifts>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListShiftsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateShiftUrl = () => {
+
+
+
+
+  return `/api/hospital/shifts`
+}
+
+/**
+ * @summary Create Shift
+ */
+export const createShift = async (shiftBody: ShiftBody, options?: Parameters<typeof apiFetch>[1]): Promise<ShiftSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ShiftSchema>(getCreateShiftUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(shiftBody)
+  }
+);}
+
+
+
+
+
+export const getCreateShiftMutationKey = () => ['createShift'] as const;
+
+export const getCreateShiftMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShift>>, TError,CreateShiftMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createShift>>, TError,CreateShiftMutationVariables, TContext> => {
+
+const mutationKey = getCreateShiftMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createShift>>, CreateShiftMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createShift(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateShiftMutationResult = NonNullable<Awaited<ReturnType<typeof createShift>>>
+    export type CreateShiftMutationBody = ShiftBody
+    export type CreateShiftMutationError = unknown
+    export type CreateShiftMutationVariables = {data: ShiftBody}
+
+    /**
+ * @summary Create Shift
+ */
+export const useCreateShift = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShift>>, TError,CreateShiftMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createShift>>,
+        TError,
+        CreateShiftMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateShiftMutationOptions(options), queryClient);
+    }
+
+export const getUpdateShiftUrl = (shiftId: string,) => {
+
+
+
+
+  return `/api/hospital/shifts/${shiftId}`
+}
+
+/**
+ * Hold the rules' lock throughout: a forbidden succession only ever names an active shift, which
+ * both this and saving the rules must see the other's finished work to keep true.
+ * @summary Update Shift
+ */
+export const updateShift = async (shiftId: string,
+    shiftBody: ShiftBody, options?: Parameters<typeof apiFetch>[1]): Promise<ShiftSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ShiftSchema>(getUpdateShiftUrl(shiftId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(shiftBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateShiftMutationKey = () => ['updateShift'] as const;
+
+export const getUpdateShiftMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShift>>, TError,UpdateShiftMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateShift>>, TError,UpdateShiftMutationVariables, TContext> => {
+
+const mutationKey = getUpdateShiftMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateShift>>, UpdateShiftMutationVariables> = (props) => {
+          const {shiftId,data} = props ?? {};
+
+          return  updateShift(shiftId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateShiftMutationResult = NonNullable<Awaited<ReturnType<typeof updateShift>>>
+    export type UpdateShiftMutationBody = ShiftBody
+    export type UpdateShiftMutationError = unknown
+    export type UpdateShiftMutationVariables = {shiftId: string;data: ShiftBody}
+
+    /**
+ * @summary Update Shift
+ */
+export const useUpdateShift = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShift>>, TError,UpdateShiftMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateShift>>,
+        TError,
+        UpdateShiftMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateShiftMutationOptions(options), queryClient);
+    }
+
+export const getListLeaveTypesUrl = () => {
+
+
+
+
+  return `/api/hospital/leave-types`
+}
+
+/**
+ * @summary List Leave Types
+ */
+export const listLeaveTypes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<LeaveTypeSchema[]> => {
+
+  return apiFetch<LeaveTypeSchema[]>(getListLeaveTypesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeaveTypesQueryKey = () => {
+    return [
+    `/api/hospital/leave-types`
+    ] as const;
+    }
+
+
+export const getListLeaveTypesQueryOptions = <TData = Awaited<ReturnType<typeof listLeaveTypes>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeaveTypesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeaveTypes>>> = ({ signal }) => listLeaveTypes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListLeaveTypesQueryResult = NonNullable<Awaited<ReturnType<typeof listLeaveTypes>>>
+export type ListLeaveTypesQueryError = unknown
+
+
+export function useListLeaveTypes<TData = Awaited<ReturnType<typeof listLeaveTypes>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listLeaveTypes>>,
+          TError,
+          Awaited<ReturnType<typeof listLeaveTypes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListLeaveTypes<TData = Awaited<ReturnType<typeof listLeaveTypes>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listLeaveTypes>>,
+          TError,
+          Awaited<ReturnType<typeof listLeaveTypes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListLeaveTypes<TData = Awaited<ReturnType<typeof listLeaveTypes>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Leave Types
+ */
+
+export function useListLeaveTypes<TData = Awaited<ReturnType<typeof listLeaveTypes>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLeaveTypes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListLeaveTypesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLeaveTypeUrl = () => {
+
+
+
+
+  return `/api/hospital/leave-types`
+}
+
+/**
+ * @summary Create Leave Type
+ */
+export const createLeaveType = async (leaveTypeBody: LeaveTypeBody, options?: Parameters<typeof apiFetch>[1]): Promise<LeaveTypeSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<LeaveTypeSchema>(getCreateLeaveTypeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(leaveTypeBody)
+  }
+);}
+
+
+
+
+
+export const getCreateLeaveTypeMutationKey = () => ['createLeaveType'] as const;
+
+export const getCreateLeaveTypeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeaveType>>, TError,CreateLeaveTypeMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeaveType>>, TError,CreateLeaveTypeMutationVariables, TContext> => {
+
+const mutationKey = getCreateLeaveTypeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeaveType>>, CreateLeaveTypeMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLeaveType(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLeaveTypeMutationResult = NonNullable<Awaited<ReturnType<typeof createLeaveType>>>
+    export type CreateLeaveTypeMutationBody = LeaveTypeBody
+    export type CreateLeaveTypeMutationError = unknown
+    export type CreateLeaveTypeMutationVariables = {data: LeaveTypeBody}
+
+    /**
+ * @summary Create Leave Type
+ */
+export const useCreateLeaveType = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeaveType>>, TError,CreateLeaveTypeMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createLeaveType>>,
+        TError,
+        CreateLeaveTypeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateLeaveTypeMutationOptions(options), queryClient);
+    }
+
+export const getUpdateLeaveTypeUrl = (leaveTypeId: string,) => {
+
+
+
+
+  return `/api/hospital/leave-types/${leaveTypeId}`
+}
+
+/**
+ * @summary Update Leave Type
+ */
+export const updateLeaveType = async (leaveTypeId: string,
+    leaveTypeBody: LeaveTypeBody, options?: Parameters<typeof apiFetch>[1]): Promise<LeaveTypeSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<LeaveTypeSchema>(getUpdateLeaveTypeUrl(leaveTypeId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(leaveTypeBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateLeaveTypeMutationKey = () => ['updateLeaveType'] as const;
+
+export const getUpdateLeaveTypeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeaveType>>, TError,UpdateLeaveTypeMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLeaveType>>, TError,UpdateLeaveTypeMutationVariables, TContext> => {
+
+const mutationKey = getUpdateLeaveTypeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLeaveType>>, UpdateLeaveTypeMutationVariables> = (props) => {
+          const {leaveTypeId,data} = props ?? {};
+
+          return  updateLeaveType(leaveTypeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLeaveTypeMutationResult = NonNullable<Awaited<ReturnType<typeof updateLeaveType>>>
+    export type UpdateLeaveTypeMutationBody = LeaveTypeBody
+    export type UpdateLeaveTypeMutationError = unknown
+    export type UpdateLeaveTypeMutationVariables = {leaveTypeId: string;data: LeaveTypeBody}
+
+    /**
+ * @summary Update Leave Type
+ */
+export const useUpdateLeaveType = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeaveType>>, TError,UpdateLeaveTypeMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateLeaveType>>,
+        TError,
+        UpdateLeaveTypeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateLeaveTypeMutationOptions(options), queryClient);
+    }
+
+export const getListPublicHolidaysUrl = (params: ListPublicHolidaysParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/hospital/public-holidays?${stringifiedParams}` : `/api/hospital/public-holidays`
+}
+
+/**
+ * @summary List Public Holidays
+ */
+export const listPublicHolidays = async (params: ListPublicHolidaysParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicHolidaySchema[]> => {
+
+  return apiFetch<PublicHolidaySchema[]>(getListPublicHolidaysUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicHolidaysQueryKey = (params?: ListPublicHolidaysParams,) => {
+    return [
+    `/api/hospital/public-holidays`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPublicHolidaysQueryOptions = <TData = Awaited<ReturnType<typeof listPublicHolidays>>, TError = unknown>(params: ListPublicHolidaysParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicHolidaysQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicHolidays>>> = ({ signal }) => listPublicHolidays(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPublicHolidaysQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicHolidays>>>
+export type ListPublicHolidaysQueryError = unknown
+
+
+export function useListPublicHolidays<TData = Awaited<ReturnType<typeof listPublicHolidays>>, TError = unknown>(
+ params: ListPublicHolidaysParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPublicHolidays>>,
+          TError,
+          Awaited<ReturnType<typeof listPublicHolidays>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPublicHolidays<TData = Awaited<ReturnType<typeof listPublicHolidays>>, TError = unknown>(
+ params: ListPublicHolidaysParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPublicHolidays>>,
+          TError,
+          Awaited<ReturnType<typeof listPublicHolidays>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPublicHolidays<TData = Awaited<ReturnType<typeof listPublicHolidays>>, TError = unknown>(
+ params: ListPublicHolidaysParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Public Holidays
+ */
+
+export function useListPublicHolidays<TData = Awaited<ReturnType<typeof listPublicHolidays>>, TError = unknown>(
+ params: ListPublicHolidaysParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicHolidays>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPublicHolidaysQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePublicHolidayUrl = () => {
+
+
+
+
+  return `/api/hospital/public-holidays`
+}
+
+/**
+ * @summary Create Public Holiday
+ */
+export const createPublicHoliday = async (publicHolidayBody: PublicHolidayBody, options?: Parameters<typeof apiFetch>[1]): Promise<PublicHolidaySchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PublicHolidaySchema>(getCreatePublicHolidayUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(publicHolidayBody)
+  }
+);}
+
+
+
+
+
+export const getCreatePublicHolidayMutationKey = () => ['createPublicHoliday'] as const;
+
+export const getCreatePublicHolidayMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicHoliday>>, TError,CreatePublicHolidayMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPublicHoliday>>, TError,CreatePublicHolidayMutationVariables, TContext> => {
+
+const mutationKey = getCreatePublicHolidayMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPublicHoliday>>, CreatePublicHolidayMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPublicHoliday(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof createPublicHoliday>>>
+    export type CreatePublicHolidayMutationBody = PublicHolidayBody
+    export type CreatePublicHolidayMutationError = unknown
+    export type CreatePublicHolidayMutationVariables = {data: PublicHolidayBody}
+
+    /**
+ * @summary Create Public Holiday
+ */
+export const useCreatePublicHoliday = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPublicHoliday>>, TError,CreatePublicHolidayMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPublicHoliday>>,
+        TError,
+        CreatePublicHolidayMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePublicHolidayMutationOptions(options), queryClient);
+    }
+
+export const getUpdatePublicHolidayUrl = (holidayId: string,) => {
+
+
+
+
+  return `/api/hospital/public-holidays/${holidayId}`
+}
+
+/**
+ * @summary Update Public Holiday
+ */
+export const updatePublicHoliday = async (holidayId: string,
+    publicHolidayBody: PublicHolidayBody, options?: Parameters<typeof apiFetch>[1]): Promise<PublicHolidaySchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PublicHolidaySchema>(getUpdatePublicHolidayUrl(holidayId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(publicHolidayBody)
+  }
+);}
+
+
+
+
+
+export const getUpdatePublicHolidayMutationKey = () => ['updatePublicHoliday'] as const;
+
+export const getUpdatePublicHolidayMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePublicHoliday>>, TError,UpdatePublicHolidayMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePublicHoliday>>, TError,UpdatePublicHolidayMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePublicHolidayMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePublicHoliday>>, UpdatePublicHolidayMutationVariables> = (props) => {
+          const {holidayId,data} = props ?? {};
+
+          return  updatePublicHoliday(holidayId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof updatePublicHoliday>>>
+    export type UpdatePublicHolidayMutationBody = PublicHolidayBody
+    export type UpdatePublicHolidayMutationError = unknown
+    export type UpdatePublicHolidayMutationVariables = {holidayId: string;data: PublicHolidayBody}
+
+    /**
+ * @summary Update Public Holiday
+ */
+export const useUpdatePublicHoliday = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePublicHoliday>>, TError,UpdatePublicHolidayMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePublicHoliday>>,
+        TError,
+        UpdatePublicHolidayMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePublicHolidayMutationOptions(options), queryClient);
+    }
+
+export const getDeletePublicHolidayUrl = (holidayId: string,) => {
+
+
+
+
+  return `/api/hospital/public-holidays/${holidayId}`
+}
+
+/**
+ * A holiday has no history of its own: an entry made by mistake goes, and the audit log keeps it.
+ * @summary Delete Public Holiday
+ */
+export const deletePublicHoliday = async (holidayId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeletePublicHolidayUrl(holidayId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePublicHolidayMutationKey = () => ['deletePublicHoliday'] as const;
+
+export const getDeletePublicHolidayMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePublicHoliday>>, TError,DeletePublicHolidayMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePublicHoliday>>, TError,DeletePublicHolidayMutationVariables, TContext> => {
+
+const mutationKey = getDeletePublicHolidayMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePublicHoliday>>, DeletePublicHolidayMutationVariables> = (props) => {
+          const {holidayId} = props ?? {};
+
+          return  deletePublicHoliday(holidayId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePublicHolidayMutationResult = NonNullable<Awaited<ReturnType<typeof deletePublicHoliday>>>
+
+    export type DeletePublicHolidayMutationError = unknown
+    export type DeletePublicHolidayMutationVariables = {holidayId: string}
+
+    /**
+ * @summary Delete Public Holiday
+ */
+export const useDeletePublicHoliday = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePublicHoliday>>, TError,DeletePublicHolidayMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePublicHoliday>>,
+        TError,
+        DeletePublicHolidayMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePublicHolidayMutationOptions(options), queryClient);
+    }
+
+export const getListRamadanMonthsUrl = (params: ListRamadanMonthsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/hospital/ramadan?${stringifiedParams}` : `/api/hospital/ramadan`
+}
+
+/**
+ * Every month of the year: the sighting can put a day in a month the calendar gives none.
+ * @summary List Ramadan Months
+ */
+export const listRamadanMonths = async (params: ListRamadanMonthsParams, options?: Parameters<typeof apiFetch>[1]): Promise<RamadanMonth[]> => {
+
+  return apiFetch<RamadanMonth[]>(getListRamadanMonthsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRamadanMonthsQueryKey = (params?: ListRamadanMonthsParams,) => {
+    return [
+    `/api/hospital/ramadan`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListRamadanMonthsQueryOptions = <TData = Awaited<ReturnType<typeof listRamadanMonths>>, TError = unknown>(params: ListRamadanMonthsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadanMonths>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRamadanMonthsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRamadanMonths>>> = ({ signal }) => listRamadanMonths(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRamadanMonths>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListRamadanMonthsQueryResult = NonNullable<Awaited<ReturnType<typeof listRamadanMonths>>>
+export type ListRamadanMonthsQueryError = unknown
+
+
+export function useListRamadanMonths<TData = Awaited<ReturnType<typeof listRamadanMonths>>, TError = unknown>(
+ params: ListRamadanMonthsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadanMonths>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRamadanMonths>>,
+          TError,
+          Awaited<ReturnType<typeof listRamadanMonths>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRamadanMonths<TData = Awaited<ReturnType<typeof listRamadanMonths>>, TError = unknown>(
+ params: ListRamadanMonthsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadanMonths>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRamadanMonths>>,
+          TError,
+          Awaited<ReturnType<typeof listRamadanMonths>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRamadanMonths<TData = Awaited<ReturnType<typeof listRamadanMonths>>, TError = unknown>(
+ params: ListRamadanMonthsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadanMonths>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Ramadan Months
+ */
+
+export function useListRamadanMonths<TData = Awaited<ReturnType<typeof listRamadanMonths>>, TError = unknown>(
+ params: ListRamadanMonthsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadanMonths>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListRamadanMonthsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getFixRamadanMonthUrl = (month: string,) => {
+
+
+
+
+  return `/api/hospital/ramadan/${month}`
+}
+
+/**
+ * @summary Fix Ramadan Month
+ */
+export const fixRamadanMonth = async (month: string,
+    ramadanFix: RamadanFix, options?: Parameters<typeof apiFetch>[1]): Promise<RamadanMonth> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RamadanMonth>(getFixRamadanMonthUrl(month),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(ramadanFix)
+  }
+);}
+
+
+
+
+
+export const getFixRamadanMonthMutationKey = () => ['fixRamadanMonth'] as const;
+
+export const getFixRamadanMonthMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fixRamadanMonth>>, TError,FixRamadanMonthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof fixRamadanMonth>>, TError,FixRamadanMonthMutationVariables, TContext> => {
+
+const mutationKey = getFixRamadanMonthMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof fixRamadanMonth>>, FixRamadanMonthMutationVariables> = (props) => {
+          const {month,data} = props ?? {};
+
+          return  fixRamadanMonth(month,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FixRamadanMonthMutationResult = NonNullable<Awaited<ReturnType<typeof fixRamadanMonth>>>
+    export type FixRamadanMonthMutationBody = RamadanFix
+    export type FixRamadanMonthMutationError = unknown
+    export type FixRamadanMonthMutationVariables = {month: string;data: RamadanFix}
+
+    /**
+ * @summary Fix Ramadan Month
+ */
+export const useFixRamadanMonth = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof fixRamadanMonth>>, TError,FixRamadanMonthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof fixRamadanMonth>>,
+        TError,
+        FixRamadanMonthMutationVariables,
+        TContext
+      > => {
+      return useMutation(getFixRamadanMonthMutationOptions(options), queryClient);
+    }
+
+export const getUnfixRamadanMonthUrl = (month: string,) => {
+
+
+
+
+  return `/api/hospital/ramadan/${month}`
+}
+
+/**
+ * Back to the calendar.
+ * @summary Unfix Ramadan Month
+ */
+export const unfixRamadanMonth = async (month: string, options?: Parameters<typeof apiFetch>[1]): Promise<RamadanMonth> => {
+
+  return apiFetch<RamadanMonth>(getUnfixRamadanMonthUrl(month),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnfixRamadanMonthMutationKey = () => ['unfixRamadanMonth'] as const;
+
+export const getUnfixRamadanMonthMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unfixRamadanMonth>>, TError,UnfixRamadanMonthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unfixRamadanMonth>>, TError,UnfixRamadanMonthMutationVariables, TContext> => {
+
+const mutationKey = getUnfixRamadanMonthMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unfixRamadanMonth>>, UnfixRamadanMonthMutationVariables> = (props) => {
+          const {month} = props ?? {};
+
+          return  unfixRamadanMonth(month,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnfixRamadanMonthMutationResult = NonNullable<Awaited<ReturnType<typeof unfixRamadanMonth>>>
+
+    export type UnfixRamadanMonthMutationError = unknown
+    export type UnfixRamadanMonthMutationVariables = {month: string}
+
+    /**
+ * @summary Unfix Ramadan Month
+ */
+export const useUnfixRamadanMonth = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unfixRamadanMonth>>, TError,UnfixRamadanMonthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof unfixRamadanMonth>>,
+        TError,
+        UnfixRamadanMonthMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUnfixRamadanMonthMutationOptions(options), queryClient);
     }

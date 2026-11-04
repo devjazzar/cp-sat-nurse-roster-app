@@ -1,6 +1,9 @@
 import copy
 
+from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.db.models.functions import UUID7, Lower
 
 from hospital.rules import DEFAULT_RULES
 
@@ -23,3 +26,66 @@ class HospitalSettings(models.Model):
     def load(cls, *, for_update: bool = False) -> "HospitalSettings":
         objects = cls.objects.select_for_update() if for_update else cls.objects
         return objects.get_or_create(pk=1)[0]
+
+
+class Shift(models.Model):
+    """A row of the shift catalogue. `code` is the name the solver and every roster know it by. Never
+    deleted, only retired. Ordered by age, so the seeded order stays and a rename does not move a row."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    code = models.CharField(max_length=8)
+    display_name = models.CharField(max_length=100)
+    hours = models.PositiveSmallIntegerField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    colour = models.CharField(max_length=7)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(Lower("code"), name="hospital_shift_code_any_case")]
+
+
+class ShiftRename(models.Model):
+    """One change of a shift's code, so that an old name in a nurse's history can be followed to the
+    shift's current one. A bigint key: it is an append-only log (ADR 0007)."""
+
+    id = models.BigAutoField(primary_key=True)
+    shift = models.ForeignKey(Shift, on_delete=models.PROTECT, related_name="renames")
+    old_code = models.CharField(max_length=8)
+    new_code = models.CharField(max_length=8)
+    at = models.DateTimeField(auto_now_add=True)
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        ordering = ["id"]
+
+
+class LeaveType(models.Model):
+    """The recorded reason for a leave. Never deleted, only retired: leave already recorded keeps it."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    name = models.CharField(max_length=100)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = [Lower("name")]
+        constraints = [models.UniqueConstraint(Lower("name"), name="hospital_leave_type_name_any_case")]
+
+
+class PublicHoliday(models.Model):
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ["date"]
+
+
+class FixedRamadanMonth(models.Model):
+    """The CNO's dates for a month, after the moon sighting. A month with no row is derived from the
+    Umm al-Qura calendar: see `hospital.catalogue.ramadan_dates`. Empty `dates` means none this month."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    month = models.CharField(max_length=7, unique=True)  # YYYY-MM, as the solver names a month.
+    dates = ArrayField(models.DateField())

@@ -15,8 +15,11 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInAuditLogRouteImport } from './routes/_signed-in/audit-log'
 import { Route as SignedInHealthRouteImport } from './routes/_signed-in/health'
+import { Route as SignedInHolidaysRouteImport } from './routes/_signed-in/holidays'
 import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/hospital-rules'
+import { Route as SignedInLeaveTypesRouteImport } from './routes/_signed-in/leave-types'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
+import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
 
 const SignedInRoute = SignedInRouteImport.update({
@@ -48,14 +51,29 @@ const SignedInHealthRoute = SignedInHealthRouteImport.update({
   path: '/health',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInHolidaysRoute = SignedInHolidaysRouteImport.update({
+  id: '/holidays',
+  path: '/holidays',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInHospitalRulesRoute = SignedInHospitalRulesRouteImport.update({
   id: '/hospital-rules',
   path: '/hospital-rules',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInLeaveTypesRoute = SignedInLeaveTypesRouteImport.update({
+  id: '/leave-types',
+  path: '/leave-types',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInSettingsRoute = SignedInSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInShiftsRoute = SignedInShiftsRouteImport.update({
+  id: '/shifts',
+  path: '/shifts',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInUsersRoute = SignedInUsersRouteImport.update({
@@ -70,8 +88,11 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/audit-log': typeof SignedInAuditLogRoute
   '/health': typeof SignedInHealthRoute
+  '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
+  '/leave-types': typeof SignedInLeaveTypesRoute
   '/settings': typeof SignedInSettingsRoute
+  '/shifts': typeof SignedInShiftsRoute
   '/users': typeof SignedInUsersRoute
 }
 export interface FileRoutesByTo {
@@ -79,8 +100,11 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audit-log': typeof SignedInAuditLogRoute
   '/health': typeof SignedInHealthRoute
+  '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
+  '/leave-types': typeof SignedInLeaveTypesRoute
   '/settings': typeof SignedInSettingsRoute
+  '/shifts': typeof SignedInShiftsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
 }
@@ -91,8 +115,11 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_signed-in/audit-log': typeof SignedInAuditLogRoute
   '/_signed-in/health': typeof SignedInHealthRoute
+  '/_signed-in/holidays': typeof SignedInHolidaysRoute
   '/_signed-in/hospital-rules': typeof SignedInHospitalRulesRoute
+  '/_signed-in/leave-types': typeof SignedInLeaveTypesRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
+  '/_signed-in/shifts': typeof SignedInShiftsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
 }
@@ -104,8 +131,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit-log'
     | '/health'
+    | '/holidays'
     | '/hospital-rules'
+    | '/leave-types'
     | '/settings'
+    | '/shifts'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -113,8 +143,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit-log'
     | '/health'
+    | '/holidays'
     | '/hospital-rules'
+    | '/leave-types'
     | '/settings'
+    | '/shifts'
     | '/users'
     | '/'
   id:
@@ -124,8 +157,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/_signed-in/audit-log'
     | '/_signed-in/health'
+    | '/_signed-in/holidays'
     | '/_signed-in/hospital-rules'
+    | '/_signed-in/leave-types'
     | '/_signed-in/settings'
+    | '/_signed-in/shifts'
     | '/_signed-in/users'
     | '/_signed-in/'
   fileRoutesById: FileRoutesById
@@ -180,6 +216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInHealthRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/holidays': {
+      id: '/_signed-in/holidays'
+      path: '/holidays'
+      fullPath: '/holidays'
+      preLoaderRoute: typeof SignedInHolidaysRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/hospital-rules': {
       id: '/_signed-in/hospital-rules'
       path: '/hospital-rules'
@@ -187,11 +230,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInHospitalRulesRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/leave-types': {
+      id: '/_signed-in/leave-types'
+      path: '/leave-types'
+      fullPath: '/leave-types'
+      preLoaderRoute: typeof SignedInLeaveTypesRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/settings': {
       id: '/_signed-in/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SignedInSettingsRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/shifts': {
+      id: '/_signed-in/shifts'
+      path: '/shifts'
+      fullPath: '/shifts'
+      preLoaderRoute: typeof SignedInShiftsRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/users': {
@@ -207,8 +264,11 @@ declare module '@tanstack/react-router' {
 interface SignedInRouteChildren {
   SignedInAuditLogRoute: typeof SignedInAuditLogRoute
   SignedInHealthRoute: typeof SignedInHealthRoute
+  SignedInHolidaysRoute: typeof SignedInHolidaysRoute
   SignedInHospitalRulesRoute: typeof SignedInHospitalRulesRoute
+  SignedInLeaveTypesRoute: typeof SignedInLeaveTypesRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
+  SignedInShiftsRoute: typeof SignedInShiftsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
 }
@@ -216,8 +276,11 @@ interface SignedInRouteChildren {
 const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInAuditLogRoute: SignedInAuditLogRoute,
   SignedInHealthRoute: SignedInHealthRoute,
+  SignedInHolidaysRoute: SignedInHolidaysRoute,
   SignedInHospitalRulesRoute: SignedInHospitalRulesRoute,
+  SignedInLeaveTypesRoute: SignedInLeaveTypesRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
+  SignedInShiftsRoute: SignedInShiftsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,
 }

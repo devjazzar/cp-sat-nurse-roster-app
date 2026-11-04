@@ -12,7 +12,7 @@ type FormFieldProps = {
   registration: UseFormRegisterReturn
   /** Client-side validation's error for this field. */
   error?: HookFormError
-} & Omit<ComponentProps<typeof Input>, keyof UseFormRegisterReturn>
+} & Omit<ComponentProps<typeof Input>, "name" | "onChange" | "onBlur" | "ref">
 
 /** A labelled input wired to React Hook Form, with its description and its error. */
 export function FormField({ label, description, registration, error, ...input }: FormFieldProps) {
@@ -60,18 +60,23 @@ type CheckboxFieldProps = {
   label: string
   description?: ReactNode
   registration: UseFormRegisterReturn
+  error?: HookFormError
 }
 
 /** A switch for a rule. Native, so a phone and a screen reader get what they already know. */
-export function CheckboxField({ label, description, registration }: CheckboxFieldProps) {
+export function CheckboxField({ label, description, registration, error }: CheckboxFieldProps) {
   const id = `field-${registration.name}`
   const descriptionId = description ? `${id}-description` : undefined
+  const errorId = error ? `${id}-error` : undefined
   return (
-    <Field orientation="horizontal">
-      <input id={id} type="checkbox" aria-describedby={descriptionId} className={cn(CHECKBOX, "mt-0.5")} {...registration} />
+    <Field orientation="horizontal" data-invalid={!!error || undefined}>
+      <input id={id} type="checkbox" aria-invalid={!!error || undefined}
+        aria-describedby={[errorId, descriptionId].filter(Boolean).join(" ") || undefined}
+        className={cn(CHECKBOX, "mt-0.5")} {...registration} />
       <FieldContent>
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         {description && <FieldDescription id={descriptionId}>{description}</FieldDescription>}
+        <FieldError id={errorId} role={undefined} errors={error ? [error] : undefined} />
       </FieldContent>
     </Field>
   )

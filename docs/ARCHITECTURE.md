@@ -76,6 +76,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Audit log, solve history (all units), health page, backups | yes | | | | |
 | Hospital rules and weights, shift catalogue, leave types, public holidays, Ramadan dates | | yes | | | |
 | Read the hospital rules and weights | | yes | yes | | |
+| Read the shift catalogue, leave types, public holidays, Ramadan dates | yes | yes | yes | yes | yes |
 | Create, rename, archive units; assign each unit its manager | | yes | | | |
 | Add nurses (form or CSV import), transfer, deactivate, export staff list | | yes | | | |
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
@@ -106,8 +107,10 @@ solver's `general` block including the weights), the request cap default.
 
 **Shift** (catalogue): code (the solver's name), display name, hours, start and end time,
 colour, active flag. Hours cannot change while an open month's roster uses the shift; the
-code may be renamed (the app carries the old name through nurses' histories); a shift a
-unit still uses cannot be retired.
+code may be renamed (each rename is recorded, the app carries the old name through nurses'
+histories and the forbidden successions follow at once, and no other shift may take a code a
+shift used to hold); a shift a unit still uses, or a forbidden succession names, cannot be
+retired.
 
 **Leave type**: name, active flag. Every type counts the same for hours.
 
@@ -287,7 +290,9 @@ holidays and Ramadan, units and managers, nurses with import and export, roster 
 approvals); Deputy CNO (roster overview, approvals, hospital rules to read); Unit Manager (unit rules, nurses, request
 windows and requests, swaps, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close); Staff Nurse (unit roster, own summary,
-requests, swaps, notifications, password).
+requests, swaps, notifications, password). The Deputy CNO, Unit Manager and Staff Nurse also read
+the shift catalogue, leave types, holidays and Ramadan; the System Admin may open those pages
+but has no link to them, because nothing in that role's work calls for it.
 
 What a solve shows afterwards: every piece of information the result holds: precheck
 warnings, penalties per rule, per-nurse cost and hours accounting, the explanation of the
@@ -321,7 +326,8 @@ last backup and queue state. Nothing else is bundled.
 - A unit manager may roster any future month, not only the next.
 - Nothing is hard-deleted: units are archived when they have no nurses, nurses are
   deactivated, requests and swaps keep their final state, every roster version and solve is
-  kept.
+  kept. The exceptions are a public holiday and a month's fixed Ramadan dates, which have no
+  history of their own: what a solve used is stored with it and the audit log keeps the rest.
 
 ## 10. Repository, build and tests
 

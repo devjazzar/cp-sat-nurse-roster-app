@@ -2,13 +2,14 @@ from typing import Annotated
 
 from django.db import transaction
 from ninja import Router, Schema
-from pydantic import AfterValidator, ConfigDict, Field, ValidationInfo, field_validator
+from ninja.errors import ValidationError
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
 from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
-from hospital.models import HospitalSettings
-from hospital.rules import SHIFT_CODES, changes
+from hospital.models import HospitalSettings, Shift
+from hospital.rules import changes
 
 router = Router(tags=["hospital"])
 
@@ -19,17 +20,15 @@ MAX_HOURS = 10 ** 6
 MAX_WEIGHT = 10 ** 6
 
 
-def _known_shift(code: str) -> str:
-    if code not in SHIFT_CODES:
-        raise ValueError(f"{code} is not a shift in the catalogue")
-    return code
+def refuse(*errors: tuple[tuple, str]) -> None:
+    """A refusal the schema cannot decide alone, in the shape a schema's own refusal has: (where, why)."""
+    raise ValidationError([{"type": "value_error", "loc": ("body", "body", *loc), "msg": msg} for loc, msg in errors])
 
 
 DailyHours = Annotated[int, Field(ge=0, le=MAX_DAILY_HOURS)]
 Hours = Annotated[int, Field(ge=0, le=MAX_HOURS)]
 Weight = Annotated[int, Field(ge=0, le=MAX_WEIGHT)]
 Weekday = Annotated[int, Field(ge=0, le=6)]
-ShiftCode = Annotated[str, AfterValidator(_known_shift)]
 
 
 class StrictSchema(Schema):
@@ -61,7 +60,7 @@ class HospitalRules(StrictSchema):
     ramadan_hours_per_day: DailyHours
     breastfeeding_reduction: DailyHours
     weekend_weekdays: list[Weekday] = Field(description="0 is Monday and 6 is Sunday.")
-    forbidden_successions: list[Annotated[list[ShiftCode], Field(min_length=2, max_length=2)]] = Field(
+    forbidden_successions: list[Annotated[list[str], Field(min_length=2, max_length=2)]] = Field(
         description="Pairs of shift codes: the shift today, and the shift that may not follow it tomorrow.")
     forbidden_successions_enabled: bool
     hours_rule_enabled: bool
@@ -108,8 +107,12 @@ class HospitalRulesState(Schema):
     shift_codes: list[str] = Field(description="What a forbidden succession may name.")
 
 
+def _active_codes() -> list[str]:
+    return list(Shift.objects.filter(active=True).values_list("code", flat=True))
+
+
 def _state(row: HospitalSettings) -> dict:
-    return {"rules": row.rules, "needs_review": row.rules_need_review, "shift_codes": list(SHIFT_CODES)}
+    return {"rules": row.rules, "needs_review": row.rules_need_review, "shift_codes": _active_codes()}
 
 
 @router.get("/rules", response=HospitalRulesState, auth=SignedIn(Role.CNO, Role.DEPUTY_CNO),
@@ -122,7 +125,15 @@ def get_rules(request) -> dict:
 def update_rules(request, body: HospitalRules) -> dict:
     """Saving is the review: it clears the flag even when nothing else changed."""
     with transaction.atomic():
+        # Here rather than in the schema, and under the lock every change to the catalogue also takes:
+        # so a pair can only ever name an active shift, which is what the page's selects can show.
         row = HospitalSettings.load(for_update=True)
+        active = set(_active_codes())
+        refused = [(("forbidden_successions", index, side), f"{code} is not an active shift in the catalogue")
+                   for index, pair in enumerate(body.forbidden_successions)
+                   for side, code in enumerate(pair) if code not in active]
+        if refused:
+            refuse(*refused)
         after = body.model_dump()
         old, new = changes(row.rules, after)
         if row.rules_need_review:

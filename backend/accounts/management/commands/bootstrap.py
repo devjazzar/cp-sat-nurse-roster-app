@@ -5,16 +5,19 @@ from django.db import transaction
 
 from accounts.models import Role, User
 from audit.log import record
+from hospital.catalogue import seed_catalogue
 from hospital.models import HospitalSettings
 
 USERNAME = "admin"
 
 
 class Command(BaseCommand):
-    help = "First start: seeds the hospital rules and creates the System Admin from INITIAL_ADMIN_PASSWORD."
+    help = "First start: seeds the hospital rules and the catalogue, and creates the System Admin from INITIAL_ADMIN_PASSWORD."
 
     def handle(self, *args, **options):
-        HospitalSettings.load()  # Before the return below: an installation may predate the rules.
+        # Before the return below: an installation may predate these.
+        HospitalSettings.load()
+        seed_catalogue()
         if User.objects.filter(role=Role.SYSTEM_ADMIN).exists():
             return
         password = os.environ.get("INITIAL_ADMIN_PASSWORD", "")

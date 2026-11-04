@@ -64,14 +64,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -723,6 +723,8 @@ describe("the hospital rules page", () => {
 
 })
 
+const CATALOGUE_LINKS = ["Shifts", "Leave types", "Holidays and Ramadan"]
+
 describe("each role's navigation and home", () => {
   const navLinks = () => within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link").map((link) => link.textContent)
 
@@ -735,10 +737,10 @@ describe("each role's navigation and home", () => {
   })
 
   it.each([
-    ["cno", "CNO", /under Hospital rules/, ["Home", "Hospital rules", "Change password"]],
-    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Hospital rules", "Change password"]],
-    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Change password"]],
-    ["staff_nurse", "Staff Nurse", /approved roster will be shown here/, ["Home", "Change password"]],
+    ["cno", "CNO", /under Hospital rules/, ["Home", "Hospital rules", ...CATALOGUE_LINKS, "Change password"]],
+    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Hospital rules", ...CATALOGUE_LINKS, "Change password"]],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", ...CATALOGUE_LINKS, "Change password"]],
+    ["staff_nurse", "Staff Nurse", /approved roster will be shown here/, ["Home", ...CATALOGUE_LINKS, "Change password"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links) => {
     const { router, calls } = start("/", session({ ...ME, username: "someone", full_name: "Some One", role }))
 
@@ -1040,5 +1042,375 @@ describe("the audit log page", () => {
     await user.click(screen.getByRole("link", { name: "Newest entries" }))
 
     await waitFor(() => expect(seen.at(-1)).toBe("action=auth.login"))
+  })
+})
+
+const SHIFT_D = { id: "s1", code: "D", display_name: "Day", hours: 12, start_time: "07:00", end_time: "19:00", colour: "#0284c7", active: true, renames: [] }
+const SHIFT_N = { id: "s2", code: "N", display_name: "Night", hours: 12, start_time: "19:00", end_time: "07:00", colour: "#4338ca", active: true, renames: [] }
+const refusal = (field: (string | number)[], msg: string) => ({ status: 422, body: { detail: [{ loc: ["body", "body", ...field], msg: `Value error, ${msg}`, type: "value_error" }] } })
+const asCno = (extra = {}) => ({ ...session(CNO_ME), ...extra })
+
+describe("the shifts page", () => {
+  const listed = { "GET /api/hospital/shifts": { body: [SHIFT_D, SHIFT_N] } }
+
+  it("lists the catalogue for the CNO, with a shift's former codes", async () => {
+    const renamed = { ...SHIFT_D, code: "DAY", renames: [{ old_code: "D", new_code: "DAY", at: "2026-11-05T10:00:00+03:00" }] }
+    start("/shifts", asCno({ "GET /api/hospital/shifts": { body: [renamed, { ...SHIFT_N, active: false }] } }))
+
+    const row = (await screen.findByText("DAY")).closest("tr") as HTMLElement
+    expect(within(row).getByText("Day")).toBeInTheDocument()
+    expect(within(row).getByText("07:00 to 19:00")).toBeInTheDocument()
+    expect(within(row).getByText(/until 2026-11-05/)).toHaveTextContent("Was D until 2026-11-05")
+    expect(within(row).getByText("Active")).toBeInTheDocument()
+    expect(screen.getByText("Retired")).toBeInTheDocument()
+  })
+
+  it("adds a shift", async () => {
+    const { user, calls } = start("/shifts", asCno({
+      ...listed,
+      "POST /api/hospital/shifts": ({ body }: { body: unknown }) => ({ status: 201, body: { ...(body as object), id: "s3", renames: [] } }),
+    }))
+
+    await user.type(await screen.findByLabelText("Code"), "T")
+    await user.type(screen.getByLabelText("Display name"), "Twilight")
+    await user.type(screen.getByLabelText("Hours"), "6")
+    await user.type(screen.getByLabelText("Start time"), "16:00")
+    await user.type(screen.getByLabelText("End time"), "22:00")
+    await user.click(screen.getByRole("button", { name: "Add shift" }))
+
+    expect(await screen.findByText("T is added.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({
+      code: "T", display_name: "Twilight", hours: 6, start_time: "16:00", end_time: "22:00", colour: "#64748b", active: true,
+    })
+    expect(screen.getByLabelText("Code")).toHaveValue("")
+  })
+
+  it("says what is wrong before asking the API", async () => {
+    const { user, calls } = start("/shifts", asCno(listed))
+
+    await user.type(await screen.findByLabelText("Code"), "=X")
+    await user.click(screen.getByRole("button", { name: "Add shift" }))
+
+    expect(await screen.findByText(/starting with a letter or digit/)).toBeInTheDocument()
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument()
+    expect(screen.getByText(/whole hours from 1 to 24/)).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+  })
+
+  it("edits a shift in the form and gives focus back to its button", async () => {
+    const { user, calls } = start("/shifts", asCno({
+      ...listed,
+      "PUT /api/hospital/shifts/s1": ({ body }: { body: unknown }) => ({ body: { ...SHIFT_D, ...(body as object) } }),
+    }))
+
+    const edit = await screen.findByRole("button", { name: "Edit D" })
+    await user.click(edit)
+    expect(screen.getByRole("heading", { name: "Edit D" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Code")).toHaveFocus()
+    expect(screen.getByLabelText("Code")).toHaveAccessibleDescription(/forbidden successions change with it/)
+
+    await user.clear(screen.getByLabelText("Code"))
+    await user.type(screen.getByLabelText("Code"), "DAY")
+    await user.click(screen.getByRole("button", { name: "Save shift" }))
+
+    expect(await screen.findByText("DAY is saved.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({
+      code: "DAY", display_name: "Day", hours: 12, start_time: "07:00", end_time: "19:00", colour: "#0284c7", active: true,
+    })
+    expect(screen.getByRole("heading", { name: "Add a shift" })).toBeInTheDocument()
+    await waitFor(() => expect(edit).toHaveFocus())
+  })
+
+  it("cancelling leaves the form empty and changes nothing", async () => {
+    const { user, calls } = start("/shifts", asCno(listed))
+
+    const edit = await screen.findByRole("button", { name: "Edit N" })
+    await user.click(edit)
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.getByLabelText("Code")).toHaveValue("")
+    await waitFor(() => expect(edit).toHaveFocus())
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+  })
+
+  it("shows why a shift cannot be retired beside the switch", async () => {
+    const { user } = start("/shifts", asCno({
+      ...listed,
+      "PUT /api/hospital/shifts/s2": refusal(["active"], "N is named in the forbidden successions of the hospital rules. Remove those pairs first."),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit N" }))
+    await user.click(screen.getByLabelText("Active"))
+    await user.click(screen.getByRole("button", { name: "Save shift" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Active")).toHaveFocus())
+    expect(screen.getByLabelText("Active")).toHaveAccessibleDescription(/Remove those pairs first/)
+    expect(screen.getByLabelText("Active")).toBeInvalid()
+  })
+
+  it("shows a taken code beside its field", async () => {
+    const { user } = start("/shifts", asCno({ ...listed, "POST /api/hospital/shifts": refusal(["code"], "D is already in use") }))
+
+    await user.type(await screen.findByLabelText("Code"), "D")
+    await user.type(screen.getByLabelText("Display name"), "Other")
+    await user.type(screen.getByLabelText("Hours"), "6")
+    await user.type(screen.getByLabelText("Start time"), "16:00")
+    await user.type(screen.getByLabelText("End time"), "22:00")
+    await user.click(screen.getByRole("button", { name: "Add shift" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Code")).toHaveFocus())
+    expect(screen.getByLabelText("Code")).toHaveAccessibleDescription(/D is already in use/)
+  })
+
+  it.each(["deputy_cno", "unit_manager", "staff_nurse", "system_admin"])("%s reads the catalogue and can change nothing", async (role) => {
+    start("/shifts", { ...session({ ...ME, role }), ...listed })
+
+    expect(await screen.findByText("Night")).toBeInTheDocument()
+    expect(screen.getByText(/Only the CNO can change these/)).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Shifts" })).toHaveAttribute("tabindex", "0")
+    expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Code")).not.toBeInTheDocument()
+  })
+})
+
+describe("the leave types page", () => {
+  const SICK = { id: "l1", name: "Sick", active: true }
+  const listed = { "GET /api/hospital/leave-types": { body: [SICK, { id: "l2", name: "Hajj", active: false }] } }
+
+  it("adds a type and shows a taken name beside its field", async () => {
+    const answers = [refusal(["name"], "Sick is already a leave type"), { status: 201, body: { id: "l3", name: "Study", active: true } }]
+    const { user } = start("/leave-types", asCno({ ...listed, "POST /api/hospital/leave-types": () => answers.shift() as Answer }))
+
+    await user.type(await screen.findByLabelText("Name"), "Sick")
+    await user.click(screen.getByRole("button", { name: "Add leave type" }))
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveAccessibleDescription(/already a leave type/))
+
+    await user.clear(screen.getByLabelText("Name"))
+    await user.type(screen.getByLabelText("Name"), "Study")
+    await user.click(screen.getByRole("button", { name: "Add leave type" }))
+
+    expect(await screen.findByText("Study is added.")).toBeInTheDocument()
+  })
+
+  it("edits and retires a type", async () => {
+    const { user, calls } = start("/leave-types", asCno({
+      ...listed,
+      "PUT /api/hospital/leave-types/l1": ({ body }: { body: unknown }) => ({ body: { id: "l1", ...(body as object) } }),
+    }))
+
+    const edit = await screen.findByRole("button", { name: "Edit Sick" })
+    await user.click(edit)
+    await user.click(screen.getByLabelText("Active"))
+    await user.click(screen.getByRole("button", { name: "Save leave type" }))
+
+    expect(await screen.findByText("Sick is saved.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Sick", active: false })
+    await waitFor(() => expect(edit).toHaveFocus())
+  })
+
+  it("another role reads and can change nothing", async () => {
+    start("/leave-types", { ...session(NURSE), ...listed })
+
+    expect(await screen.findByText("Sick")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument()
+  })
+})
+
+describe("the holidays and Ramadan page", () => {
+  const NATIONAL = { id: "h1", date: "2026-09-23", name: "National Day" }
+  const days = (first: number, last: number) =>
+    Array.from({ length: last - first + 1 }, (_, index) => `2026-03-${String(first + index).padStart(2, "0")}`)
+  const MARCH = { month: "2026-03", source: "derived", dates: days(1, 19), derived_dates: days(1, 19) }
+  const months = (march: unknown = MARCH) => Array.from({ length: 12 }, (_, index) => {
+    const month = `2026-${String(index + 1).padStart(2, "0")}`
+    return month === "2026-03" ? march : { month, source: "derived", dates: [], derived_dates: [] }
+  })
+  const year2026 = (march?: unknown, holidays: unknown[] = [NATIONAL]) => ({
+    "GET /api/hospital/public-holidays": { body: holidays },
+    "GET /api/hospital/ramadan": { body: months(march) },
+  })
+  const row = async (name: string) => (await screen.findByRole("cell", { name })).closest("tr") as HTMLElement
+
+  it("shows the year's holidays and each month's Ramadan days", async () => {
+    const { calls } = start("/holidays?year=2026", asCno(year2026()))
+
+    expect(await screen.findByText(/23 September 2026/)).toBeInTheDocument()
+    const march = await row("March 2026")
+    expect(within(march).getByText("1 to 19")).toBeInTheDocument()
+    expect(within(march).getByText("The calendar")).toBeInTheDocument()
+    expect(within(await row("April 2026")).getByText("None")).toBeInTheDocument()
+    expect(calls.map((call) => call.url)).toContain("/api/hospital/ramadan?year=2026")
+    expect(calls.map((call) => call.url)).toContain("/api/hospital/public-holidays?year=2026")
+  })
+
+  it("moves between years", async () => {
+    const { user, router, calls } = start("/holidays?year=2026", asCno(year2026()))
+
+    await user.click(await screen.findByRole("link", { name: "2027" }))
+
+    await waitFor(() => expect(router.state.location.search).toEqual({ year: 2027 }))
+    await waitFor(() => expect(calls.map((call) => call.url)).toContain("/api/hospital/ramadan?year=2027"))
+    expect(await screen.findByRole("heading", { name: "Public holidays in 2027" })).toBeInTheDocument()
+  })
+
+  it("drops a hand-edited year from the address", async () => {
+    const { calls } = start("/holidays?year=1800", asCno(year2026()))
+
+    await screen.findByRole("heading", { name: "Holidays and Ramadan" })
+    await waitFor(() => expect(calls.some((call) => call.url.includes("year=1800"))).toBe(false))
+  })
+
+  it("adds a holiday, and a date entered twice is refused beside the date", async () => {
+    const answers = [refusal(["date"], "2026-09-23 is already a public holiday"), { status: 201, body: { id: "h2", date: "2026-02-22", name: "Founding Day" } }]
+    const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(), "POST /api/hospital/public-holidays": () => answers.shift() as Answer }))
+
+    await user.type(await screen.findByLabelText("Date"), "2026-09-23")
+    await user.type(screen.getByLabelText("Name"), "Again")
+    await user.click(screen.getByRole("button", { name: "Add holiday" }))
+    await waitFor(() => expect(screen.getByLabelText("Date")).toHaveAccessibleDescription(/already a public holiday/))
+
+    await user.clear(screen.getByLabelText("Date"))
+    await user.type(screen.getByLabelText("Date"), "2026-02-22")
+    await user.click(screen.getByRole("button", { name: "Add holiday" }))
+
+    expect(await screen.findByText("Again is added.".replace("Again", "Founding Day"))).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === "POST").at(-1)?.body).toEqual({ date: "2026-02-22", name: "Again" })
+  })
+
+  it("refuses a date outside the year on the page, before asking the API", async () => {
+    const { user, calls } = start("/holidays?year=2026", asCno(year2026()))
+
+    await user.type(await screen.findByLabelText("Date"), "2027-01-01")
+    await user.type(screen.getByLabelText("Name"), "New Year")
+    await user.click(screen.getByRole("button", { name: "Add holiday" }))
+
+    expect(await screen.findByText(/not in 2026/)).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+  })
+
+  it("edits a holiday and removes one, with focus staying on the form", async () => {
+    const { user, calls } = start("/holidays?year=2026", asCno({
+      ...year2026(),
+      "PUT /api/hospital/public-holidays/h1": ({ body }: { body: unknown }) => ({ body: { id: "h1", ...(body as object) } }),
+      "DELETE /api/hospital/public-holidays/h1": { status: 204 },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit National Day" }))
+    expect(screen.getByLabelText("Date")).toHaveFocus()
+    await user.clear(screen.getByLabelText("Name"))
+    await user.type(screen.getByLabelText("Name"), "Saudi National Day")
+    await user.click(screen.getByRole("button", { name: "Save holiday" }))
+    expect(await screen.findByText("Saudi National Day is saved.")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Remove National Day" }))
+    expect(calls.some((call) => call.method === "DELETE")).toBe(false)
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Remove holiday" }))
+
+    expect(await screen.findByText("National Day is removed.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText("Date")).toHaveFocus())
+    expect(calls.some((call) => call.method === "DELETE")).toBe(true)
+  })
+
+  it("fixes a month as a range, starting from what is in force", async () => {
+    const fixed = { ...MARCH, source: "fixed", dates: days(2, 20) }
+    const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadan/2026-03": { body: fixed } }))
+
+    const button = await screen.findByRole("button", { name: "Fix the dates of March 2026" })
+    await user.click(button)
+    expect(screen.getByRole("heading", { name: "Fix the Ramadan dates of March 2026" })).toHaveFocus()
+    expect(screen.getByLabelText("First day")).toHaveValue("2026-03-01")
+    expect(screen.getByLabelText("Last day")).toHaveValue("2026-03-19")
+
+    await user.clear(screen.getByLabelText("First day"))
+    await user.type(screen.getByLabelText("First day"), "2026-03-02")
+    await user.clear(screen.getByLabelText("Last day"))
+    await user.type(screen.getByLabelText("Last day"), "2026-03-20")
+    await user.click(within(screen.getByRole("heading", { name: /Fix the Ramadan dates/ }).closest("[data-slot=card]") as HTMLElement).getByRole("button", { name: "Fix dates" }))
+
+    expect(await screen.findByText("The Ramadan dates of March 2026 are fixed.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ first: "2026-03-02", last: "2026-03-20" })
+    await waitFor(() => expect(button).toHaveFocus())
+  })
+
+  it("refuses a backwards range on the page", async () => {
+    const { user, calls } = start("/holidays?year=2026", asCno(year2026()))
+
+    await user.click(await screen.findByRole("button", { name: "Fix the dates of March 2026" }))
+    await user.clear(screen.getByLabelText("Last day"))
+    await user.type(screen.getByLabelText("Last day"), "2026-02-20")
+    const card = screen.getByRole("heading", { name: /Fix the Ramadan dates/ }).closest("[data-slot=card]") as HTMLElement
+    await user.click(within(card).getByRole("button", { name: "Fix dates" }))
+
+    expect(await screen.findByText("Enter a day in March 2026.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+  })
+
+  it("fixes a month as a list, and none ticked means no Ramadan days", async () => {
+    const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadan/2026-03": { body: { ...MARCH, source: "fixed", dates: [] } } }))
+
+    await user.click(await screen.findByRole("button", { name: "Fix the dates of March 2026" }))
+    await user.click(screen.getByLabelText("A list of days"))
+    const days31 = within(screen.getByRole("group", { name: "Days of March 2026" })).getAllByRole("checkbox")
+    expect(days31).toHaveLength(31)
+    for (const box of days31.filter((box) => (box as HTMLInputElement).checked)) await user.click(box)
+    await user.click(within(screen.getByRole("heading", { name: /Fix the Ramadan dates/ }).closest("[data-slot=card]") as HTMLElement).getByRole("button", { name: "Fix dates" }))
+
+    await screen.findByText("The Ramadan dates of March 2026 are fixed.")
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ dates: [] })
+  })
+
+  it("a fixed month shows the calendar's days too and can return to them", async () => {
+    const fixed = { ...MARCH, source: "fixed", dates: days(2, 20) }
+    const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(fixed), "DELETE /api/hospital/ramadan/2026-03": { body: MARCH } }))
+
+    const march = await row("March 2026")
+    expect(within(march).getByText("2 to 20")).toBeInTheDocument()
+    expect(within(march).getByText("The calendar says: 1 to 19")).toBeInTheDocument()
+    expect(within(march).getByText("The CNO")).toBeInTheDocument()
+
+    await user.click(within(march).getByRole("button", { name: "Use the calendar for March 2026" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(dialog).toHaveTextContent("The fixed dates (2 to 20) are dropped")
+    expect(calls.some((call) => call.method === "DELETE")).toBe(false)
+    await user.click(within(dialog).getByRole("button", { name: "Use the calendar" }))
+
+    expect(await screen.findByText("March 2026 follows the calendar again.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "DELETE")).toBe(true)
+    await waitFor(() => expect(screen.getByRole("button", { name: "Fix the dates of March 2026" })).toHaveFocus())
+  })
+
+  it("cancelling a removal changes nothing and keeps a failure from going unnoticed", async () => {
+    const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(), "DELETE /api/hospital/public-holidays/h1": { status: 500 } }))
+
+    const remove = await screen.findByRole("button", { name: "Remove National Day" })
+    await user.click(remove)
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Remove holiday" }))
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/did not work/)
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    await waitFor(() => expect(remove).toHaveFocus())
+    expect(screen.getByText("National Day")).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1)
+  })
+
+  it("a month fixed to no days reopens as a list", async () => {
+    const { user } = start("/holidays?year=2026", asCno(year2026({ ...MARCH, source: "fixed", dates: [] })))
+
+    await user.click(await screen.findByRole("button", { name: "Fix the dates of March 2026" }))
+
+    expect(screen.getByLabelText("A list of days")).toBeChecked()
+  })
+
+  it("another role reads and can change nothing", async () => {
+    start("/holidays?year=2026", { ...session(NURSE), ...year2026() })
+
+    expect(await screen.findByText("National Day")).toBeInTheDocument()
+    expect(await screen.findByRole("cell", { name: "March 2026" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Ramadan dates in 2026" })).toHaveAttribute("tabindex", "0")
+    expect(screen.queryByRole("button", { name: /Fix|Edit|Remove|Add/ })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Date")).not.toBeInTheDocument()
   })
 })

@@ -621,3 +621,302 @@ export const UpdateHospitalRulesResponse = zod.object({
   "needs_review": zod.boolean().describe('Still the seeded defaults: nobody has saved them yet.'),
   "shift_codes": zod.array(zod.string()).describe('What a forbidden succession may name.')
 })
+
+
+/**
+ * Retired shifts too: a code on an old roster still needs its name.
+ * @summary List Shifts
+ */
+export const ListShiftsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "hours": zod.int(),
+  "start_time": zod.string(),
+  "end_time": zod.string(),
+  "colour": zod.string(),
+  "active": zod.boolean(),
+  "renames": zod.array(zod.object({
+  "old_code": zod.string(),
+  "new_code": zod.string(),
+  "at": zod.iso.datetime({"offset":true}).describe('In the hospital\'s time zone.')
+})).describe('Every change of this shift\'s code, oldest first.')
+}).describe('Not the request\'s schema: what is stored is shown as it is, whatever the rules were when it was saved.')
+export const ListShiftsResponse = zod.array(ListShiftsResponseItem)
+
+
+/**
+ * @summary Create Shift
+ */
+export const createShiftBodyCodeRegExp = new RegExp('^[A-Za-z0-9][A-Za-z0-9_-]{0,7}$');
+export const createShiftBodyDisplayNameMax = 100;
+
+export const createShiftBodyHoursMax = 24;
+
+export const createShiftBodyStartTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const createShiftBodyEndTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const createShiftBodyColourRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+
+
+export const CreateShiftBody = zod.object({
+  "code": zod.string().regex(createShiftBodyCodeRegExp).describe('The name the solver and rosters use.'),
+  "display_name": zod.string().min(1).max(createShiftBodyDisplayNameMax),
+  "hours": zod.int().min(1).max(createShiftBodyHoursMax),
+  "start_time": zod.string().regex(createShiftBodyStartTimeRegExp),
+  "end_time": zod.string().regex(createShiftBodyEndTimeRegExp).describe('Earlier than the start time when the shift runs past midnight.'),
+  "colour": zod.string().regex(createShiftBodyColourRegExp),
+  "active": zod.boolean()
+})
+
+export const CreateShiftResponse = zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "hours": zod.int(),
+  "start_time": zod.string(),
+  "end_time": zod.string(),
+  "colour": zod.string(),
+  "active": zod.boolean(),
+  "renames": zod.array(zod.object({
+  "old_code": zod.string(),
+  "new_code": zod.string(),
+  "at": zod.iso.datetime({"offset":true}).describe('In the hospital\'s time zone.')
+})).describe('Every change of this shift\'s code, oldest first.')
+}).describe('Not the request\'s schema: what is stored is shown as it is, whatever the rules were when it was saved.')
+
+
+/**
+ * Hold the rules' lock throughout: a forbidden succession only ever names an active shift, which
+ * both this and saving the rules must see the other's finished work to keep true.
+ * @summary Update Shift
+ */
+export const UpdateShiftParams = zod.object({
+  "shift_id": zod.uuid()
+})
+
+export const updateShiftBodyCodeRegExp = new RegExp('^[A-Za-z0-9][A-Za-z0-9_-]{0,7}$');
+export const updateShiftBodyDisplayNameMax = 100;
+
+export const updateShiftBodyHoursMax = 24;
+
+export const updateShiftBodyStartTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateShiftBodyEndTimeRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateShiftBodyColourRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+
+
+export const UpdateShiftBody = zod.object({
+  "code": zod.string().regex(updateShiftBodyCodeRegExp).describe('The name the solver and rosters use.'),
+  "display_name": zod.string().min(1).max(updateShiftBodyDisplayNameMax),
+  "hours": zod.int().min(1).max(updateShiftBodyHoursMax),
+  "start_time": zod.string().regex(updateShiftBodyStartTimeRegExp),
+  "end_time": zod.string().regex(updateShiftBodyEndTimeRegExp).describe('Earlier than the start time when the shift runs past midnight.'),
+  "colour": zod.string().regex(updateShiftBodyColourRegExp),
+  "active": zod.boolean()
+})
+
+export const UpdateShiftResponse = zod.object({
+  "id": zod.uuid(),
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "hours": zod.int(),
+  "start_time": zod.string(),
+  "end_time": zod.string(),
+  "colour": zod.string(),
+  "active": zod.boolean(),
+  "renames": zod.array(zod.object({
+  "old_code": zod.string(),
+  "new_code": zod.string(),
+  "at": zod.iso.datetime({"offset":true}).describe('In the hospital\'s time zone.')
+})).describe('Every change of this shift\'s code, oldest first.')
+}).describe('Not the request\'s schema: what is stored is shown as it is, whatever the rules were when it was saved.')
+
+
+/**
+ * @summary List Leave Types
+ */
+export const ListLeaveTypesResponseItem = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean()
+})
+export const ListLeaveTypesResponse = zod.array(ListLeaveTypesResponseItem)
+
+
+/**
+ * @summary Create Leave Type
+ */
+export const createLeaveTypeBodyNameMax = 100;
+
+
+
+export const CreateLeaveTypeBody = zod.object({
+  "name": zod.string().min(1).max(createLeaveTypeBodyNameMax),
+  "active": zod.boolean()
+})
+
+export const CreateLeaveTypeResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary Update Leave Type
+ */
+export const UpdateLeaveTypeParams = zod.object({
+  "leave_type_id": zod.uuid()
+})
+
+export const updateLeaveTypeBodyNameMax = 100;
+
+
+
+export const UpdateLeaveTypeBody = zod.object({
+  "name": zod.string().min(1).max(updateLeaveTypeBodyNameMax),
+  "active": zod.boolean()
+})
+
+export const UpdateLeaveTypeResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary List Public Holidays
+ */
+export const listPublicHolidaysQueryYearMin = 1925;
+export const listPublicHolidaysQueryYearMax = 2076;
+
+
+
+export const ListPublicHolidaysQueryParams = zod.object({
+  "year": zod.int().min(listPublicHolidaysQueryYearMin).max(listPublicHolidaysQueryYearMax)
+})
+
+export const ListPublicHolidaysResponseItem = zod.object({
+  "id": zod.uuid(),
+  "date": zod.iso.date(),
+  "name": zod.string()
+})
+export const ListPublicHolidaysResponse = zod.array(ListPublicHolidaysResponseItem)
+
+
+/**
+ * @summary Create Public Holiday
+ */
+export const createPublicHolidayBodyNameMax = 100;
+
+
+
+export const CreatePublicHolidayBody = zod.object({
+  "date": zod.iso.date(),
+  "name": zod.string().min(1).max(createPublicHolidayBodyNameMax)
+})
+
+export const CreatePublicHolidayResponse = zod.object({
+  "id": zod.uuid(),
+  "date": zod.iso.date(),
+  "name": zod.string()
+})
+
+
+/**
+ * @summary Update Public Holiday
+ */
+export const UpdatePublicHolidayParams = zod.object({
+  "holiday_id": zod.uuid()
+})
+
+export const updatePublicHolidayBodyNameMax = 100;
+
+
+
+export const UpdatePublicHolidayBody = zod.object({
+  "date": zod.iso.date(),
+  "name": zod.string().min(1).max(updatePublicHolidayBodyNameMax)
+})
+
+export const UpdatePublicHolidayResponse = zod.object({
+  "id": zod.uuid(),
+  "date": zod.iso.date(),
+  "name": zod.string()
+})
+
+
+/**
+ * A holiday has no history of its own: an entry made by mistake goes, and the audit log keeps it.
+ * @summary Delete Public Holiday
+ */
+export const DeletePublicHolidayParams = zod.object({
+  "holiday_id": zod.uuid()
+})
+
+export const DeletePublicHolidayResponse = zod.void()
+
+
+/**
+ * Every month of the year: the sighting can put a day in a month the calendar gives none.
+ * @summary List Ramadan Months
+ */
+export const listRamadanMonthsQueryYearMin = 1925;
+export const listRamadanMonthsQueryYearMax = 2076;
+
+
+
+export const ListRamadanMonthsQueryParams = zod.object({
+  "year": zod.int().min(listRamadanMonthsQueryYearMin).max(listRamadanMonthsQueryYearMax)
+})
+
+export const ListRamadanMonthsResponseItem = zod.object({
+  "month": zod.string(),
+  "source": zod.enum(['derived', 'fixed']).describe('Fixed by the CNO, or derived from the calendar.'),
+  "dates": zod.array(zod.iso.date()).describe('The month\'s Ramadan days.'),
+  "derived_dates": zod.array(zod.iso.date()).describe('What the Umm al-Qura calendar says, whichever is in force.')
+})
+export const ListRamadanMonthsResponse = zod.array(ListRamadanMonthsResponseItem)
+
+
+/**
+ * @summary Fix Ramadan Month
+ */
+export const fixRamadanMonthPathMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const FixRamadanMonthParams = zod.object({
+  "month": zod.string().regex(fixRamadanMonthPathMonthRegExp)
+})
+
+export const FixRamadanMonthBody = zod.object({
+  "first": zod.union([zod.iso.date(),zod.null()]).optional().describe('With `last`: every day from this one to that one.'),
+  "last": zod.union([zod.iso.date(),zod.null()]).optional(),
+  "dates": zod.union([zod.array(zod.iso.date()),zod.null()]).optional().describe('Or exactly these days. Empty means none this month.')
+})
+
+export const FixRamadanMonthResponse = zod.object({
+  "month": zod.string(),
+  "source": zod.enum(['derived', 'fixed']).describe('Fixed by the CNO, or derived from the calendar.'),
+  "dates": zod.array(zod.iso.date()).describe('The month\'s Ramadan days.'),
+  "derived_dates": zod.array(zod.iso.date()).describe('What the Umm al-Qura calendar says, whichever is in force.')
+})
+
+
+/**
+ * Back to the calendar.
+ * @summary Unfix Ramadan Month
+ */
+export const unfixRamadanMonthPathMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const UnfixRamadanMonthParams = zod.object({
+  "month": zod.string().regex(unfixRamadanMonthPathMonthRegExp)
+})
+
+export const UnfixRamadanMonthResponse = zod.object({
+  "month": zod.string(),
+  "source": zod.enum(['derived', 'fixed']).describe('Fixed by the CNO, or derived from the calendar.'),
+  "dates": zod.array(zod.iso.date()).describe('The month\'s Ramadan days.'),
+  "derived_dates": zod.array(zod.iso.date()).describe('What the Umm al-Qura calendar says, whichever is in force.')
+})

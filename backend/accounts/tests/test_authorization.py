@@ -13,7 +13,10 @@ from conftest import PASSWORD
 pytestmark = pytest.mark.django_db
 
 PUBLIC = {"GET /api/health", "GET /api/auth/session", "POST /api/auth/login"}
-ANY_ROLE = {"POST /api/auth/logout", "POST /api/auth/change-password"}
+# The catalogue: the ticket gives every role its reading, and it is neither a roster nor a rostering attribute.
+ANY_ROLE = {"POST /api/auth/logout", "POST /api/auth/change-password",
+            "GET /api/hospital/shifts", "GET /api/hospital/leave-types", "GET /api/hospital/public-holidays",
+            "GET /api/hospital/ramadan"}
 
 
 def endpoints():

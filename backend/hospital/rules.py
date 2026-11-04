@@ -2,9 +2,6 @@
 input can carry them as they are. `shift_hours` is not among them: it comes from the shift catalogue."""
 from __future__ import annotations
 
-# Until ticket 05's shift catalogue exists to ask. Forbidden successions may only name these.
-SHIFT_CODES = ("D", "N", "A", "B", "C")
-
 # The reviewed set the solver was shaped on. hospital/tests/test_rules.py holds it to the solver's own.
 DEFAULT_RULES = {
     "hours_per_day": 8,

@@ -3,10 +3,9 @@ import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useRouteContext } from "@tanstack/react-router"
 import { Trash2Icon } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { useController, useForm, type Control, type FieldError, type FieldPath } from "react-hook-form"
+import { useController, useForm, type Control, type FieldError } from "react-hook-form"
 import { z } from "zod"
 
-import { ApiError } from "@/api/fetcher"
 import {
   getGetHospitalRulesQueryKey,
   useGetHospitalRules,
@@ -24,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldDescription, FieldError as FieldErrorText, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/hospital-rules")({
@@ -257,16 +257,8 @@ function SuccessionsField({ control, codes, error }: { control: Control<Hospital
   )
 }
 
-function serverErrors(error: unknown): { path: string; message: string }[] {
-  if (!(error instanceof ApiError) || error.status !== 422) return []
-  const detail = (error.body as { detail?: { loc: (string | number)[]; msg: string }[] } | undefined)?.detail ?? []
-  return detail.map(({ loc, msg }) => {
-    // ["body", "body", "weights", "change"], or ["body", "body", "forbidden_successions", 3, 0].
-    const [first, second] = loc.slice(2)
-    // Pydantic opens a validator's own message with this.
-    return { path: first === "weights" ? `weights.${second}` : String(first), message: msg.replace(/^Value error, /, "") }
-  })
-}
+/** "weights.change" as it is, and a pair's or a weekend day's position stops at the list, which shows the error. */
+const rulesPath = ([first, second]: (string | number)[]) => (first === "weights" ? `weights.${second}` : String(first))
 
 function RulesForm({ state }: { state: HospitalRulesState }) {
   const queryClient = useQueryClient()
@@ -283,14 +275,11 @@ function RulesForm({ state }: { state: HospitalRulesState }) {
           queryClient.setQueryData(getGetHospitalRulesQueryKey(), saved)
           form.reset(saved.rules)
         },
-        onError: (error) => {
-          serverErrors(error).forEach(({ path, message }, index) =>
-            form.setError(path as FieldPath<HospitalRules>, { message }, { shouldFocus: index === 0 }))
-        },
+        onError: (error) => showServerErrors(form, error, rulesPath),
       },
     ),
   )
-  const refused = update.isError && serverErrors(update.error).length > 0
+  const refused = update.isError && serverErrors(update.error, rulesPath).length > 0
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">

@@ -13,7 +13,7 @@ from audit.models import AuditEntry
 from hospital.models import HospitalSettings
 from hospital.rules import DEFAULT_RULES, general_block
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("catalogue")]
 
 RULES = "/api/hospital/rules"
 ER_REQUEST = Path(__file__).parents[3] / "solver/tests/fixtures/er_request_2026-03.json"

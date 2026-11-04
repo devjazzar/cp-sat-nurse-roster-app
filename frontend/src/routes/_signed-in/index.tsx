@@ -5,7 +5,7 @@ import { ROLE_NAMES } from "@/roles"
 
 /** The System Admin's home is the health page. Nothing below can be reached by that role. */
 const WHAT_COMES_HERE: Record<Exclude<Role, "system_admin">, string> = {
-  cno: "Set the rules every unit rosters by under Hospital rules. The hospital's units and nurses will be managed from here.",
+  cno: "Set the rules every unit rosters by under Hospital rules, and keep the shifts, leave types, holidays and Ramadan dates they use. The hospital's units and nurses will be managed from here.",
   deputy_cno: "Submitted rosters waiting for your decision will be listed here.",
   unit_manager: "No unit is assigned to you yet. The CNO assigns each unit its manager.",
   staff_nurse: "Your unit's approved roster will be shown here.",

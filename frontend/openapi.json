@@ -661,6 +661,521 @@
           }
         ]
       }
+    },
+    "/api/hospital/shifts": {
+      "get": {
+        "operationId": "listShifts",
+        "summary": "List Shifts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ShiftSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retired shifts too: a code on an old roster still needs its name.",
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createShift",
+        "summary": "Create Shift",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShiftSchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShiftBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/shifts/{shift_id}": {
+      "put": {
+        "operationId": "updateShift",
+        "summary": "Update Shift",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shift_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Shift Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShiftSchema"
+                }
+              }
+            }
+          }
+        },
+        "description": "Hold the rules' lock throughout: a forbidden succession only ever names an active shift, which\nboth this and saving the rules must see the other's finished work to keep true.",
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShiftBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/leave-types": {
+      "get": {
+        "operationId": "listLeaveTypes",
+        "summary": "List Leave Types",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LeaveTypeSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createLeaveType",
+        "summary": "Create Leave Type",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveTypeSchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveTypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/leave-types/{leave_type_id}": {
+      "put": {
+        "operationId": "updateLeaveType",
+        "summary": "Update Leave Type",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "leave_type_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Leave Type Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveTypeSchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveTypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/public-holidays": {
+      "get": {
+        "operationId": "listPublicHolidays",
+        "summary": "List Public Holidays",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "schema": {
+              "maximum": 2076,
+              "minimum": 1925,
+              "title": "Year",
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicHolidaySchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createPublicHoliday",
+        "summary": "Create Public Holiday",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicHolidaySchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicHolidayBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/public-holidays/{holiday_id}": {
+      "put": {
+        "operationId": "updatePublicHoliday",
+        "summary": "Update Public Holiday",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holiday_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Holiday Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicHolidaySchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicHolidayBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deletePublicHoliday",
+        "summary": "Delete Public Holiday",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "holiday_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Holiday Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "A holiday has no history of its own: an entry made by mistake goes, and the audit log keeps it.",
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/ramadan": {
+      "get": {
+        "operationId": "listRamadanMonths",
+        "summary": "List Ramadan Months",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "schema": {
+              "maximum": 2076,
+              "minimum": 1925,
+              "title": "Year",
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RamadanMonth"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Every month of the year: the sighting can put a day in a month the calendar gives none.",
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/ramadan/{month}": {
+      "put": {
+        "operationId": "fixRamadanMonth",
+        "summary": "Fix Ramadan Month",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "month",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RamadanMonth"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RamadanFix"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "unfixRamadanMonth",
+        "summary": "Unfix Ramadan Month",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "month",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "title": "Month",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RamadanMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "Back to the calendar.",
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1579,6 +2094,351 @@
           "change"
         ],
         "title": "Weights",
+        "type": "object"
+      },
+      "ShiftRenameSchema": {
+        "properties": {
+          "old_code": {
+            "title": "Old Code",
+            "type": "string"
+          },
+          "new_code": {
+            "title": "New Code",
+            "type": "string"
+          },
+          "at": {
+            "description": "In the hospital's time zone.",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_code",
+          "new_code",
+          "at"
+        ],
+        "title": "ShiftRenameSchema",
+        "type": "object"
+      },
+      "ShiftSchema": {
+        "description": "Not the request's schema: what is stored is shown as it is, whatever the rules were when it was saved.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "integer"
+          },
+          "start_time": {
+            "title": "Start Time",
+            "type": "string"
+          },
+          "end_time": {
+            "title": "End Time",
+            "type": "string"
+          },
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "renames": {
+            "description": "Every change of this shift's code, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/ShiftRenameSchema"
+            },
+            "title": "Renames",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "display_name",
+          "hours",
+          "start_time",
+          "end_time",
+          "colour",
+          "active",
+          "renames"
+        ],
+        "title": "ShiftSchema",
+        "type": "object"
+      },
+      "ShiftBody": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "description": "The name the solver and rosters use.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,7}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "hours": {
+            "maximum": 24,
+            "minimum": 1,
+            "title": "Hours",
+            "type": "integer"
+          },
+          "start_time": {
+            "examples": [
+              "02:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "end_time": {
+            "description": "Earlier than the start time when the shift runs past midnight.",
+            "examples": [
+              "02:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "title": "End Time",
+            "type": "string"
+          },
+          "colour": {
+            "examples": [
+              "#0284c7"
+            ],
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Colour",
+            "type": "string"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "hours",
+          "start_time",
+          "end_time",
+          "colour",
+          "active"
+        ],
+        "title": "ShiftBody",
+        "type": "object"
+      },
+      "LeaveTypeSchema": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active"
+        ],
+        "title": "LeaveTypeSchema",
+        "type": "object"
+      },
+      "LeaveTypeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "active"
+        ],
+        "title": "LeaveTypeBody",
+        "type": "object"
+      },
+      "YearFilter": {
+        "properties": {
+          "year": {
+            "maximum": 2076,
+            "minimum": 1925,
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "title": "YearFilter",
+        "type": "object"
+      },
+      "PublicHolidaySchema": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "name"
+        ],
+        "title": "PublicHolidaySchema",
+        "type": "object"
+      },
+      "PublicHolidayBody": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "name"
+        ],
+        "title": "PublicHolidayBody",
+        "type": "object"
+      },
+      "RamadanMonth": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "source": {
+            "description": "Fixed by the CNO, or derived from the calendar.",
+            "enum": [
+              "derived",
+              "fixed"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "dates": {
+            "description": "The month's Ramadan days.",
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Dates",
+            "type": "array"
+          },
+          "derived_dates": {
+            "description": "What the Umm al-Qura calendar says, whichever is in force.",
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Derived Dates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "source",
+          "dates",
+          "derived_dates"
+        ],
+        "title": "RamadanMonth",
+        "type": "object"
+      },
+      "RamadanFix": {
+        "additionalProperties": false,
+        "properties": {
+          "first": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `last`: every day from this one to that one.",
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "dates": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Or exactly these days. Empty means none this month.",
+            "title": "Dates"
+          }
+        },
+        "title": "RamadanFix",
         "type": "object"
       }
     },

@@ -12,7 +12,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { hospitalTime } from "@/lib/utils"
+import { hospitalTime, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 /** The router reads `?user=123` as a number, and a hospital ID is a perfectly good username. */
@@ -53,6 +53,14 @@ const ACTION_NAMES: Record<string, string> = {
   "auth.logout": "Logged out",
   "auth.password_changed": "Changed own password",
   "hospital_rules.changed": "Changed hospital rules",
+  "leave_type.changed": "Changed a leave type",
+  "leave_type.created": "Added a leave type",
+  "public_holiday.changed": "Changed a public holiday",
+  "public_holiday.created": "Added a public holiday",
+  "public_holiday.removed": "Removed a public holiday",
+  "ramadan_dates.changed": "Changed Ramadan dates",
+  "shift.changed": "Changed a shift",
+  "shift.created": "Added a shift",
   "technical_settings.changed": "Changed technical settings",
   "user.created": "Created user",
   "user.deactivated": "Deactivated user",
@@ -135,12 +143,7 @@ function Details({ entry }: { entry: AuditEntrySchema }) {
 
 function Entries({ entries }: { entries: AuditEntrySchema[] }) {
   return (
-    <Table container={{
-      tabIndex: 0,
-      role: "region",
-      "aria-label": "Audit entries",
-      className: "rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring",
-    }}>
+    <Table container={scrollableRegion("Audit entries")}>
       <TableHeader>
         <TableRow>
           <TableHead>Time</TableHead>
