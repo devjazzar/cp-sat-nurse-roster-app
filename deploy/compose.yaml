@@ -1,0 +1,137 @@
+# The whole installation (docs/ARCHITECTURE.md section 2). Every service is given only the
+# variables it needs: the solver holds no secret but its token and no database credential.
+name: nurse-roster
+
+x-app: &app
+  image: ${APP_IMAGE:-nurse-roster-app}:${APP_VERSION:-dev}
+  build:
+    context: ..
+  restart: unless-stopped
+
+x-django-env: &django-env
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env, see .env.example}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+  SOLVER_TOKEN: ${SOLVER_TOKEN:?set SOLVER_TOKEN in .env, see .env.example}
+  DOMAIN: ${DOMAIN:-}
+  TIME_ZONE: ${TIME_ZONE:-Asia/Riyadh}
+
+services:
+  caddy:
+    image: caddy:2.11
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      CADDY_SITE: ${DOMAIN:-https://}
+      CADDY_TLS_SNIPPET: self-signed${DOMAIN:+-off}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    networks: [public, frontend]
+
+  web:
+    <<: *app
+    command: >-
+      sh -c "python manage.py migrate --noinput
+      && exec gunicorn config.wsgi --bind 0.0.0.0:8000 --workers 3 --access-logfile - --error-logfile -"
+    environment:
+      <<: *django-env
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?set INITIAL_ADMIN_PASSWORD in .env, see .env.example}
+    depends_on:
+      db:
+        condition: service_healthy
+      solver:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/health', timeout=8)"
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      # Migrations run first; a large one on an upgrade must not count as a failure.
+      start_period: 5m
+      start_interval: 2s
+    volumes:
+      - backups:/backups
+    networks: [frontend, backend, solver]
+
+  worker:
+    <<: *app
+    command: python manage.py procrastinate worker
+    environment: *django-env
+    depends_on:
+      # `web` has run the migrations once it is healthy, the queue's tables among them.
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, manage.py, procrastinate, healthchecks]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+    volumes:
+      - backups:/backups
+    networks: [backend, solver]
+
+  solver:
+    <<: *app
+    working_dir: /app/solver
+    command: uvicorn --factory solver_service.app:create_app --host 0.0.0.0 --port 8080
+    environment:
+      SOLVER_TOKEN: ${SOLVER_TOKEN:?set SOLVER_TOKEN in .env, see .env.example}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import os, urllib.request as u
+          u.urlopen(u.Request("http://127.0.0.1:8080/health", headers={"Authorization": "Bearer " + os.environ["SOLVER_TOKEN"]}), timeout=4)
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 1s
+    networks: [solver]
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nurse_roster
+      POSTGRES_USER: nurse_roster
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
+      TZ: ${TIME_ZONE:-Asia/Riyadh}
+    healthcheck:
+      test: [CMD, pg_isready, -U, nurse_roster, -d, nurse_roster]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+      start_interval: 1s
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks: [backend]
+
+networks:
+  public: {}
+  frontend:
+    internal: true
+  backend:
+    internal: true
+  solver:
+    internal: true
+
+volumes:
+  pgdata: {}
+  backups: {}
+  caddy_data: {}

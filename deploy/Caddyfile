@@ -1,0 +1,19 @@
+# Caddy in front of the application. compose.yaml works out both variables from DOMAIN.
+#
+# With DOMAIN, the site is that name and `self-signed-off` adds nothing, so Caddy does what it
+# does for a public name: it obtains and renews a Let's Encrypt certificate.
+# Without DOMAIN, the site answers on any name or IP with a self-signed certificate from Caddy's
+# own local authority, issued on demand for whatever name the browser used.
+(self-signed-off) {
+}
+
+(self-signed) {
+	tls internal {
+		on_demand
+	}
+}
+
+{$CADDY_SITE} {
+	import {$CADDY_TLS_SNIPPET}
+	reverse_proxy web:8000
+}

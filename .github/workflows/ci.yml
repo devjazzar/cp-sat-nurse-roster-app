@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  UV_VERSION: "0.13.7"
+
+jobs:
+  solver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: uv sync --locked --all-packages --python 3.14
+      - name: The vendored suite and the service's contract tests
+        working-directory: solver
+        run: uv run --no-sync pytest -q
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:18
+        env:
+          POSTGRES_DB: nurse_roster
+          POSTGRES_USER: nurse_roster
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nurse_roster"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: uv sync --locked --all-packages --python 3.14
+      - name: Tests
+        working-directory: backend
+        run: uv run --no-sync pytest -q
+      - name: Models and migrations agree
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.test_settings
+        run: uv run --no-sync python manage.py makemigrations --check --dry-run
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv sync --locked --all-packages --python 3.14
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - name: The API client matches the backend's OpenAPI document
+        run: |
+          (cd backend && DJANGO_SETTINGS_MODULE=config.test_settings uv run --no-sync python manage.py \
+            export_openapi_schema --api config.api.api --indent 2 --output ../frontend/openapi.json)
+          (cd frontend && npm run generate:api)
+          git diff --exit-code -- frontend/openapi.json frontend/src/api/generated
+      - name: Type check and build
+        working-directory: frontend
+        run: npm run build
+      - name: Tests
+        working-directory: frontend
+        run: npm test
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: nurse-roster-app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

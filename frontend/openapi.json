@@ -1,0 +1,92 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Nurse roster",
+    "version": "1",
+    "description": ""
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        },
+        "description": "Always 200 while this process is alive; the body says what it can reach."
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Health": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "database": {
+            "title": "Database",
+            "type": "boolean"
+          },
+          "solver": {
+            "$ref": "#/components/schemas/SolverHealth"
+          }
+        },
+        "required": [
+          "status",
+          "database",
+          "solver"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "SolverHealth": {
+        "properties": {
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "workers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workers"
+          }
+        },
+        "required": [
+          "reachable"
+        ],
+        "title": "SolverHealth",
+        "type": "object"
+      }
+    }
+  },
+  "servers": []
+}
