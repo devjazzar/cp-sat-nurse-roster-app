@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import copy
-import os
 import time
 
 import pytest
@@ -227,9 +226,10 @@ def test_a_malformed_solve_input_leaves_the_service_free(client, sample):
 
 # ---- health and the token ---------------------------------------------------------------------
 def test_health_reports_version_and_cpu_count(client):
+    from solver_service.app import container_cpus
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "version": "0.1.0", "workers": os.process_cpu_count()}
+    assert r.json() == {"status": "ok", "version": "0.1.0", "workers": container_cpus()}
 
 
 CALLS = [("POST", "/solve"), ("GET", "/jobs/x"), ("POST", "/jobs/x/cancel"), ("POST", "/validate"),
