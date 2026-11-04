@@ -1,0 +1,51 @@
+"""What the health page reports about this installation."""
+from __future__ import annotations
+
+import shutil
+from dataclasses import dataclass
+from datetime import timedelta
+
+from django.conf import settings
+from django.db import connection
+from django.db.models import Count
+from django.utils import timezone
+from procrastinate.contrib.django.models import ProcrastinateJob, ProcrastinateWorker
+
+# Procrastinate's workers beat every 10 s and it treats one silent for 30 s as stalled.
+WORKER_SILENCE = timedelta(seconds=30)
+
+
+@dataclass
+class DiskUsage:
+    total_bytes: int
+    free_bytes: int
+
+
+def disk_usage() -> DiskUsage | None:
+    """The disk the backups land on, which on one VPS is the one everything else needs too."""
+    try:
+        usage = shutil.disk_usage(settings.BACKUPS_DIR)
+    except OSError:
+        return None
+    return DiskUsage(total_bytes=usage.total, free_bytes=usage.free)
+
+
+def database_size_bytes() -> int:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_database_size(current_database())")
+        return cursor.fetchone()[0]
+
+
+@dataclass
+class QueueState:
+    waiting: int
+    running: int
+    failed: int
+    workers: int
+
+
+def queue_state() -> QueueState:
+    jobs = dict(ProcrastinateJob.objects.order_by().values_list("status").annotate(Count("id")))
+    alive = ProcrastinateWorker.objects.filter(last_heartbeat__gte=timezone.now() - WORKER_SILENCE)
+    return QueueState(waiting=jobs.get("todo", 0), running=jobs.get("doing", 0), failed=jobs.get("failed", 0),
+                      workers=alive.count())

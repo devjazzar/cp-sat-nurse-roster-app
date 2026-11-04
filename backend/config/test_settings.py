@@ -8,3 +8,6 @@ os.environ.setdefault("POSTGRES_PASSWORD", "dev-only-postgres-password")
 os.environ.setdefault("SOLVER_TOKEN", "test-token")
 
 from config.settings import *  # noqa: E402, F403
+
+# The password hash is the slow part of a login, on purpose. Not here.
+PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

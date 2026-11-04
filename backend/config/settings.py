@@ -23,6 +23,8 @@ SECRET_KEY = required("SECRET_KEY")
 DOMAIN = os.environ.get("DOMAIN", "")
 ALLOWED_HOSTS = [DOMAIN, "localhost", "127.0.0.1"] if DOMAIN else ["*"]
 CSRF_TRUSTED_ORIGINS = [f"https://{DOMAIN}"] if DOMAIN else []
+if DEBUG:  # Vite's proxy does not pass the browser's Host on, so Django cannot match the Origin itself
+    CSRF_TRUSTED_ORIGINS.append("http://localhost:5173")
 
 # Caddy terminates TLS; `web` publishes no port, so this header can only come from Caddy.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -35,6 +37,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "ninja",
     "procrastinate.contrib.django",
+    "accounts",
+    "audit",
     "ops",
 ]
 
@@ -62,12 +66,27 @@ DATABASES = {
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+AUTH_USER_MODEL = "accounts.User"
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+     "OPTIONS": {"user_attributes": ("username", "full_name")}},
+]
+
+# Twelve idle hours: every request a signed-in browser makes pushes the expiry forward, so nothing
+# may poll on a timer without the user being there, or an open tab would never expire.
+SESSION_COOKIE_AGE = 12 * 60 * 60
+SESSION_SAVE_EVERY_REQUEST = True
+
 USE_TZ = True
 TIME_ZONE = os.environ.get("TIME_ZONE", "Asia/Riyadh")
 LANGUAGE_CODE = "en"
 
 SOLVER_URL = os.environ.get("SOLVER_URL", "http://solver:8080")
 SOLVER_TOKEN = required("SOLVER_TOKEN")
+
+BACKUPS_DIR = Path(os.environ.get("BACKUPS_DIR", "/backups"))
 
 # The compiled SPA, copied into the image at build time. Absent in development, where Vite
 # serves it. WhiteNoise serves its files; config.urls answers every other path with index.html.

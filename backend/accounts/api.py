@@ -1,0 +1,109 @@
+from datetime import datetime
+
+from django.contrib.auth import logout, update_session_auth_hash
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
+from django.http import HttpRequest
+from django.middleware.csrf import get_token
+from ninja import Router, Schema, Status
+from ninja.errors import HttpError
+from ninja.utils import check_csrf
+from pydantic import Field, field_validator
+
+from accounts.authz import SignedIn
+from accounts.login import LoginRefused, attempt_login
+from accounts.models import Role, User
+from audit.log import record
+
+router = Router(tags=["auth"])
+
+
+class Me(Schema):
+    username: str
+    full_name: str
+    role: Role
+    must_change_password: bool
+
+
+class SessionState(Schema):
+    user: Me | None
+
+
+class LoginBody(Schema):
+    username: str = Field(min_length=1, max_length=150)
+    password: str = Field(min_length=1)
+
+    @field_validator("username")
+    @classmethod
+    def no_nul(cls, value: str) -> str:
+        # PostgreSQL cannot hold or compare one; it would otherwise be a 500.
+        if "\x00" in value:
+            raise ValueError("not a possible username")
+        return value
+
+
+class LoginRefusal(Schema):
+    detail: str
+    locked_until: datetime | None = None
+
+
+class ChangePasswordBody(Schema):
+    current_password: str
+    new_password: str
+
+
+class ChangePasswordRefusal(Schema):
+    current_password: list[str] = []
+    new_password: list[str] = []
+
+
+@router.get("/session", response=SessionState, operation_id="getSession")
+def session(request: HttpRequest) -> SessionState:
+    """Who is signed in, if anyone. The SPA calls this first: it also sets the CSRF cookie."""
+    get_token(request)
+    return SessionState(user=request.user if request.user.is_authenticated else None)
+
+
+@router.post("/login", response={200: Me, 401: LoginRefusal, 423: LoginRefusal}, operation_id="login")
+def login(request: HttpRequest, body: LoginBody):
+    # Ninja exempts its views from Django's middleware and checks CSRF in the session auth, which
+    # this one endpoint cannot have.
+    if check_csrf(request):
+        raise HttpError(403, "CSRF check Failed")
+    try:
+        return Status(200, attempt_login(request, body.username, body.password))
+    except LoginRefused as refused:
+        if refused.locked_until:
+            return Status(423, LoginRefusal(detail="Too many failed logins. This account is locked for now.",
+                                            locked_until=refused.locked_until))
+        return Status(401, LoginRefusal(detail="Wrong username or password."))
+
+
+@router.post("/logout", response={204: None}, auth=SignedIn(during_forced_change=True), operation_id="logout")
+def sign_out(request: HttpRequest):
+    record("auth.logout", actor=request.user, target=request.user.username, request=request)
+    logout(request)
+    return Status(204, None)
+
+
+@router.post("/change-password", response={200: Me, 400: ChangePasswordRefusal},
+             auth=SignedIn(during_forced_change=True), operation_id="changePassword")
+def change_password(request: HttpRequest, body: ChangePasswordBody):
+    user: User = request.user
+    if not user.check_password(body.current_password):
+        return Status(400, ChangePasswordRefusal(current_password=["This is not your current password."]))
+    if body.new_password == body.current_password:
+        return Status(400, ChangePasswordRefusal(new_password=["The new password must differ from the current one."]))
+    try:
+        validate_password(body.new_password, user)
+    except DjangoValidationError as invalid:
+        return Status(400, ChangePasswordRefusal(new_password=invalid.messages))
+    forced = user.must_change_password
+    with transaction.atomic():
+        user.set_password(body.new_password)
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
+        record("auth.password_changed", actor=user, target=user.username, after={"forced": forced}, request=request)
+    update_session_auth_hash(request, user)  # this session stays; any other one of theirs ends
+    return Status(200, user)
