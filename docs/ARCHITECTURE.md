@@ -87,7 +87,8 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | View own unit's approved roster (names and shifts only) and own summary | | | | | yes |
 | Make and withdraw requests; propose, accept and reject swaps | | | | | yes |
 
-Cardinalities: exactly one CNO and one Deputy CNO per hospital; exactly one Unit Manager per
+Cardinalities: exactly one active CNO and one active Deputy CNO per hospital (a deactivated one
+stays on record, so a successor gets a new account); exactly one Unit Manager per
 unit (a manager account with no unit assigned can log in but do nothing). A unit manager
 sees nothing of other units. The System Admin sees no roster and no rostering attribute.
 
