@@ -12,7 +12,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { hospitalTime, scrollableRegion } from "@/lib/utils"
+import { cn, hospitalTime, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 /** The router reads `?user=123` as a number, and a hospital ID is a perfectly good username. */
@@ -218,11 +218,11 @@ function AuditLogPage() {
       {page && (older_than !== undefined || page.older_than != null) && (
         <nav aria-label="Pages" className="flex gap-2">
           {older_than !== undefined && (
-            <Link to={Route.fullPath} search={filters} className={buttonVariants({ variant: "outline", size: "sm" })}>Newest entries</Link>
+            <Link to={Route.fullPath} search={filters} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>Newest entries</Link>
           )}
           {page.older_than != null && (
             <Link to={Route.fullPath} search={{ ...filters, older_than: page.older_than }}
-              className={buttonVariants({ variant: "outline", size: "sm" })}>Older entries</Link>
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>Older entries</Link>
           )}
         </nav>
       )}

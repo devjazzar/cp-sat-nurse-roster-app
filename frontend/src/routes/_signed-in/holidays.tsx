@@ -31,7 +31,7 @@ import { FieldError, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
-import { asDate, monthName, scrollableRegion } from "@/lib/utils"
+import { asDate, cn, monthName, scrollableRegion } from "@/lib/utils"
 
 /** A hand-edited year is dropped rather than sent: the API would refuse it and the page could only say "reload". */
 const searchSchema = z.object({ year: z.number().int().min(FIRST_YEAR).max(LAST_YEAR).optional().catch(undefined) })
@@ -401,7 +401,7 @@ function HolidaysPage() {
   const { year: chosen } = Route.useSearch()
   const year = chosen ?? new Date().getFullYear()
   const mayChange = user.role === Role.cno
-  const yearLink = buttonVariants({ variant: "outline", size: "sm" })
+  const yearLink = cn(buttonVariants({ variant: "outline", size: "sm" }))
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">

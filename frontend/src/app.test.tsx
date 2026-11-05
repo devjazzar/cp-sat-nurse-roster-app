@@ -1143,9 +1143,20 @@ describe("the audit log page", () => {
 
     await waitFor(() => expect(seen.at(-1)).toBe("action=auth.login"))
   })
+
+  it("draws its page links with an outline's border", async () => {
+    const { user } = auditStart("/audit-log", (params) => (params.get("older_than")
+      ? { body: { entries: [ENTRY], older_than: 3 } }
+      : { body: { entries: [ENTRY], older_than: 7 } }))
+
+    await user.click(await screen.findByRole("link", { name: "Older entries" }))
+
+    expect(await screen.findByRole("link", { name: "Newest entries" })).not.toHaveClass("border-transparent")
+    expect(screen.getByRole("link", { name: "Older entries" })).not.toHaveClass("border-transparent")
+  })
 })
 
-const SHIFT_D = { id: "s1", code: "D", display_name: "Day", hours: 12, start_time: "07:00", end_time: "19:00", colour: "#0284c7", active: true, renames: [] }
+const SHIFT_D ={ id: "s1", code: "D", display_name: "Day", hours: 12, start_time: "07:00", end_time: "19:00", colour: "#0284c7", active: true, renames: [] }
 const SHIFT_N = { id: "s2", code: "N", display_name: "Night", hours: 12, start_time: "19:00", end_time: "07:00", colour: "#4338ca", active: true, renames: [] }
 const refusal = (field: (string | number)[], msg: string) => ({ status: 422, body: { detail: [{ loc: ["body", "body", ...field], msg: `Value error, ${msg}`, type: "value_error" }] } })
 const asCno = (extra = {}) => ({ ...session(CNO_ME), ...extra })
@@ -1352,6 +1363,13 @@ describe("the holidays and Ramadan page", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ year: 2027 }))
     await waitFor(() => expect(calls.map((call) => call.url)).toContain("/api/hospital/ramadan?year=2027"))
     expect(await screen.findByRole("heading", { name: "Public holidays in 2027" })).toBeInTheDocument()
+  })
+
+  it("draws its year links with an outline's border", async () => {
+    start("/holidays?year=2026", asCno(year2026()))
+
+    expect(await screen.findByRole("link", { name: "2025" })).not.toHaveClass("border-transparent")
+    expect(screen.getByRole("link", { name: "2027" })).not.toHaveClass("border-transparent")
   })
 
   it("drops a hand-edited year from the address", async () => {
