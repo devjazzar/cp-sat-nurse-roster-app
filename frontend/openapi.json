@@ -1775,7 +1775,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LeaveRun"
+                  "$ref": "#/components/schemas/SavedLeave"
                 }
               }
             }
@@ -1824,7 +1824,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LeaveRun"
+                  "$ref": "#/components/schemas/SavedLeave"
                 }
               }
             }
@@ -2152,6 +2152,104 @@
         "tags": [
           "rosters"
         ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/roster/check": {
+      "post": {
+        "operationId": "checkDraftEdits",
+        "summary": "Check Edits",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftCheck"
+                }
+              }
+            }
+          }
+        },
+        "description": "The draft as these edits would make it, against the month as it stands, on the solver's own code in this process: `Checked`\nsays why. Saves nothing and writes no audit entry.",
+        "tags": [
+          "rosters"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/roster/pins": {
+      "post": {
+        "operationId": "saveDraftPins",
+        "summary": "Save Pins",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "All of it or none of it. Under the catalogue's lock, which a solve's start and end, a restore and a rename hold, then each\nnurse's, which a leave write holds and which comes before a unit's in a transfer. A solve already under way was given the\nmonth without these: it may run on, its roster takes them on top when it ends, and the draft says so through `changes`. The\naudit entry names the unit and the month and how many pins and cells changed, and no nurse, date or shift: the System Admin\nsees no roster.",
+        "tags": [
+          "rosters"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditsBody"
+              }
+            }
+          },
+          "required": true
+        },
         "security": [
           {
             "SignedIn": []
@@ -5294,6 +5392,83 @@
         "title": "UnitLeaveMonth",
         "type": "object"
       },
+      "RemovedPin": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "The shift's code. Empty for a day off.",
+            "title": "Shift",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "shift"
+        ],
+        "title": "RemovedPin",
+        "type": "object"
+      },
+      "SavedLeave": {
+        "properties": {
+          "leave_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Leave Ids",
+            "type": "array"
+          },
+          "nurse": {
+            "$ref": "#/components/schemas/LeaveNurse"
+          },
+          "leave_type": {
+            "$ref": "#/components/schemas/LeaveTypeChoice"
+          },
+          "first": {
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "outside_dates": {
+            "description": "A correction to the nurse's start or end date has left these days outside them, where they count for nothing. Its manager can remove them.",
+            "title": "Outside Dates",
+            "type": "boolean"
+          },
+          "pins_removed": {
+            "description": "Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.",
+            "items": {
+              "$ref": "#/components/schemas/RemovedPin"
+            },
+            "title": "Pins Removed",
+            "type": "array"
+          }
+        },
+        "required": [
+          "leave_ids",
+          "nurse",
+          "leave_type",
+          "first",
+          "last",
+          "days",
+          "outside_dates",
+          "pins_removed"
+        ],
+        "title": "SavedLeave",
+        "type": "object"
+      },
       "NewLeaveBody": {
         "additionalProperties": false,
         "properties": {
@@ -5478,6 +5653,7 @@
             "type": "integer"
           },
           "pins": {
+            "description": "Pinned cells that reach this solve.",
             "title": "Pins",
             "type": "integer"
           }
@@ -5738,9 +5914,55 @@
             "description": "When the manager restored this result as the draft. Null when the draft is what its solve left.",
             "title": "Restored At"
           },
+          "edited": {
+            "description": "Whether the grid differs from what its solve answered.",
+            "title": "Edited",
+            "type": "boolean"
+          },
           "cost": {
-            "title": "Cost",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This grid's on the month as it stands, which is its solve's while neither the grid nor the month has changed since. Null if it could not be worked out.",
+            "title": "Cost"
+          },
+          "solved_cost": {
+            "title": "Solved Cost",
             "type": "integer"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GridCheck"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the grid breaks on the month as it stands. Null while neither the grid nor the month has changed since its solve, whose roster breaks none."
+          },
+          "pins": {
+            "items": {
+              "$ref": "#/components/schemas/DraftPin"
+            },
+            "title": "Pins",
+            "type": "array"
+          },
+          "pins_lost_to_leave": {
+            "description": "Pins leave has replaced since this draft's solve was started, whoever recorded it, until a newer solve has taken that in.",
+            "items": {
+              "$ref": "#/components/schemas/PinLostToLeave"
+            },
+            "title": "Pins Lost To Leave",
+            "type": "array"
+          },
+          "editor": {
+            "$ref": "#/components/schemas/DraftEditor"
           },
           "stopped_early": {
             "title": "Stopped Early",
@@ -5762,7 +5984,13 @@
           "solve_id",
           "solved_at",
           "restored_at",
+          "edited",
           "cost",
+          "solved_cost",
+          "check",
+          "pins",
+          "pins_lost_to_leave",
+          "editor",
           "stopped_early",
           "changes"
         ],
@@ -5784,7 +6012,8 @@
               "gender",
               "leave",
               "joined",
-              "left"
+              "left",
+              "pins"
             ],
             "title": "What",
             "type": "string"
@@ -5796,6 +6025,171 @@
           "what"
         ],
         "title": "DraftChange",
+        "type": "object"
+      },
+      "DraftEditor": {
+        "properties": {
+          "refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why this draft cannot be edited now. Ticket 14 adds a frozen roster here.",
+            "title": "Refusal"
+          },
+          "shifts": {
+            "description": "What a cell can be pinned to: the unit's shifts.",
+            "items": {
+              "$ref": "#/components/schemas/EditorShift"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "nurses": {
+            "items": {
+              "$ref": "#/components/schemas/EditorNurse"
+            },
+            "title": "Nurses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "refusal",
+          "shifts",
+          "nurses"
+        ],
+        "title": "DraftEditor",
+        "type": "object"
+      },
+      "DraftPin": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "The shift's code. Empty for a day off.",
+            "title": "Shift",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "manager",
+              "request",
+              "swap"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "set_aside": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_in_month",
+                  "outside_dates",
+                  "leave",
+                  "shift_not_worked",
+                  "shift_not_allowed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.",
+            "title": "Set Aside"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "date",
+          "shift",
+          "origin",
+          "set_aside"
+        ],
+        "title": "DraftPin",
+        "type": "object"
+      },
+      "EditorNurse": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "allowed_shifts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for any the unit works.",
+            "title": "Allowed Shifts"
+          },
+          "credited": {
+            "description": "Their days of leave and days outside their dates, as they stand now.",
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Credited",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "allowed_shifts",
+          "credited"
+        ],
+        "title": "EditorNurse",
+        "type": "object"
+      },
+      "EditorShift": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "colour",
+          "hours"
+        ],
+        "title": "EditorShift",
         "type": "object"
       },
       "GridCell": {
@@ -5822,6 +6216,61 @@
           "kind"
         ],
         "title": "GridCell",
+        "type": "object"
+      },
+      "GridCheck": {
+        "description": "What the solver's own code says of a grid. `reason` says why it could not, and the rest is then null.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why this could not be worked out: the solver's code cannot read the month as it stands.",
+            "title": "Reason"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether it breaks no hard rule.",
+            "title": "Ok"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/GridViolation"
+            },
+            "title": "Violations",
+            "type": "array"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          }
+        },
+        "required": [
+          "reason",
+          "ok",
+          "violations",
+          "cost"
+        ],
+        "title": "GridCheck",
         "type": "object"
       },
       "GridDay": {
@@ -5903,6 +6352,89 @@
         "title": "GridShift",
         "type": "object"
       },
+      "GridViolation": {
+        "properties": {
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "hospital_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hospital Id"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "hospital_id",
+          "full_name",
+          "date",
+          "text"
+        ],
+        "title": "GridViolation",
+        "type": "object"
+      },
+      "PinLostToLeave": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "title": "Shift",
+            "type": "string"
+          },
+          "by": {
+            "description": "Who recorded the leave.",
+            "title": "By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "date",
+          "shift",
+          "by"
+        ],
+        "title": "PinLostToLeave",
+        "type": "object"
+      },
       "RosterMonth": {
         "properties": {
           "month": {
@@ -5948,6 +6480,192 @@
           "draft"
         ],
         "title": "RosterMonth",
+        "type": "object"
+      },
+      "DraftCheck": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why this could not be worked out: the solver's code cannot read the month as it stands.",
+            "title": "Reason"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether it breaks no hard rule.",
+            "title": "Ok"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/GridViolation"
+            },
+            "title": "Violations",
+            "type": "array"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "cost_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The saved grid's, worked out the same way.",
+            "title": "Cost Before"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`cost` less `cost_before`.",
+            "title": "Delta"
+          },
+          "refusals": {
+            "description": "Edits a save would refuse, which are left out of this answer.",
+            "items": {
+              "$ref": "#/components/schemas/EditRefusal"
+            },
+            "title": "Refusals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reason",
+          "ok",
+          "violations",
+          "cost",
+          "cost_before",
+          "delta",
+          "refusals"
+        ],
+        "title": "DraftCheck",
+        "type": "object"
+      },
+      "EditRefusal": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "date",
+          "reason"
+        ],
+        "title": "EditRefusal",
+        "type": "object"
+      },
+      "EditBody": {
+        "additionalProperties": false,
+        "properties": {
+          "hospital_id": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "action": {
+            "description": "Pin a shift, pin a day off, or clear the cell's pin.",
+            "enum": [
+              "shift",
+              "off",
+              "clear"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "shift": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The shift's code, with `shift`.",
+            "title": "Shift"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "date",
+          "action"
+        ],
+        "title": "EditBody",
+        "type": "object"
+      },
+      "EditsBody": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/EditBody"
+            },
+            "maxItems": 3100,
+            "title": "Edits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "edits"
+        ],
+        "title": "EditsBody",
         "type": "object"
       },
       "UnitHistoryFilter": {
@@ -6108,7 +6826,7 @@
             "type": "boolean"
           },
           "in_draft": {
-            "description": "Whether its month's draft is this solve's.",
+            "description": "Whether its month's draft came from this solve. The draft may have been edited by hand since, and then holds more than this result.",
             "title": "In Draft",
             "type": "boolean"
           }

@@ -8,8 +8,12 @@ from django.utils import timezone
 from hospital.models import Shift, ShiftRename
 from nurses import membership
 from rosters.models import Roster
+from rosters.pins import month_pins, on_top
 from solves.models import ACTIVE_STATES, Solve
 from solves.result import has_a_roster_to_keep, shifts_used
+
+
+MONTH_OVER = "This month is over, so its draft cannot change."
 
 
 def current_code(code: str) -> str:
@@ -27,11 +31,17 @@ def in_current_codes(grid: dict[str, dict[str, str]]) -> dict[str, dict[str, str
     return {nurse: {day: codes.get(code, code) for day, code in row.items()} for nurse, row in grid.items()}
 
 
+def as_a_draft_would_hold(solve: Solve, grid: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    """A grid with today's codes, and with the pins that count on top, so a draft never disagrees with one. A solve given
+    them holds them already; one started before a pin was saved, and an older result being restored, do not."""
+    return on_top(in_current_codes(grid), month_pins(solve.unit, solve.month))
+
+
 def replace_grid(solve: Solve, grid: dict[str, dict[str, str]], *, restoring: bool = False) -> Roster:
     """The draft of the solve's month, created or with its grid replaced. A shift renamed while the solve ran is carried
     here, so hold the catalogue's lock (`HospitalSettings.load(for_update=True)`) so that a rename cannot slip past."""
     roster, _ = Roster.objects.update_or_create(unit=solve.unit, month=solve.month, defaults={
-        "grid": in_current_codes(grid), "solve": solve, "restored_at": timezone.now() if restoring else None})
+        "grid": as_a_draft_would_hold(solve, grid), "solve": solve, "restored_at": timezone.now() if restoring else None})
     return roster
 
 
@@ -45,11 +55,15 @@ def why_not_restore(solve: Solve) -> str | None:
     if not has_a_roster_to_keep(solve.result):
         return "This solve left no roster to restore."
     if solve.month < membership.this_month():
-        return "This month is over, so its draft cannot change."
+        return MONTH_OVER
     if Solve.objects.filter(unit=solve.unit, month=solve.month, state__in=ACTIVE_STATES).exists():
         return "A solve of this month is queued or running, and would replace this when it ends. Stop it or wait for it first."
-    if Roster.objects.filter(unit=solve.unit, month=solve.month, solve=solve).exists():
+    draft = Roster.objects.filter(unit=solve.unit, month=solve.month, solve=solve).first()
+    if draft and draft.grid == in_current_codes(solve.result["roster"]):
         return "This result is the draft already."
+    if draft and draft.grid == as_a_draft_would_hold(solve, solve.result["roster"]):
+        # Hand edits are pins, and a restore keeps pins, so restoring would leave this draft as it is.
+        return "This result is the draft already, with your pins on top. Clear a pin to give its cell back."
     return _shift_changed_since(solve)
 
 

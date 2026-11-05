@@ -5,9 +5,13 @@
  * OpenAPI spec version: 1
  */
 import type { DraftChange } from './draftChange';
+import type { DraftEditor } from './draftEditor';
+import type { DraftPin } from './draftPin';
+import type { GridCheck } from './gridCheck';
 import type { GridDay } from './gridDay';
 import type { GridRow } from './gridRow';
 import type { GridShift } from './gridShift';
+import type { PinLostToLeave } from './pinLostToLeave';
 
 export interface Draft {
   days: GridDay[];
@@ -17,7 +21,17 @@ export interface Draft {
   solved_at: string;
   /** When the manager restored this result as the draft. Null when the draft is what its solve left. */
   restored_at: string | null;
-  cost: number;
+  /** Whether the grid differs from what its solve answered. */
+  edited: boolean;
+  /** This grid's on the month as it stands, which is its solve's while neither the grid nor the month has changed since. Null if it could not be worked out. */
+  cost: number | null;
+  solved_cost: number;
+  /** What the grid breaks on the month as it stands. Null while neither the grid nor the month has changed since its solve, whose roster breaks none. */
+  check: GridCheck | null;
+  pins: DraftPin[];
+  /** Pins leave has replaced since this draft's solve was started, whoever recorded it, until a newer solve has taken that in. */
+  pins_lost_to_leave: PinLostToLeave[];
+  editor: DraftEditor;
   stopped_early: boolean;
   /** What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14). */
   changes: DraftChange[];

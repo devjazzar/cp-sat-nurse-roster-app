@@ -13,7 +13,7 @@ import {
   useRecordLeave,
   useRemoveLeave,
 } from "@/api/generated/endpoints"
-import { Role, type LeaveNurse, type LeaveRun, type UnitLeaveMonth } from "@/api/generated/model"
+import { Role, type LeaveNurse, type LeaveRun, type RemovedPin, type SavedLeave, type UnitLeaveMonth } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { FormField, SelectField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
@@ -89,9 +89,9 @@ function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
     const dates = { leave_type_id, first, last: last || first }
     const name = run?.nurse.full_name ?? nurses.find((nurse) => nurse.id === nurse_id)?.full_name
     const callbacks = {
-      onSuccess: () => {
+      onSuccess: (saved: SavedLeave) => {
         void queryClient.invalidateQueries({ queryKey: getListUnitLeaveQueryKey(unitId) })
-        onDone(`The leave of ${name} is saved: ${dayRange(first, last || first)}.`, first)
+        onDone(`The leave of ${name} is saved: ${dayRange(first, last || first)}.${pinsReplaced(saved.pins_removed)}`, first)
       },
       onError: (error: unknown) => showServerErrors(form, error),
     }
@@ -186,6 +186,13 @@ function LeaveTable({ runs, showNurse, label, nurseSearch, actions }: {
 }
 
 type Panel = { run: LeaveRun | null }
+
+/** Leave wins over a pin, so saving it ended any on its days, and the Roster page goes on saying so. */
+function pinsReplaced(pins: RemovedPin[]): string {
+  if (pins.length === 0) return ""
+  const each = pins.map((pin) => `${pin.shift || "a day off"} on ${dayRange(pin.date, pin.date)}`).join(", ")
+  return ` It replaced ${pins.length === 1 ? "a pin" : `${pins.length} pins`} on the draft: ${each}. A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again.`
+}
 
 function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }: {
   unit: { id: string; name: string }

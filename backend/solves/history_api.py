@@ -61,7 +61,8 @@ class SolveRow(Schema):
 
 
 class UnitSolveRow(SolveRow):
-    in_draft: bool = Field(description="Whether its month's draft is this solve's.")
+    in_draft: bool = Field(description="Whether its month's draft came from this solve. The draft may have been edited by hand "
+                                       "since, and then holds more than this result.")
 
 
 class HospitalSolveRow(SolveRow):

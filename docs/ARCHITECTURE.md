@@ -177,7 +177,13 @@ for a nurse and date. A correction or removal ends the row rather than rewriting
 this. A date must lie within the nurse's start and end dates when it is entered; a later correction to those dates leaves
 the row, flagged on the unit's list, where it counts for nothing.
 
-**Pinned cell**: nurse, date, shift or off, origin (manager, accepted request, accepted swap).
+**Pinned cell**: unit, nurse, date, shift or off, origin (manager, accepted request, accepted swap), pinned by and when;
+removed by, when and why (cleared, replaced, leave). At most one current pin for a nurse and date, and none is deleted. It
+belongs to the unit whose month it is, so a transfer leaves it behind. Leave wins over a pin: recording leave on a pinned day
+ends the pin and tells the manager, and pinning on a day of leave is refused. A pin that falls out of step with the rest (the
+nurse no longer in the unit's month, a day outside their dates or on leave, a shift the unit no longer works or the nurse may
+not work) is set aside, not removed: it reaches no solve and the draft says why, and it counts again if that changes. A shift's
+hours, a unit's shifts and a nurse's allowed shifts cannot change under a pin that counts in a month not yet over.
 
 **Request window**: unit, target month, open date, close date, state. At most one open per unit.
 
@@ -226,8 +232,13 @@ backup time and retention, close time.
   leaves the draft as it was; the solve history keeps every result, and any result
   with a roster can be restored as the draft, unless a solve of that month is queued or running, the month is over, or a shift
   it uses has since been retired or had its hours changed, since its cost and hours would no longer hold (it can still be
-  opened, and a rename is carried). The stale-draft warning then compares with the restored solve's input. The draft grid is editable by hand with instant validation;
-  a re-solve keeps pins. Submitting freezes the draft until the decision.
+  opened, and a rename is carried). The stale-draft warning then compares with the restored solve's input. The draft grid is
+  editable by hand: each edit is a pin, the grid it would make is checked as the manager edits, and edits are saved
+  together. Every solve and every restore puts the pins that count on top of its roster, so a draft never disagrees with a
+  pin; a pin saved since the input was stored, and a pin so put on top, warns like other changes since. Saving while a solve
+  of the month is queued or running is allowed and warned of. The solve's own cost holds only for the month it was given, so
+  a draft edited or out of date is costed and checked again on the month as it stands. Submitting freezes the draft until
+  the decision.
 - After approval, the unit manager alone changes the roster: direct cell edits, swaps,
   re-plans from a date (earlier days are facts; the `change` weight keeps the new roster
   close). Every change is a new version, in force immediately, and notifies the unit's nurses.
@@ -290,7 +301,7 @@ rejects a second with `409`; the worker guarantees the ordering.
 | `POST /solve` | Start a solve of one solve input; returns a job id. |
 | `GET /jobs/{id}` | State, elapsed time, best cost so far, number of improving rosters, the best grid so far, the full result when finished. |
 | `POST /jobs/{id}/cancel` | Sets the solver's stop event; the best roster found is kept. |
-| `POST /validate` | Hard violations, cost, penalties and the per-rule explanation of a given grid against a solve input. No search. `web` also calls the same code (`solver_service.grid`) in its own process to explain a stored result, since it is in the one image and needs no search: the history reads when the solver is down or busy. |
+| `POST /validate` | Hard violations, cost, penalties and the per-rule explanation of a given grid against a solve input. No search. `web` also calls the same code (`solver_service.grid`) in its own process to explain a stored result and to check a draft as the manager edits it, since it is in the one image and needs no search: both answer when the solver is down or busy, and faster (measured on the 25-nurse ER sample: about 8 ms idle and 20 ms during a search, against 29 ms and 91 ms through the call). |
 | `POST /precheck` | Plain-language reasons the month may be infeasible. No search. |
 | `GET /health` | Liveness, package version, worker count. |
 

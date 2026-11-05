@@ -22,9 +22,10 @@ from hospital.api import StrictSchema, differing, refuse, save_unless_taken
 from hospital.catalogue import derived_ramadan_dates
 from hospital.models import FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename
 from hospital.rules import changes
-from nurses.membership import carry_rename_through_allowed_shifts
+from nurses.membership import carry_rename_through_allowed_shifts, this_month
 from ops.api import ClockTime
 from rosters.drafts import carry_rename_through_grids, current_code, using_shift
+from rosters.pins import counted_uses
 from solves.models import ACTIVE_STATES, Solve
 from units.models import Unit
 from units.rules import units_using, with_shift_codes
@@ -176,6 +177,7 @@ def update_shift(request, shift_id: UUID, body: ShiftBody) -> Shift:
             refuse((("active",), f"{before['code']} is named in the forbidden successions of the hospital rules. "
                                  "Remove those pairs first."))
         if before["active"] and not body.active:
+            # A pin that counts is on a shift its unit works (`rosters.pins`), so this covers those too.
             units = units_using(before["code"])
             if units:
                 refuse((("active",), f"{before['code']} is in the unit rules of {', '.join(units)}. "
@@ -200,6 +202,7 @@ def _refuse_hours_in_use(code: str) -> None:
     waiting = Solve.objects.select_related("unit").filter(state__in=ACTIVE_STATES)
     uses += [f"{solve.unit.name}, {solve.month:%B %Y}" for solve in waiting
              if code in {current_code(shift) for shift in solve.input["department"]["shifts"]}]
+    uses += [f"{unit.name}, {month:%B %Y}" for unit, month in counted_uses(code, this_month())]
     if uses:
         refuse((("hours",), f"The hours of {code} cannot change while the roster of an open month uses it: "
                             f"{'; '.join(dict.fromkeys(uses))}."))

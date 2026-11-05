@@ -106,7 +106,7 @@ Solving a month that has started again from a chosen date, keeping every earlier
 _Avoid_: re-solve, re-run, regenerate
 
 **Pinned cell**:
-A nurse's shift (or day off) on one date fixed as a fact, by the unit manager, by an accepted request or by an accepted swap; the solver may not change it.
+A nurse's shift (or day off) on one date fixed as a fact, by the unit manager, by an accepted request or by an accepted swap; the solver may not change it, and every solve keeps it. Leave wins over one. A pin that no longer fits the nurse's dates, leave, unit or shifts is set aside and counts for nothing until it fits again.
 _Avoid_: locked cell, fixed cell, override
 
 **Leave**:

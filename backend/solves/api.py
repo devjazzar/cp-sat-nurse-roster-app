@@ -75,7 +75,7 @@ class Summary(Schema):
     nurses: int
     leave_days: int = Field(description="Recorded leave within the nurses' dates.")
     outside_days: int = Field(description="Days before a start date or after an end date, credited like leave.")
-    pins: int
+    pins: int = Field(description="Pinned cells that reach this solve.")
 
 
 class Warnings(Schema):
@@ -118,7 +118,7 @@ def preview(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) ->
     return SolvePreview(
         month=month.strftime("%Y-%m"),
         summary=Summary(nurses=len(assembled.nurses), leave_days=assembled.leave_days,
-                        outside_days=sum(map(len, assembled.outside_days.values())), pins=0),
+                        outside_days=sum(map(len, assembled.outside_days.values())), pins=assembled.pins),
         warnings=Warnings(hospital_rules_need_review=HospitalSettings.load().rules_need_review,
                           unit_rules_need_review=unit.rules_need_review,
                           unreviewed_scores=assembled.unreviewed_scores, left_out=_names(assembled.left_out)),

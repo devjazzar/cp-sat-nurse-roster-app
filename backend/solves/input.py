@@ -13,6 +13,8 @@ from hospital.rules import general_block
 from nurses import membership
 from nurses.models import NurseProfile
 from nurses.rostering import leave_dates, nurse_block
+from rosters.drafts import current_codes
+from rosters.pins import month_pins
 from units.models import Unit
 from units.rules import unit_block
 
@@ -24,18 +26,12 @@ class Assembled:
     to_check: list[NurseProfile] = field(default_factory=list)
     unreviewed_scores: int = 0
     leave_days: int = 0
+    pins: int = 0
     outside_days: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def nurses(self) -> list[dict]:
         return self.input["nurses"]
-
-
-def _no_longer_serving(nurse: NurseProfile) -> bool:
-    """An account deactivated while the profile runs on, which only happens to a manager: a staff nurse's account ends with
-    their end date (`nurses.tasks.close_ended_nurses`). A deactivated nurse whose end date has come worked until then, so
-    their month still counts. Nobody can say when this one stopped."""
-    return not nurse.user.is_active and (nurse.end_date is None or nurse.end_date > membership.today())
 
 
 def _days_of(month: dt.date) -> list[dt.date]:
@@ -51,8 +47,10 @@ def _credited(nurse: NurseProfile, month: dt.date) -> tuple[list[str], int, list
 
 
 def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1) -> Assembled:
-    """`time_limit` matters only to an input that will be sent. Pins join a nurse's block with ticket 13. Leave wins over one: the solver refuses a shift pinned on a leave date, so
-    such a pair, if a row ever holds one, must drop the pin here and not reach the solver as a failed solve."""
+    """`time_limit` matters only to an input that will be sent. A pin joins its nurse's block only if it counts: leave wins
+    over one, as the solver refuses a shift pinned on a leave date, and `rosters.pins` sets aside that pair and every other a
+    row can come to hold, so that none reaches the solver as a failed solve."""
+    pins = month_pins(unit, month)
     shift_hours = {shift.code: shift.hours for shift in Shift.objects.filter(active=True)}
     label = month.strftime("%Y-%m")
     assembled = Assembled(input={
@@ -68,12 +66,14 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1) -> Assembled:
     })
     nurses = membership.rostered_in(unit, month).select_related("user").order_by("user__username")
     for nurse in nurses:
-        if _no_longer_serving(nurse):
+        if membership.no_longer_serving(nurse):
             assembled.left_out.append(nurse)
             continue
         placement = membership.placement_in(nurse, month)
         leave, recorded, outside = _credited(nurse, month)
-        assembled.nurses.append(nurse_block(nurse, placement) | {"leave": leave})
+        pinned = pins.counted.get(nurse.user.username)
+        assembled.nurses.append(nurse_block(nurse, placement) | {"leave": leave} | ({"pinned": pinned} if pinned else {}))
+        assembled.pins += len(pinned or ())
         assembled.leave_days += recorded
         if outside:
             assembled.outside_days[nurse.user.username] = outside
@@ -93,10 +93,17 @@ def solver_refusal(solve_input: dict) -> str | None:
     return None
 
 
+def _pins_as_they_are_called_now(row: dict) -> dict[str, str]:
+    """A rename is no change: a stored input keeps the code as it was."""
+    pinned = row.get("pinned", {})
+    codes = current_codes(code for code in pinned.values() if code)
+    return {day: codes.get(code, code) for day, code in pinned.items()}
+
+
 def changes_since(solve_input: dict, unit: Unit, month: dt.date) -> list[dict]:
-    """What has changed since this input was stored that the draft was not solved for: a gender, a nurse's credited days, or
-    who is in the month. Start and end dates count through their credited days, so a correction that moves nothing in this
-    month does not warn. Other attributes are outside what the user asked for here."""
+    """What has changed since this input was stored that the draft was not solved for: a gender, a nurse's credited days,
+    who is in the month, or the pins that count. Start and end dates count through their credited days, so a correction
+    that moves nothing in this month does not warn. Other attributes are outside what the user asked for here."""
     solved = {row["id"]: row for row in solve_input["nurses"]}
     now = {row["id"]: row for row in assemble(unit, month).nurses}
     changes = []
@@ -111,4 +118,6 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date) -> list[dict]:
                 changes.append({"hospital_id": hospital_id, "what": "gender"})
             if before.get("leave", []) != after["leave"]:
                 changes.append({"hospital_id": hospital_id, "what": "leave"})
+            if _pins_as_they_are_called_now(before) != after.get("pinned", {}):
+                changes.append({"hospital_id": hospital_id, "what": "pins"})
     return changes

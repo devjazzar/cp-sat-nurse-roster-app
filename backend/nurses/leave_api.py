@@ -30,6 +30,7 @@ from hospital.models import LeaveType
 from nurses import membership
 from nurses.api import Body, MonthText, with_units
 from nurses.models import Leave, NurseProfile
+from rosters.pins import end_for_leave
 from units.models import Unit
 from units.scope import unit_in_scope
 
@@ -92,6 +93,16 @@ class UnitLeaveMonth(Schema):
     month: str = Field(description="YYYY-MM.")
     nurses: list[LeaveNurse] = Field(description="Who may have leave recorded this month, and anyone who has some.")
     runs: list[LeaveRun]
+
+
+class RemovedPin(Schema):
+    date: dt.date
+    shift: str = Field(description="The shift's code. Empty for a day off.")
+
+
+class SavedLeave(LeaveRun):
+    pins_removed: list[RemovedPin] = Field(description="Pins of this unit these dates replaced, as leave wins over a pin. The "
+                                                       "page says so, and the draft goes on saying so until a newer solve.")
 
 
 class MyLeaveRun(Schema):
@@ -230,8 +241,12 @@ def _refuse_dates(nurse: NurseProfile, unit: Unit, first: dt.date, last: dt.date
         refuse((("first",), f"{name} is already on leave on {_long_date(taken[0])}{others}. Change that leave instead."))
 
 
-def _begin(nurse: NurseProfile, leave_type: LeaveType, days: Iterable[dt.date], user: User) -> None:
+def _begin(nurse: NurseProfile, unit: Unit, leave_type: LeaveType, days: list[dt.date], user: User) -> list[RemovedPin]:
+    """Every write that adds a date comes through here, so here is where leave wins over a pin. Leave's own audit entry stays as
+    it is, whoever recorded it: an entry of the pin's beside it would tell the System Admin the month of this leave."""
     Leave.objects.bulk_create([Leave(nurse=nurse, date=day, leave_type=leave_type, recorded_by=user) for day in days])
+    ended = sorted(end_for_leave(nurse, days, unit, user), key=lambda pin: pin.date)
+    return [RemovedPin(date=pin.date, shift=pin.code) for pin in ended]
 
 
 def _end(ids: Iterable[UUID], user: User) -> None:
@@ -243,8 +258,8 @@ def _as_saved(nurse: NurseProfile, first: dt.date, last: dt.date) -> LeaveRun:
     return _leave_run(_runs(rows)[0])
 
 
-# Every write below goes through `_refuse_dates`, `_rows_to_change` or both, then writes leave and one audit entry. No roster
-# exists yet, so nothing here looks at one. Tickets 11, 13, 14, 16, 19 and 21 have what they must add in their own comments.
+# Every write below goes through `_refuse_dates`, `_rows_to_change` or both, then writes leave and one audit entry. A date added
+# ends any pin on it (`_begin`), and nothing else here looks at a roster. Tickets 14, 16, 19 and 21 have what they must add.
 @unit_leave_router.get("/{unit_id}/leave", response=UnitLeaveMonth, auth=reader, operation_id="listUnitLeave")
 def unit_leave(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) -> UnitLeaveMonth:
     """The unit's month, for its manager and, to read, for the CNO and the Deputy CNO. A nurse's month in another unit is
@@ -261,7 +276,7 @@ def unit_leave(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter])
                                   sorted(nurses.values(), key=lambda nurse: (nurse.user.full_name.lower(), nurse.pk))])
 
 
-@unit_leave_router.post("/{unit_id}/leave", response={201: LeaveRun}, auth=manager, operation_id="recordLeave")
+@unit_leave_router.post("/{unit_id}/leave", response={201: SavedLeave}, auth=manager, operation_id="recordLeave")
 def record_leave(request: HttpRequest, unit_id: UUID, body: NewLeaveBody) -> Status:
     """All of it or none of it. A manager with a nurse profile records their own, because nobody else may, and the log
     shows whose hand it was."""
@@ -269,13 +284,13 @@ def record_leave(request: HttpRequest, unit_id: UUID, body: NewLeaveBody) -> Sta
         unit, nurse = _nurse_to_record(request.user, unit_id, body.nurse_id)
         leave_type = _chosen_type(body.leave_type_id)
         _refuse_dates(nurse, unit, body.first, body.last)
-        _begin(nurse, leave_type, _days(body.first, body.last), request.user)
+        removed = _begin(nurse, unit, leave_type, _days(body.first, body.last), request.user)
         record("leave.recorded", actor=request.user, target=nurse.user.username, request=request)
-        return Status(201, _as_saved(nurse, body.first, body.last))
+        return Status(201, SavedLeave(**_as_saved(nurse, body.first, body.last).dict(), pins_removed=removed))
 
 
-@unit_leave_router.post("/{unit_id}/leave/change", response=LeaveRun, auth=manager, operation_id="changeLeave")
-def change_leave(request: HttpRequest, unit_id: UUID, body: LeaveChangeBody) -> LeaveRun:
+@unit_leave_router.post("/{unit_id}/leave/change", response=SavedLeave, auth=manager, operation_id="changeLeave")
+def change_leave(request: HttpRequest, unit_id: UUID, body: LeaveChangeBody) -> SavedLeave:
     """Days that stay as they were keep their rows. The rest end, and new ones begin."""
     with transaction.atomic():
         unit, nurse, rows = _rows_to_change(request.user, unit_id, body.leave_ids)
@@ -284,11 +299,12 @@ def change_leave(request: HttpRequest, unit_id: UUID, body: LeaveChangeBody) -> 
         wanted = set(_days(body.first, body.last))
         ended = [row.pk for row in rows if row.leave_type_id != leave_type.pk or row.date not in wanted]
         kept = {row.date for row in rows if row.pk not in ended}
+        removed = []
         if ended or wanted - kept:
             _end(ended, request.user)
-            _begin(nurse, leave_type, sorted(wanted - kept), request.user)
+            removed = _begin(nurse, unit, leave_type, sorted(wanted - kept), request.user)
             record("leave.changed", actor=request.user, target=nurse.user.username, request=request)
-        return _as_saved(nurse, body.first, body.last)
+        return SavedLeave(**_as_saved(nurse, body.first, body.last).dict(), pins_removed=removed)
 
 
 @unit_leave_router.post("/{unit_id}/leave/remove", response={204: None}, auth=manager, operation_id="removeLeave")

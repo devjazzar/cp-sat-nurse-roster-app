@@ -68,10 +68,19 @@ function hold(request: string) {
       waiting.push(({ status = 200, body = {} }) => resolve(new Response(JSON.stringify(body), { status })))
     })
   }))
+  const answered = new Set<number>()
   return {
     answer: async (answer: Answer) => {
       await waitFor(() => expect(waiting.length).toBeGreaterThan(0))
       await act(async () => waiting.shift()?.(answer))
+    },
+    /** Until this many have been asked for, however they were answered. */
+    waitFor: async (count: number) => waitFor(() => expect(waiting.length + answered.size).toBeGreaterThanOrEqual(count)),
+    /** Answers the request asked for `index`th, from 0, in whatever order the test needs. Not to be mixed with `answer`. */
+    answerAt: async (index: number, answer: Answer) => {
+      await waitFor(() => expect(waiting.length).toBeGreaterThan(index))
+      answered.add(index)
+      await act(async () => waiting[index](answer))
     },
   }
 }
@@ -3489,6 +3498,7 @@ describe("the leave pages", () => {
   const OLD = { id: "old", name: "Study", active: false }
   const ANNUAL = { id: "annual", name: "Annual", active: true }
   const RUN = { leave_ids: ["l1", "l2"], nurse: AMAL, leave_type: SICK, first: "2026-11-10", last: "2026-11-11", days: 2, outside_dates: false }
+  const SAVED = { ...RUN, pins_removed: [] }
   const BADR_RUN = { leave_ids: ["l3"], nurse: BADR, leave_type: OLD, first: "2026-11-20", last: "2026-11-20", days: 1, outside_dates: true }
   const MONTH = { month: "2026-11", nurses: [AMAL, BADR], runs: [RUN, BADR_RUN] }
   const pageOf = (extra = {}) => ({
@@ -3563,7 +3573,7 @@ describe("the leave pages", () => {
   })
 
   it("records leave, offering only active types, then returns focus", async () => {
-    const { user, calls } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: RUN } }))
+    const { user, calls } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: SAVED } }))
 
     await user.click(await screen.findByRole("button", { name: "Record leave" }))
     const types = within(await screen.findByLabelText("Leave type")).getAllByRole("option").map((option) => option.textContent)
@@ -3581,7 +3591,7 @@ describe("the leave pages", () => {
   })
 
   it("goes to the month just saved when it is another", async () => {
-    const { user, router } = start("/leave?month=2026-11", pageOf({ "POST /api/units/er/leave": { status: 201, body: RUN } }))
+    const { user, router } = start("/leave?month=2026-11", pageOf({ "POST /api/units/er/leave": { status: 201, body: SAVED } }))
 
     await user.click(await screen.findByRole("button", { name: "Record leave" }))
     await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
@@ -3617,8 +3627,22 @@ describe("the leave pages", () => {
     expect(screen.getByLabelText("First day")).toHaveAttribute("aria-invalid", "true")
   })
 
+  it("says which pins on the draft the leave replaced, as leave wins over a pin", async () => {
+    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N" }, { date: "2026-11-11", shift: "" }] }
+    const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2026-11-10")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "It replaced 2 pins on the draft: N on 10 Nov 2026, a day off on 11 Nov 2026. A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again.")
+  })
+
   it("changes leave, naming the ids it replaces, with focus on the button that stays", async () => {
-    const { user, calls } = start("/leave", pageOf({ "POST /api/units/er/leave/change": { body: RUN } }))
+    const { user, calls } = start("/leave", pageOf({ "POST /api/units/er/leave/change": { body: SAVED } }))
 
     await user.click(await screen.findByRole("button", { name: "Change leave of Amal Saleh, 10 to 11 Nov 2026" }))
     expect(await screen.findByRole("heading", { name: "Change leave of Amal Saleh" })).toBeInTheDocument()
@@ -3842,8 +3866,14 @@ describe("the roster page", () => {
     { date: "2026-06-06", weekend: false, holiday: true },
     { date: "2026-06-07", weekend: false, holiday: false },
   ]
+  const EDITOR = {
+    refusal: null,
+    shifts: [...SHIFTS, { code: "E", display_name: "Evening", colour: "#16a34a", hours: 8 }],
+    nurses: [{ hospital_id: "h1", allowed_shifts: null, credited: ["2026-06-06", "2026-06-07"] }, { hospital_id: "h2", allowed_shifts: ["N"], credited: [] }],
+  }
   const DRAFT = {
     solve_id: SOLVE_ID, solved_at: "2026-05-15T10:01:00+03:00", restored_at: null, cost: 12, stopped_early: false, days: DAYS, shifts: SHIFTS, changes: [],
+    edited: false, solved_cost: 12, check: null, pins: [] as object[], pins_lost_to_leave: [] as object[], editor: EDITOR as object,
     rows: [{
       hospital_id: "h1", full_name: "Amal Saleh",
       cells: [{ shift: "D", kind: "shift" }, { shift: "", kind: "off" }, { shift: "", kind: "leave" }, { shift: "", kind: "outside" }],
@@ -4137,7 +4167,8 @@ describe("the roster page", () => {
   })
 
   it("draws the grid with colours, leave, days outside the dates and days off told apart", async () => {
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+    const over = { ...DRAFT, editor: { ...EDITOR, refusal: "This month is over, so its draft cannot change." } }
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: over } } }))
 
     const grid = within(await screen.findByRole("region", { name: "Draft of ER, June 2026" }))
     const amal = grid.getByRole("rowheader", { name: "Amal Saleh" }).closest("tr") as HTMLElement
@@ -4282,11 +4313,253 @@ describe("the roster page", () => {
 
       const grid = within(await screen.findByRole("region", { name: "Draft of ER, June 2026" }))
       expect(await grid.findByRole("rowheader", { name: "Nurse 0" })).toBeInTheDocument()
-      expect(grid.getByRole("table")).toHaveAttribute("aria-rowcount", "201")
+      expect(grid.getByRole("grid")).toHaveAttribute("aria-rowcount", "201")
       expect(grid.getAllByRole("rowheader").length).toBeLessThan(100)
     } finally {
       vi.restoreAllMocks()
     }
+  })
+
+  describe("editing the draft", () => {
+    const CHECK = { reason: null, ok: true, violations: [], cost: 15, cost_before: 12, delta: 3, refusals: [] }
+    const cellNamed = (name: RegExp | string) => screen.findByRole("button", { name })
+    const editing = (extra = {}) => manager({
+      [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } },
+      [`POST ${UNIT}/roster/check`]: { body: CHECK },
+      ...extra,
+    })
+
+    it("pins a shift from a cell's menu, checks the grid it would make, and saves it", async () => {
+      const rows = [{ ...DRAFT.rows[0], cells: DRAFT.rows[0].cells.map((cell, index) => (index === 1 ? { shift: "N", kind: "shift" } : cell)) }, DRAFT.rows[1]]
+      const saved = { ...DRAFT, rows, pins: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-05", shift: "N", origin: "manager", set_aside: null }], edited: true, cost: 15,
+        check: { reason: null, ok: true, violations: [], cost: 15 } }
+      const { user, calls } = start("/roster", editing({ [`POST ${UNIT}/roster/pins`]: { body: { ...EMPTY, draft: saved } } }))
+
+      const cell = await cellNamed("Amal Saleh, 5 June: Off")
+      await user.click(cell)
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+
+      expect(await cellNamed("Amal Saleh, 5 June: Night, to be pinned to Night, not saved")).toHaveFocus()
+      const unsaved = screen.getByRole("region", { name: "1 change not saved yet" })
+      expect(await within(unsaved).findByText("With these changes the draft breaks no hard rule, and costs 15 (+3).")).toBeInTheDocument()
+      expect(calls.filter((call) => call.url.endsWith("/roster/check")).at(-1)!.body).toEqual({
+        month: "2026-06", edits: [{ hospital_id: "h1", date: "2026-06-05", action: "shift", shift: "N" }] })
+
+      await user.click(within(unsaved).getByRole("button", { name: "Save changes" }))
+
+      expect(await screen.findByText("1 change saved.")).toBeInTheDocument()
+      expect(calls.find((call) => call.url.endsWith("/roster/pins"))!.body).toEqual({
+        month: "2026-06", edits: [{ hospital_id: "h1", date: "2026-06-05", action: "shift", shift: "N" }] })
+      expect(screen.queryByRole("region", { name: /not saved yet/ })).not.toBeInTheDocument()
+      expect(await cellNamed("Amal Saleh, 5 June: Night, pinned")).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole("button", { name: "Amal Saleh, 5 June: Night, pinned" })).toHaveFocus())
+      expect(screen.getByText(/Edited by hand since. Cost 15 on the month as it stands, against 12 as solved./)).toBeInTheDocument()
+    })
+
+    it("is one stop for Tab, moved through by the arrow keys, and Escape gives focus back to the cell", async () => {
+      const { user } = start("/roster", editing())
+
+      const first = await cellNamed("Amal Saleh, 1 June: Day")
+      expect(first).toHaveAttribute("tabindex", "0")
+      expect(await cellNamed("Amal Saleh, 5 June: Off")).toHaveAttribute("tabindex", "-1")
+      first.focus()
+      await user.keyboard("{ArrowRight}")
+      expect(await cellNamed("Amal Saleh, 5 June: Off")).toHaveFocus()
+      await user.keyboard("{ArrowDown}")
+      expect(await cellNamed("Badr Noor, 5 June: Night")).toHaveFocus()
+      await user.keyboard("{Home}")
+      expect(await cellNamed("Badr Noor, 1 June: Night")).toHaveFocus()
+
+      await user.keyboard("{Enter}")
+      expect(await screen.findByRole("menu")).toBeInTheDocument()
+      await user.keyboard("{Escape}")
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument())
+      expect(await cellNamed("Badr Noor, 1 June: Night")).toHaveFocus()
+    })
+
+    it("offers only a nurse's allowed shifts, and nothing to pin on a day of leave or outside their dates", async () => {
+      const { user } = start("/roster", editing())
+
+      await user.click(await cellNamed("Badr Noor, 1 June: Night"))
+      const menu = await screen.findByRole("menu")
+      expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["NPin Night", "Pin a day off"])
+      await user.keyboard("{Escape}")
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument())
+
+      await user.click(await cellNamed("Amal Saleh, 6 June: Leave"))
+      const leave = await screen.findByRole("menu")
+      expect(leave).toHaveTextContent("On leave this day, and leave wins over a pin.")
+      expect(within(leave).queryByRole("menuitem", { name: /Pin/ })).not.toBeInTheDocument()
+    })
+
+    it("takes a shift off a day that became leave after the solve", async () => {
+      const draft = { ...DRAFT, rows: [{ ...DRAFT.rows[0], cells: [DRAFT.rows[0].cells[0], DRAFT.rows[0].cells[1], { shift: "D", kind: "shift" }, DRAFT.rows[0].cells[3]] }, DRAFT.rows[1]] }
+      const { user } = start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft } } }))
+
+      await user.click(await cellNamed("Amal Saleh, 6 June: Day"))
+      await user.click(await screen.findByRole("menuitem", { name: "Take the shift off this day" }))
+
+      expect(await cellNamed(/Amal Saleh, 6 June: Day, pin to be cleared, not saved/)).toBeInTheDocument()
+    })
+
+    it("clears a pin, and choosing what is saved already is no change", async () => {
+      const pinned = { ...DRAFT, pins: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-01", shift: "D", origin: "manager", set_aside: null }] }
+      const { user } = start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: pinned } } }))
+
+      await user.click(await cellNamed("Amal Saleh, 1 June: Day, pinned"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+      expect(await screen.findByRole("region", { name: "1 change not saved yet" })).toBeInTheDocument()
+      await user.click(await cellNamed(/Amal Saleh, 1 June: Night/))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Day/ }))
+      await waitFor(() => expect(screen.queryByRole("region", { name: /not saved yet/ })).not.toBeInTheDocument())
+
+      await user.click(await cellNamed("Amal Saleh, 1 June: Day, pinned"))
+      await user.click(await screen.findByRole("menuitem", { name: "Clear the pin" }))
+      expect(await cellNamed("Amal Saleh, 1 June: Day, pin to be cleared, not saved")).toBeInTheDocument()
+    })
+
+    it("a pin from an accepted request is changed where it was accepted", async () => {
+      const pinned = { ...DRAFT, pins: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-01", shift: "D", origin: "request", set_aside: null }] }
+      const { user } = start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: pinned } } }))
+
+      await user.click(await cellNamed("Amal Saleh, 1 June: Day, pinned by an accepted request"))
+
+      const menu = await screen.findByRole("menu")
+      expect(menu).toHaveTextContent("Pinned by an accepted request. Change it there.")
+      expect(within(menu).queryAllByRole("menuitem")).toEqual([])
+    })
+
+    it("shows the answer for the edits as they are, never an older one that arrives late", async () => {
+      const { user, router } = start("/roster", editing())
+      const checks = hold(`POST ${UNIT}/roster/check`)
+
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+      await checks.waitFor(1)
+      await user.click(await cellNamed(/Badr Noor, 5 June/))
+      await user.click(await screen.findByRole("menuitem", { name: "Pin a day off" }))
+      await checks.waitFor(2)
+
+      await checks.answerAt(1, { body: { ...CHECK, cost: 20, delta: 8 } })
+      expect(await screen.findByText(/costs 20 \(\+8\)/)).toBeInTheDocument()
+      await checks.answerAt(0, { body: { ...CHECK, cost: 99, delta: 87 } })
+
+      // Proved, not waited for: no check is being fetched any more, so the older answer has been dealt with, and the page
+      // still shows the newer one.
+      const queries = router.options.context.queryClient.getQueryCache().findAll({ queryKey: ["checkDraftEdits"] })
+      await waitFor(() => expect(queries.map((query) => query.state.fetchStatus)).toEqual(queries.map(() => "idle")))
+      expect(screen.getByText(/costs 20 \(\+8\)/)).toBeInTheDocument()
+      expect(screen.queryByText(/costs 99/)).not.toBeInTheDocument()
+    })
+
+    it("says so honestly when the grid cannot be checked, or the check does not answer", async () => {
+      const { user } = start("/roster", editing({
+        [`POST ${UNIT}/roster/check`]: ({ body }: { body: unknown }) => (body as { edits: unknown[] }).edits.length === 1
+          ? { body: { ...CHECK, reason: "roster: unknown shift 'X'", ok: null, cost: null, delta: null, cost_before: null } }
+          : { status: 502 },
+      }))
+
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+      expect(await screen.findByText("The solver's code could not check these changes.")).toBeInTheDocument()
+      expect(screen.getByText("It says: roster: unknown shift 'X'")).toBeInTheDocument()
+
+      await user.click(await cellNamed(/Badr Noor, 5 June/))
+      await user.click(await screen.findByRole("menuitem", { name: "Pin a day off" }))
+      expect(await screen.findByText(/could not be checked: the server did not answer/)).toBeInTheDocument()
+    })
+
+    it("does not call the cost change none when the saved grid's cost is not known", async () => {
+      const { user } = start("/roster", editing({ [`POST ${UNIT}/roster/check`]: { body: { ...CHECK, cost_before: null, delta: null } } }))
+
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+
+      expect(await screen.findByText(/costs 15, against a saved grid whose cost could not be worked out/)).toBeInTheDocument()
+      expect(screen.queryByText(/no change/)).not.toBeInTheDocument()
+    })
+
+    it("keeps the edits when a save is refused, marking the cells and saying why", async () => {
+      const { user } = start("/roster", editing({
+        [`POST ${UNIT}/roster/pins`]: { status: 422, body: { detail: [{ loc: ["body", "body", "edits", 0], msg: "Amal Saleh is on leave on 5 June 2026, and leave wins over a pin.", type: "value_error" }] } },
+      }))
+
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+      await user.click(await screen.findByRole("button", { name: "Save changes" }))
+
+      const refused = await screen.findByRole("alert")
+      expect(refused).toHaveTextContent("Nothing was saved")
+      expect(refused).toHaveTextContent("Amal Saleh, 5 June: Amal Saleh is on leave on 5 June 2026")
+      expect(await cellNamed(/Amal Saleh, 5 June: Night, to be pinned to Night, not saved, refused/)).toBeInTheDocument()
+      await waitFor(() => expect(refused).toHaveFocus())
+      expect(screen.getByRole("region", { name: "1 change not saved yet" })).toBeInTheDocument()
+    })
+
+    it("asks before leaving the month or the page with edits not saved, and holds back a solve", async () => {
+      const { user, router } = start("/roster", editing())
+
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: "Pin a day off" }))
+      expect(await screen.findByRole("button", { name: "Solve again" })).toHaveAttribute("aria-disabled", "true")
+      expect(screen.getByText(/Save or discard your changes to the draft first/)).toBeInTheDocument()
+
+      await user.click(screen.getByRole("link", { name: "Next month" }))
+      const question = await screen.findByRole("alertdialog", { name: "Leave without saving your changes?" })
+      await user.click(within(question).getByRole("button", { name: "Stay" }))
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+      expect(router.state.location.search).toEqual({})
+      expect(screen.getByRole("region", { name: "1 change not saved yet" })).toBeInTheDocument()
+
+      await user.click(screen.getByRole("link", { name: "Next month" }))
+      await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Leave without saving" }))
+      await waitFor(() => expect(router.state.location.search).toEqual({ month: "2026-07" }))
+      expect(screen.queryByRole("region", { name: /not saved yet/ })).not.toBeInTheDocument()
+      await user.click(screen.getByRole("link", { name: "Previous month" }))
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: "Pin a day off" }))
+
+      await user.click(screen.getByRole("button", { name: "Discard changes" }))
+      expect(screen.queryByRole("region", { name: /not saved yet/ })).not.toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole("button", { name: "Amal Saleh, 5 June: Off" })).toHaveFocus())
+      await user.click(screen.getByRole("link", { name: "Next month" }))
+      await waitFor(() => expect(router.state.location.search).toEqual({ month: "2026-07" }))
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    })
+
+    it("says what pins leave replaced, which pins count for nothing, and what the edited draft breaks", async () => {
+      const draft = {
+        ...DRAFT, edited: true, cost: null,
+        check: { reason: null, ok: false, violations: [{ rule: "unavailable", hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-06", text: "h1 works on a leave day" }], cost: 40 },
+        pins: [{ hospital_id: "h2", full_name: "Badr Noor", date: "2026-06-07", shift: "N", origin: "manager", set_aside: "outside_dates" }],
+        pins_lost_to_leave: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-06", shift: "D", by: "Omar Said" }],
+        changes: [{ hospital_id: "h1", full_name: "Amal Saleh", what: "pins" }],
+      }
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft } } }))
+
+      expect(await screen.findByText(/Leave recorded since this solve replaced these pins/)).toBeInTheDocument()
+      expect(screen.getByText("Amal Saleh, 6 June: D, by the leave Omar Said recorded")).toBeInTheDocument()
+      expect(screen.getByText("Badr Noor, 7 June: N, outside their start and end dates")).toBeInTheDocument()
+      expect(screen.getByText("The draft as it stands breaks 1 hard rule:")).toBeInTheDocument()
+      expect(screen.getByText("Amal Saleh, 6 June: h1 works on a leave day")).toBeInTheDocument()
+      expect(screen.getByText(/Cost not known on the month as it stands, against 12 as solved/)).toBeInTheDocument()
+      expect(screen.getByRole("alert")).toHaveTextContent("Amal Saleh: pinned cells changed")
+    })
+
+    it("offers no editing in a month that is over, and says why", async () => {
+      const over = { ...DRAFT, editor: { ...EDITOR, refusal: "This month is over, so its draft cannot change." } }
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: over } } }))
+
+      expect(await screen.findByText("This month is over, so its draft cannot change.")).toBeInTheDocument()
+      expect(screen.queryByRole("grid")).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /Amal Saleh, 1 June/ })).not.toBeInTheDocument()
+    })
+
+    it("says a solve under way will not have the changes saved now", async () => {
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT, active_solve: RUNNING } }, [`GET ${UNIT}/solves/${SOLVE_ID}`]: { body: RUNNING } }))
+
+      expect(await screen.findByText(/changes you save now are put on top of its roster when it ends/)).toBeInTheDocument()
+    })
   })
 
   it("offers to solve again over a draft, saying what that does", async () => {

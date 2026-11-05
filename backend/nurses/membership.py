@@ -75,6 +75,13 @@ def outside_dates(nurse: NurseProfile, day: dt.date) -> bool:
     return day < nurse.start_date or (nurse.end_date is not None and day > nurse.end_date)
 
 
+def no_longer_serving(nurse: NurseProfile) -> bool:
+    """An account deactivated while the profile runs on, which only happens to a manager: a staff nurse's account ends with
+    their end date (`nurses.tasks.close_ended_nurses`). A deactivated nurse whose end date has come worked until then, so
+    their month still counts. Nobody can say when this one stopped."""
+    return not nurse.user.is_active and (nurse.end_date is None or nurse.end_date > today())
+
+
 def unit_in(nurse: NurseProfile, month: dt.date) -> Unit:
     """The unit a nurse belongs to in a month, this one or a later one."""
     return placement_in(nurse, month).unit

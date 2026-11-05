@@ -21,6 +21,7 @@ from hospital.models import HospitalSettings
 from nurses import membership
 from nurses.api import with_units
 from nurses.models import Gender, NurseProfile
+from rosters.pins import outside_allowed, words_for
 from units.models import Unit
 from units.rules import distinct_shifts
 from units.scope import unit_in_scope
@@ -99,11 +100,15 @@ def _nurse_to_change(user: User, unit_id: UUID, nurse_id: UUID) -> tuple[Unit, N
     return unit, with_units(NurseProfile.objects).get(pk=nurse_id)
 
 
-def _refuse_shifts_outside(unit: Unit, allowed: list[str] | None) -> None:
+def _refuse_shifts_outside(unit: Unit, nurse: NurseProfile, allowed: list[str] | None) -> None:
     refused = [(("allowed_shifts", index), f"{code} is not one of this unit's shifts.")
                for index, code in enumerate(allowed or []) if code not in unit.rules["shifts"]]
     if refused:
         refuse(*refused)
+    pinned = outside_allowed(nurse, unit, allowed)
+    if pinned:
+        refuse((("allowed_shifts",), f"A pin holds a shift this leaves out: {words_for(pinned)}. "
+                                     "Clear it on the Roster page first."))
 
 
 @router.get("/{unit_id}/nurses", response=list[NurseAttributesRow], auth=SignedIn(Role.UNIT_MANAGER, Role.CNO, Role.DEPUTY_CNO),
@@ -125,7 +130,7 @@ def update_nurse_attributes(request, unit_id: UUID, nurse_id: UUID, body: Attrib
         unit, nurse = _nurse_to_change(request.user, unit_id, nurse_id)
         if membership.unit_id_now(nurse) != unit.pk:
             raise HttpError(403, "Until this nurse joins, their current unit's manager sets everything but their shifts here.")
-        _refuse_shifts_outside(unit, body.allowed_shifts)
+        _refuse_shifts_outside(unit, nurse, body.allowed_shifts)
         fields = body.model_dump(exclude={"allowed_shifts"})
         _, changing = differing({name: getattr(nurse, name) for name in fields}, fields)
         for name, value in changing.items():
@@ -146,7 +151,7 @@ def update_nurse_allowed_shifts(request, unit_id: UUID, nurse_id: UUID, body: Al
     with transaction.atomic():
         HospitalSettings.load(for_update=True)
         unit, nurse = _nurse_to_change(request.user, unit_id, nurse_id)
-        _refuse_shifts_outside(unit, body.allowed_shifts)
+        _refuse_shifts_outside(unit, nurse, body.allowed_shifts)
         if membership.set_allowed_shifts(nurse, unit, body.allowed_shifts):
             record("nurse.attributes_changed", actor=request.user, target=nurse.user.username, request=request)
     return _row_as_saved(nurse_id, unit)

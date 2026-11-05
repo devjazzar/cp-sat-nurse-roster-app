@@ -21,6 +21,6 @@ export interface UnitSolveRow {
   cost: number | null;
   /** Whether it ended with a roster it could keep. */
   found_roster: boolean;
-  /** Whether its month's draft is this solve's. */
+  /** Whether its month's draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. */
   in_draft: boolean;
 }

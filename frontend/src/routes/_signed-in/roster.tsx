@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { keepPreviousData, useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router"
-import { useEffect, useRef, useState } from "react"
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
+import { createFileRoute, Link, useBlocker, useMatch, useRouteContext } from "@tanstack/react-router"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import { ApiError } from "@/api/fetcher"
 import {
+  checkDraftEdits,
   getGetRosterMonthQueryKey,
   getGetSolveProgressQueryKey,
   getPreviewSolveQueryKey,
@@ -14,19 +15,35 @@ import {
   useGetSolveProgress,
   useGetSolveResult,
   usePreviewSolve,
+  useSaveDraftPins,
   useStartSolve,
   useStopSolve,
 } from "@/api/generated/endpoints"
-import { Role, type Draft, type DraftChange, type SolvePreview, type SolveProgress } from "@/api/generated/model"
+import {
+  Role,
+  type Draft,
+  type DraftChange,
+  type DraftCheck,
+  type DraftPin,
+  type EditBody,
+  type GridCheck,
+  type RosterMonth,
+  type SolvePreview,
+  type SolveProgress,
+} from "@/api/generated/model"
+import { type EditableCellState, CellEditor } from "@/components/cell-editor"
 import { FormField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
-import { GridLegend, RosterGrid } from "@/components/roster-grid"
+import { LeavePageDialog } from "@/components/password-dialog"
+import { type CellMarks, GridLegend, RosterGrid } from "@/components/roster-grid"
 import { SolveResultPanels } from "@/components/solve-result"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useChosenUnit } from "@/components/unit-picker"
-import { plainRefusal, showServerErrors } from "@/lib/server-errors"
-import { hospitalTime, monthName } from "@/lib/utils"
+import { cellKey, keyOf, usePendingEdits } from "@/lib/pending-edits"
+import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
+import { useDebounced } from "@/lib/use-debounced"
+import { asDate, hospitalTime, monthName } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress })
@@ -149,6 +166,175 @@ const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   leave: "leave or dates changed",
   joined: "is now in this month but not in this draft",
   left: "is no longer in this month but still in this draft",
+  pins: "pinned cells changed",
+}
+
+const dayOf = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
+const longDay = (date: string) => dayOf.format(asDate(date))
+const shiftWord = (code: string) => (code ? code : "a day off")
+
+const SET_ASIDE: Record<NonNullable<DraftPin["set_aside"]>, string> = {
+  not_in_month: "no longer in this unit's month",
+  outside_dates: "outside their start and end dates",
+  leave: "on leave that day",
+  shift_not_worked: "a shift this unit no longer works",
+  shift_not_allowed: "not one of their allowed shifts",
+}
+
+type Pending = ReturnType<typeof usePendingEdits>
+
+function Violations({ check, what }: { check: GridCheck; what: string }) {
+  if (check.reason) return <p className="text-sm">The solver's code could not check {what}, so whether it breaks a hard rule is not known. It says: {check.reason}</p>
+  if (check.ok) return <p className="text-sm">{what[0].toUpperCase() + what.slice(1)} breaks no hard rule.</p>
+  return (
+    <div className="flex flex-col gap-1 text-sm">
+      <p className="font-medium">{what[0].toUpperCase() + what.slice(1)} breaks {plural(check.violations.length, "hard rule")}:</p>
+      <ul className="list-disc ps-5">
+        {check.violations.map((violation, index) => (
+          <li key={index}>{[violation.full_name, violation.date && longDay(violation.date)].filter(Boolean).join(", ")}{violation.full_name || violation.date ? ": " : ""}{violation.text}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "no change")
+
+/** What the edits not yet saved would do, asked for once the editing pauses. The answer shown is always the one for the edits as
+ *  they are: an older one arriving late belongs to another query and is never shown. */
+function CheckOfEdits({ unitId, month, edits, version }: { unitId: string; month: string; edits: EditBody[]; version: string }) {
+  const current = JSON.stringify(edits)
+  const settled = useDebounced(current)
+  const check = useQuery({
+    queryKey: ["checkDraftEdits", unitId, month, version, settled],
+    queryFn: ({ signal }) => checkDraftEdits(unitId, { month, edits: JSON.parse(settled) as EditBody[] }, { signal }),
+    enabled: edits.length > 0,
+    staleTime: Infinity,
+    gcTime: 60_000,
+    retry: false,
+  })
+  const answer: DraftCheck | undefined = settled === current ? check.data : undefined
+  const failed = settled === current && check.isError
+  const said = failed ? "These changes could not be checked: the server did not answer. They are still here, and saving still works."
+    : !answer ? "Checking these changes…"
+    : answer.reason ? "The solver's code could not check these changes."
+    : `With these changes the draft ${answer.ok ? "breaks no hard rule" : `breaks ${plural(answer.violations.length, "hard rule")}`}, and costs ${answer.cost}${answer.delta === null ? ", against a saved grid whose cost could not be worked out" : ` (${signed(answer.delta)})`}.`
+  return (
+    <div className="flex flex-col gap-2">
+      <p role="status" className="text-sm font-medium tabular-nums">{said}</p>
+      {answer && !answer.ok && <Violations check={answer} what="the draft with these changes" />}
+      {answer?.reason && <p className="text-sm">It says: {answer.reason}</p>}
+      {answer && answer.refusals.length > 0 && (
+        <div className="flex flex-col gap-1 text-sm">
+          <p className="font-medium">These would be refused, so the check leaves them out:</p>
+          <ul className="list-disc ps-5">{answer.refusals.map((refusal) => <li key={refusal.hospital_id + refusal.date}>{refusal.reason}</li>)}</ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The panel that held Save and Discard is gone once either is done, so focus goes back into the grid, where the editing was. */
+const backToTheGrid = () => requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-cell][tabindex='0']")?.focus())
+
+const monthIn = (location: unknown) => (location as { search?: { month?: string } }).search?.month
+
+/** Asks before anything would throw away edits not yet saved: another page, or another month of this one. The browser asks
+ *  before a reload or closing the tab. */
+function UnsavedEditsGuard({ holding }: { holding: boolean }) {
+  const page = useMatch({ strict: false, select: (match) => match.routeId })
+  const blocker = useBlocker({
+    shouldBlockFn: ({ current, next }) => holding && current.routeId === page
+      && (next.routeId !== page || monthIn(current) !== monthIn(next)),
+    enableBeforeUnload: () => holding,
+    withResolver: true,
+    disabled: !holding,
+  })
+  return (
+    <LeavePageDialog open={blocker.status === "blocked"} title="Leave without saving your changes?"
+      description="Your changes to the draft are not saved yet. If you leave, they are lost." action="Leave without saving"
+      onStay={() => blocker.reset?.()} onLeave={() => blocker.proceed?.()} />
+  )
+}
+
+function PendingPanel({ unitId, draft, month, pending, onSaved, refused, setRefused }: {
+  unitId: string
+  draft: Draft
+  month: string
+  pending: Pending
+  onSaved: (answer: RosterMonth, count: number) => void
+  refused: Map<string, string>
+  setRefused: (refused: Map<string, string>) => void
+}) {
+  const save = useSaveDraftPins()
+  const edits = Object.values(pending.edits)
+  const names = new Map(draft.rows.map((row) => [row.hospital_id, row.full_name || row.hospital_id]))
+  const send = () => save.mutate({ unitId, data: { month, edits } }, {
+    onSuccess: (answer) => { setRefused(new Map()); onSaved(answer, edits.length) },
+    onError: (error) => {
+      const found = new Map<string, string>()
+      serverErrors(error).forEach(({ path, message }) => {
+        const index = Number(path.split(".")[1])
+        if (edits[index]) found.set(keyOf(edits[index]), message)
+      })
+      setRefused(found)
+    },
+  })
+  // Once the list is on the page: it is not there yet when the answer comes.
+  useEffect(() => { if (refused.size > 0) document.getElementById("save-refused")?.focus() }, [refused])
+  const plainly = save.isError && serverErrors(save.error).length === 0 && (plainRefusal(save.error) ?? "The changes could not be saved. Check your connection and try again. They are still here.")
+  return (
+    // Held at the foot of the screen while the grid scrolls, and never taller than half of it, so the cells stay in view on a phone.
+    <section aria-labelledby="unsaved" className="sticky bottom-0 z-40 flex max-h-[50svh] flex-col gap-3 overflow-y-auto rounded-md border bg-background p-3 shadow-md">
+      <h4 id="unsaved" className="text-sm font-medium">{plural(edits.length, "change")} not saved yet</h4>
+      {/* Whatever the answer depends on besides the edits: the draft, its pins, and the month's leave, dates and nurses. */}
+      <CheckOfEdits unitId={unitId} month={month} edits={edits}
+        version={JSON.stringify([draft.solve_id, draft.cost, draft.pins, draft.editor, draft.changes, draft.rows.map((row) => row.cells)])} />
+      {refused.size > 0 && (
+        <div id="save-refused" tabIndex={-1} role="alert" className="flex flex-col gap-1 text-sm text-destructive outline-none">
+          <p className="font-medium">Nothing was saved, because of these. Change or undo them, then save again:</p>
+          <ul className="list-disc ps-5">
+            {[...refused].map(([key, message]) => {
+              const [hospitalId, date] = key.split("|")
+              return <li key={key}>{names.get(hospitalId) ?? hospitalId}, {longDay(date)}: {message}</li>
+            })}
+          </ul>
+        </div>
+      )}
+      {plainly && <p role="alert" className="text-sm text-destructive">{plainly}</p>}
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={send} disabled={save.isPending}>{save.isPending ? "Saving…" : "Save changes"}</Button>
+        <Button variant="outline" disabled={save.isPending} onClick={() => { setRefused(new Map()); pending.clear(); backToTheGrid() }}>Discard changes</Button>
+      </div>
+    </section>
+  )
+}
+
+function PinNotes({ draft }: { draft: Draft }) {
+  const aside = draft.pins.filter((pin) => pin.set_aside)
+  return (
+    <>
+      {draft.pins_lost_to_leave.length > 0 && (
+        <div className="flex flex-col gap-1 rounded-md border p-3 text-sm">
+          <p className="font-medium">Leave recorded since this solve replaced these pins, as leave wins over a pin:</p>
+          <ul className="list-disc ps-5">
+            {draft.pins_lost_to_leave.map((pin) => (
+              <li key={pin.hospital_id + pin.date}>{pin.full_name || pin.hospital_id}, {longDay(pin.date)}: {shiftWord(pin.shift)}, by the leave {pin.by} recorded</li>
+            ))}
+          </ul>
+          <p>A cell still holding a shift on a day of leave can be taken off by hand, or solve again.</p>
+        </div>
+      )}
+      {aside.length > 0 && (
+        <div className="flex flex-col gap-1 rounded-md border p-3 text-sm">
+          <p className="font-medium">These pins count for nothing at present, so no solve is given them. They come back if that changes, or you can clear them:</p>
+          <ul className="list-disc ps-5">
+            {aside.map((pin) => <li key={pin.hospital_id + pin.date}>{pin.full_name || pin.hospital_id}, {longDay(pin.date)}: {shiftWord(pin.shift)}, {SET_ASIDE[pin.set_aside!]}</li>)}
+          </ul>
+        </div>
+      )}
+    </>
+  )
 }
 
 function DraftDetails({ unitId, solveId }: { unitId: string; solveId: string }) {
@@ -158,13 +344,68 @@ function DraftDetails({ unitId, solveId }: { unitId: string; solveId: string }) 
   return <SolveResultPanels result={result.data} />
 }
 
-function DraftCard({ unitId, draft, label }: { unitId: string; draft: Draft; label: string }) {
+function DraftCard({ unitId, month, draft, label, pending, solving, onSaved }: {
+  unitId: string
+  month: string
+  draft: Draft
+  label: string
+  pending: Pending
+  solving: boolean
+  onSaved: (answer: RosterMonth, count: number) => void
+}) {
+  const [open, setOpen] = useState<{ cell: EditableCellState; anchor: HTMLElement } | null>(null)
+  const [refused, setRefused] = useState<Map<string, string>>(new Map())
+  const pins = useMemo(() => new Map(draft.pins.map((pin) => [cellKey(pin.hospital_id, pin.date), pin])), [draft.pins])
+  const nurses = useMemo(() => new Map(draft.editor.nurses.map((nurse) => [nurse.hospital_id, nurse])), [draft.editor.nurses])
+  const shiftsByCode = useMemo(() => new Map(draft.editor.shifts.map((shift) => [shift.code, shift])), [draft.editor.shifts])
+  const editable = draft.editor.refusal === null
+
+  const marks = (hospitalId: string, date: string): CellMarks => {
+    const key = cellKey(hospitalId, date)
+    const pin = pins.get(key)
+    const edit = pending.edits[key]
+    const pinned = pin && (pin.set_aside ? "pinned, but counts for nothing now" : pin.origin === "manager" ? "pinned" : `pinned by an accepted ${pin.origin}`)
+    const pendingMark = edit && (edit.action === "clear" ? { shows: null, says: "pin to be cleared, not saved" }
+      : { shows: edit.action === "off" ? "" : edit.shift!, says: `to be pinned ${edit.action === "off" ? "off" : `to ${shiftsByCode.get(edit.shift!)?.display_name ?? edit.shift}`}, not saved` })
+    return { pinned, pending: pendingMark, refused: refused.has(key) }
+  }
+
+  const openCell = (hospitalId: string, date: string, button: HTMLButtonElement) => {
+    const nurse = nurses.get(hospitalId)
+    const row = draft.rows.find((candidate) => candidate.hospital_id === hospitalId)
+    const cell = row?.cells[draft.days.findIndex((day) => day.date === date)]
+    const credited = nurse?.credited.includes(date) ? (cell?.kind === "outside" ? "outside" : "leave") : null
+    const allowed = nurse?.allowed_shifts
+    const key = cellKey(hospitalId, date)
+    const pin = pins.get(key)
+    setOpen({
+      anchor: button,
+      cell: {
+        hospitalId, date, title: `${row?.full_name || hospitalId}, ${longDay(date)}`, credited, holdsShift: !!cell?.shift,
+        shifts: draft.editor.shifts.filter((shift) => !allowed || allowed.includes(shift.code)),
+        pin: pin ? { shift: pin.shift, origin: pin.origin } : null, pending: pending.edits[key] ?? null,
+      },
+    })
+  }
+
+  const choose = (edit: EditBody) => {
+    const pin = pins.get(keyOf(edit))
+    const same = pin && ((edit.action === "shift" && pin.shift === edit.shift) || (edit.action === "off" && pin.shift === ""))
+    if (same) pending.drop(keyOf(edit))
+    else pending.put(edit)
+    setOpen(null)
+  }
+
   return (
     <section aria-labelledby="draft" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h3 id="draft" tabIndex={-1} className="font-medium outline-none">Draft</h3>
         <p className="text-sm text-muted-foreground tabular-nums">
-          {draft.restored_at ? `Restored ${hospitalTime(draft.restored_at)} from the solve of ${hospitalTime(draft.solved_at)}.` : `Solved ${hospitalTime(draft.solved_at)}.`} Cost {draft.cost}.
+          {draft.restored_at ? `Restored ${hospitalTime(draft.restored_at)} from the solve of ${hospitalTime(draft.solved_at)}.` : `Solved ${hospitalTime(draft.solved_at)}.`}{" "}
+          {draft.edited && "Edited by hand since. "}
+          {draft.check
+            ? `Cost ${draft.cost ?? "not known"} on the month as it stands, against ${draft.solved_cost} as solved.`
+            : `Cost ${draft.cost}.`}
           {draft.stopped_early && " You stopped this solve early, so this is the best roster it had found."}
         </p>
       </div>
@@ -174,11 +415,23 @@ function DraftCard({ unitId, draft, label }: { unitId: string; draft: Draft; lab
           <ul className="list-disc ps-5">
             {draft.changes.map((change) => <li key={change.hospital_id + change.what}>{change.full_name || change.hospital_id}: {CHANGE_SAYS[change.what]}</li>)}
           </ul>
-          <p>Solve again to take them in. Otherwise, the roster is checked again when you submit it.</p>
+          <p>Solve again to take them in: a solve keeps your pins. Otherwise, the roster is checked again when you submit it.</p>
         </div>
       )}
-      <RosterGrid grid={draft} label={label} />
-      <GridLegend grid={draft} />
+      <PinNotes draft={draft} />
+      {draft.editor.refusal
+        ? <p className="text-sm">{draft.editor.refusal}</p>
+        : <p className="text-sm text-muted-foreground">Choose a cell to pin a shift or a day off, or to clear its pin. The arrow keys move between cells. Pins are kept by every solve of this month.</p>}
+      {solving && editable && <p className="text-sm">A solve of this month is under way. It was given the month as it was when it started, so changes you save now are put on top of its roster when it ends, and the draft then asks you to solve again.</p>}
+      <RosterGrid grid={draft} label={label} extraShifts={draft.editor.shifts} editing={editable ? { marks, onOpen: openCell } : undefined} />
+      <GridLegend grid={draft} editable={editable} />
+      {editable && <CellEditor cell={open?.cell ?? null} anchor={open?.anchor ?? null} onChoose={choose}
+        onUndo={() => { if (open) pending.drop(cellKey(open.cell.hospitalId, open.cell.date)); setOpen(null) }} onClose={() => setOpen(null)} />}
+      {editable && Object.keys(pending.edits).length > 0 && (
+        <PendingPanel unitId={unitId} draft={draft} month={month} pending={pending} onSaved={onSaved} refused={refused} setRefused={setRefused} />
+      )}
+      {draft.check && <Violations check={draft.check} what="the draft as it stands" />}
+      {draft.edited && <p className="text-sm text-muted-foreground">The details below are what its solve answered, before the changes made by hand.</p>}
       <DraftDetails unitId={unitId} solveId={draft.solve_id} />
     </section>
   )
@@ -215,7 +468,7 @@ function Precheck({ issues }: { issues: string[] | null }) {
   )
 }
 
-function StartForm({ unitId, preview, onStarted, solvingAgain }: { unitId: string; preview: SolvePreview; onStarted: () => void; solvingAgain: boolean }) {
+function StartForm({ unitId, preview, onStarted, solvingAgain, unsaved }: { unitId: string; preview: SolvePreview; onStarted: () => void; solvingAgain: boolean; unsaved: boolean }) {
   const start = useStartSolve()
   const schema = z.object({
     time_limit_seconds: z.number("Enter a whole number of seconds.").int("Enter a whole number of seconds.")
@@ -234,15 +487,16 @@ function StartForm({ unitId, preview, onStarted, solvingAgain }: { unitId: strin
           description={`Up to ${preview.time_limit_cap}.`}
           registration={form.register("time_limit_seconds", { valueAsNumber: true })} error={form.formState.errors.time_limit_seconds} />
       </div>
-      {solvingAgain && <p className="text-sm text-muted-foreground">Solving again replaces the draft's grid. The solve history keeps what it replaced.</p>}
+      {solvingAgain && <p className="text-sm text-muted-foreground">Solving again replaces the draft's grid, keeping its pins. The solve history keeps what it replaced.</p>}
+      {unsaved && <p className="text-sm">Save or discard your changes to the draft first: a solve is given only saved pins.</p>}
       {refused && <p role="alert" className="text-sm text-destructive">{refused}</p>}
       {start.isError && !refused && !form.formState.errors.time_limit_seconds && <p role="alert" className="text-sm text-destructive">The solve could not be started. Check your connection and try again.</p>}
-      <Button type="submit" disabled={start.isPending}>{solvingAgain ? "Solve again" : "Start solve"}</Button>
+      <Button type="submit" disabled={start.isPending || unsaved}>{solvingAgain ? "Solve again" : "Start solve"}</Button>
     </form>
   )
 }
 
-function PreviewCard({ unitId, month, onStarted, solvingAgain }: { unitId: string; month: string; onStarted: () => void; solvingAgain: boolean }) {
+function PreviewCard({ unitId, month, onStarted, solvingAgain, unsaved }: { unitId: string; month: string; onStarted: () => void; solvingAgain: boolean; unsaved: boolean }) {
   const preview = usePreviewSolve(unitId, { month })
   const answer = preview.data
   return (
@@ -268,7 +522,7 @@ function PreviewCard({ unitId, month, onStarted, solvingAgain }: { unitId: strin
             {answer.rules_refusal ? <RulesRefused detail={answer.rules_refusal} /> : !answer.refusal && <Precheck issues={answer.precheck} />}
             <Warnings preview={answer} />
             {answer.refusal && <p role="alert">{answer.refusal}</p>}
-            {!answer.refusal && !answer.rules_refusal && <StartForm unitId={unitId} preview={answer} onStarted={onStarted} solvingAgain={solvingAgain} />}
+            {!answer.refusal && !answer.rules_refusal && <StartForm unitId={unitId} preview={answer} onStarted={onStarted} solvingAgain={solvingAgain} unsaved={unsaved} />}
           </>
         )}
       </CardContent>
@@ -307,9 +561,22 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
     if (onTheCard || document.activeElement === document.body) focusNext.current = solve.found_roster ? "draft" : "before-solving"
     void refresh()
   }
+  const pending = usePendingEdits()
+  const unsaved = Object.keys(pending.edits).length > 0
+  // A month left without saving takes its edits with it: they are about its cells.
+  const clearPending = pending.clear
+  useEffect(() => { clearPending() }, [inAddress, clearPending])
+  const saved = (month: RosterMonth, count: number) => {
+    queryClient.setQueryData(getGetRosterMonthQueryKey(unit.id, inAddress ? { month: inAddress } : undefined), month)
+    void queryClient.invalidateQueries({ queryKey: getPreviewSolveQueryKey(unit.id) })
+    pending.clear()
+    setSaid(`${plural(count, "change")} saved.${month.active_solve ? " The solve under way was given the month without them: they go on top of its roster when it ends." : ""}`)
+    backToTheGrid()
+  }
   const active = answer?.active_solve
   return (
     <>
+      <UnsavedEditsGuard holding={unsaved} />
       {roster.isPending && <p>Loading…</p>}
       {roster.isError && <p role="alert">This month's roster could not be read. Reload the page to try again.</p>}
       {/* Always rendered, because a live region mounted with its text may never be read out. */}
@@ -320,9 +587,10 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
           <p><Link to="/solve-history" search={{ month: answer.month }} className={`text-sm ${LINK}`}>Solve history of {monthName(answer.month)}</Link></p>
           {active && <ProgressCard key={active.id} unitId={unit.id} solve={active} onEnded={ended} />}
           {!active && answer.last_solve && <LastSolve solve={answer.last_solve} />}
-          {answer.draft && <DraftCard unitId={unit.id} draft={answer.draft} label={`Draft of ${unit.name}, ${monthName(answer.month)}`} />}
+          {answer.draft && <DraftCard unitId={unit.id} month={answer.month} draft={answer.draft} label={`Draft of ${unit.name}, ${monthName(answer.month)}`}
+            pending={pending} solving={!!active} onSaved={saved} />}
           {!answer.draft && !active && !answer.last_solve && <p>No draft yet for {monthName(answer.month)}.</p>}
-          {!active && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} />}
+          {!active && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} unsaved={unsaved} />}
         </>
       )}
     </>
@@ -336,7 +604,7 @@ function RosterPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <h1 className="text-xl font-medium">{chosen ? `Roster of ${chosen.name}` : "Roster"}</h1>
-      <p className="text-muted-foreground">Solve a month to get its draft. Each solve replaces the draft's grid. Only you see a draft.</p>
+      <p className="text-muted-foreground">Solve a month to get its draft, then change any cell by hand. Each solve replaces the draft's grid and keeps your pins. Only you see a draft.</p>
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">Your unit could not be read. Reload the page to try again.</p>}
       {units.data && !chosen && <p>No unit is assigned to you yet. The CNO assigns each unit its manager.</p>}

@@ -33,6 +33,8 @@ import type {
   ConfirmNurseImportBody,
   CorrectedNurse,
   CorrectionBody,
+  DraftCheck,
+  EditsBody,
   EndDateBody,
   GetMyLeaveParams,
   GetRosterMonthParams,
@@ -44,7 +46,6 @@ import type {
   InstallationHealth,
   LeaveChangeBody,
   LeaveRemovalBody,
-  LeaveRun,
   LeaveTypeBody,
   LeaveTypeSchema,
   ListAuditEntriesParams,
@@ -78,6 +79,7 @@ import type {
   RamadanMonth,
   ReactivateRefusal,
   RosterMonth,
+  SavedLeave,
   SessionState,
   ShiftBody,
   ShiftSchema,
@@ -4125,7 +4127,7 @@ export const getRecordLeaveUrl = (unitId: string,) => {
  * @summary Record Leave
  */
 export const recordLeave = async (unitId: string,
-    newLeaveBody: NewLeaveBody, options?: Parameters<typeof apiFetch>[1]): Promise<LeaveRun> => {
+    newLeaveBody: NewLeaveBody, options?: Parameters<typeof apiFetch>[1]): Promise<SavedLeave> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -4141,7 +4143,7 @@ export const recordLeave = async (unitId: string,
     }
     return headers;
   };
-return apiFetch<LeaveRun>(getRecordLeaveUrl(unitId),
+return apiFetch<SavedLeave>(getRecordLeaveUrl(unitId),
   {
     ...options,
     method: 'POST',
@@ -4215,7 +4217,7 @@ export const getChangeLeaveUrl = (unitId: string,) => {
  * @summary Change Leave
  */
 export const changeLeave = async (unitId: string,
-    leaveChangeBody: LeaveChangeBody, options?: Parameters<typeof apiFetch>[1]): Promise<LeaveRun> => {
+    leaveChangeBody: LeaveChangeBody, options?: Parameters<typeof apiFetch>[1]): Promise<SavedLeave> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -4231,7 +4233,7 @@ export const changeLeave = async (unitId: string,
     }
     return headers;
   };
-return apiFetch<LeaveRun>(getChangeLeaveUrl(unitId),
+return apiFetch<SavedLeave>(getChangeLeaveUrl(unitId),
   {
     ...options,
     method: 'POST',
@@ -4890,6 +4892,191 @@ export function useGetRosterMonth<TData = Awaited<ReturnType<typeof getRosterMon
 
 
 
+
+export const getCheckDraftEditsUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/roster/check`
+}
+
+/**
+ * The draft as these edits would make it, against the month as it stands, on the solver's own code in this process: `Checked`
+ * says why. Saves nothing and writes no audit entry.
+ * @summary Check Edits
+ */
+export const checkDraftEdits = async (unitId: string,
+    editsBody: EditsBody, options?: Parameters<typeof apiFetch>[1]): Promise<DraftCheck> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<DraftCheck>(getCheckDraftEditsUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(editsBody)
+  }
+);}
+
+
+
+
+
+export const getCheckDraftEditsMutationKey = () => ['checkDraftEdits'] as const;
+
+export const getCheckDraftEditsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkDraftEdits>>, TError,CheckDraftEditsMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkDraftEdits>>, TError,CheckDraftEditsMutationVariables, TContext> => {
+
+const mutationKey = getCheckDraftEditsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkDraftEdits>>, CheckDraftEditsMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  checkDraftEdits(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckDraftEditsMutationResult = NonNullable<Awaited<ReturnType<typeof checkDraftEdits>>>
+    export type CheckDraftEditsMutationBody = EditsBody
+    export type CheckDraftEditsMutationError = unknown
+    export type CheckDraftEditsMutationVariables = {unitId: string;data: EditsBody}
+
+    /**
+ * @summary Check Edits
+ */
+export const useCheckDraftEdits = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkDraftEdits>>, TError,CheckDraftEditsMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof checkDraftEdits>>,
+        TError,
+        CheckDraftEditsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCheckDraftEditsMutationOptions(options), queryClient);
+    }
+
+export const getSaveDraftPinsUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/roster/pins`
+}
+
+/**
+ * All of it or none of it. Under the catalogue's lock, which a solve's start and end, a restore and a rename hold, then each
+ * nurse's, which a leave write holds and which comes before a unit's in a transfer. A solve already under way was given the
+ * month without these: it may run on, its roster takes them on top when it ends, and the draft says so through `changes`. The
+ * audit entry names the unit and the month and how many pins and cells changed, and no nurse, date or shift: the System Admin
+ * sees no roster.
+ * @summary Save Pins
+ */
+export const saveDraftPins = async (unitId: string,
+    editsBody: EditsBody, options?: Parameters<typeof apiFetch>[1]): Promise<RosterMonth> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RosterMonth>(getSaveDraftPinsUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(editsBody)
+  }
+);}
+
+
+
+
+
+export const getSaveDraftPinsMutationKey = () => ['saveDraftPins'] as const;
+
+export const getSaveDraftPinsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDraftPins>>, TError,SaveDraftPinsMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveDraftPins>>, TError,SaveDraftPinsMutationVariables, TContext> => {
+
+const mutationKey = getSaveDraftPinsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDraftPins>>, SaveDraftPinsMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  saveDraftPins(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveDraftPinsMutationResult = NonNullable<Awaited<ReturnType<typeof saveDraftPins>>>
+    export type SaveDraftPinsMutationBody = EditsBody
+    export type SaveDraftPinsMutationError = unknown
+    export type SaveDraftPinsMutationVariables = {unitId: string;data: EditsBody}
+
+    /**
+ * @summary Save Pins
+ */
+export const useSaveDraftPins = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDraftPins>>, TError,SaveDraftPinsMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveDraftPins>>,
+        TError,
+        SaveDraftPinsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveDraftPinsMutationOptions(options), queryClient);
+    }
 
 export const getListUnitSolveHistoryUrl = (unitId: string,
     params?: ListUnitSolveHistoryParams,) => {

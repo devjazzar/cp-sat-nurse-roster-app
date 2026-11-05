@@ -11,5 +11,6 @@ export interface Summary {
   leave_days: number;
   /** Days before a start date or after an end date, credited like leave. */
   outside_days: number;
+  /** Pinned cells that reach this solve. */
   pins: number;
 }

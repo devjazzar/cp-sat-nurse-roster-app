@@ -18,6 +18,7 @@ from hospital.api import StrictSchema, differing, refuse
 from hospital.models import HospitalSettings, Shift
 from nurses.membership import narrow_allowed_shifts, stranded_by
 from ops.models import TechnicalSettings
+from rosters.pins import on_shifts_going, words_for
 from units.models import Unit
 from units.rules import distinct_shifts
 from units.scope import unit_in_scope
@@ -243,6 +244,11 @@ def update_unit_rules(request, unit_id: UUID, body: UnitRulesBody) -> dict:
         if stranded:
             refuse((("rules", "shifts"), f"{_names(stranded)} could work none of these shifts. "
                                          "Change their allowed shifts first."))
+
+        pinned = on_shifts_going(unit, body.rules.shifts)
+        if pinned:
+            refuse((("rules", "shifts"), f"A pin holds a shift you are taking out: {words_for(pinned)}. Clear those pins on the "
+                                         "Roster page first."))
 
         rules = body.rules.model_dump()
         old, new = differing(

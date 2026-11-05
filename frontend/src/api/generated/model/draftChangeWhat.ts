@@ -13,4 +13,5 @@ export const DraftChangeWhat = {
   leave: 'leave',
   joined: 'joined',
   left: 'left',
+  pins: 'pins',
 } as const;
