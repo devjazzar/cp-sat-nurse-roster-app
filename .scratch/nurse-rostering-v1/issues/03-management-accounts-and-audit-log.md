@@ -45,6 +45,6 @@ Things a later ticket should know:
 - **Navigation (all):** add a role's pages to `NAVIGATION` in `src/roles.ts`, guard the route with `beforeLoad: onlyFor(Role.x)`, and replace that role's line on the home page. `<main>` no longer limits width, so each page sets its own `max-w-*`.
 - **Tables:** `Table` takes `container` props. A table with no focusable content needs `tabIndex={0}`, `role="region"` and a label so a keyboard can scroll it; put a row's actions in a sticky last column.
 - **Dialogs:** `AlertDialog` has no exit animation, deliberately, because its content comes from state that goes null at close. `useBlocker` is on while a password shows. Its navigation promise never settles, so a test cannot await it.
-- **A user's `full_name` and `username` cannot be edited yet.** No ticket asked for it.
+- **A user's `full_name` and `username` cannot be edited yet.** No ticket asked for it. Later: ticket 07b let the System Admin correct `full_name` on the users they manage; `username` still cannot be changed.
 
 **Interface review (2026-11-05).** The `better-*` review blocked on the dialog's zoom ignoring reduced motion and on tables a keyboard could not scroll. Those and its smaller findings are fixed: voice-control labels, the blocker, hospital time, the selectable password box, no repeated "Loading…" on a window-focus refetch, dropping hand-edited bad dates from the address, and text size on selects.

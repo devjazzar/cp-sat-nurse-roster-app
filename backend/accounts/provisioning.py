@@ -1,6 +1,6 @@
-"""Creating users, deactivating them and resetting their passwords: every change is audited here,
-in one transaction with the change itself. Who may do it is the caller's business (accounts.api
-for the management roles; ticket 07 for nurses)."""
+"""Creating users, deactivating them, resetting their passwords and correcting the names of the management
+roles: every change is audited here, in one transaction with the change itself. Who may do it is the
+caller's business (accounts.api for the management roles; ticket 07 for nurses, whose names nurses.api corrects)."""
 from __future__ import annotations
 
 import secrets
@@ -64,6 +64,19 @@ def create_user(request: HttpRequest, *, username: str, full_name: str, role: st
     except IntegrityError as error:
         raise _refusal(error, role) from error
     return user, password
+
+
+def correct_name(request: HttpRequest, user_id, full_name: str) -> User:
+    """Changes nothing else about the user, whether or not they are active. No change writes no entry."""
+    with transaction.atomic():
+        user = User.objects.select_for_update().get(pk=user_id)
+        before = user.full_name
+        if full_name != before:
+            user.full_name = full_name
+            user.save(update_fields=["full_name"])
+            record("user.name_corrected", actor=request.user, target=user.username, request=request,
+                   before={"full_name": before}, after={"full_name": full_name})
+    return user
 
 
 def deactivate(request: HttpRequest, user_id) -> User:

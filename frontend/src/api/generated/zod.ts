@@ -205,6 +205,33 @@ export const CreateUserResponse = zod.object({
 
 
 /**
+ * @summary Correct User Name
+ */
+export const CorrectUserNameParams = zod.object({
+  "user_id": zod.uuid()
+})
+
+export const correctUserNameBodyFullNameMax = 200;
+
+
+
+export const CorrectUserNameBody = zod.object({
+  "full_name": zod.string().min(1).max(correctUserNameBodyFullNameMax)
+}).describe('The username is not here, and asking to change it is refused rather than ignored.')
+
+export const CorrectUserNameResponse = zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit a unit manager holds.')
+})
+
+
+/**
  * @summary Deactivate User
  */
 export const DeactivateUserParams = zod.object({
@@ -1279,15 +1306,15 @@ export const CorrectNurseDetailsParams = zod.object({
   "nurse_id": zod.uuid()
 })
 
-export const correctNurseDetailsBodyFullNameMax = 200;
+export const correctNurseDetailsBodyFullNameOneMax = 200;
 
 
 
 export const CorrectNurseDetailsBody = zod.object({
-  "full_name": zod.string().min(1).max(correctNurseDetailsBodyFullNameMax),
+  "full_name": zod.union([zod.string().min(1).max(correctNurseDetailsBodyFullNameOneMax),zod.null()]).optional(),
   "gender": zod.enum(['F', 'M']),
   "start_date": zod.iso.date()
-}).describe('The hospital ID is not here: it is the username, and usernames cannot be reused.')
+}).describe('The hospital ID is not here: it is the username, and usernames cannot be reused. Leaving out the name leaves it\nas it is, which is what a manager\'s form does: the System Admin may have corrected it since the form opened.')
 
 export const CorrectNurseDetailsResponse = zod.object({
   "nurse": zod.object({

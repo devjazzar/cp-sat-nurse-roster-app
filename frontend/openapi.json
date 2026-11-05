@@ -324,6 +324,54 @@
         ]
       }
     },
+    "/api/users/{user_id}/full-name": {
+      "put": {
+        "operationId": "correctUserName",
+        "summary": "Correct User Name",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedUser"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "users"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameCorrectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/users/{user_id}/deactivate": {
       "post": {
         "operationId": "deactivateUser",
@@ -2227,6 +2275,23 @@
         "title": "NewUserBody",
         "type": "object"
       },
+      "NameCorrectionBody": {
+        "additionalProperties": false,
+        "description": "The username is not here, and asking to change it is refused rather than ignored.",
+        "properties": {
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name"
+        ],
+        "title": "NameCorrectionBody",
+        "type": "object"
+      },
       "ReactivateRefusal": {
         "properties": {
           "detail": {
@@ -3512,13 +3577,20 @@
       },
       "CorrectionBody": {
         "additionalProperties": false,
-        "description": "The hospital ID is not here: it is the username, and usernames cannot be reused.",
+        "description": "The hospital ID is not here: it is the username, and usernames cannot be reused. Leaving out the name leaves it\nas it is, which is what a manager's form does: the System Admin may have corrected it since the form opened.",
         "properties": {
           "full_name": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Full Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
           },
           "gender": {
             "enum": [
@@ -3535,7 +3607,6 @@
           }
         },
         "required": [
-          "full_name",
           "gender",
           "start_date"
         ],

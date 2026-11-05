@@ -48,11 +48,11 @@ What a user may see and do. One of: System Admin, CNO, Deputy CNO, Unit Manager,
 _Avoid_: permission level, access level, user type
 
 **System Admin**:
-The hospital IT role. Creates the accounts of the CNO, the Deputy CNO and the unit managers (accounts only: never units, assignments or nurses, though deactivating a unit manager takes them off their unit), sets the technical limits (such as the time limit cap), and sees the audit log, the solve history, the health page and the backups. Sees no roster.
+The hospital IT role. Creates the accounts of the CNO, the Deputy CNO and the unit managers and corrects the names on them (accounts only: never units, assignments or nurses, though deactivating a unit manager takes them off their unit), sets the technical limits (such as the time limit cap), and sees the audit log, the solve history, the health page and the backups. Sees no roster.
 _Avoid_: admin, superuser, IT
 
 **CNO**:
-The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses and corrects their names, genders and start dates; and may approve or reject submitted rosters like the Deputy CNO.
+The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses and corrects their genders and start dates, and the names of staff nurses; and may approve or reject submitted rosters like the Deputy CNO.
 _Avoid_: nursing director, matron
 
 **Deputy CNO**:

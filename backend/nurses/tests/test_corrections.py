@@ -300,10 +300,33 @@ def test_a_managers_name_is_refused_because_it_is_on_their_account(cno, mona, er
     response = correct(cno, nurse, full_name="Mona Saleh")
 
     assert refused_fields(response) == {("full_name",)}
-    assert "System Admin" in message(response)
+    assert "The System Admin can correct it" in message(response)
     mona.refresh_from_db()
     assert mona.full_name == "Mona Ali"
     assert not entries().exists()
+
+
+def test_the_system_admin_corrects_a_managers_name_and_the_nurses_page_shows_it(cno, mona, er, on_day, client_of):
+    nurse = manager_nurse(cno, mona, er, on_day)
+
+    response = client_of("admin", Role.SYSTEM_ADMIN).put(f"/api/users/{mona.pk}/full-name", {"full_name": "Mona Saleh"},
+                                                         content_type="application/json")
+
+    assert response.status_code == 200
+    row = next(row for row in cno.get(NURSES).json() if row["id"] == nurse)
+    assert (row["full_name"], row["hospital_id"]) == ("Mona Saleh", "mona")
+    assert corrected(cno, nurse, full_name="Mona Saleh", gender="M")["nurse"]["gender"] == "M"
+
+
+def test_a_manager_renamed_while_the_form_was_open_still_has_their_gender_corrected(cno, mona, er, on_day):
+    nurse = manager_nurse(cno, mona, er, on_day)
+    User.objects.filter(pk=mona.pk).update(full_name="Mona Saleh")
+
+    response = cno.put(f"{NURSES}/{nurse}/details", {"gender": "M", "start_date": START}, content_type="application/json")
+
+    assert response.status_code == 200
+    assert (response.json()["nurse"]["full_name"], response.json()["nurse"]["gender"]) == ("Mona Saleh", "M")
+    assert set(entries().get().after) == {"gender_changed"}
 
 
 def test_a_refused_name_saves_nothing_else_and_both_refusals_come_together(cno, mona, er, on_day):

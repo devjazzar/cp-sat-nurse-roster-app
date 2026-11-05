@@ -930,6 +930,102 @@ describe("the users page", () => {
     await user.click(within(dialog).getByRole("button", { name: "Done" }))
     await waitFor(() => expect(screen.queryByDisplayValue("wxyz-wxyz-wxyz-wxyz")).not.toBeInTheDocument())
   })
+
+  describe("correcting a name", () => {
+    const url = `/api/users/${MANAGER.id}/full-name`
+
+    it("saves the name, says so and puts focus back on the row, with the create form back too", async () => {
+      let users = [CNO, MANAGER]
+      const { user, calls } = start("/users", admin({
+        "GET /api/users": () => ({ body: users }),
+        [`PUT ${url}`]: () => {
+          users = [CNO, { ...MANAGER, full_name: "Khalid Omari" }]
+          return { body: users[1] }
+        },
+      }))
+
+      const button = await screen.findByRole("button", { name: "Correct name of khalid" })
+      await user.click(button)
+
+      expect(screen.getByRole("heading", { name: "Correct the name of khalid" })).toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: "Create a user" })).not.toBeInTheDocument()
+      const field = screen.getByLabelText("Full name")
+      expect(field).toHaveValue("Khalid Omar")
+      expect(field).toHaveFocus()
+      expect(screen.getByText("khalid", { selector: "span" })).toBeInTheDocument()
+
+      await user.clear(field)
+      await user.type(field, "  Khalid Omari ")
+      await user.click(screen.getByRole("button", { name: "Save name" }))
+
+      expect(await screen.findByRole("status")).toHaveTextContent("The name of khalid is now Khalid Omari.")
+      expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ full_name: "Khalid Omari" })
+      expect(await screen.findByRole("cell", { name: "Khalid Omari" })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Create a user" })).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole("button", { name: "Correct name of khalid" })).toHaveFocus())
+    })
+
+    it("says so when nothing changed", async () => {
+      const { user } = start("/users", page([CNO, MANAGER], { [`PUT ${url}`]: { body: MANAGER } }))
+
+      await user.click(await screen.findByRole("button", { name: "Correct name of khalid" }))
+      await user.click(screen.getByRole("button", { name: "Save name" }))
+
+      expect(await screen.findByRole("status")).toHaveTextContent("Nothing changed for khalid.")
+    })
+
+    it("refuses a blank name itself, beside the field with focus on it", async () => {
+      const { user, calls } = start("/users", page([CNO, MANAGER]))
+
+      await user.click(await screen.findByRole("button", { name: "Correct name of khalid" }))
+      await user.clear(screen.getByLabelText("Full name"))
+      await user.click(screen.getByRole("button", { name: "Save name" }))
+
+      expect(await screen.findByText("Enter their full name.")).toBeInTheDocument()
+      expect(screen.getByLabelText("Full name")).toHaveFocus()
+      expect(calls.some((call) => call.method === "PUT")).toBe(false)
+    })
+
+    it("shows the API's refusal beside the field with focus on it", async () => {
+      const { user } = start("/users", page([CNO, MANAGER], {
+        [`PUT ${url}`]: { status: 422, body: { detail: [{ loc: ["body", "body", "full_name"], msg: "Value error, not a possible name" }] } },
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Correct name of khalid" }))
+      await user.click(screen.getByRole("button", { name: "Save name" }))
+
+      expect(await screen.findByText("not a possible name")).toBeInTheDocument()
+      expect(screen.getByLabelText("Full name")).toHaveFocus()
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    })
+
+    it("says so when the save fails for any other reason, and stays open", async () => {
+      const { user } = start("/users", page([CNO, MANAGER], { [`PUT ${url}`]: { status: 500, body: {} } }))
+
+      await user.click(await screen.findByRole("button", { name: "Correct name of khalid" }))
+      await user.click(screen.getByRole("button", { name: "Save name" }))
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("The name could not be saved.")
+      expect(screen.getByRole("heading", { name: "Correct the name of khalid" })).toBeInTheDocument()
+    })
+
+    it("Cancel saves nothing and puts focus back on the row", async () => {
+      const { user, calls } = start("/users", page([CNO, MANAGER]))
+
+      await user.click(await screen.findByRole("button", { name: "Correct name of khalid" }))
+      await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+      expect(screen.getByRole("heading", { name: "Create a user" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Correct name of khalid" })).toHaveFocus()
+      expect(calls.some((call) => call.method === "PUT")).toBe(false)
+    })
+
+    it("is offered for a deactivated account", async () => {
+      start("/users", page([{ ...MANAGER, is_active: false }]))
+
+      expect(await screen.findByRole("button", { name: "Correct name of khalid" })).toBeEnabled()
+    })
+  })
 })
 
 describe("the audit log page", () => {
@@ -2061,13 +2157,13 @@ describe("the nurses page", () => {
 
     await user.click(await screen.findByRole("button", { name: "Correct details of Mona Ali" }))
     expect(screen.getByLabelText("Full name")).toHaveAttribute("readonly")
-    expect(screen.getByLabelText("Full name")).toHaveAccessibleDescription(/System Admin's/)
+    expect(screen.getByLabelText("Full name")).toHaveAccessibleDescription(/The System Admin can correct it/)
     expect(screen.getByLabelText("Gender")).toHaveFocus()
     await user.selectOptions(screen.getByLabelText("Gender"), "Male")
     await user.click(screen.getByRole("button", { name: "Save details" }))
 
     expect(await screen.findByText("The details of Mona Ali are corrected.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "PUT")?.body).toMatchObject({ full_name: "Mona Ali", gender: "M" })
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ gender: "M", start_date: MONA_NURSE.start_date })
   })
 
   it("offers a manager no correction", async () => {

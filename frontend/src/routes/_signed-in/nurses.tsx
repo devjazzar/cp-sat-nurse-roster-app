@@ -286,11 +286,13 @@ function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
 
   useEffect(() => { form.setFocus(isStaffNurse ? "full_name" : "gender") }, [form, isStaffNurse])
 
-  const submit = form.handleSubmit((data) =>
-    correct.mutate({ nurseId: nurse.id, data: data as z.output<typeof detailsSchema> }, {
+  const submit = form.handleSubmit((data) => {
+    const { full_name, ...profile } = data as z.output<typeof detailsSchema>
+    // A manager's name is not this form's to send: the System Admin may have corrected it since this form opened.
+    return correct.mutate({ nurseId: nurse.id, data: isStaffNurse ? { full_name, ...profile } : profile }, {
       onSuccess: ({ nurse: next, first_placement_extended: extended }) => {
         refresh()
-        const renamed = next.full_name !== nurse.full_name
+        const renamed = isStaffNurse && next.full_name !== nurse.full_name
         if (!renamed && next.gender === nurse.gender && next.start_date === nurse.start_date) {
           onDone(`Nothing changed for ${next.full_name}.`)
           return
@@ -299,14 +301,14 @@ function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
         onDone(`The details of ${next.full_name} are corrected.${longer}`)
       },
       onError: (error) => showServerErrors(form, error),
-    }),
-  )
+    })
+  })
 
   return (
     <form onSubmit={submit} noValidate>
       <FieldGroup>
         <FormField label="Full name" autoComplete="off" readOnly={!isStaffNurse} className="read-only:bg-muted" registration={form.register("full_name")} error={errors.full_name}
-          description={isStaffNurse ? undefined : "It is on their account, which is the System Admin's, so it cannot be corrected here."} />
+          description={isStaffNurse ? undefined : "It is on their unit manager account. The System Admin can correct it."} />
         <SelectField label="Gender" registration={form.register("gender")} error={errors.gender}><GenderOptions /></SelectField>
         <FormField label="Start date" type="date" registration={form.register("start_date")} error={errors.start_date}
           description="A date before their first month in a unit starts their time in that unit from that date's month." />

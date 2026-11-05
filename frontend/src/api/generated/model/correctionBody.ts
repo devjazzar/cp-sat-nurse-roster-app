@@ -7,14 +7,11 @@
 import type { CorrectionBodyGender } from './correctionBodyGender';
 
 /**
- * The hospital ID is not here: it is the username, and usernames cannot be reused.
+ * The hospital ID is not here: it is the username, and usernames cannot be reused. Leaving out the name leaves it
+ * as it is, which is what a manager's form does: the System Admin may have corrected it since the form opened.
  */
 export interface CorrectionBody {
-  /**
-     * @minLength 1
-     * @maxLength 200
-     */
-  full_name: string;
+  full_name?: string | null;
   gender: CorrectionBodyGender;
   start_date: string;
 }

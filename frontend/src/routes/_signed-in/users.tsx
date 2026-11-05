@@ -1,13 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import { ApiError } from "@/api/fetcher"
 import {
   getListUsersQueryKey,
+  useCorrectUserName,
   useCreateUser,
   useDeactivateUser,
   useListUsers,
@@ -43,6 +44,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
 import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { serverErrors, showServerErrors } from "@/lib/server-errors"
+import { useEditing } from "@/lib/use-editing"
 import { hospitalTime } from "@/lib/utils"
 import { ROLE_NAMES } from "@/roles"
 import { onlyFor } from "@/session"
@@ -53,9 +56,11 @@ export const Route = createFileRoute("/_signed-in/users")({
   component: UsersPage,
 })
 
+const fullName = z.string().trim().min(1, "Enter their full name.").max(FULL_NAME_MAX, `At most ${FULL_NAME_MAX} characters.`)
+
 const schema = z.object({
   role: z.enum(NewUserBodyRole, "Choose a role."),
-  full_name: z.string().trim().min(1, "Enter their full name.").max(FULL_NAME_MAX, `At most ${FULL_NAME_MAX} characters.`),
+  full_name: fullName,
   username: z
     .string()
     .trim()
@@ -117,6 +122,45 @@ function NewUserForm({ users, onCreated }: { users: ManagedUser[]; onCreated: (s
           registration={form.register("username")} error={errors.username} />
         {unexpected && <p role="alert" className="text-sm text-destructive">The user could not be created. Check your connection and try again.</p>}
         <Button type="submit" disabled={create.isPending} className="self-start">Create user</Button>
+      </FieldGroup>
+    </form>
+  )
+}
+
+const nameSchema = z.object({ full_name: fullName })
+type NameFields = z.infer<typeof nameSchema>
+
+function NameForm({ row, onDone, onCancel }: { row: ManagedUser; onDone: (message: string) => void; onCancel: () => void }) {
+  const queryClient = useQueryClient()
+  const correct = useCorrectUserName()
+  const form = useForm<NameFields>({ resolver: zodResolver(nameSchema), defaultValues: { full_name: row.full_name } })
+  const { errors } = form.formState
+
+  useEffect(() => { form.setFocus("full_name") }, [form])
+
+  const submit = form.handleSubmit((data) =>
+    correct.mutate({ userId: row.id, data }, {
+      onSuccess: (next) => {
+        void queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() })
+        onDone(next.full_name === row.full_name ? `Nothing changed for ${next.username}.` : `The name of ${next.username} is now ${next.full_name}.`)
+      },
+      onError: (error) => showServerErrors(form, error),
+    }),
+  )
+  const unexpected = correct.isError && serverErrors(correct.error).length === 0
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <FieldGroup>
+        <FormField label="Full name" autoComplete="off" registration={form.register("full_name")} error={errors.full_name} />
+        <p className="text-sm wrap-anywhere text-muted-foreground">
+          The username <span translate="no">{row.username}</span> cannot be changed.
+        </p>
+        {unexpected && <p role="alert" className="text-sm text-destructive">The name could not be saved. Check your connection and try again.</p>}
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={correct.isPending}>Save name</Button>
+          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        </div>
       </FieldGroup>
     </form>
   )
@@ -221,7 +265,11 @@ function ActionDialog({ asked, onClose, onDone, onPassword }: {
   )
 }
 
-function UsersTable({ users, onAsk }: { users: ManagedUser[]; onAsk: (asked: Asked) => void }) {
+function UsersTable({ users, onAsk, onCorrect }: {
+  users: ManagedUser[]
+  onAsk: (asked: Asked) => void
+  onCorrect: (user: ManagedUser, button: HTMLElement) => void
+}) {
   return (
     <Table>
       <TableHeader>
@@ -252,7 +300,12 @@ function UsersTable({ users, onAsk }: { users: ManagedUser[]; onAsk: (asked: Ask
             <TableCell className="tabular-nums">{user.last_login ? hospitalTime(user.last_login) : "Never"}</TableCell>
             {/* Stays in view when a narrow screen scrolls the table: it is what the row is for. */}
             <TableCell className="sticky end-0 bg-card">
-              <div className="flex justify-end gap-2">
+              {/* Two by two, because three in a line would cover the whole row on a phone. */}
+              <div className="ml-auto grid w-fit grid-cols-[auto_auto] gap-2">
+                <Button variant="outline" size="sm" aria-label={`Correct name of ${user.username}`}
+                  onClick={(event) => onCorrect(user, event.currentTarget)}>
+                  Correct name
+                </Button>
                 {/* One button that changes its words, so focus survives the change. */}
                 <Button variant="outline" size="sm" aria-label={`${user.is_active ? "Deactivate" : "Reactivate"} ${user.username}`}
                   onClick={() => onAsk({ user, action: user.is_active ? "deactivate" : "reactivate" })}>
@@ -276,6 +329,7 @@ function UsersPage() {
   const [shown, setShown] = useState<Shown | null>(null)
   const [asked, setAsked] = useState<Asked | null>(null)
   const [done, setDone] = useState("")
+  const { editing, start, finish } = useEditing<ManagedUser>()
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -284,20 +338,23 @@ function UsersPage() {
       {users.isPending && <p>Loading…</p>}
       {users.isError && <p role="alert">The users could not be read. Reload the page to try again.</p>}
       {/* Always rendered, because a live region mounted with its text may never be read out. */}
-      <p role="status" className="text-sm text-muted-foreground empty:sr-only">{done}</p>
+      <p role="status" className="text-sm wrap-anywhere text-muted-foreground empty:sr-only">{done}</p>
       {users.data && (
         <>
           <Card>
             <CardContent>
               {users.data.length > 0
-                ? <UsersTable users={users.data} onAsk={(next) => { setDone(""); setAsked(next) }} />
+                ? <UsersTable users={users.data} onAsk={(next) => { setDone(""); setAsked(next) }}
+                    onCorrect={(user, button) => { setDone(""); start(user, button) }} />
                 : <p>There are no users yet. Create the CNO first: the CNO creates the units and adds the nurses.</p>}
             </CardContent>
           </Card>
           <Card className="max-w-xl">
-            <CardHeader><CardTitle><h2>Create a user</h2></CardTitle></CardHeader>
+            <CardHeader><CardTitle><h2 className="wrap-anywhere">{editing ? `Correct the name of ${editing.username}` : "Create a user"}</h2></CardTitle></CardHeader>
             <CardContent>
-              <NewUserForm users={users.data} onCreated={setShown} />
+              {editing
+                ? <NameForm key={editing.id} row={editing} onCancel={finish} onDone={(message) => { setDone(message); finish() }} />
+                : <NewUserForm users={users.data} onCreated={setShown} />}
             </CardContent>
           </Card>
         </>

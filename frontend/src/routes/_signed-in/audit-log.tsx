@@ -71,6 +71,7 @@ const ACTION_NAMES: Record<string, string> = {
   "unit.created": "Created a unit",
   "user.created": "Created user",
   "user.deactivated": "Deactivated user",
+  "user.name_corrected": "Corrected a user's name",
   "user.password_reset": "Reset a user's password",
   "user.reactivated": "Reactivated user",
 }

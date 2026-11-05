@@ -37,6 +37,7 @@ export * from './managerProfileBody';
 export * from './managerProfileBodyGender';
 export * from './managerToPlace';
 export * from './me';
+export * from './nameCorrectionBody';
 export * from './newNurseBody';
 export * from './newNurseBodyGender';
 export * from './newUserBody';

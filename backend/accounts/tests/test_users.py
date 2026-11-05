@@ -8,6 +8,7 @@ from django.contrib.sessions.models import Session
 from django.db import IntegrityError, connection, transaction
 from django.test import Client
 
+from accounts.api import MANAGED_ROLES
 from accounts.models import LoginAttempts, Role, User
 from accounts.provisioning import generate_password
 from audit.models import AuditEntry
@@ -303,6 +304,109 @@ class TestResetPassword:
         entry = last_entry()
         assert (entry.action, entry.actor.username, entry.target) == ("user.password_reset", "admin", "the-cno")
         assert password not in str(entry.after)
+
+
+class TestCorrectName:
+    @staticmethod
+    def correct(client, user_id, **body):
+        return client.put(f"{USERS}/{user_id}/full-name", {"full_name": "Fatimah Saleh"} | body,
+                          content_type="application/json")
+
+    @pytest.mark.parametrize("role", MANAGED_ROLES)
+    def test_the_system_admin_corrects_each_managed_role(self, admin, make_user, role):
+        user = make_user("the-user", role, full_name="Fatimah Salih")
+
+        r = self.correct(admin, user.pk, full_name="  Fatimah Saleh ")
+
+        assert r.status_code == 200
+        assert (r.json()["username"], r.json()["full_name"], r.json()["role"]) == ("the-user", "Fatimah Saleh", role)
+        user.refresh_from_db()
+        assert user.full_name == "Fatimah Saleh"
+
+    def test_it_is_audited_with_the_name_before_and_after(self, admin, make_user):
+        user = make_user("the-cno", Role.CNO, full_name="Fatimah Salih")
+
+        self.correct(admin, user.pk)
+
+        entry = last_entry()
+        assert (entry.action, entry.actor.username, entry.target) == ("user.name_corrected", "admin", "the-cno")
+        assert entry.before == {"full_name": "Fatimah Salih"} and entry.after == {"full_name": "Fatimah Saleh"}
+
+    def test_a_save_with_no_change_writes_nothing(self, admin, make_user):
+        user = make_user("the-cno", Role.CNO, full_name="Fatimah Saleh")
+        count = AuditEntry.objects.count()
+
+        r = self.correct(admin, user.pk, full_name=" Fatimah Saleh ")
+
+        assert r.status_code == 200 and r.json()["full_name"] == "Fatimah Saleh"
+        assert AuditEntry.objects.count() == count
+
+    def test_a_deactivated_user_is_corrected_and_stays_deactivated(self, admin, make_user):
+        user = make_user("the-cno", Role.CNO, full_name="Fatimah Salih", is_active=False)
+
+        r = self.correct(admin, user.pk)
+
+        assert r.status_code == 200 and r.json()["is_active"] is False
+        user.refresh_from_db()
+        assert user.full_name == "Fatimah Saleh" and user.is_active is False
+
+    def test_nothing_else_about_the_user_changes(self, admin, signed_in, make_user):
+        client = signed_in(Role.CNO, username="the-cno", full_name="Fatimah Salih")
+        user = User.objects.get(username="the-cno")
+        password = user.password
+
+        assert self.correct(admin, user.pk).status_code == 200
+
+        user.refresh_from_db()
+        assert (user.username, user.role, user.password, user.must_change_password) == ("the-cno", Role.CNO, password, False)
+        assert client.get("/api/auth/session").json()["user"]["full_name"] == "Fatimah Saleh"
+
+    @pytest.mark.parametrize("name", ["", "   ", "x" * 201, "a\x00b", None])
+    def test_a_name_that_could_not_be_created_is_refused_on_its_field(self, admin, make_user, name):
+        user = make_user("the-cno", Role.CNO, full_name="Fatimah Salih")
+        count = AuditEntry.objects.count()
+
+        r = self.correct(admin, user.pk, full_name=name)
+
+        assert r.status_code == 422
+        assert [error["loc"][2:] for error in r.json()["detail"]] == [["full_name"]]
+        user.refresh_from_db()
+        assert user.full_name == "Fatimah Salih"
+        assert AuditEntry.objects.count() == count
+
+    def test_the_username_cannot_be_changed_here(self, admin, make_user):
+        user = make_user("the-cno", Role.CNO, full_name="Fatimah Salih")
+
+        r = self.correct(admin, user.pk, username="someone-else")
+
+        assert r.status_code == 422
+        assert [error["loc"][2:] for error in r.json()["detail"]] == [["username"]]
+        user.refresh_from_db()
+        assert (user.username, user.full_name) == ("the-cno", "Fatimah Salih")
+
+    @pytest.mark.parametrize("role", [Role.STAFF_NURSE, Role.SYSTEM_ADMIN])
+    def test_a_nurse_or_the_system_admin_is_not_found_here(self, signed_in, make_user, role):
+        client = signed_in(Role.SYSTEM_ADMIN, username="admin", full_name="As It Was")
+        user = (make_user("a-nurse", Role.STAFF_NURSE, full_name="As It Was") if role == Role.STAFF_NURSE
+                else User.objects.get(username="admin"))
+        count = AuditEntry.objects.count()
+
+        assert self.correct(client, user.pk).status_code == 404
+        user.refresh_from_db()
+        assert user.full_name == "As It Was"
+        assert AuditEntry.objects.count() == count
+
+    def test_an_unknown_id_is_not_found(self, admin):
+        assert self.correct(admin, uuid4()).status_code == 404
+
+    @pytest.mark.parametrize("role", [Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER, Role.STAFF_NURSE])
+    def test_no_other_role_may(self, signed_in, make_user, role):
+        client = signed_in(role, username="caller")
+        user = make_user("the-manager", Role.UNIT_MANAGER, full_name="Mona Ali")
+
+        assert self.correct(client, user.pk).status_code == 403
+        user.refresh_from_db()
+        assert user.full_name == "Mona Ali"
 
 
 class TestWhoIsManaged:

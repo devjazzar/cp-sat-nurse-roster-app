@@ -47,6 +47,7 @@ import type {
   ManagerProfileBody,
   ManagerToPlace,
   Me,
+  NameCorrectionBody,
   NewNurseBody,
   NewUserBody,
   NewUserRefusal,
@@ -1019,6 +1020,95 @@ export const useCreateUser = <TError = NewUserRefusal,
         TContext
       > => {
       return useMutation(getCreateUserMutationOptions(options), queryClient);
+    }
+
+export const getCorrectUserNameUrl = (userId: string,) => {
+
+
+
+
+  return `/api/users/${userId}/full-name`
+}
+
+/**
+ * @summary Correct User Name
+ */
+export const correctUserName = async (userId: string,
+    nameCorrectionBody: NameCorrectionBody, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedUser> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ManagedUser>(getCorrectUserNameUrl(userId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(nameCorrectionBody)
+  }
+);}
+
+
+
+
+
+export const getCorrectUserNameMutationKey = () => ['correctUserName'] as const;
+
+export const getCorrectUserNameMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctUserName>>, TError,CorrectUserNameMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof correctUserName>>, TError,CorrectUserNameMutationVariables, TContext> => {
+
+const mutationKey = getCorrectUserNameMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof correctUserName>>, CorrectUserNameMutationVariables> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  correctUserName(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CorrectUserNameMutationResult = NonNullable<Awaited<ReturnType<typeof correctUserName>>>
+    export type CorrectUserNameMutationBody = NameCorrectionBody
+    export type CorrectUserNameMutationError = unknown
+    export type CorrectUserNameMutationVariables = {userId: string;data: NameCorrectionBody}
+
+    /**
+ * @summary Correct User Name
+ */
+export const useCorrectUserName = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctUserName>>, TError,CorrectUserNameMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof correctUserName>>,
+        TError,
+        CorrectUserNameMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCorrectUserNameMutationOptions(options), queryClient);
     }
 
 export const getDeactivateUserUrl = (userId: string,) => {

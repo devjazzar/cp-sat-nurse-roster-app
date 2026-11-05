@@ -67,8 +67,9 @@ class EndDateBody(Body):
 
 
 class CorrectionBody(Body):
-    """The hospital ID is not here: it is the username, and usernames cannot be reused."""
-    full_name: FullName
+    """The hospital ID is not here: it is the username, and usernames cannot be reused. Leaving out the name leaves it
+    as it is, which is what a manager's form does: the System Admin may have corrected it since the form opened."""
+    full_name: FullName | None = None
     gender: GenderChoice
     start_date: IsoDate
 
@@ -304,13 +305,14 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
     with transaction.atomic():
         nurse = _locked_nurse(nurse_id)
         user = nurse.user
-        name_changes = body.full_name != user.full_name
+        full_name = user.full_name if body.full_name is None else body.full_name
+        name_changes = full_name != user.full_name
         start_changes = body.start_date != nurse.start_date
         gender_changes = body.gender != nurse.gender
         refusals = []
         if name_changes and user.role != Role.STAFF_NURSE:
-            refusals.append((("full_name",), f"{user.username}'s name is on their unit manager account, which is the "
-                                             "System Admin's."))
+            refusals.append((("full_name",), f"{user.username}'s name is on their unit manager account. "
+                                             "The System Admin can correct it."))
         # Only when it changes: a nurse never present has an end date before their start, and their name still corrects.
         if start_changes and nurse.end_date and not membership.start_date_fits(nurse.start_date, body.start_date, nurse.end_date):
             refusals.append((("start_date",), "The start date cannot be after the end date. Change the end date first."))
@@ -318,11 +320,11 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
             refuse(*refusals)
 
         before, after = differing({"full_name": user.full_name, "start_date": nurse.start_date.isoformat()},
-                                  {"full_name": body.full_name, "start_date": body.start_date.isoformat()})
+                                  {"full_name": full_name, "start_date": body.start_date.isoformat()})
         if gender_changes:
             after["gender_changed"] = True  # That it did, never what from or to: the System Admin reads the log.
         if name_changes:
-            user.full_name = body.full_name
+            user.full_name = full_name
             user.save(update_fields=["full_name"])
         if start_changes or gender_changes:
             nurse.gender = body.gender

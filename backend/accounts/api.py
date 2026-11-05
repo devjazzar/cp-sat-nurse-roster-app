@@ -13,12 +13,13 @@ from django.middleware.csrf import get_token
 from ninja import Router, Schema, Status
 from ninja.errors import HttpError
 from ninja.utils import check_csrf
-from pydantic import AfterValidator, Field, StringConstraints, field_validator
+from pydantic import AfterValidator, ConfigDict, Field, StringConstraints, field_validator
 
 from accounts.authz import SignedIn
 from accounts.login import LoginRefused, attempt_login
 from accounts.models import Role, User
-from accounts.provisioning import RoleTaken, UnitArchived, UsernameTaken, create_user, deactivate, reactivate, reset_password
+from accounts.provisioning import (RoleTaken, UnitArchived, UsernameTaken, correct_name, create_user, deactivate,
+                                   reactivate, reset_password)
 from audit.log import record
 
 router = Router(tags=["auth"])
@@ -155,6 +156,13 @@ class NewUserBody(Schema):
     role: Literal[Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER]
 
 
+class NameCorrectionBody(Schema):
+    """The username is not here, and asking to change it is refused rather than ignored."""
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: FullName
+
+
 class NewUserRefusal(Schema):
     username: list[str] = []
     role: list[str] = []
@@ -194,6 +202,11 @@ def new_user(request: HttpRequest, response: HttpResponse, body: NewUserBody):
         return Status(409, NewUserRefusal(role=[_role_taken(refused)]))
     response["Cache-Control"] = "no-store"
     return Status(201, UserWithPassword(user=user, generated_password=password))
+
+
+@users_router.put("/{user_id}/full-name", response=ManagedUser, operation_id="correctUserName")
+def correct_user_name(request: HttpRequest, user_id: UUID, body: NameCorrectionBody):
+    return correct_name(request, _managed_or_404(user_id).pk, body.full_name)
 
 
 @users_router.post("/{user_id}/deactivate", response=ManagedUser, operation_id="deactivateUser")
