@@ -31,7 +31,7 @@
 
 - Results on the final code: backend 1713 passed, frontend 449 of 449, and `npm run build` clean.
 - `makemigrations --check` is clean, and `frontend/openapi.json` is the same as a fresh export.
-- The frontend suite also ran in **6 clean exports at once**: 449 of 449 in each.
+- The frontend suite also ran in **6 clean exports of the final commit at once**: 449 of 449 in each.
 - The solver's suite was not run: nothing under `solver/` changed.
 
 What was built:
