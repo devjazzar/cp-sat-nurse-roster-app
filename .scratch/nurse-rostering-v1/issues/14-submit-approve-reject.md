@@ -134,3 +134,5 @@ Left as judgement calls:
 `better-interface` and its domain skills, by hand from the code and the run: focus follows every button that goes, Escape returns to Approve, refusals say why before the press, the comment's field has its label and description, and the new copy uses the glossary's words. `interface-review` is yours to invoke.
 
 **Things later tickets should know:** comments are on 15, 16, 17, 18 and 21. **The dev stack was not touched:** no restart, no migration, no login. When this reaches `main`, its `web` reloads the code from the main checkout at once, and the Roster page and saving pins fail for want of `rosters.0004` until `web` and `worker` are restarted.
+
+**Reviewed by the user (2026-11-06), and kept as built:** the CNO and the Deputy CNO see a draft only as one that exists, so a rejected roster leaves their view until it is submitted again; a submitted roster cannot be withdrawn, and a manager who wants it back asks for a rejection; a month already over can still be approved; and a manager with a nurse profile can open My roster with no link to it in their header, which you chose to keep over adding one.
