@@ -168,7 +168,7 @@ const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-
 
 /** What the edits not yet saved would do, asked for once the editing pauses. The answer shown is always the one for the edits as
  *  they are: an older one arriving late belongs to another query and is never shown. */
-function CheckOfEdits({ unitId, month, edits, version }: { unitId: string; month: string; edits: EditBody[]; version: string }) {
+function CheckOfEdits({ unitId, month, edits, version, what }: { unitId: string; month: string; edits: EditBody[]; version: string; what: "draft" | "roster" }) {
   const current = JSON.stringify(edits)
   const settled = useDebounced(current)
   const check = useQuery({
@@ -184,11 +184,11 @@ function CheckOfEdits({ unitId, month, edits, version }: { unitId: string; month
   const said = failed ? "These changes could not be checked: the server did not answer. They are still here, and saving still works."
     : !answer ? "Checking these changes…"
     : answer.reason ? "The solver's code could not check these changes."
-    : `With these changes the draft ${answer.ok ? "breaks no hard rule" : `breaks ${plural(answer.violations.length, "hard rule")}`}, and costs ${answer.cost}${answer.delta === null ? ", against a saved grid whose cost could not be worked out" : ` (${signed(answer.delta)})`}.`
+    : `With these changes the ${what} ${answer.ok ? "breaks no hard rule" : `breaks ${plural(answer.violations.length, "hard rule")}`}, and costs ${answer.cost}${answer.delta === null ? ", against a saved grid whose cost could not be worked out" : ` (${signed(answer.delta)})`}.`
   return (
     <div className="flex flex-col gap-2">
       <p role="status" className="text-sm font-medium tabular-nums">{said}</p>
-      {answer && !answer.ok && <Violations check={answer} what="the draft with these changes" />}
+      {answer && !answer.ok && <Violations check={answer} what={`the ${what} with these changes`} />}
       {answer?.reason && <p className="text-sm">It says: {answer.reason}</p>}
       {answer && answer.refusals.length > 0 && (
         <div className="flex flex-col gap-1 text-sm">
@@ -266,7 +266,7 @@ function PendingPanel({ unitId, draft, month, approved, pending, onSaved, refuse
     <section aria-labelledby="unsaved" className="sticky bottom-0 z-40 flex max-h-[50svh] flex-col gap-3 overflow-y-auto rounded-md border bg-background p-3 shadow-md">
       <h4 id="unsaved" className="text-sm font-medium">{plural(edits.length, "change")} not saved yet</h4>
       {/* Whatever the answer depends on besides the edits: the draft, its pins, and the month's leave, dates and nurses. */}
-      <CheckOfEdits unitId={unitId} month={month} edits={edits}
+      <CheckOfEdits unitId={unitId} month={month} edits={edits} what={approved ? "roster" : "draft"}
         version={JSON.stringify([draft.solve_id, draft.cost, draft.pins, draft.editor, draft.changes, draft.rows.map((row) => row.cells)])} />
       {refused.size > 0 && (
         <div id="save-refused" tabIndex={-1} role="alert" className="flex flex-col gap-1 text-sm text-destructive outline-none">

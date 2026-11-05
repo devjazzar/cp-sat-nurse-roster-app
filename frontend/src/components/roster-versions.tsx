@@ -30,7 +30,7 @@ function Comparison({ unitId, month, from, to }: { unitId: string; month: string
           : !changes ? "Comparing…"
           : from === to ? "That is the same version twice, so nothing differs."
           : changes.length === 0 ? `Version ${to} holds the same cells as version ${from}.`
-          : `${plural(changes.length, "cell")} differ from version ${from} to version ${to}.`}
+          : `${plural(changes.length, "cell")} ${changes.length === 1 ? "differs" : "differ"} from version ${from} to version ${to}.`}
       </p>
       {changes && changes.length > 0 && (
         <div className="overflow-x-auto">

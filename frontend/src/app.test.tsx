@@ -4926,6 +4926,7 @@ describe("the roster page", () => {
       await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
       await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
       const unsaved = screen.getByRole("region", { name: "1 change not saved yet" })
+      expect(await within(unsaved).findByText("With these changes the roster breaks no hard rule, and costs 15 (+3).")).toBeInTheDocument()
       await user.click(within(unsaved).getByRole("button", { name: "Save as a new version" }))
 
       expect(await within(unsaved).findByText("Say why, for the version list.")).toBeInTheDocument()
@@ -4977,7 +4978,7 @@ describe("the roster page", () => {
       ])
       expect(within(list).getByLabelText("From")).toHaveValue("2")
       expect(within(list).getByLabelText("To")).toHaveValue("3")
-      expect(await within(list).findByText("1 cell differ from version 2 to version 3.")).toBeInTheDocument()
+      expect(await within(list).findByText("1 cell differs from version 2 to version 3.")).toBeInTheDocument()
       const changed = within(list).getByRole("table", { name: "Cells that differ from version 2 to version 3" })
       expect(within(changed).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Amal Saleh", "7 June", "N", "Off"])
 
