@@ -22,7 +22,10 @@ from hospital.api import StrictSchema, differing, refuse, save_unless_taken
 from hospital.catalogue import derived_ramadan_dates
 from hospital.models import FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename
 from hospital.rules import changes
+from nurses.membership import carry_rename_through_allowed_shifts
 from ops.api import ClockTime
+from units.models import Unit
+from units.rules import units_using, with_shift_codes
 
 router = Router(tags=["hospital"])
 cno = SignedIn(Role.CNO)
@@ -157,8 +160,10 @@ def create_shift(request, body: ShiftBody) -> tuple[int, Shift]:
 
 @router.put("/shifts/{shift_id}", response=ShiftSchema, auth=cno, operation_id="updateShift")
 def update_shift(request, shift_id: UUID, body: ShiftBody) -> Shift:
-    """Hold the rules' lock throughout: a forbidden succession only ever names an active shift, which
-    both this and saving the rules must see the other's finished work to keep true."""
+    """Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's
+    rules likewise, which both this and saving either set of rules must see the other's finished work to keep true.
+    No roster exists yet, so nothing here can hold section 4's "hours cannot change while an open month's roster uses
+    the shift": ticket 11, which brings rosters, adds that as a refusal on `hours`."""
     with transaction.atomic():
         settings = HospitalSettings.load(for_update=True)
         shift = get_object_or_404(Shift, pk=shift_id)
@@ -170,10 +175,17 @@ def update_shift(request, shift_id: UUID, body: ShiftBody) -> Shift:
         if before["active"] and not body.active and any(before["code"] in pair for pair in pairs):
             refuse((("active",), f"{before['code']} is named in the forbidden successions of the hospital rules. "
                                  "Remove those pairs first."))
+        if before["active"] and not body.active:
+            units = units_using(before["code"])
+            if units:
+                refuse((("active",), f"{before['code']} is in the unit rules of {', '.join(units)}. "
+                                     "The unit's manager has to take it out of them first."))
         if "code" in new:
             _refuse_a_taken_code(body.code, shift.pk)
             ShiftRename.objects.create(shift=shift, old_code=before["code"], new_code=body.code, by=request.user)
             _carry_rename_through_the_rules(request, settings, before["code"], body.code)
+            _carry_rename_through_the_units(request, before["code"], body.code)
+            carry_rename_through_allowed_shifts(before["code"], body.code)
         _write_shift(shift, body)
         record("shift.changed", actor=request.user, target=shift.code, before=old, after=new, request=request)
     return shift
@@ -189,6 +201,18 @@ def _carry_rename_through_the_rules(request, settings: HospitalSettings, old_cod
         settings.save()
         record("hospital_rules.changed", actor=request.user, target="hospital rules", before=old, after=new,
                request=request)
+
+
+def _carry_rename_through_the_units(request, old_code: str, new_code: str) -> None:
+    """Archived units too, because a block has to go on naming shifts that exist. The review flag stays as it is: a
+    new name is not a review. The rows are locked because `units.api.update_unit` saves the whole row."""
+    for unit in Unit.objects.select_for_update().order_by("pk"):  # By id, as an import locks them, so neither waits on the other.
+        after = with_shift_codes(unit.rules, {old_code: new_code})
+        old, new = differing(unit.rules, after)
+        if new:
+            unit.rules = after
+            unit.save(update_fields=["rules"])
+            record("unit_rules.changed", actor=request.user, target=unit.name, before=old, after=new, request=request)
 
 
 # ---- leave types ----------------------------------------------------------------------------------

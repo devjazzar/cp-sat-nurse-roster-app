@@ -22,3 +22,10 @@
 - A stored solve input stays as it was: it is the record of what the solver was given. The next solve reads the corrected values.
 - A draft or roster solved from the old values must not pass silently as current. A new gender can break a gender requirement, and a new start date changes which days are credited like leave and can leave worked cells before the start. Compare the nurse's start date and gender with the latest solve input, warn the unit manager, and validate again before submit.
 - `correct_details` can move a nurse's first placement back to cover an earlier start date (`membership.reach_back_to_start_date`). A nurse whose first placement begins before their start date is normal, and a nurse whose end date is before their start date was never present. A nurse who worked cannot be corrected into that state (`membership.start_date_fits`).
+
+**From ticket 09 (2026-11-05).** Four things for this ticket.
+
+- **The hours guard:** rosters arrive here, so add section 4's "hours cannot change while an open month's roster uses the shift" to `update_shift` in `hospital/catalogue_api.py`, as `refuse((("hours",), ...))` under its lock. Ticket 09 could not: there was nothing to check.
+- **A nurse in the input:** start from `nurses.rostering.nurse_block(nurse, placement)`, with the placement of that month, since allowed shifts are on the placement. Add leave and pins, and replace the opening values and empty history with the carry-over once there is one.
+- **A block the solver now refuses:** a unit's save checks its night and day shifts against the CNO's `night_rest` and `shift_switch` weights as they stood. A one-shift unit saved with them at 0 is refused if one rises. Show that like a gap from seeding, as "review the unit rules", not as a failed solve.
+- **The time limit:** `Unit.default_time_limit` may be above the cap, if the System Admin lowered the cap after the unit's save. Use the lower. A nurse's `allowed_shifts_to_check` may still be up: consider a warning beside the precheck.

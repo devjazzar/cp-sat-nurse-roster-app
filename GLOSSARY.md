@@ -20,7 +20,7 @@ A user who appears on a unit's rosters: any user with a nurse profile. Every sta
 _Avoid_: staff, employee, staff member
 
 **Nurse profile**:
-A user's roster identity: her hospital ID, her unit and her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding). Her username is her hospital ID. The CNO sets and corrects her gender; her unit manager sets the rest.
+A user's roster identity: her hospital ID, her unit and her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding). Her username is her hospital ID. The CNO sets and corrects her gender; her unit manager sets the rest. The CNO and the Deputy CNO read them; nurses and the System Admin never do.
 _Avoid_: staff record, employee record, nurse record
 
 **Start date**, **End date**:
@@ -32,7 +32,7 @@ A nurse's move to another unit, effective from a chosen month. Until that month 
 _Avoid_: move, reassignment, secondment
 
 **Placement**:
-From a given month on, the unit a nurse belongs to. The latest that has begun is in force; a later one is a transfer still to come.
+From a given month on, the unit a nurse belongs to and the shifts she may work there. The latest that has begun is in force; a later one is a transfer still to come.
 _Avoid_: assignment, membership record
 
 **Hospital ID**:
@@ -206,6 +206,10 @@ _Avoid_: error, conflict, infeasibility
 **Score**:
 A nurse's performance score, from 0 to 1, which the solver uses to balance the strength of shifts.
 _Avoid_: rating, grade, competency
+
+**Allowed shifts**:
+The only shifts of her unit a nurse may work, or none named for any it works, now or later. They belong to her placement, because they mean something only in a unit.
+_Avoid_: permitted shifts, eligible shifts
 
 **Team leader**:
 A nurse who may lead a shift. A unit may require one on every shift.

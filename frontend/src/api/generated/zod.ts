@@ -718,8 +718,10 @@ export const CreateShiftResponse = zod.object({
 
 
 /**
- * Hold the rules' lock throughout: a forbidden succession only ever names an active shift, which
- * both this and saving the rules must see the other's finished work to keep true.
+ * Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's
+ * rules likewise, which both this and saving either set of rules must see the other's finished work to keep true.
+ * No roster exists yet, so nothing here can hold section 4's "hours cannot change while an open month's roster uses
+ * the shift": ticket 11, which brings rosters, adds that as a refusal on `hours`.
  * @summary Update Shift
  */
 export const UpdateShiftParams = zod.object({
@@ -1080,6 +1082,341 @@ export const ArchiveUnitResponse = zod.object({
   "full_name": zod.string()
 }),zod.null()]),
   "rules_need_review": zod.boolean()
+})
+
+
+/**
+ * @summary Get Unit Rules
+ */
+export const GetUnitRulesParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const GetUnitRulesResponse = zod.object({
+  "rules": zod.object({
+  "shifts": zod.array(zod.string()),
+  "headcounts": zod.array(zod.object({
+  "shift": zod.string(),
+  "weekday_min": zod.int(),
+  "weekday_max": zod.int(),
+  "weekend_min": zod.int(),
+  "weekend_max": zod.int(),
+  "also_counts": zod.array(zod.string())
+})),
+  "headcount_enabled": zod.boolean(),
+  "require_team_leader": zod.boolean(),
+  "require_both_genders": zod.boolean(),
+  "score_target": zod.number(),
+  "score_target_weekend": zod.number(),
+  "score_balance": zod.boolean(),
+  "score_balance_mode": zod.enum(['band', 'spread']),
+  "score_band_hi": zod.number(),
+  "score_band_hi_weekend": zod.number(),
+  "night_shift": zod.string(),
+  "day_shift": zod.string(),
+  "night_rest_days": zod.int(),
+  "night_rest_hard": zod.boolean(),
+  "fair_shifts": zod.array(zod.string()),
+  "fair_tolerance": zod.number(),
+  "fair_weekends": zod.boolean(),
+  "carry_fairness": zod.boolean(),
+  "carry_cap": zod.number(),
+  "max_consecutive_shifts": zod.int(),
+  "double_cycle_rest": zod.int(),
+  "max_weekends": zod.int(),
+  "no_mixed_blocks": zod.boolean(),
+  "max_switches": zod.int(),
+  "switches_hard": zod.boolean()
+}).describe('Not the request\'s schema: `shifts` may be empty and `night_shift` and `day_shift` may be "" in a unit whose\ndefault shifts were retired before it was created (`units.rules.seeded_rules`), and that unit must still open, since\nthis is where it gets fixed. tests/test_rules_api.py holds both schemas to the solver\'s fields.'),
+  "needs_review": zod.boolean().describe('Still the seeded defaults: nobody has saved them yet.'),
+  "request_cap": zod.int(),
+  "default_time_limit": zod.int(),
+  "time_limit_cap": zod.int().describe('The longest a solve may search, set by the System Admin. In seconds.'),
+  "active_shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "hours": zod.int()
+})).describe('What the unit may choose its shifts from.')
+})
+
+
+/**
+ * Saving is the review: it clears the flag even when nothing else changed. Under the catalogue's lock, so that a
+ * code the CNO is retiring or renaming at this moment cannot be written.
+ * @summary Update Unit Rules
+ */
+export const UpdateUnitRulesParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const updateUnitRulesBodyRulesShiftsMax = 12;
+
+export const updateUnitRulesBodyRulesHeadcountsItemWeekdayMinMin = 0;
+export const updateUnitRulesBodyRulesHeadcountsItemWeekdayMinMax = 1000;
+
+export const updateUnitRulesBodyRulesHeadcountsItemWeekdayMaxMin = 0;
+export const updateUnitRulesBodyRulesHeadcountsItemWeekdayMaxMax = 1000;
+
+export const updateUnitRulesBodyRulesHeadcountsItemWeekendMinMin = 0;
+export const updateUnitRulesBodyRulesHeadcountsItemWeekendMinMax = 1000;
+
+export const updateUnitRulesBodyRulesHeadcountsItemWeekendMaxMin = 0;
+export const updateUnitRulesBodyRulesHeadcountsItemWeekendMaxMax = 1000;
+
+export const updateUnitRulesBodyRulesScoreTargetMin = 0;
+export const updateUnitRulesBodyRulesScoreTargetMax = 1;
+
+export const updateUnitRulesBodyRulesScoreTargetWeekendMin = 0;
+export const updateUnitRulesBodyRulesScoreTargetWeekendMax = 1;
+
+export const updateUnitRulesBodyRulesScoreBandHiMin = 0;
+export const updateUnitRulesBodyRulesScoreBandHiMax = 1;
+
+export const updateUnitRulesBodyRulesScoreBandHiWeekendMin = 0;
+export const updateUnitRulesBodyRulesScoreBandHiWeekendMax = 1;
+
+export const updateUnitRulesBodyRulesNightRestDaysMin = 0;
+export const updateUnitRulesBodyRulesNightRestDaysMax = 7;
+
+export const updateUnitRulesBodyRulesFairToleranceMin = 0;
+export const updateUnitRulesBodyRulesFairToleranceMax = 1000;
+
+export const updateUnitRulesBodyRulesCarryCapMin = 0;
+export const updateUnitRulesBodyRulesCarryCapMax = 1000;
+
+export const updateUnitRulesBodyRulesMaxConsecutiveShiftsMin = 0;
+export const updateUnitRulesBodyRulesMaxConsecutiveShiftsMax = 1000;
+
+export const updateUnitRulesBodyRulesDoubleCycleRestMin = 0;
+export const updateUnitRulesBodyRulesDoubleCycleRestMax = 1000;
+
+export const updateUnitRulesBodyRulesMaxWeekendsMin = 0;
+export const updateUnitRulesBodyRulesMaxWeekendsMax = 1000;
+
+export const updateUnitRulesBodyRulesMaxSwitchesMin = 0;
+export const updateUnitRulesBodyRulesMaxSwitchesMax = 1000;
+
+export const updateUnitRulesBodyRequestCapMin = 0;
+export const updateUnitRulesBodyRequestCapMax = 31;
+
+
+
+
+export const UpdateUnitRulesBody = zod.object({
+  "rules": zod.object({
+  "shifts": zod.array(zod.string()).max(updateUnitRulesBodyRulesShiftsMax),
+  "headcounts": zod.array(zod.object({
+  "shift": zod.string(),
+  "weekday_min": zod.int().min(updateUnitRulesBodyRulesHeadcountsItemWeekdayMinMin).max(updateUnitRulesBodyRulesHeadcountsItemWeekdayMinMax),
+  "weekday_max": zod.int().min(updateUnitRulesBodyRulesHeadcountsItemWeekdayMaxMin).max(updateUnitRulesBodyRulesHeadcountsItemWeekdayMaxMax),
+  "weekend_min": zod.int().min(updateUnitRulesBodyRulesHeadcountsItemWeekendMinMin).max(updateUnitRulesBodyRulesHeadcountsItemWeekendMinMax),
+  "weekend_max": zod.int().min(updateUnitRulesBodyRulesHeadcountsItemWeekendMaxMin).max(updateUnitRulesBodyRulesHeadcountsItemWeekendMaxMax),
+  "also_counts": zod.array(zod.string())
+})),
+  "headcount_enabled": zod.boolean(),
+  "require_team_leader": zod.boolean(),
+  "require_both_genders": zod.boolean(),
+  "score_target": zod.number().min(updateUnitRulesBodyRulesScoreTargetMin).max(updateUnitRulesBodyRulesScoreTargetMax),
+  "score_target_weekend": zod.number().min(updateUnitRulesBodyRulesScoreTargetWeekendMin).max(updateUnitRulesBodyRulesScoreTargetWeekendMax),
+  "score_balance": zod.boolean(),
+  "score_balance_mode": zod.enum(['band', 'spread']),
+  "score_band_hi": zod.number().min(updateUnitRulesBodyRulesScoreBandHiMin).max(updateUnitRulesBodyRulesScoreBandHiMax),
+  "score_band_hi_weekend": zod.number().min(updateUnitRulesBodyRulesScoreBandHiWeekendMin).max(updateUnitRulesBodyRulesScoreBandHiWeekendMax),
+  "night_shift": zod.string(),
+  "day_shift": zod.string(),
+  "night_rest_days": zod.int().min(updateUnitRulesBodyRulesNightRestDaysMin).max(updateUnitRulesBodyRulesNightRestDaysMax),
+  "night_rest_hard": zod.boolean(),
+  "fair_shifts": zod.array(zod.string()),
+  "fair_tolerance": zod.number().min(updateUnitRulesBodyRulesFairToleranceMin).max(updateUnitRulesBodyRulesFairToleranceMax),
+  "fair_weekends": zod.boolean(),
+  "carry_fairness": zod.boolean(),
+  "carry_cap": zod.number().min(updateUnitRulesBodyRulesCarryCapMin).max(updateUnitRulesBodyRulesCarryCapMax),
+  "max_consecutive_shifts": zod.int().min(updateUnitRulesBodyRulesMaxConsecutiveShiftsMin).max(updateUnitRulesBodyRulesMaxConsecutiveShiftsMax),
+  "double_cycle_rest": zod.int().min(updateUnitRulesBodyRulesDoubleCycleRestMin).max(updateUnitRulesBodyRulesDoubleCycleRestMax),
+  "max_weekends": zod.int().min(updateUnitRulesBodyRulesMaxWeekendsMin).max(updateUnitRulesBodyRulesMaxWeekendsMax),
+  "no_mixed_blocks": zod.boolean(),
+  "max_switches": zod.int().min(updateUnitRulesBodyRulesMaxSwitchesMin).max(updateUnitRulesBodyRulesMaxSwitchesMax),
+  "switches_hard": zod.boolean()
+}).describe('Every field of the solver\'s `department` block but its name, which is the unit\'s. What depends on another field,\non the catalogue or on the hospital rules is in `_refusals`, so that a refusal can name the field it belongs to.'),
+  "request_cap": zod.int().min(updateUnitRulesBodyRequestCapMin).max(updateUnitRulesBodyRequestCapMax).describe('Requests per nurse per month.'),
+  "default_time_limit": zod.int().min(1).describe('Seconds. At most the System Admin\'s time limit cap.')
+})
+
+export const UpdateUnitRulesResponse = zod.object({
+  "rules": zod.object({
+  "shifts": zod.array(zod.string()),
+  "headcounts": zod.array(zod.object({
+  "shift": zod.string(),
+  "weekday_min": zod.int(),
+  "weekday_max": zod.int(),
+  "weekend_min": zod.int(),
+  "weekend_max": zod.int(),
+  "also_counts": zod.array(zod.string())
+})),
+  "headcount_enabled": zod.boolean(),
+  "require_team_leader": zod.boolean(),
+  "require_both_genders": zod.boolean(),
+  "score_target": zod.number(),
+  "score_target_weekend": zod.number(),
+  "score_balance": zod.boolean(),
+  "score_balance_mode": zod.enum(['band', 'spread']),
+  "score_band_hi": zod.number(),
+  "score_band_hi_weekend": zod.number(),
+  "night_shift": zod.string(),
+  "day_shift": zod.string(),
+  "night_rest_days": zod.int(),
+  "night_rest_hard": zod.boolean(),
+  "fair_shifts": zod.array(zod.string()),
+  "fair_tolerance": zod.number(),
+  "fair_weekends": zod.boolean(),
+  "carry_fairness": zod.boolean(),
+  "carry_cap": zod.number(),
+  "max_consecutive_shifts": zod.int(),
+  "double_cycle_rest": zod.int(),
+  "max_weekends": zod.int(),
+  "no_mixed_blocks": zod.boolean(),
+  "max_switches": zod.int(),
+  "switches_hard": zod.boolean()
+}).describe('Not the request\'s schema: `shifts` may be empty and `night_shift` and `day_shift` may be "" in a unit whose\ndefault shifts were retired before it was created (`units.rules.seeded_rules`), and that unit must still open, since\nthis is where it gets fixed. tests/test_rules_api.py holds both schemas to the solver\'s fields.'),
+  "needs_review": zod.boolean().describe('Still the seeded defaults: nobody has saved them yet.'),
+  "request_cap": zod.int(),
+  "default_time_limit": zod.int(),
+  "time_limit_cap": zod.int().describe('The longest a solve may search, set by the System Admin. In seconds.'),
+  "active_shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "hours": zod.int()
+})).describe('What the unit may choose its shifts from.')
+})
+
+
+/**
+ * Those placed here now or due to join, deactivated or not, as on the manager's list of nurses.
+ * @summary List Nurse Attributes
+ */
+export const ListNurseAttributesParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const ListNurseAttributesResponseItem = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "is_active": zod.boolean(),
+  "gender": zod.enum(['F', 'M']).describe('The CNO\'s to set: it is here to read.'),
+  "joins_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit\'s to set.'),
+  "leaves_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to leave. Names no other unit.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number(),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int(),
+  "hours_balance": zod.int(),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.')
+})
+export const ListNurseAttributesResponse = zod.array(ListNurseAttributesResponseItem)
+
+
+/**
+ * A manager with a nurse profile sets their own, because nobody else may and a nurse has to have them. The CNO and the
+ * Deputy CNO can read the values, and the log shows whose hand changed them. Ticket 21 refuses the opening values here
+ * once the nurse's first month has closed.
+ * @summary Update Nurse Attributes
+ */
+export const UpdateNurseAttributesParams = zod.object({
+  "unit_id": zod.uuid(),
+  "nurse_id": zod.uuid()
+})
+
+
+export const updateNurseAttributesBodyScoreMin = 0;
+export const updateNurseAttributesBodyScoreMax = 1;
+
+export const updateNurseAttributesBodyYtdOvertimeMin = 0;
+export const updateNurseAttributesBodyYtdOvertimeMax = 1000000;
+
+export const updateNurseAttributesBodyHoursBalanceMin = -1000000;
+export const updateNurseAttributesBodyHoursBalanceMax = 1000000;
+
+export const updateNurseAttributesBodyNightBalanceMin = -1000;
+export const updateNurseAttributesBodyNightBalanceMax = 1000;
+
+export const updateNurseAttributesBodyFridayBalanceMin = -1000;
+export const updateNurseAttributesBodyFridayBalanceMax = 1000;
+
+
+
+export const UpdateNurseAttributesBody = zod.object({
+  "allowed_shifts": zod.union([zod.array(zod.string()).min(1),zod.null()]).describe('Empty for any shift the unit works, now or later.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number().min(updateNurseAttributesBodyScoreMin).max(updateNurseAttributesBodyScoreMax),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int().min(updateNurseAttributesBodyYtdOvertimeMin).max(updateNurseAttributesBodyYtdOvertimeMax).describe('Overtime hours this year.'),
+  "hours_balance": zod.int().min(updateNurseAttributesBodyHoursBalanceMin).max(updateNurseAttributesBodyHoursBalanceMax).describe('Hours still owed (+) or worked ahead (-).'),
+  "night_balance": zod.number().min(updateNurseAttributesBodyNightBalanceMin).max(updateNurseAttributesBodyNightBalanceMax).describe('Night shifts above (+) or below (-) their fair share.'),
+  "friday_balance": zod.number().min(updateNurseAttributesBodyFridayBalanceMin).max(updateNurseAttributesBodyFridayBalanceMax).describe('Weekend days above (+) or below (-) their fair share.')
+})
+
+export const UpdateNurseAttributesResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "is_active": zod.boolean(),
+  "gender": zod.enum(['F', 'M']).describe('The CNO\'s to set: it is here to read.'),
+  "joins_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit\'s to set.'),
+  "leaves_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to leave. Names no other unit.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number(),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int(),
+  "hours_balance": zod.int(),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.')
+})
+
+
+/**
+ * All a manager can change of a nurse due to join: a unit may roster a month ahead of their arrival, and this list is
+ * about this unit's shifts, whereas the rest is about the nurse and stays with the manager of the unit they are in.
+ * @summary Update Nurse Allowed Shifts
+ */
+export const UpdateNurseAllowedShiftsParams = zod.object({
+  "unit_id": zod.uuid(),
+  "nurse_id": zod.uuid()
+})
+
+
+
+
+export const UpdateNurseAllowedShiftsBody = zod.object({
+  "allowed_shifts": zod.union([zod.array(zod.string()).min(1),zod.null()]).describe('Empty for any shift the unit works, now or later.')
+})
+
+export const UpdateNurseAllowedShiftsResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "is_active": zod.boolean(),
+  "gender": zod.enum(['F', 'M']).describe('The CNO\'s to set: it is here to read.'),
+  "joins_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit\'s to set.'),
+  "leaves_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to leave. Names no other unit.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number(),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int(),
+  "hours_balance": zod.int(),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.')
 })
 
 

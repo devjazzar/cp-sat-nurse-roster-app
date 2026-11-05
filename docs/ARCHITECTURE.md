@@ -84,6 +84,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
 | Unit rules; nurses' rostering attributes (gender aside: the CNO sets and corrects it) and opening values | | | | own unit | |
+| Read the unit rules, and the rostering attributes and opening values of a unit's nurses | | yes | yes | own unit | |
 | Request windows; decide requests; decide swaps; record leave | | | | own unit | |
 | Solve, edit the draft, submit, edit the approved roster, re-plan, re-close a month | | | | own unit | |
 | Exports (CSV, Excel, print page) of any roster version | | yes | yes | own unit | |
@@ -104,6 +105,10 @@ reach: moving one means taking them off, transferring the profile from this mont
 The CNO corrects a manager's gender and start date on their nurse profile. Their name is on the account,
 so the System Admin corrects it, as on any account they manage, active or not. A staff nurse's name is the
 CNO's to correct. A username cannot be changed, so neither can a nurse's hospital ID, which is the username.
+A manager with a nurse profile sets their own attributes, because nobody else may and a nurse has to have them; the CNO
+and the Deputy CNO can read the values and the audit log shows whose hand changed them. A nurse's attributes are their
+current unit's manager's until they arrive: the manager of a unit they are due to join reads them, and sets only the
+allowed shifts there, so that unit can roster the months ahead of them.
 
 The CNO stands in for an absent Deputy CNO; the CNO reassigns a unit to another manager
 account when its manager is unavailable. There is no delegation feature.
@@ -119,9 +124,9 @@ solver's `general` block including the weights), the request cap default.
 **Shift** (catalogue): code (the solver's name), display name, hours, start and end time,
 colour, active flag. Hours cannot change while an open month's roster uses the shift; the
 code may be renamed (each rename is recorded, the app carries the old name through nurses'
-histories and the forbidden successions follow at once, and no other shift may take a code a
-shift used to hold); a shift a unit still uses, or a forbidden succession names, cannot be
-retired.
+histories, and the forbidden successions, every unit's rules and every list of allowed shifts follow
+at once, and no other shift may take a code a shift used to hold); a shift a live unit still uses, or
+a forbidden succession names, cannot be retired, and the refusal names the units.
 
 **Leave type**: name, active flag. Every type counts the same for hours.
 
@@ -135,10 +140,15 @@ the unit's) with a review flag, request cap per nurse per month (default 3), def
 **User**: username, full name, role, active flag, must-change-password flag.
 
 **Nurse profile** (0..1 per user): hospital ID (= username), gender, start date, end date,
-team leader, score, allowed shifts, Ramadan-reduced, breastfeeding, opening values (overtime this
-year, hours balance, night and weekend fairness balances; editable until her first month closes).
+team leader, score, Ramadan-reduced, breastfeeding, opening values (overtime this year, hours balance,
+night and weekend fairness balances; editable until her first month closes).
 
-**Placement**: nurse, unit, first month. A start date corrected to before the first placement makes that
+**Placement**: nurse, unit, first month, allowed shifts. A nurse's allowed shifts are on the placement, not the
+profile, because a list means something only in a unit and two units can each roster their own months of one nurse at
+once. Empty means any shift the unit works, now or later. A transfer carries the list as far as the new unit works the
+same shifts; with none in common it empties, and the new manager is asked to check. A unit that stops working a shift
+takes it out of the lists of the nurses placed there or due to join, but is refused, naming them, if a nurse would then
+have no shift left. A start date corrected to before the first placement makes that
 placement begin in the date's month, so no month after a start date is without a unit. A nurse belongs to the unit of the latest placement that
 has begun; a later one is a transfer still to come, which can be replaced. A nurse belongs to a unit,
 and so stops it being archived, while placed there or due to join it, with an active account and an
@@ -305,8 +315,9 @@ only. Visual design is decided later; the architecture does not depend on it.
 
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types,
-holidays and Ramadan, units and managers, nurses with import and export, roster overview and
-approvals); Deputy CNO (roster overview, approvals, hospital rules to read); Unit Manager (unit rules, nurses, request
+holidays and Ramadan, units and managers, nurses with import and export, each unit's rules and rostering attributes
+to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules and
+rostering attributes to read); Unit Manager (unit rules, rostering attributes, nurses, request
 windows and requests, swaps, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close); Staff Nurse (unit roster, own summary,
 requests, swaps, notifications, password). The Deputy CNO, Unit Manager and Staff Nurse also read
@@ -326,7 +337,10 @@ Minimum length 10 with Django's common-password and similarity checks, lockout f
 minutes after 5 failed logins, sessions expire after 12 hours of inactivity, no two-factor
 authentication in v1. Every login, failed login and every change to settings, accounts,
 rosters, requests and swaps goes to the audit log. Nurses see colleagues' names and shifts
-only.
+only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
+changed and by whom, without its value or even which one, since a change to a two-way flag gives its value away. Unit
+rules are logged with their values, as hospital rules are: they say nothing about a person. Attributes also stay off
+the staff list, a file that leaves the system.
 
 ### Nurse import and the staff list
 

@@ -41,7 +41,12 @@ function ManagerHome() {
   return (
     <>
       <p>Your unit is {unit.name}.</p>
-      {unit.rules_need_review && <p className="text-muted-foreground">Its unit rules are still the seeded defaults, to be reviewed before its first solve.</p>}
+      {unit.rules_need_review && (
+        <p>
+          Its unit rules are still the seeded defaults.{" "}
+          <Link to="/unit-rules" className="underline underline-offset-3">Review them before its first solve</Link>
+        </p>
+      )}
     </>
   )
 }

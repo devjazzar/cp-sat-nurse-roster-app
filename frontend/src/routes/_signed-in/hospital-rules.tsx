@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useRouteContext } from "@tanstack/react-router"
 import { Trash2Icon } from "lucide-react"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useController, useForm, type Control, type FieldError } from "react-hook-form"
 import { z } from "zod"
 
@@ -18,10 +18,10 @@ import {
   updateHospitalRulesBodyWeightsChangeMax as WEIGHT_MAX,
 } from "@/api/generated/zod"
 import { CHECKBOX, CheckboxField, FormField } from "@/components/form-field"
+import { onOff, ReadOnlyList, Section } from "@/components/rules-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FieldDescription, FieldError as FieldErrorText, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field"
+import { FieldError as FieldErrorText, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { onlyFor } from "@/session"
@@ -147,20 +147,6 @@ const schema = z
       seen.add(pair)
     }
   })
-
-/** A section of the page: a region named by its heading, whichever role is reading. */
-function Section({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
-  const id = `section-${title.toLowerCase().replaceAll(" ", "-")}`
-  return (
-    <Card role="region" aria-labelledby={id}>
-      <CardHeader>
-        <CardTitle><h2 id={id}>{title}</h2></CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  )
-}
 
 const WEEKEND_DESCRIPTION = "The days that count as the weekend. A nurse owes no regular hours on them, and each unit's weekend rules apply to them."
 const SUCCESSIONS_TITLE = "Forbidden successions"
@@ -334,22 +320,6 @@ function RulesForm({ state }: { state: HospitalRulesState }) {
     </form>
   )
 }
-
-function ReadOnlyList({ items }: { items: { label: string; value: ReactNode; description: string }[] }) {
-  return (
-    <dl className="flex flex-col gap-4">
-      {items.map(({ label, value, description }) => (
-        <div key={label} className="flex flex-col gap-0.5">
-          <dt className="text-sm font-medium">{label}</dt>
-          <dd className="text-sm tabular-nums">{value}</dd>
-          <dd><FieldDescription>{description}</FieldDescription></dd>
-        </div>
-      ))}
-    </dl>
-  )
-}
-
-const onOff = (on: boolean) => (on ? "On" : "Off")
 
 function RulesReadOnly({ rules }: { rules: HospitalRules }) {
   const weekend = WEEKDAYS.filter(([day]) => rules.weekend_weekdays.includes(day)).map(([, name]) => name)

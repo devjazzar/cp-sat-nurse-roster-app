@@ -64,14 +64,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/nurses", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/nurses"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -737,9 +737,9 @@ describe("each role's navigation and home", () => {
   })
 
   it.each([
-    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Nurses", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
-    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
-    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Nurses", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Unit rules", "Rostering attributes", "Nurses", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Unit rules", "Rostering attributes", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Unit rules", "Rostering attributes", "Nurses", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["staff_nurse", "Staff Nurse", "No roster yet.", ["Home", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
     const { router, calls } = start("/", {
@@ -2509,5 +2509,464 @@ describe("importing nurses", () => {
     await screen.findByRole("heading", { name: "Nurses" })
     expect(screen.queryByRole("link", { name: "Import from a file" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Export staff list" })).not.toBeInTheDocument()
+  })
+})
+
+const HEADCOUNT = { weekday_min: 7, weekday_max: 9, weekend_min: 8, weekend_max: 9, also_counts: [] as string[] }
+const UNIT_RULES = {
+  shifts: ["D", "N"],
+  headcounts: [{ shift: "D", ...HEADCOUNT }, { shift: "N", ...HEADCOUNT }],
+  headcount_enabled: true,
+  require_team_leader: true,
+  require_both_genders: true,
+  score_target: 0.7,
+  score_target_weekend: 0.8,
+  score_balance: true,
+  score_balance_mode: "band",
+  score_band_hi: 0.78,
+  score_band_hi_weekend: 0.88,
+  night_shift: "N",
+  day_shift: "D",
+  night_rest_days: 2,
+  night_rest_hard: true,
+  fair_shifts: ["D", "N"],
+  fair_tolerance: 0.5,
+  fair_weekends: true,
+  carry_fairness: true,
+  carry_cap: 2,
+  max_consecutive_shifts: 3,
+  double_cycle_rest: 2,
+  max_weekends: 3,
+  no_mixed_blocks: true,
+  max_switches: 2,
+  switches_hard: false,
+}
+const UNIT_RULES_STATE = {
+  rules: UNIT_RULES,
+  needs_review: true,
+  request_cap: 3,
+  default_time_limit: 60,
+  time_limit_cap: 300,
+  active_shifts: [
+    { code: "D", display_name: "Day", hours: 12 },
+    { code: "N", display_name: "Night", hours: 12 },
+    { code: "A", display_name: "Morning", hours: 8 },
+  ],
+}
+const ER_UNIT = { id: "er", name: "ER", archived: false, manager: null, rules_need_review: true }
+const ICU = { id: "icu", name: "ICU", archived: false, manager: null, rules_need_review: false }
+const CLOSED = { id: "old", name: "Old", archived: true, manager: null, rules_need_review: false }
+const ME_MANAGER = { ...ME, username: "mona", full_name: "Mona Saleh", role: "unit_manager" }
+const ME_CNO = { ...ME, username: "chief", full_name: "Fatimah", role: "cno" }
+const ME_DEPUTY = { ...ME, username: "deputy", full_name: "Deputy", role: "deputy_cno" }
+const apiRefusal = (loc: (string | number)[], msg: string) => ({ status: 422, body: { detail: [{ type: "value_error", loc: ["body", "body", ...loc], msg: `Value error, ${msg}` }] } })
+
+describe("the unit rules page", () => {
+  const FLAG = "Defaults, review before the first solve"
+  const saves = { "PUT /api/units/er/rules": ({ body }: { body: unknown }) => ({ body: { ...UNIT_RULES_STATE, ...(body as object), needs_review: false } }) }
+  const asManager = (state: unknown = UNIT_RULES_STATE, extra = {}) => ({
+    ...session(ME_MANAGER),
+    "GET /api/units": { body: [ER_UNIT] },
+    "GET /api/units/er/rules": { body: state },
+    ...extra,
+  })
+  const put = (calls: { method: string; body: unknown }[]) => calls.find((call) => call.method === "PUT")?.body as { rules: typeof UNIT_RULES; request_cap: number; default_time_limit: number }
+
+  it("shows every field of the solver's block with its explanation, and flags the defaults", async () => {
+    start("/unit-rules", asManager())
+
+    expect(await screen.findByText(FLAG)).toBeInTheDocument()
+    expect(document.title).toBe("Unit rules · Nurse roster")
+    expect(screen.getByRole("heading", { level: 1, name: "Unit rules of ER" })).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "D, Day, 12 hours" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "A, Morning, 8 hours" })).not.toBeChecked()
+    expect(screen.getByLabelText("Night shift")).toHaveValue("N")
+    expect(screen.getByLabelText("Day shift")).toHaveValue("D")
+    const day = within(screen.getByRole("region", { name: "D, Day" }))
+    expect(day.getByLabelText("Weekday, at least")).toHaveValue(7)
+    expect(day.getByLabelText("Weekend day, at most")).toHaveValue(9)
+    expect(day.getByRole("checkbox", { name: "N" })).not.toBeChecked()
+    for (const [name, value] of [["Score target on a weekday", 0.7], ["Score target on a weekend day", 0.8], ["Score ceiling on a weekday", 0.78],
+      ["Score ceiling on a weekend day", 0.88], ["Days off after a night shift", 2], ["Longest run of shifts", 3], ["Days off after two runs", 2],
+      ["Free difference from a fair share (shifts)", 0.5], ["Most a month's share can move (shifts)", 2], ["Weekend days a month", 3],
+      ["Switches between day and night a month", 2], ["Requests per nurse per month", 3], ["Default time limit (seconds)", 60]] as const) {
+      expect(screen.getByLabelText(name)).toHaveValue(value)
+      expect(screen.getByLabelText(name)).toHaveAccessibleDescription(/\S/)
+    }
+    for (const name of ["Hold every shift to its headcount", "A team leader on every shift", "Both genders on every shift", "Keep the strength of shifts balanced",
+      "Never break the night rest", "Keep runs unmixed", "Spread weekend days fairly", "Carry fairness between months"]) {
+      expect(screen.getByRole("checkbox", { name })).toBeChecked()
+      expect(screen.getByRole("checkbox", { name })).toHaveAccessibleDescription(/\S/)
+    }
+    expect(screen.getByRole("checkbox", { name: "Never go over the switch limit" })).not.toBeChecked()
+    expect(screen.getByLabelText("Way of balancing")).toHaveValue("band")
+    expect(screen.getByLabelText("Default time limit (seconds)")).toHaveAccessibleDescription(/cap is 300 seconds/)
+  })
+
+  it("saving the defaults untouched is the review and sends the solver's block", async () => {
+    const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+    await screen.findByText(FLAG)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("Saved.")).toHaveAttribute("role", "status")
+    expect(put(calls)).toEqual({ rules: UNIT_RULES, request_cap: 3, default_time_limit: 60 })
+    expect(screen.queryByText(FLAG)).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("a refusal from the API appears beside its field, with focus on it", async () => {
+    const { user } = start("/unit-rules", asManager(UNIT_RULES_STATE, {
+      "PUT /api/units/er/rules": apiRefusal(["rules", "night_shift"], "A is not one of this unit's shifts."),
+    }))
+
+    await user.selectOptions(await screen.findByLabelText("Night shift"), "A")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("A is not one of this unit's shifts.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Night shift")).toHaveFocus()
+    expect(screen.getByLabelText("Night shift")).toHaveAccessibleDescription(/not one of this unit's shifts/)
+    expect(screen.getByRole("alert")).toHaveTextContent("Some values were refused")
+  })
+
+  it("a refusal on the unit's shifts appears on the list, with its position dropped, and takes focus", async () => {
+    const { user } = start("/unit-rules", asManager(UNIT_RULES_STATE, {
+      "PUT /api/units/er/rules": apiRefusal(["rules", "shifts", 1], "Amal Saleh (h1) could work none of these shifts. Change their allowed shifts first."),
+    }))
+
+    await screen.findByText(FLAG)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    const message = await screen.findByText(/could work none of these shifts/)
+    expect(message).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Shifts this unit works" })).toHaveFocus()
+  })
+
+  it("a refusal on a shift counting towards another appears on that shift's list", async () => {
+    const { user } = start("/unit-rules", asManager(UNIT_RULES_STATE, {
+      "PUT /api/units/er/rules": apiRefusal(["rules", "headcounts", 0, "also_counts", 0], "N cannot count."),
+    }))
+
+    await screen.findByText(FLAG)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await screen.findByText("N cannot count.")
+
+    const day = within(screen.getByRole("region", { name: "D, Day" }))
+    expect(within(day.getByRole("group", { name: "Shifts that also count towards it" })).getByText("N cannot count.")).toBeInTheDocument()
+  })
+
+  it("says what is wrong before asking the API", async () => {
+    const { user, calls } = start("/unit-rules", asManager())
+
+    const target = await screen.findByLabelText("Score target on a weekday")
+    await user.clear(target)
+    await user.type(target, "1.5")
+    const low = within(screen.getByRole("region", { name: "D, Day" })).getByLabelText("Weekday, at most")
+    await user.clear(low)
+    await user.type(low, "1")
+    await user.selectOptions(screen.getByLabelText("Day shift"), "N")
+    const limit = screen.getByLabelText("Default time limit (seconds)")
+    await user.clear(limit)
+    await user.type(limit, "301")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("Between 0 and 1.")).toBeInTheDocument()
+    expect(screen.getByText("Cannot be below the weekday minimum.")).toBeInTheDocument()
+    expect(screen.getByText("Cannot be the night shift too.")).toBeInTheDocument()
+    expect(screen.getByText("Between 1 and 300.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+  })
+
+  it("a ceiling below its target is refused only when the ceilings apply", async () => {
+    const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+    const ceiling = await screen.findByLabelText("Score ceiling on a weekday")
+    await user.clear(ceiling)
+    await user.type(ceiling, "0.5")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(await screen.findByText("Cannot be below the weekday score target.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+
+    await user.selectOptions(screen.getByLabelText("Way of balancing"), "spread")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).rules.score_balance_mode).toBe("spread")
+  })
+
+  it("a shift the unit stops working leaves its headcount, fair shares and what counts towards others", async () => {
+    const state = { ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, headcounts: [{ shift: "D", ...HEADCOUNT, also_counts: ["N"] }, { shift: "N", ...HEADCOUNT }] } }
+    const { user, calls } = start("/unit-rules", asManager(state, saves))
+
+    await user.click(await screen.findByRole("checkbox", { name: "N, Night, 12 hours" }))
+    expect(screen.queryByRole("region", { name: "N, Night" })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText("Night shift"), "A")
+    await user.click(screen.getByRole("checkbox", { name: "A, Morning, 8 hours" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    const { rules } = put(calls)
+    expect(rules.shifts).toEqual(["D", "A"])
+    expect(rules.headcounts).toEqual([{ shift: "D", ...HEADCOUNT }])
+    expect(rules.fair_shifts).toEqual(["D"])
+    expect(rules.night_shift).toBe("A")
+  })
+
+  it("a headcount is added and removed with focus staying in its shift, and a shift without one cannot be spread fairly", async () => {
+    const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+    await user.click(await screen.findByRole("checkbox", { name: "A, Morning, 8 hours" }))
+    const morning = within(screen.getByRole("region", { name: "A, Morning" }))
+    const fair = within(screen.getByRole("group", { name: "Shifts to spread fairly" }))
+    expect(fair.queryByRole("checkbox", { name: "A" })).not.toBeInTheDocument()
+    await user.click(morning.getByRole("button", { name: "Add a headcount for A" }))
+    await waitFor(() => expect(morning.getByLabelText("Weekday, at least")).toHaveFocus())
+    await user.click(fair.getByRole("checkbox", { name: "A" }))
+    await user.click(morning.getByRole("button", { name: "Remove the headcount of A" }))
+    await waitFor(() => expect(morning.getByRole("button", { name: "Add a headcount for A" })).toHaveFocus())
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).rules.headcounts.map((row) => row.shift)).toEqual(["D", "N"])
+    expect(put(calls).rules.fair_shifts).toEqual(["D", "N"])
+  })
+
+  it("a unit seeded with a gap opens from blank choices and cannot be saved until they are made", async () => {
+    const gap = { ...UNIT_RULES, shifts: [], headcounts: [], fair_shifts: [], night_shift: "", day_shift: "" }
+    const { user, calls } = start("/unit-rules", asManager({ ...UNIT_RULES_STATE, rules: gap }))
+
+    expect(await screen.findByLabelText("Night shift")).toHaveValue("")
+    expect(screen.getByLabelText("Day shift")).toHaveValue("")
+    expect(screen.getByText("Choose the unit's shifts first.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("Choose at least one shift.")).toBeInTheDocument()
+    expect(screen.getByText("Choose the night shift.")).toBeInTheDocument()
+    expect(screen.getByText("Choose the day shift.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+  })
+
+  it("a failure that is no refusal says to try again", async () => {
+    const { user } = start("/unit-rules", asManager(UNIT_RULES_STATE, { "PUT /api/units/er/rules": { status: 500 } }))
+
+    await screen.findByText(FLAG)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be saved")
+  })
+
+  it("a manager with no unit is told so", async () => {
+    start("/unit-rules", { ...session(ME_MANAGER), "GET /api/units": { body: [] } })
+
+    expect(await screen.findByText(/No unit is assigned to you yet/)).toBeInTheDocument()
+  })
+
+  it.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s reads with no input, and chooses the unit in the address", async (_name, me) => {
+    const { user, router } = start("/unit-rules", {
+      ...session(me),
+      "GET /api/units": { body: [CLOSED, ER_UNIT, ICU] },
+      "GET /api/units/er/rules": { body: UNIT_RULES_STATE },
+      "GET /api/units/icu/rules": { body: { ...UNIT_RULES_STATE, needs_review: false, rules: { ...UNIT_RULES, score_target: 0.42 } } },
+    })
+
+    const longest = await screen.findByText("Longest run of shifts")
+    expect(longest).toBeInTheDocument()
+    expect(screen.getByLabelText("Unit")).toHaveValue("er")
+    expect(within(screen.getByLabelText("Unit")).getByRole("option", { name: "Old (archived)" })).toBeInTheDocument()
+    expect(screen.getByText("Defaults, review before the first solve")).toBeInTheDocument()
+    expect(screen.queryByText(/Saving this page/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument()
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
+    expect(screen.getByText(/Only the unit's manager can change these/)).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText("Unit"), "icu")
+
+    expect(await screen.findByText("0.42")).toBeInTheDocument()
+    expect(router.state.location.search).toEqual({ unit: "icu" })
+  })
+
+  it("a read-only unit with a gap says what is not chosen", async () => {
+    const gap = { ...UNIT_RULES, shifts: [], headcounts: [], fair_shifts: [], night_shift: "", day_shift: "" }
+    start("/unit-rules", { ...session(ME_DEPUTY), "GET /api/units": { body: [ER_UNIT] }, "GET /api/units/er/rules": { body: { ...UNIT_RULES_STATE, rules: gap } } })
+
+    expect(await screen.findByText("None chosen")).toBeInTheDocument()
+    expect(screen.getAllByText("Not chosen")).toHaveLength(2)
+    expect(screen.getByText("No shift has a headcount.")).toBeInTheDocument()
+  })
+
+  it("a staff nurse and the System Admin have no way in", async () => {
+    const { router } = start("/unit-rules", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+
+    await screen.findByText("No roster yet.")
+    expect(router.state.location.pathname).toBe("/")
+  })
+
+  it("the manager's home links to the form while the defaults wait", async () => {
+    start("/", { ...session(ME_MANAGER), "GET /api/units": { body: [ER_UNIT] } })
+
+    expect(await screen.findByRole("link", { name: "Review them before its first solve" })).toHaveAttribute("href", "/unit-rules")
+  })
+})
+
+describe("the rostering attributes page", () => {
+  const AMAL = {
+    id: "n1", hospital_id: "h1", full_name: "Amal Saleh", is_active: true, gender: "F", joins_from: null, leaves_from: null,
+    team_leader: true, score: 0.9, ramadan_reduced: false, breastfeeding: true, ytd_overtime: 12, hours_balance: -3, night_balance: 1.5, friday_balance: -0.5,
+    allowed_shifts: ["D"], allowed_shifts_to_check: false,
+  }
+  const BADR = {
+    ...AMAL, id: "n2", hospital_id: "h2", full_name: "Badr Omar", gender: "M", joins_from: "2030-01", team_leader: false, score: 0.8, breastfeeding: false,
+    ytd_overtime: 0, hours_balance: 0, night_balance: 0, friday_balance: 0, allowed_shifts: null, allowed_shifts_to_check: true,
+  }
+  const pageOf = (me: unknown, nurses: unknown[] = [AMAL, BADR], extra = {}) => ({
+    ...session(me),
+    "GET /api/units": { body: [ER_UNIT] },
+    "GET /api/units/er/nurses": { body: nurses },
+    "GET /api/units/er/rules": { body: UNIT_RULES_STATE },
+    ...extra,
+  })
+  const put = (calls: { method: string; url: string; body: unknown }[]) => calls.find((call) => call.method === "PUT")!
+
+  it("lists what the solver needs to know of each nurse", async () => {
+    start("/rostering-attributes", pageOf(ME_MANAGER))
+
+    const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
+    expect(document.title).toBe("Rostering attributes · Nurse roster")
+    expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(
+      ["Amal Saleh", "Set attributes", "h1", "In the unit", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5"])
+    const badr = within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!)
+    expect(badr.getByText("Joins from January 2030")).toBeInTheDocument()
+    expect(badr.getByText("Any")).toBeInTheDocument()
+    expect(badr.getByText("To check")).toBeInTheDocument()
+    expect(screen.getByText(/Badr Omar came with allowed shifts this unit does not work/)).toBeInTheDocument()
+  })
+
+  it("saves everything, with focus returning to the row's button", async () => {
+    const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [AMAL], { "PUT /api/units/er/nurses/n1/attributes": { body: AMAL } }))
+
+    const button = await screen.findByRole("button", { name: "Set attributes of Amal Saleh" })
+    await user.click(button)
+    expect(screen.getByRole("checkbox", { name: "Team leader" })).toHaveFocus()
+    expect(screen.getByLabelText("Score")).toHaveValue(0.9)
+    await user.click(screen.getByRole("checkbox", { name: "Team leader" }))
+    await user.clear(screen.getByLabelText("Score"))
+    await user.type(screen.getByLabelText("Score"), "0.61")
+    await user.click(screen.getByRole("checkbox", { name: "N" }))
+    await user.click(screen.getByRole("checkbox", { name: "Ramadan-reduced" }))
+    await user.clear(screen.getByLabelText("Overtime this year (hours)"))
+    await user.type(screen.getByLabelText("Overtime this year (hours)"), "40")
+    await user.clear(screen.getByLabelText("Weekend fairness balance (shifts)"))
+    await user.type(screen.getByLabelText("Weekend fairness balance (shifts)"), "-2.5")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("The rostering attributes of Amal Saleh are saved.")).toHaveAttribute("role", "status")
+    expect(put(calls).url).toBe("/api/units/er/nurses/n1/attributes")
+    expect(put(calls).body).toEqual({
+      team_leader: false, score: 0.61, ramadan_reduced: true, breastfeeding: true, allowed_shifts: ["D", "N"], ytd_overtime: 40, hours_balance: -3, night_balance: 1.5, friday_balance: -2.5,
+    })
+    await waitFor(() => expect(screen.getByRole("button", { name: "Set attributes of Amal Saleh" })).toHaveFocus())
+  })
+
+  it("offers only the unit's shifts, and ticking none means any", async () => {
+    const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [AMAL], { "PUT /api/units/er/nurses/n1/attributes": { body: AMAL } }))
+
+    await user.click(await screen.findByRole("button", { name: "Set attributes of Amal Saleh" }))
+    const shifts = within(screen.getByRole("group", { name: "Allowed shifts" }))
+    expect(shifts.getAllByRole("checkbox").map((box) => box.closest("label")!.textContent)).toEqual(["D", "N"])
+    expect(screen.getByRole("group", { name: "Allowed shifts" })).toHaveAccessibleDescription(/Tick none for any shift/)
+    await user.click(shifts.getByRole("checkbox", { name: "D" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("The rostering attributes of Amal Saleh are saved.")
+    expect((put(calls).body as { allowed_shifts: unknown }).allowed_shifts).toBeNull()
+  })
+
+  it("says what is wrong before asking the API, and a refusal appears beside its field", async () => {
+    const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [AMAL], {
+      "PUT /api/units/er/nurses/n1/attributes": apiRefusal(["allowed_shifts", 0], "A is not one of this unit's shifts."),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Set attributes of Amal Saleh" }))
+    await user.clear(screen.getByLabelText("Score"))
+    await user.type(screen.getByLabelText("Score"), "2")
+    await user.clear(screen.getByLabelText("Hours balance (hours)"))
+    await user.type(screen.getByLabelText("Hours balance (hours)"), "1.5")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(await screen.findByText("Between 0 and 1.")).toBeInTheDocument()
+    expect(screen.getByText("Enter a whole number of hours.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+
+    await user.clear(screen.getByLabelText("Score"))
+    await user.type(screen.getByLabelText("Score"), "0.5")
+    await user.clear(screen.getByLabelText("Hours balance (hours)"))
+    await user.type(screen.getByLabelText("Hours balance (hours)"), "1")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("A is not one of this unit's shifts.")).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Allowed shifts" })).toHaveFocus()
+  })
+
+  it("a nurse due to join shows only their allowed shifts", async () => {
+    const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [BADR], { "PUT /api/units/er/nurses/n2/allowed-shifts": { body: BADR } }))
+
+    await user.click(await screen.findByRole("button", { name: "Set allowed shifts of Badr Omar" }))
+    expect(screen.getByText(/joins from January 2030/)).toBeInTheDocument()
+    expect(screen.queryByLabelText("Score")).not.toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Allowed shifts" })).toHaveFocus()
+    await user.click(screen.getByRole("checkbox", { name: "N" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("The allowed shifts of Badr Omar are saved.")).toBeInTheDocument()
+    expect(put(calls)).toMatchObject({ url: "/api/units/er/nurses/n2/allowed-shifts", body: { allowed_shifts: ["N"] } })
+  })
+
+  it("a manager setting their own is told who can see it", async () => {
+    const { user } = start("/rostering-attributes", pageOf(ME_MANAGER, [{ ...AMAL, hospital_id: "mona", full_name: "Mona Saleh" }]))
+
+    await user.click(await screen.findByRole("button", { name: "Set attributes of Mona Saleh" }))
+
+    expect(screen.getByText(/These are your own/)).toBeInTheDocument()
+  })
+
+  it("cancelling returns focus to the row", async () => {
+    const { user } = start("/rostering-attributes", pageOf(ME_MANAGER, [AMAL]))
+
+    await user.click(await screen.findByRole("button", { name: "Set attributes of Amal Saleh" }))
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.getByRole("button", { name: "Set attributes of Amal Saleh" })).toHaveFocus()
+    expect(screen.queryByLabelText("Score")).not.toBeInTheDocument()
+  })
+
+  it("a unit with no shifts says where to choose them", async () => {
+    start("/rostering-attributes", pageOf(ME_MANAGER, [AMAL], {
+      "GET /api/units/er/rules": { body: { ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, shifts: [] } } },
+    }))
+
+    expect(await screen.findByRole("link", { name: "Choose them under Unit rules" })).toHaveAttribute("href", "/unit-rules")
+  })
+
+  it("a unit with no nurses says who adds them", async () => {
+    start("/rostering-attributes", pageOf(ME_MANAGER, []))
+
+    expect(await screen.findByText("ER has no nurses yet. The CNO adds them.")).toBeInTheDocument()
+  })
+
+  it.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s reads with no way to change anything, by keyboard too", async (_name, me) => {
+    start("/rostering-attributes", pageOf(me))
+
+    await screen.findByRole("cell", { name: "Amal Saleh" })
+    expect(screen.queryByRole("button", { name: /Set / })).not.toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Rostering attributes of ER" })).toHaveAttribute("tabindex", "0")
+    expect(screen.getByText(/Only the unit's manager can change these/)).toBeInTheDocument()
+    expect(screen.queryByText(/came with allowed shifts/)).not.toBeInTheDocument()
+  })
+
+  it("a staff nurse has no way in", async () => {
+    const { router } = start("/rostering-attributes", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+
+    await screen.findByText("No roster yet.")
+    expect(router.state.location.pathname).toBe("/")
   })
 })

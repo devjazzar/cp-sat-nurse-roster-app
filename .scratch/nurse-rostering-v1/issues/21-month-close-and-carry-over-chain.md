@@ -23,3 +23,5 @@
 - **Start date:** refuse on `start_date` (`hospital.api.refuse`) a change that would alter which days counted in a closed month, on either the old or the new date's side. The refusal should say which month. While the month can still be re-closed, the alternative is to allow the change and tell the manager to re-close: decide which and record why.
 - **First placement:** `membership.reach_back_to_start_date` must not move a placement back into a closed month.
 - **Gender:** it changes no hours or carry-over, so it need not be refused. It applies from the next solve on, and closed months keep what their stored input says.
+
+**From ticket 09 (2026-11-05).** Opening values are "editable until her first month closes", and no close exists yet, so nothing refuses them. Add that to `update_nurse_attributes` in `nurses/attributes_api.py`, refusing on the field and leaving the other attributes open. They travel in one body with the attributes, so compare them rather than refusing the save.

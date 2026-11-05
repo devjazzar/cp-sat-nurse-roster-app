@@ -21,6 +21,7 @@ from accounts.provisioning import UsernameTaken, create_user, deactivate, reacti
 from audit.log import record
 from hospital.api import differing, refuse
 from hospital.catalogue_api import MONTH_PATTERN, IsoDate, iso_date
+from hospital.models import HospitalSettings
 from nurses import membership
 from nurses.models import Gender, NurseProfile
 from units.models import Unit
@@ -245,6 +246,7 @@ def give_manager_a_profile(request: HttpRequest, body: ManagerProfileBody) -> St
 def transfer_nurse(request: HttpRequest, nurse_id: UUID, body: TransferBody) -> NurseRow:
     month = dt.date.fromisoformat(f"{body.from_month}-01")
     with transaction.atomic():
+        HospitalSettings.load(for_update=True)  # The catalogue's lock: see `membership.transfer`.
         nurse = _locked_nurse(nurse_id)
         user = nurse.user
         if month < membership.this_month():

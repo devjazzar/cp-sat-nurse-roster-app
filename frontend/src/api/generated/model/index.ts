@@ -5,6 +5,8 @@
  * OpenAPI spec version: 1
  */
 
+export * from './allowedShiftsBody';
+export * from './attributesBody';
 export * from './auditEntrySchema';
 export * from './auditEntrySchemaAfter';
 export * from './auditEntrySchemaBefore';
@@ -21,6 +23,8 @@ export * from './correctionBodyGender';
 export * from './disk';
 export * from './endDateBody';
 export * from './firstPlacement';
+export * from './headcountAnswer';
+export * from './headcountRule';
 export * from './health';
 export * from './hospitalRules';
 export * from './hospitalRulesState';
@@ -47,6 +51,8 @@ export * from './newNurseBodyGender';
 export * from './newUserBody';
 export * from './newUserBodyRole';
 export * from './newUserRefusal';
+export * from './nurseAttributesRow';
+export * from './nurseAttributesRowGender';
 export * from './nurseRow';
 export * from './nurseRowGender';
 export * from './nurseWithPassword';
@@ -63,6 +69,7 @@ export * from './role';
 export * from './sessionState';
 export * from './sheetRow';
 export * from './shiftBody';
+export * from './shiftChoice';
 export * from './shiftRenameSchema';
 export * from './shiftSchema';
 export * from './solverHealth';
@@ -71,6 +78,12 @@ export * from './transferBody';
 export * from './unitBody';
 export * from './unitManagerSchema';
 export * from './unitName';
+export * from './unitRules';
+export * from './unitRulesAnswer';
+export * from './unitRulesAnswerScoreBalanceMode';
+export * from './unitRulesBody';
+export * from './unitRulesScoreBalanceMode';
+export * from './unitRulesState';
 export * from './unitSchema';
 export * from './userWithPassword';
 export * from './weights';

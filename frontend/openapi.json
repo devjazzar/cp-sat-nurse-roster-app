@@ -805,7 +805,7 @@
             }
           }
         },
-        "description": "Hold the rules' lock throughout: a forbidden succession only ever names an active shift, which\nboth this and saving the rules must see the other's finished work to keep true.",
+        "description": "Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's\nrules likewise, which both this and saving either set of rules must see the other's finished work to keep true.\nNo roster exists yet, so nothing here can hold section 4's \"hours cannot change while an open month's roster uses\nthe shift\": ticket 11, which brings rosters, adds that as a refusal on `hours`.",
         "tags": [
           "hospital"
         ],
@@ -1441,6 +1441,252 @@
         "tags": [
           "units"
         ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/rules": {
+      "get": {
+        "operationId": "getUnitRules",
+        "summary": "Get Unit Rules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitRulesState"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "units"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateUnitRules",
+        "summary": "Update Unit Rules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitRulesState"
+                }
+              }
+            }
+          }
+        },
+        "description": "Saving is the review: it clears the flag even when nothing else changed. Under the catalogue's lock, so that a\ncode the CNO is retiring or renaming at this moment cannot be written.",
+        "tags": [
+          "units"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnitRulesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/nurses": {
+      "get": {
+        "operationId": "listNurseAttributes",
+        "summary": "List Nurse Attributes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NurseAttributesRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Those placed here now or due to join, deactivated or not, as on the manager's list of nurses.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/nurses/{nurse_id}/attributes": {
+      "put": {
+        "operationId": "updateNurseAttributes",
+        "summary": "Update Nurse Attributes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseAttributesRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "A manager with a nurse profile sets their own, because nobody else may and a nurse has to have them. The CNO and the\nDeputy CNO can read the values, and the log shows whose hand changed them. Ticket 21 refuses the opening values here\nonce the nurse's first month has closed.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttributesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/nurses/{nurse_id}/allowed-shifts": {
+      "put": {
+        "operationId": "updateNurseAllowedShifts",
+        "summary": "Update Nurse Allowed Shifts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseAttributesRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "All a manager can change of a nurse due to join: a unit may roster a month ahead of their arrival, and this list is\nabout this unit's shifts, whereas the rest is about the nurse and stays with the manager of the unit they are in.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllowedShiftsBody"
+              }
+            }
+          },
+          "required": true
+        },
         "security": [
           {
             "SignedIn": []
@@ -3386,6 +3632,752 @@
           "unit"
         ],
         "title": "ManagerChoice",
+        "type": "object"
+      },
+      "HeadcountAnswer": {
+        "properties": {
+          "shift": {
+            "title": "Shift",
+            "type": "string"
+          },
+          "weekday_min": {
+            "title": "Weekday Min",
+            "type": "integer"
+          },
+          "weekday_max": {
+            "title": "Weekday Max",
+            "type": "integer"
+          },
+          "weekend_min": {
+            "title": "Weekend Min",
+            "type": "integer"
+          },
+          "weekend_max": {
+            "title": "Weekend Max",
+            "type": "integer"
+          },
+          "also_counts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Also Counts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "shift",
+          "weekday_min",
+          "weekday_max",
+          "weekend_min",
+          "weekend_max",
+          "also_counts"
+        ],
+        "title": "HeadcountAnswer",
+        "type": "object"
+      },
+      "ShiftChoice": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "hours"
+        ],
+        "title": "ShiftChoice",
+        "type": "object"
+      },
+      "UnitRulesAnswer": {
+        "description": "Not the request's schema: `shifts` may be empty and `night_shift` and `day_shift` may be \"\" in a unit whose\ndefault shifts were retired before it was created (`units.rules.seeded_rules`), and that unit must still open, since\nthis is where it gets fixed. tests/test_rules_api.py holds both schemas to the solver's fields.",
+        "properties": {
+          "shifts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "headcounts": {
+            "items": {
+              "$ref": "#/components/schemas/HeadcountAnswer"
+            },
+            "title": "Headcounts",
+            "type": "array"
+          },
+          "headcount_enabled": {
+            "title": "Headcount Enabled",
+            "type": "boolean"
+          },
+          "require_team_leader": {
+            "title": "Require Team Leader",
+            "type": "boolean"
+          },
+          "require_both_genders": {
+            "title": "Require Both Genders",
+            "type": "boolean"
+          },
+          "score_target": {
+            "title": "Score Target",
+            "type": "number"
+          },
+          "score_target_weekend": {
+            "title": "Score Target Weekend",
+            "type": "number"
+          },
+          "score_balance": {
+            "title": "Score Balance",
+            "type": "boolean"
+          },
+          "score_balance_mode": {
+            "enum": [
+              "band",
+              "spread"
+            ],
+            "title": "Score Balance Mode",
+            "type": "string"
+          },
+          "score_band_hi": {
+            "title": "Score Band Hi",
+            "type": "number"
+          },
+          "score_band_hi_weekend": {
+            "title": "Score Band Hi Weekend",
+            "type": "number"
+          },
+          "night_shift": {
+            "title": "Night Shift",
+            "type": "string"
+          },
+          "day_shift": {
+            "title": "Day Shift",
+            "type": "string"
+          },
+          "night_rest_days": {
+            "title": "Night Rest Days",
+            "type": "integer"
+          },
+          "night_rest_hard": {
+            "title": "Night Rest Hard",
+            "type": "boolean"
+          },
+          "fair_shifts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fair Shifts",
+            "type": "array"
+          },
+          "fair_tolerance": {
+            "title": "Fair Tolerance",
+            "type": "number"
+          },
+          "fair_weekends": {
+            "title": "Fair Weekends",
+            "type": "boolean"
+          },
+          "carry_fairness": {
+            "title": "Carry Fairness",
+            "type": "boolean"
+          },
+          "carry_cap": {
+            "title": "Carry Cap",
+            "type": "number"
+          },
+          "max_consecutive_shifts": {
+            "title": "Max Consecutive Shifts",
+            "type": "integer"
+          },
+          "double_cycle_rest": {
+            "title": "Double Cycle Rest",
+            "type": "integer"
+          },
+          "max_weekends": {
+            "title": "Max Weekends",
+            "type": "integer"
+          },
+          "no_mixed_blocks": {
+            "title": "No Mixed Blocks",
+            "type": "boolean"
+          },
+          "max_switches": {
+            "title": "Max Switches",
+            "type": "integer"
+          },
+          "switches_hard": {
+            "title": "Switches Hard",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "shifts",
+          "headcounts",
+          "headcount_enabled",
+          "require_team_leader",
+          "require_both_genders",
+          "score_target",
+          "score_target_weekend",
+          "score_balance",
+          "score_balance_mode",
+          "score_band_hi",
+          "score_band_hi_weekend",
+          "night_shift",
+          "day_shift",
+          "night_rest_days",
+          "night_rest_hard",
+          "fair_shifts",
+          "fair_tolerance",
+          "fair_weekends",
+          "carry_fairness",
+          "carry_cap",
+          "max_consecutive_shifts",
+          "double_cycle_rest",
+          "max_weekends",
+          "no_mixed_blocks",
+          "max_switches",
+          "switches_hard"
+        ],
+        "title": "UnitRulesAnswer",
+        "type": "object"
+      },
+      "UnitRulesState": {
+        "properties": {
+          "rules": {
+            "$ref": "#/components/schemas/UnitRulesAnswer"
+          },
+          "needs_review": {
+            "description": "Still the seeded defaults: nobody has saved them yet.",
+            "title": "Needs Review",
+            "type": "boolean"
+          },
+          "request_cap": {
+            "title": "Request Cap",
+            "type": "integer"
+          },
+          "default_time_limit": {
+            "title": "Default Time Limit",
+            "type": "integer"
+          },
+          "time_limit_cap": {
+            "description": "The longest a solve may search, set by the System Admin. In seconds.",
+            "title": "Time Limit Cap",
+            "type": "integer"
+          },
+          "active_shifts": {
+            "description": "What the unit may choose its shifts from.",
+            "items": {
+              "$ref": "#/components/schemas/ShiftChoice"
+            },
+            "title": "Active Shifts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules",
+          "needs_review",
+          "request_cap",
+          "default_time_limit",
+          "time_limit_cap",
+          "active_shifts"
+        ],
+        "title": "UnitRulesState",
+        "type": "object"
+      },
+      "HeadcountRule": {
+        "additionalProperties": false,
+        "properties": {
+          "shift": {
+            "title": "Shift",
+            "type": "string"
+          },
+          "weekday_min": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Weekday Min",
+            "type": "integer"
+          },
+          "weekday_max": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Weekday Max",
+            "type": "integer"
+          },
+          "weekend_min": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Weekend Min",
+            "type": "integer"
+          },
+          "weekend_max": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Weekend Max",
+            "type": "integer"
+          },
+          "also_counts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Also Counts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "shift",
+          "weekday_min",
+          "weekday_max",
+          "weekend_min",
+          "weekend_max",
+          "also_counts"
+        ],
+        "title": "HeadcountRule",
+        "type": "object"
+      },
+      "UnitRules": {
+        "additionalProperties": false,
+        "description": "Every field of the solver's `department` block but its name, which is the unit's. What depends on another field,\non the catalogue or on the hospital rules is in `_refusals`, so that a refusal can name the field it belongs to.",
+        "properties": {
+          "shifts": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Shifts",
+            "type": "array"
+          },
+          "headcounts": {
+            "items": {
+              "$ref": "#/components/schemas/HeadcountRule"
+            },
+            "title": "Headcounts",
+            "type": "array"
+          },
+          "headcount_enabled": {
+            "title": "Headcount Enabled",
+            "type": "boolean"
+          },
+          "require_team_leader": {
+            "title": "Require Team Leader",
+            "type": "boolean"
+          },
+          "require_both_genders": {
+            "title": "Require Both Genders",
+            "type": "boolean"
+          },
+          "score_target": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Score Target",
+            "type": "number"
+          },
+          "score_target_weekend": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Score Target Weekend",
+            "type": "number"
+          },
+          "score_balance": {
+            "title": "Score Balance",
+            "type": "boolean"
+          },
+          "score_balance_mode": {
+            "enum": [
+              "band",
+              "spread"
+            ],
+            "title": "Score Balance Mode",
+            "type": "string"
+          },
+          "score_band_hi": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Score Band Hi",
+            "type": "number"
+          },
+          "score_band_hi_weekend": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Score Band Hi Weekend",
+            "type": "number"
+          },
+          "night_shift": {
+            "title": "Night Shift",
+            "type": "string"
+          },
+          "day_shift": {
+            "title": "Day Shift",
+            "type": "string"
+          },
+          "night_rest_days": {
+            "maximum": 7,
+            "minimum": 0,
+            "title": "Night Rest Days",
+            "type": "integer"
+          },
+          "night_rest_hard": {
+            "title": "Night Rest Hard",
+            "type": "boolean"
+          },
+          "fair_shifts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fair Shifts",
+            "type": "array"
+          },
+          "fair_tolerance": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Fair Tolerance",
+            "type": "number"
+          },
+          "fair_weekends": {
+            "title": "Fair Weekends",
+            "type": "boolean"
+          },
+          "carry_fairness": {
+            "title": "Carry Fairness",
+            "type": "boolean"
+          },
+          "carry_cap": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Carry Cap",
+            "type": "number"
+          },
+          "max_consecutive_shifts": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Max Consecutive Shifts",
+            "type": "integer"
+          },
+          "double_cycle_rest": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Double Cycle Rest",
+            "type": "integer"
+          },
+          "max_weekends": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Max Weekends",
+            "type": "integer"
+          },
+          "no_mixed_blocks": {
+            "title": "No Mixed Blocks",
+            "type": "boolean"
+          },
+          "max_switches": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Max Switches",
+            "type": "integer"
+          },
+          "switches_hard": {
+            "title": "Switches Hard",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "shifts",
+          "headcounts",
+          "headcount_enabled",
+          "require_team_leader",
+          "require_both_genders",
+          "score_target",
+          "score_target_weekend",
+          "score_balance",
+          "score_balance_mode",
+          "score_band_hi",
+          "score_band_hi_weekend",
+          "night_shift",
+          "day_shift",
+          "night_rest_days",
+          "night_rest_hard",
+          "fair_shifts",
+          "fair_tolerance",
+          "fair_weekends",
+          "carry_fairness",
+          "carry_cap",
+          "max_consecutive_shifts",
+          "double_cycle_rest",
+          "max_weekends",
+          "no_mixed_blocks",
+          "max_switches",
+          "switches_hard"
+        ],
+        "title": "UnitRules",
+        "type": "object"
+      },
+      "UnitRulesBody": {
+        "additionalProperties": false,
+        "properties": {
+          "rules": {
+            "$ref": "#/components/schemas/UnitRules"
+          },
+          "request_cap": {
+            "description": "Requests per nurse per month.",
+            "maximum": 31,
+            "minimum": 0,
+            "title": "Request Cap",
+            "type": "integer"
+          },
+          "default_time_limit": {
+            "description": "Seconds. At most the System Admin's time limit cap.",
+            "minimum": 1,
+            "title": "Default Time Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rules",
+          "request_cap",
+          "default_time_limit"
+        ],
+        "title": "UnitRulesBody",
+        "type": "object"
+      },
+      "NurseAttributesRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "gender": {
+            "description": "The CNO's to set: it is here to read.",
+            "enum": [
+              "F",
+              "M"
+            ],
+            "title": "Gender",
+            "type": "string"
+          },
+          "joins_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit's to set.",
+            "title": "Joins From"
+          },
+          "leaves_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM, for a nurse due to leave. Names no other unit.",
+            "title": "Leaves From"
+          },
+          "team_leader": {
+            "title": "Team Leader",
+            "type": "boolean"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "ramadan_reduced": {
+            "title": "Ramadan Reduced",
+            "type": "boolean"
+          },
+          "breastfeeding": {
+            "title": "Breastfeeding",
+            "type": "boolean"
+          },
+          "ytd_overtime": {
+            "title": "Ytd Overtime",
+            "type": "integer"
+          },
+          "hours_balance": {
+            "title": "Hours Balance",
+            "type": "integer"
+          },
+          "night_balance": {
+            "title": "Night Balance",
+            "type": "number"
+          },
+          "friday_balance": {
+            "title": "Friday Balance",
+            "type": "number"
+          },
+          "allowed_shifts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In this unit. Empty for any shift it works.",
+            "title": "Allowed Shifts"
+          },
+          "allowed_shifts_to_check": {
+            "description": "A transfer emptied the list, as none of its shifts are worked here.",
+            "title": "Allowed Shifts To Check",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "hospital_id",
+          "full_name",
+          "is_active",
+          "gender",
+          "joins_from",
+          "leaves_from",
+          "team_leader",
+          "score",
+          "ramadan_reduced",
+          "breastfeeding",
+          "ytd_overtime",
+          "hours_balance",
+          "night_balance",
+          "friday_balance",
+          "allowed_shifts",
+          "allowed_shifts_to_check"
+        ],
+        "title": "NurseAttributesRow",
+        "type": "object"
+      },
+      "AttributesBody": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_shifts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty for any shift the unit works, now or later.",
+            "title": "Allowed Shifts"
+          },
+          "team_leader": {
+            "title": "Team Leader",
+            "type": "boolean"
+          },
+          "score": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Score",
+            "type": "number"
+          },
+          "ramadan_reduced": {
+            "title": "Ramadan Reduced",
+            "type": "boolean"
+          },
+          "breastfeeding": {
+            "title": "Breastfeeding",
+            "type": "boolean"
+          },
+          "ytd_overtime": {
+            "description": "Overtime hours this year.",
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Ytd Overtime",
+            "type": "integer"
+          },
+          "hours_balance": {
+            "description": "Hours still owed (+) or worked ahead (-).",
+            "maximum": 1000000,
+            "minimum": -1000000,
+            "title": "Hours Balance",
+            "type": "integer"
+          },
+          "night_balance": {
+            "description": "Night shifts above (+) or below (-) their fair share.",
+            "maximum": 1000,
+            "minimum": -1000,
+            "title": "Night Balance",
+            "type": "number"
+          },
+          "friday_balance": {
+            "description": "Weekend days above (+) or below (-) their fair share.",
+            "maximum": 1000,
+            "minimum": -1000,
+            "title": "Friday Balance",
+            "type": "number"
+          }
+        },
+        "required": [
+          "allowed_shifts",
+          "team_leader",
+          "score",
+          "ramadan_reduced",
+          "breastfeeding",
+          "ytd_overtime",
+          "hours_balance",
+          "night_balance",
+          "friday_balance"
+        ],
+        "title": "AttributesBody",
+        "type": "object"
+      },
+      "AllowedShiftsBody": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_shifts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty for any shift the unit works, now or later.",
+            "title": "Allowed Shifts"
+          }
+        },
+        "required": [
+          "allowed_shifts"
+        ],
+        "title": "AllowedShiftsBody",
         "type": "object"
       },
       "ComingTransfer": {

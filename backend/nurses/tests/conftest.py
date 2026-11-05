@@ -1,3 +1,4 @@
+import copy
 import datetime as dt
 
 import pytest
@@ -6,13 +7,14 @@ from accounts.models import Role
 from conftest import post
 from nurses import membership
 from units.models import Unit
+from units.rules import DEFAULT_UNIT_RULES
 
 NURSES = "/api/nurses"
 START = "2026-01-10"
 
 
 def make_unit(name, manager=None, **fields) -> Unit:
-    return Unit.objects.create(name=name, manager=manager, rules={}, **fields)
+    return Unit.objects.create(name=name, manager=manager, rules=copy.deepcopy(DEFAULT_UNIT_RULES), **fields)
 
 
 def add(client, unit, hospital_id="h123", **fields):

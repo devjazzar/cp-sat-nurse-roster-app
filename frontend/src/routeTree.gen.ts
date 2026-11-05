@@ -19,8 +19,10 @@ import { Route as SignedInHolidaysRouteImport } from './routes/_signed-in/holida
 import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/hospital-rules'
 import { Route as SignedInLeaveTypesRouteImport } from './routes/_signed-in/leave-types'
 import { Route as SignedInNursesRouteImport } from './routes/_signed-in/nurses'
+import { Route as SignedInRosteringAttributesRouteImport } from './routes/_signed-in/rostering-attributes'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
 import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
+import { Route as SignedInUnitRulesRouteImport } from './routes/_signed-in/unit-rules'
 import { Route as SignedInUnitsRouteImport } from './routes/_signed-in/units'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
 import { Route as SignedInNursesImportRouteImport } from './routes/_signed-in/nurses_.import'
@@ -74,6 +76,12 @@ const SignedInNursesRoute = SignedInNursesRouteImport.update({
   path: '/nurses',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInRosteringAttributesRoute =
+  SignedInRosteringAttributesRouteImport.update({
+    id: '/rostering-attributes',
+    path: '/rostering-attributes',
+    getParentRoute: () => SignedInRoute,
+  } as any)
 const SignedInSettingsRoute = SignedInSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -82,6 +90,11 @@ const SignedInSettingsRoute = SignedInSettingsRouteImport.update({
 const SignedInShiftsRoute = SignedInShiftsRouteImport.update({
   id: '/shifts',
   path: '/shifts',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInUnitRulesRoute = SignedInUnitRulesRouteImport.update({
+  id: '/unit-rules',
+  path: '/unit-rules',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInUnitsRoute = SignedInUnitsRouteImport.update({
@@ -110,8 +123,10 @@ export interface FileRoutesByFullPath {
   '/hospital-rules': typeof SignedInHospitalRulesRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/nurses': typeof SignedInNursesRoute
+  '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
+  '/unit-rules': typeof SignedInUnitRulesRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/nurses/import': typeof SignedInNursesImportRoute
@@ -125,8 +140,10 @@ export interface FileRoutesByTo {
   '/hospital-rules': typeof SignedInHospitalRulesRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/nurses': typeof SignedInNursesRoute
+  '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
+  '/unit-rules': typeof SignedInUnitRulesRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
@@ -143,8 +160,10 @@ export interface FileRoutesById {
   '/_signed-in/hospital-rules': typeof SignedInHospitalRulesRoute
   '/_signed-in/leave-types': typeof SignedInLeaveTypesRoute
   '/_signed-in/nurses': typeof SignedInNursesRoute
+  '/_signed-in/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
   '/_signed-in/shifts': typeof SignedInShiftsRoute
+  '/_signed-in/unit-rules': typeof SignedInUnitRulesRoute
   '/_signed-in/units': typeof SignedInUnitsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
@@ -162,8 +181,10 @@ export interface FileRouteTypes {
     | '/hospital-rules'
     | '/leave-types'
     | '/nurses'
+    | '/rostering-attributes'
     | '/settings'
     | '/shifts'
+    | '/unit-rules'
     | '/units'
     | '/users'
     | '/nurses/import'
@@ -177,8 +198,10 @@ export interface FileRouteTypes {
     | '/hospital-rules'
     | '/leave-types'
     | '/nurses'
+    | '/rostering-attributes'
     | '/settings'
     | '/shifts'
+    | '/unit-rules'
     | '/units'
     | '/users'
     | '/'
@@ -194,8 +217,10 @@ export interface FileRouteTypes {
     | '/_signed-in/hospital-rules'
     | '/_signed-in/leave-types'
     | '/_signed-in/nurses'
+    | '/_signed-in/rostering-attributes'
     | '/_signed-in/settings'
     | '/_signed-in/shifts'
+    | '/_signed-in/unit-rules'
     | '/_signed-in/units'
     | '/_signed-in/users'
     | '/_signed-in/'
@@ -280,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInNursesRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/rostering-attributes': {
+      id: '/_signed-in/rostering-attributes'
+      path: '/rostering-attributes'
+      fullPath: '/rostering-attributes'
+      preLoaderRoute: typeof SignedInRosteringAttributesRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/settings': {
       id: '/_signed-in/settings'
       path: '/settings'
@@ -292,6 +324,13 @@ declare module '@tanstack/react-router' {
       path: '/shifts'
       fullPath: '/shifts'
       preLoaderRoute: typeof SignedInShiftsRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/unit-rules': {
+      id: '/_signed-in/unit-rules'
+      path: '/unit-rules'
+      fullPath: '/unit-rules'
+      preLoaderRoute: typeof SignedInUnitRulesRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/units': {
@@ -325,8 +364,10 @@ interface SignedInRouteChildren {
   SignedInHospitalRulesRoute: typeof SignedInHospitalRulesRoute
   SignedInLeaveTypesRoute: typeof SignedInLeaveTypesRoute
   SignedInNursesRoute: typeof SignedInNursesRoute
+  SignedInRosteringAttributesRoute: typeof SignedInRosteringAttributesRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
   SignedInShiftsRoute: typeof SignedInShiftsRoute
+  SignedInUnitRulesRoute: typeof SignedInUnitRulesRoute
   SignedInUnitsRoute: typeof SignedInUnitsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
@@ -340,8 +381,10 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInHospitalRulesRoute: SignedInHospitalRulesRoute,
   SignedInLeaveTypesRoute: SignedInLeaveTypesRoute,
   SignedInNursesRoute: SignedInNursesRoute,
+  SignedInRosteringAttributesRoute: SignedInRosteringAttributesRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
   SignedInShiftsRoute: SignedInShiftsRoute,
+  SignedInUnitRulesRoute: SignedInUnitRulesRoute,
   SignedInUnitsRoute: SignedInUnitsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,

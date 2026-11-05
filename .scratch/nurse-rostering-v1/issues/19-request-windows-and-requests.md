@@ -12,3 +12,7 @@
 - [ ] Accepted requests appear as pinned cells with origin 'request' in the solve input and are kept on re-solve
 - [ ] Nurse sees her requests and outcomes; manager sees the unit's requests per window
 - [ ] API tests cover the window rules, the cap, each state transition, authorization and the solve input
+
+## Comments
+
+**From ticket 09 (2026-11-05).** The cap is `Unit.request_cap`, from 0 to 31, default 3, which the unit manager sets on the unit rules page. 0 means no requests.

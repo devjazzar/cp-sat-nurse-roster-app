@@ -56,14 +56,86 @@ def unit_in(nurse: NurseProfile, month: dt.date) -> Unit:
 
 def transfer(nurse: NurseProfile, unit: Unit, month: dt.date) -> bool:
     """From this month on the nurse belongs to this unit, whatever was waiting for then or later: a transfer waiting
-    is a plan, and the audit log keeps what it said. False when that changes nothing."""
+    is a plan, and the audit log keeps what it said. False when that changes nothing. Call it under the catalogue's
+    lock (`HospitalSettings.load(for_update=True)`), because it copies shift codes a rename would change."""
     if unit_in(nurse, month).pk == unit.pk and not nurse.placements.filter(from_month__gt=month).exists():
         return False
+    # A placement beginning that very month is where they are coming from only if it has begun: a plan replaced never was.
+    began_by = Q(from_month__lte=month) if month <= this_month() else Q(from_month__lt=month)
+    coming_from = nurse.placements.filter(began_by).order_by("-from_month").first()
+    replaced = list(nurse.placements.filter(from_month__gte=month))
     nurse.placements.filter(from_month__gte=month).delete()
     before = nurse.placements.order_by("-from_month").first()
     if before is None or before.unit_id != unit.pk:
-        Placement.objects.create(nurse=nurse, unit=unit, from_month=month)
+        waiting_there = next((placement for placement in replaced if placement.unit_id == unit.pk), None)
+        if waiting_there:  # Its manager may already have chosen, in that unit's own shifts.
+            allowed, to_check = waiting_there.allowed_shifts, waiting_there.allowed_shifts_to_check
+        else:
+            allowed, to_check = _carried_allowed_shifts(coming_from, unit)
+        Placement.objects.create(nurse=nurse, unit=unit, from_month=month, allowed_shifts=allowed,
+                                 allowed_shifts_to_check=to_check)
     return True
+
+
+def _carried_allowed_shifts(placement: Placement, unit: Unit) -> tuple[list[str] | None, bool]:
+    """A restriction follows the nurse as far as the new unit works the same shifts. With none in common it has no
+    meaning there, and the solver takes no empty list, so the list empties and the manager is asked to look."""
+    if placement.allowed_shifts is None:
+        return None, False
+    kept = [code for code in placement.allowed_shifts if code in unit.rules["shifts"]]
+    return kept or None, not kept
+
+
+def here_from_now_on(nurse: NurseProfile, unit: Unit) -> list[Placement]:
+    """The nurse's placements in this unit, in force or still to come. A chain can hold more than one."""
+    return [placement for placement in from_now_on(nurse) if placement.unit_id == unit.pk]
+
+
+def set_allowed_shifts(nurse: NurseProfile, unit: Unit, allowed: list[str] | None) -> bool:
+    """Saving is the check, so it also lowers the flag. False when that changes nothing."""
+    changed = [placement for placement in here_from_now_on(nurse, unit)
+               if placement.allowed_shifts != allowed or placement.allowed_shifts_to_check]
+    for placement in changed:
+        placement.allowed_shifts, placement.allowed_shifts_to_check = allowed, False
+        placement.save(update_fields=["allowed_shifts", "allowed_shifts_to_check"])
+    return bool(changed)
+
+
+def _unit_placements_from_now_on(unit: Unit) -> QuerySet[Placement]:
+    in_force = Subquery(Placement.objects.filter(nurse=OuterRef("nurse"), from_month__lte=this_month())
+                        .order_by("-from_month").values("pk")[:1])
+    return Placement.objects.filter(Q(pk=in_force) | Q(from_month__gt=this_month()), unit=unit)
+
+
+def stranded_by(unit: Unit, shifts: list[str]) -> list[NurseProfile]:
+    """The nurses these shifts would leave with none they may work, now or once they join. Only the manager can say
+    what they work instead."""
+    placements = (_unit_placements_from_now_on(unit).filter(allowed_shifts__isnull=False)
+                  .select_related("nurse__user").order_by("nurse__user__full_name", "pk"))
+    stranded = {placement.nurse.pk: placement.nurse for placement in placements
+                if not any(code in shifts for code in placement.allowed_shifts)}
+    return list(stranded.values())
+
+
+def narrow_allowed_shifts(unit: Unit, shifts: list[str]) -> None:
+    """Keeps every list of a unit within its shifts, which needs no judgement and never widens what a nurse may do.
+    Past placements too, because a transfer back into the unit can bring one back into force, and one left with nothing
+    is then asked about, as a transfer asks. Writes no audit entry: it follows from the rules' own, and an entry per
+    nurse beside the shift that went would tell the System Admin what that nurse could work."""
+    placements = [placement for placement in Placement.objects.filter(unit=unit, allowed_shifts__isnull=False)
+                  if any(code not in shifts for code in placement.allowed_shifts)]
+    for placement in placements:
+        kept = [code for code in placement.allowed_shifts if code in shifts]
+        placement.allowed_shifts, placement.allowed_shifts_to_check = kept or None, placement.allowed_shifts_to_check or not kept
+    Placement.objects.bulk_update(placements, ["allowed_shifts", "allowed_shifts_to_check"])
+
+
+def carry_rename_through_allowed_shifts(old_code: str, new_code: str) -> None:
+    """Every placement, past ones too, so that a list never names a code the catalogue has given up."""
+    placements = list(Placement.objects.filter(allowed_shifts__contains=[old_code]))
+    for placement in placements:
+        placement.allowed_shifts = [new_code if code == old_code else code for code in placement.allowed_shifts]
+    Placement.objects.bulk_update(placements, ["allowed_shifts"])
 
 
 def _unit_in_force(placements: QuerySet[Placement]) -> Subquery:

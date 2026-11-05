@@ -3,6 +3,7 @@ can carry them as they are. `name` is not among them: it is the unit's own name.
 from __future__ import annotations
 
 from hospital.models import Shift, ShiftRename
+from units.models import Unit
 
 _HEADCOUNT = {"weekday_min": 7, "weekday_max": 9, "weekend_min": 8, "weekend_max": 9, "also_counts": []}
 
@@ -37,6 +38,13 @@ DEFAULT_UNIT_RULES = {
 }
 
 
+def distinct_shifts(codes: list[str]) -> list[str]:
+    """A schema's validator: the solver refuses a shift named twice in any of these lists."""
+    if len(set(codes)) != len(codes):
+        raise ValueError("Lists a shift twice.")
+    return codes
+
+
 def unit_block(unit) -> dict:
     """The `department` block of a solve input."""
     return unit.rules | {"name": unit.name}
@@ -60,6 +68,14 @@ def with_shift_codes(rules: dict, codes: dict[str, str | None]) -> dict:
         "headcounts": [headcount | {"shift": code(headcount["shift"]), "also_counts": named(headcount["also_counts"])}
                        for headcount in rules["headcounts"] if code(headcount["shift"]) is not None],
     }
+
+
+def units_using(code: str) -> list[str]:
+    """The names of the live units whose rules name this shift. `night_shift` and `day_shift` count because the solver
+    wants them in `shifts` only while the night rules are on, so a saved block can name one outside it. The other
+    places a block names a shift are all within `shifts`. An archived unit rosters nothing more, so it does not count."""
+    return [unit.name for unit in Unit.objects.filter(archived=False)
+            if code in (*unit.rules["shifts"], unit.rules["night_shift"], unit.rules["day_shift"])]
 
 
 def _current_code(default_code: str) -> str | None:
