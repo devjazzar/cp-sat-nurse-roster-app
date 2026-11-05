@@ -28,7 +28,7 @@ import {
   createUserBodyUsernameRegExp as USERNAME,
 } from "@/api/generated/zod"
 import { FormField, SelectField } from "@/components/form-field"
-import { PasswordDialog, type Shown } from "@/components/password-dialog"
+import { LeavePageGuard, PasswordDialog, type Shown } from "@/components/password-dialog"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -44,6 +44,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
 import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { hospitalTime } from "@/lib/utils"
@@ -159,7 +160,7 @@ function NameForm({ row, onDone, onCancel }: { row: ManagedUser; onDone: (messag
         {unexpected && <p role="alert" className="text-sm text-destructive">The name could not be saved. Check your connection and try again.</p>}
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={correct.isPending}>Save name</Button>
-          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button type="button" variant="outline" disabled={correct.isPending} onClick={onCancel}>Cancel</Button>
         </div>
       </FieldGroup>
     </form>
@@ -270,6 +271,7 @@ function UsersTable({ users, onAsk, onCorrect }: {
   onAsk: (asked: Asked) => void
   onCorrect: (user: ManagedUser, button: HTMLElement) => void
 }) {
+  const awaitingPassword = useAwaitingPassword()
   return (
     <Table>
       <TableHeader>
@@ -302,7 +304,8 @@ function UsersTable({ users, onAsk, onCorrect }: {
             <TableCell className="sticky end-0 bg-card">
               {/* Two by two, because three in a line would cover the whole row on a phone. */}
               <div className="ml-auto grid w-fit grid-cols-[auto_auto] gap-2">
-                <Button variant="outline" size="sm" aria-label={`Correct name of ${user.username}`}
+                {/* Correcting a name replaces the form that is waiting for its answer. */}
+                <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`Correct name of ${user.username}`}
                   onClick={(event) => onCorrect(user, event.currentTarget)}>
                   Correct name
                 </Button>
@@ -311,7 +314,8 @@ function UsersTable({ users, onAsk, onCorrect }: {
                   onClick={() => onAsk({ user, action: user.is_active ? "deactivate" : "reactivate" })}>
                   {user.is_active ? "Deactivate" : "Reactivate"}
                 </Button>
-                <Button variant="outline" size="sm" aria-label={`Reset password of ${user.username}`}
+                {/* The dialog shows one password, so a second answer would replace the first. */}
+                <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`Reset password of ${user.username}`}
                   onClick={() => onAsk({ user, action: "reset" })}>
                   Reset password
                 </Button>
@@ -330,6 +334,7 @@ function UsersPage() {
   const [asked, setAsked] = useState<Asked | null>(null)
   const [done, setDone] = useState("")
   const { editing, start, finish } = useEditing<ManagedUser>()
+  const awaitingPassword = useAwaitingPassword()
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -361,6 +366,7 @@ function UsersPage() {
       )}
       <ActionDialog asked={asked} onClose={() => setAsked(null)} onDone={setDone} onPassword={setShown} />
       <PasswordDialog shown={shown} onDone={() => setShown(null)} />
+      <LeavePageGuard holding={awaitingPassword} />
     </div>
   )
 }

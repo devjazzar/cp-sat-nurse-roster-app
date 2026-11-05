@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, redirect, useRouteContext } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
+import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { NAVIGATION, ROLE_NAMES } from "@/roles"
 import { currentUser, useSignOut } from "@/session"
 
@@ -20,6 +21,8 @@ const linkClass = "text-sm text-muted-foreground hover:text-foreground [&.active
 function SignedInLayout() {
   const { user } = useRouteContext({ from: "/_signed-in" })
   const signOut = useSignOut()
+  // Logging out clears the mutation cache and leaves the page, so a password on its way would reach nobody.
+  const awaitingPassword = useAwaitingPassword()
 
   return (
     <div className="min-h-svh">
@@ -33,7 +36,7 @@ function SignedInLayout() {
         </nav>
         <div className="ms-auto flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{user.username} · {ROLE_NAMES[user.role]}</span>
-          <Button variant="outline" size="sm" onClick={signOut.run} disabled={signOut.pending}>Log out</Button>
+          <Button variant="outline" size="sm" onClick={signOut.run} disabled={signOut.pending || awaitingPassword}>Log out</Button>
         </div>
       </header>
       <main tabIndex={-1} className="p-4 outline-none">

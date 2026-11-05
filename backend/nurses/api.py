@@ -150,8 +150,8 @@ def with_units(nurses):
     return nurses.select_related("user").prefetch_related("placements__unit").order_by(Lower("user__full_name"), "pk")
 
 
-def _row_as_saved(nurse_id: UUID) -> NurseRow:
-    return _row(with_units(NurseProfile.objects).get(pk=nurse_id))
+def _row_as_saved(nurse_id: UUID, only_unit: UUID | None = None) -> NurseRow:
+    return _row(with_units(NurseProfile.objects).get(pk=nurse_id), only_unit=only_unit)
 
 
 def _unit_to_join(unit_id: UUID) -> Unit:
@@ -353,15 +353,20 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
 def reset_nurse_password(request: HttpRequest, response: HttpResponse, nurse_id: UUID) -> NurseWithPassword:
     """A staff nurse's only: a manager's account is the System Admin's, and this would let one bypass their own
     current password. A manager reaches the nurses of their unit this month, and the same 403 otherwise."""
-    nurse = with_units(NurseProfile.objects).filter(pk=nurse_id).first()
-    if nurse is None:
-        if request.user.role == Role.CNO:
-            raise Http404("There is no such nurse.")
-        raise HttpError(403, "This is not your unit.")
-    unit = unit_in_scope(request.user, membership.unit_id_now(nurse))
-    if nurse.user.role != Role.STAFF_NURSE:
-        refuse((("nurse",), f"The System Admin resets {nurse.user.username}'s password, as a unit manager's."))
-    nurse.user, password = reset_password(request, nurse.user.pk)
+    # The check and the reset are one transaction under the nurse's lock and then the unit's, as a transfer takes them
+    # and as taking a manager off takes the unit's, so neither can land between the two and leave a password with a
+    # former manager. The unit stays locked through the hash, which keeps nurses from joining it for that moment.
+    with transaction.atomic():
+        try:
+            nurse = _locked_nurse(nurse_id)
+        except Http404:
+            if request.user.role == Role.CNO:
+                raise Http404("There is no such nurse.") from None
+            raise HttpError(403, "This is not your unit.") from None
+        unit = unit_in_scope(request.user, membership.unit_id_now(nurse), for_update=True)
+        if nurse.user.role != Role.STAFF_NURSE:
+            refuse((("nurse",), f"The System Admin resets {nurse.user.username}'s password, as a unit manager's."))
+        _, password = reset_password(request, nurse.user.pk)
+        row = _row_as_saved(nurse_id, only_unit=None if request.user.role == Role.CNO else unit.pk)
     response["Cache-Control"] = "no-store"
-    return NurseWithPassword(nurse=_row(nurse, only_unit=None if request.user.role == Role.CNO else unit.pk),
-                             generated_password=password)
+    return NurseWithPassword(nurse=row, generated_password=password)

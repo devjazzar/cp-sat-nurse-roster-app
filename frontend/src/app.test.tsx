@@ -58,6 +58,26 @@ const admin = (extra = {}) => ({
   ...extra,
 })
 
+/** Holds every request to one address open until the test answers it. Everything else goes on as `start` set it up. */
+function hold(request: string) {
+  const through = globalThis.fetch
+  const waiting: ((answer: Answer) => void)[] = []
+  vi.stubGlobal("fetch", vi.fn((url: string, init: RequestInit = {}) => {
+    if (`${init.method ?? "GET"} ${url}` !== request) return through(url, init)
+    return new Promise<Response>((resolve) => {
+      waiting.push(({ status = 200, body = {} }) => resolve(new Response(JSON.stringify(body), { status })))
+    })
+  }))
+  return {
+    answer: async (answer: Answer) => {
+      await waitFor(() => expect(waiting.length).toBeGreaterThan(0))
+      await act(async () => waiting.shift()?.(answer))
+    },
+  }
+}
+
+const LEAVE_QUESTION = "Leave without the password?"
+
 afterEach(() => {
   vi.unstubAllGlobals()
   document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT"
@@ -929,6 +949,96 @@ describe("the users page", () => {
     expect(within(dialog).getByLabelText("Generated password")).toHaveValue("wxyz-wxyz-wxyz-wxyz")
     await user.click(within(dialog).getByRole("button", { name: "Done" }))
     await waitFor(() => expect(screen.queryByDisplayValue("wxyz-wxyz-wxyz-wxyz")).not.toBeInTheDocument())
+  })
+
+  describe("while a new user's password is on its way", () => {
+    const CREATED = { status: 201, body: { user: { ...CNO, must_change_password: true }, generated_password: "abcd-efgh-jkmn-pqrs" } }
+    const open = async (extra = {}) => {
+      const started = start("/users", page([MANAGER], extra))
+      await screen.findByRole("cell", { name: "khalid" })
+      return { ...started, creating: hold("POST /api/users") }
+    }
+    const passwordShown = async () => expect(within(await screen.findByRole("alertdialog", { name: "Password for fatimah" })).getByLabelText("Generated password")).toHaveValue("abcd-efgh-jkmn-pqrs")
+
+    it("correcting a name cannot replace the form, or the answer would find nobody to show it", async () => {
+      const { user, creating } = await open()
+      await fillNewUser(user)
+
+      await user.click(screen.getByRole("button", { name: "Correct name of khalid" }))
+      expect(screen.getByRole("button", { name: "Correct name of khalid" })).toHaveAttribute("aria-disabled", "true")
+      expect(screen.getByRole("heading", { name: "Create a user" })).toBeInTheDocument()
+
+      await creating.answer(CREATED)
+      await passwordShown()
+    })
+
+    it("nothing else that gives a password can start, or one answer would replace the other", async () => {
+      const { user, creating } = await open()
+      await fillNewUser(user)
+
+      expect(screen.getByRole("button", { name: "Reset password of khalid" })).toHaveAttribute("aria-disabled", "true")
+      expect(screen.getByRole("button", { name: "Create user" })).toHaveAttribute("aria-disabled", "true")
+
+      await creating.answer(CREATED)
+      await passwordShown()
+      await user.click(screen.getByRole("button", { name: "Done" }))
+      expect(screen.getByRole("button", { name: "Reset password of khalid" })).toHaveAttribute("aria-disabled", "false")
+    })
+
+    it("asks before leaving, and shows the password to one who stays", async () => {
+      const { user, router, creating } = await open()
+      await fillNewUser(user)
+
+      await user.click(screen.getByRole("link", { name: "Technical settings" }))
+
+      const question = await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })
+      expect(router.state.location.pathname).toBe("/users")
+      await user.click(within(question).getByRole("button", { name: "Stay" }))
+      await creating.answer(CREATED)
+      await passwordShown()
+    })
+
+    it("cannot log out from under it", async () => {
+      const { user, calls, creating } = await open()
+      await fillNewUser(user)
+
+      expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "true")
+      await user.click(screen.getByRole("button", { name: "Log out" }))
+      expect(calls.some((call) => call.url === "/api/auth/logout")).toBe(false)
+
+      await creating.answer(CREATED)
+      await passwordShown()
+    })
+
+    it("lets go when the user is refused", async () => {
+      const { user, creating } = await open()
+      await fillNewUser(user)
+
+      await creating.answer({ status: 409, body: { username: ["This username is taken."] } })
+
+      expect(await screen.findByText("This username is taken.")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Correct name of khalid" })).toHaveAttribute("aria-disabled", "false")
+      expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "false")
+    })
+
+    it("a reset refuses to close, and asks before leaving", async () => {
+      const { user, router } = start("/users", page([CNO]))
+      await user.click(await screen.findByRole("button", { name: "Reset password of fatimah" }))
+      const resetting = hold(`POST /api/users/${CNO.id}/reset-password`)
+      const dialog = await screen.findByRole("alertdialog", { name: /Reset the password/ })
+      await user.click(within(dialog).getByRole("button", { name: "Reset password" }))
+
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }))
+      await user.keyboard("{Escape}")
+      expect(screen.getByRole("alertdialog", { name: /Reset the password/ })).toBeInTheDocument()
+
+      act(() => void router.navigate({ to: "/health" }))
+      await user.click(within(await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })).getByRole("button", { name: "Stay" }))
+      expect(router.state.location.pathname).toBe("/users")
+
+      await resetting.answer({ body: { user: CNO, generated_password: "wxyz-wxyz-wxyz-wxyz" } })
+      expect(within(await screen.findByRole("alertdialog", { name: "Password for fatimah" })).getByLabelText("Generated password")).toHaveValue("wxyz-wxyz-wxyz-wxyz")
+    })
   })
 
   describe("correcting a name", () => {
@@ -1918,6 +2028,166 @@ describe("the nurses page", () => {
     expect(screen.queryByLabelText("Hospital ID")).not.toBeInTheDocument()
   })
 
+  describe("while a new nurse's password is on its way", () => {
+    const CREATED = { status: 201, body: { nurse: AMAL, generated_password: "abcd-efgh-jkmn-pqrs" } }
+
+    async function sendNewNurse(extra = {}) {
+      const started = start("/nurses", asCnoHere(extra))
+      const { user } = started
+      await user.click(await screen.findByRole("button", { name: "Add a nurse" }))
+      const creating = hold("POST /api/nurses")
+      await user.type(screen.getByLabelText(/Hospital ID/), "h123")
+      await user.type(screen.getByLabelText("Full name"), "Amal Saleh")
+      await user.selectOptions(screen.getByLabelText("Gender"), "F")
+      await user.selectOptions(screen.getByLabelText("Unit"), "ER")
+      await user.type(screen.getByLabelText("Start date"), "2026-01-10")
+      await user.click(screen.getByRole("button", { name: "Add nurse" }))
+      await waitFor(() => expect(screen.getByRole("button", { name: "Add nurse" })).toHaveAttribute("aria-disabled", "true"))
+      return { ...started, creating }
+    }
+    const passwordShown = async () => expect(within(await screen.findByRole("alertdialog", { name: "Password for h123" })).getByLabelText("Generated password")).toHaveValue("abcd-efgh-jkmn-pqrs")
+
+    it.each([
+      "Cancel",
+      "Give a unit manager a nurse profile",
+      "Correct details of Amal Saleh",
+      "Transfer Amal Saleh",
+      "Set end date of Amal Saleh",
+      "Add a nurse",
+      "Reset password of Amal Saleh",
+    ])("%s cannot take the form away, or start another password", async (name) => {
+      const { user, creating } = await sendNewNurse()
+
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-disabled", "true")
+      await user.click(screen.getByRole("button", { name }))
+      expect(screen.getByRole("button", { name: "Add nurse" })).toBeInTheDocument()
+
+      await creating.answer(CREATED)
+      await passwordShown()
+    })
+
+    it("asks before leaving, and shows the password to one who stays", async () => {
+      const { user, router, creating } = await sendNewNurse()
+
+      await user.click(screen.getByRole("link", { name: "Home" }))
+
+      const question = await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })
+      expect(router.state.location.pathname).toBe("/nurses")
+      await user.click(within(question).getByRole("button", { name: "Stay" }))
+      expect(router.state.location.pathname).toBe("/nurses")
+      await creating.answer(CREATED)
+      await passwordShown()
+    })
+
+    it("drops the question when the answer comes while it is asked, so the password is not left behind", async () => {
+      const { user, router, creating } = await sendNewNurse()
+      await user.click(screen.getByRole("link", { name: "Home" }))
+      await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })
+
+      await creating.answer(CREATED)
+
+      await passwordShown()
+      await waitFor(() => expect(screen.queryByRole("alertdialog", { name: LEAVE_QUESTION })).not.toBeInTheDocument())
+      expect(router.state.location.pathname).toBe("/nurses")
+    })
+
+    it("leaves when told to, whatever the answer then says", async () => {
+      const { user, router, creating } = await sendNewNurse({ "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+      await user.click(screen.getByRole("link", { name: "Home" }))
+
+      await user.click(within(await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })).getByRole("button", { name: "Leave" }))
+
+      await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+      // Nothing waits for it now: neither the header, nor this page on the way back.
+      expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "false")
+      await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Nurses" }))
+      expect(await screen.findByRole("button", { name: "Add a nurse" })).toHaveAttribute("aria-disabled", "false")
+      await user.click(screen.getByRole("link", { name: "Home" }))
+      await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+
+      await creating.answer(CREATED)
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    })
+
+    it("narrowing the list asks nothing, because the form stays", async () => {
+      const { user, router, creating } = await sendNewNurse()
+
+      await user.selectOptions(screen.getByLabelText("Show"), "ICU")
+
+      await waitFor(() => expect(router.state.location.search).toEqual({ unit: "u2" }))
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+      await creating.answer(CREATED)
+      await passwordShown()
+    })
+
+    it("cannot log out from under it", async () => {
+      const { user, calls, creating } = await sendNewNurse()
+
+      expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "true")
+      await user.click(screen.getByRole("button", { name: "Log out" }))
+      expect(calls.some((call) => call.url === "/api/auth/logout")).toBe(false)
+
+      await creating.answer(CREATED)
+      await passwordShown()
+    })
+
+    it("lets go when the nurse is refused, keeping the form and what it says", async () => {
+      const { user, creating } = await sendNewNurse()
+
+      await creating.answer(refusal(["hospital_id"], "h123 is already in use."))
+
+      expect(await screen.findByText("h123 is already in use.")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Cancel" })).toHaveAttribute("aria-disabled", "false")
+      expect(screen.getByRole("button", { name: "Transfer Amal Saleh" })).toHaveAttribute("aria-disabled", "false")
+      await user.click(screen.getByRole("link", { name: "Home" }))
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Add nurse" })).not.toBeInTheDocument())
+    })
+
+    it("returns focus to the button that opened the form once the password is done with", async () => {
+      const { user, creating } = await sendNewNurse()
+
+      await creating.answer(CREATED)
+      await passwordShown()
+      await user.click(screen.getByRole("button", { name: "Done" }))
+
+      await waitFor(() => expect(screen.getByRole("button", { name: "Add a nurse" })).toHaveFocus())
+    })
+  })
+
+  it("a reset refuses to close, and asks before leaving", async () => {
+    const { user, router } = start("/nurses", asCnoHere())
+    await user.click(await screen.findByRole("button", { name: "Reset password of Amal Saleh" }))
+    const resetting = hold("POST /api/nurses/n1/reset-password")
+    const dialog = await screen.findByRole("alertdialog", { name: /Reset the password/ })
+    await user.click(within(dialog).getByRole("button", { name: "Reset password" }))
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }))
+    await user.keyboard("{Escape}")
+    expect(screen.getByRole("alertdialog", { name: /Reset the password/ })).toBeInTheDocument()
+
+    act(() => void router.navigate({ to: "/" }))
+    await user.click(within(await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })).getByRole("button", { name: "Stay" }))
+    expect(router.state.location.pathname).toBe("/nurses")
+
+    await resetting.answer({ body: { nurse: AMAL, generated_password: "wxyz-wxyz-wxyz-wxyz" } })
+    expect(within(await screen.findByRole("alertdialog", { name: "Password for h123" })).getByLabelText("Generated password")).toHaveValue("wxyz-wxyz-wxyz-wxyz")
+  })
+
+  it("cancelling means nothing once a save is on its way, so it waits", async () => {
+    const { user } = start("/nurses", asCnoHere())
+    await user.click(await screen.findByRole("button", { name: "Transfer Amal Saleh" }))
+    const transferring = hold("POST /api/nurses/n1/transfer")
+    await user.selectOptions(screen.getByLabelText("To unit"), "ICU")
+    await user.selectOptions(screen.getByLabelText("Effective from"), screen.getAllByRole("option").find((option) => /\d{4}$/.test(option.textContent ?? "")) as HTMLOptionElement)
+    await user.click(screen.getByRole("button", { name: "Transfer" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toHaveAttribute("aria-disabled", "true"))
+
+    await transferring.answer({ body: AMAL })
+    expect(await screen.findByText(/transfers to ICU/)).toBeInTheDocument()
+  })
+
   it("asks for what is missing before sending anything", async () => {
     const { user, calls } = start("/nurses", asCnoHere())
 
@@ -2485,6 +2755,91 @@ describe("importing nurses", () => {
     await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("It is not known whether these nurses were added.")
+  })
+
+  it("holds back Add while another file is being checked, so an import cannot be cut off by the check's answer", async () => {
+    const { user, calls } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": { status: 201, body: SHEET },
+    }))
+    await check(user)
+    await screen.findByRole("button", { name: "Add 2 nurses" })
+    const checking = hold("POST /api/nurses/import/preview")
+
+    await check(user, csv("another file"))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add 2 nurses" })).toHaveAttribute("aria-disabled", "true"))
+    await user.click(screen.getByRole("button", { name: "Add 2 nurses" }))
+    expect(calls.some((call) => call.url === "/api/nurses/import/confirm")).toBe(false)
+
+    await checking.answer({ body: GOOD })
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add 2 nurses" })).toHaveAttribute("aria-disabled", "false"))
+    await user.click(screen.getByRole("button", { name: "Add 2 nurses" }))
+    expect(await screen.findByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
+  })
+
+  it("holds back Add from the moment Check file is pressed, while the file is still being read", async () => {
+    const { user, calls } = start("/nurses/import", here({ "POST /api/nurses/import/preview": { body: GOOD } }))
+    await check(user)
+    await screen.findByRole("button", { name: "Add 2 nurses" })
+    const slow = csv("another file")
+    let read: (bytes: ArrayBuffer) => void = () => {}
+    slow.arrayBuffer = () => new Promise((resolve) => { read = resolve })
+
+    await check(user, slow)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add 2 nurses" })).toHaveAttribute("aria-disabled", "true"))
+    await user.click(screen.getByRole("button", { name: "Add 2 nurses" }))
+    expect(calls.some((call) => call.url === "/api/nurses/import/confirm")).toBe(false)
+    expect(screen.getByRole("button", { name: "Checking…" })).toHaveAttribute("aria-disabled", "true")
+
+    await act(async () => read(new ArrayBuffer(1)))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add 2 nurses" })).toHaveAttribute("aria-disabled", "false"))
+  })
+
+  it("holds back Check file while the nurses are being added, so the check's answer cannot cut the import off", async () => {
+    const { user, calls } = start("/nurses/import", here({ "POST /api/nurses/import/preview": { body: GOOD } }))
+    await check(user)
+    const adding = hold("POST /api/nurses/import/confirm")
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+    await screen.findByRole("button", { name: "Adding…" })
+    const previews = calls.filter((call) => call.url === "/api/nurses/import/preview").length
+
+    await user.upload(screen.getByLabelText("CSV file"), csv("another file"))
+    await user.click(screen.getByRole("button", { name: "Check file" }))
+
+    expect(screen.getByRole("button", { name: "Check file" })).toHaveAttribute("aria-disabled", "true")
+    expect(calls.filter((call) => call.url === "/api/nurses/import/preview")).toHaveLength(previews)
+    await adding.answer({ status: 201, body: SHEET })
+    expect(await screen.findByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
+  })
+
+  it("lets Add go again when a check fails", async () => {
+    const { user } = start("/nurses/import", here({ "POST /api/nurses/import/preview": { body: GOOD } }))
+    await check(user)
+    await screen.findByRole("button", { name: "Add 2 nurses" })
+    const checking = hold("POST /api/nurses/import/preview")
+
+    await check(user, csv("another file"))
+    await checking.answer({ status: 502 })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/did not work/)
+    expect(screen.getByRole("button", { name: "Add 2 nurses" })).toHaveAttribute("aria-disabled", "false")
+    expect(screen.getByRole("button", { name: "Check file" })).toHaveAttribute("aria-disabled", "false")
+  })
+
+  it("cannot log out from under an import", async () => {
+    const { user, calls } = start("/nurses/import", here({ "POST /api/nurses/import/preview": { body: GOOD } }))
+    await check(user)
+    const adding = hold("POST /api/nurses/import/confirm")
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "true"))
+    await user.click(screen.getByRole("button", { name: "Log out" }))
+    expect(calls.some((call) => call.url === "/api/auth/logout")).toBe(false)
+
+    await adding.answer({ status: 201, body: SHEET })
+    expect(await screen.findByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
   })
 
   it("asks before leaving while the nurses are being added", async () => {

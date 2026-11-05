@@ -26,7 +26,7 @@ import {
   createNurseBodyHospitalIdRegExp as HOSPITAL_ID,
 } from "@/api/generated/zod"
 import { FormField, SelectField } from "@/components/form-field"
-import { PasswordDialog, type Shown } from "@/components/password-dialog"
+import { LeavePageGuard, PasswordDialog, type Shown } from "@/components/password-dialog"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -42,6 +42,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { cn, monthName, scrollableRegion, shortDay } from "@/lib/utils"
@@ -120,11 +121,12 @@ function Unexpected({ error }: { error: unknown }) {
     : null
 }
 
+/** Cancel waits for a save on its way, because it could not stop it, only lose what the answer says. */
 function FormButtons({ submit, pending, onCancel }: { submit: string; pending: boolean; onCancel: () => void }) {
   return (
     <div className="flex gap-2">
       <Button type="submit" disabled={pending}>{submit}</Button>
-      <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>Cancel</Button>
     </div>
   )
 }
@@ -357,7 +359,7 @@ function EndDateForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={setEndDate.isPending}>Save end date</Button>
           {nurse.end_date && <Button type="button" variant="outline" disabled={setEndDate.isPending} onClick={() => save(null)}>Clear end date</Button>}
-          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button type="button" variant="outline" disabled={setEndDate.isPending} onClick={onCancel}>Cancel</Button>
         </div>
       </FieldGroup>
     </form>
@@ -454,6 +456,9 @@ function NursesPage() {
   const [resetting, setResetting] = useState<NurseRow | null>(null)
   const { unit: unitInAddress } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
+  // Every form here sits in the one panel, so opening another would take away a form waiting for a password,
+  // and the dialog shows one password, so a second answer would replace the first.
+  const awaitingPassword = useAwaitingPassword()
 
   const liveUnits = (units.data ?? []).filter((unit) => !unit.archived)
   const held = isCno ? undefined : units.data?.[0]
@@ -478,8 +483,8 @@ function NursesPage() {
       <p role="status" className="text-sm text-muted-foreground empty:sr-only">{done}</p>
       {isCno && units.data && (
         <div className="flex flex-wrap gap-2">
-          <Button onClick={(event) => open({ kind: "add" }, event.currentTarget)}>Add a nurse</Button>
-          <Button variant="outline" onClick={(event) => open({ kind: "manager" }, event.currentTarget)}>Give a unit manager a nurse profile</Button>
+          <Button disabled={awaitingPassword} onClick={(event) => open({ kind: "add" }, event.currentTarget)}>Add a nurse</Button>
+          <Button variant="outline" disabled={awaitingPassword} onClick={(event) => open({ kind: "manager" }, event.currentTarget)}>Give a unit manager a nurse profile</Button>
           <Link to="/nurses/import" className={cn(buttonVariants({ variant: "outline" }))}>Import from a file</Link>
           <a href={getExportStaffListUrl()} download className={cn(buttonVariants({ variant: "outline" }))}>Export staff list</a>
         </div>
@@ -550,22 +555,22 @@ function NursesPage() {
                         <div className={isCno ? "ml-auto grid w-fit grid-cols-[auto_auto] gap-2" : "flex justify-end"}>
                           {isCno && (
                             <>
-                              <Button variant="outline" size="sm" aria-label={`Correct details of ${nurse.full_name}`}
+                              <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`Correct details of ${nurse.full_name}`}
                                 onClick={(event) => open({ kind: "details", nurse }, event.currentTarget)}>
                                 Correct details
                               </Button>
-                              <Button variant="outline" size="sm" aria-label={`Transfer ${nurse.full_name}`}
+                              <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`Transfer ${nurse.full_name}`}
                                 onClick={(event) => open({ kind: "transfer", nurse }, event.currentTarget)}>
                                 Transfer
                               </Button>
-                              <Button variant="outline" size="sm" aria-label={`${nurse.end_date ? "Change" : "Set"} end date of ${nurse.full_name}`}
+                              <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`${nurse.end_date ? "Change" : "Set"} end date of ${nurse.full_name}`}
                                 onClick={(event) => open({ kind: "end", nurse }, event.currentTarget)}>
                                 {nurse.end_date ? "Change end date" : "Set end date"}
                               </Button>
                             </>
                           )}
                           {canReset(nurse) && (
-                            <Button variant="outline" size="sm" aria-label={`Reset password of ${nurse.full_name}`}
+                            <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`Reset password of ${nurse.full_name}`}
                               onClick={() => { setDone(""); setResetting(nurse) }}>
                               Reset password
                             </Button>
@@ -586,6 +591,7 @@ function NursesPage() {
         setShown(next)
       }} />
       <PasswordDialog shown={shown} onDone={() => setShown(null)} />
+      <LeavePageGuard holding={awaitingPassword} />
     </div>
   )
 }

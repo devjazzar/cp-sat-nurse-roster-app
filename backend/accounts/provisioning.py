@@ -122,9 +122,14 @@ def deactivate(request: HttpRequest, user_id) -> User:
 
 def deactivate_many(users: QuerySet[User]) -> None:
     """For the end of the day rather than a person's request, so no actor. Reads the sessions once however many
-    users there are. Only for users who hold no unit, since nothing here takes one off them."""
+    users there are. Only for users who hold no unit, since nothing here takes one off them.
+
+    `users` is asked twice, because the first answer can be out of date by the time the locks are held: after waiting
+    for a row PostgreSQL looks again only if that row changed, and clearing a nurse's end date changes their profile's.
+    Whatever `users` filters on must be written under the user's lock, as `_locked_nurse` in `nurses.api` does."""
     with transaction.atomic():
-        leaving = list(users.select_for_update(of=("self",)).order_by("pk"))
+        locked = [user.pk for user in users.select_for_update(of=("self",)).order_by("pk")]
+        leaving = list(users.filter(pk__in=locked).order_by("pk"))
         if not leaving:
             return
         User.objects.filter(pk__in=[user.pk for user in leaving]).update(is_active=False)

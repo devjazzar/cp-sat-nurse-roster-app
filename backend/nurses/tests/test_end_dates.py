@@ -97,6 +97,20 @@ def test_the_job_twice_does_nothing_more(cno, nurse, on_day):
     assert AuditEntry.objects.filter(action="user.deactivated", target="h123").count() == 1
 
 
+def test_a_nurse_left_inactive_with_no_end_date_comes_back_through_a_later_date_and_not_through_saving_nothing(cno, nurse):
+    """The job could once leave this behind (see `test_two_at_once`). Saving what is already saved stays a no-op that
+    writes nothing, and the way back is the one the form offers."""
+    User.objects.filter(username="h123").update(is_active=False)
+    entries = AuditEntry.objects.count()
+
+    assert end(cno, nurse, None).json()["is_active"] is False
+    assert AuditEntry.objects.count() == entries
+
+    assert end(cno, nurse, "2026-12-31").json()["is_active"] is True
+    assert end(cno, nurse, None).json()["is_active"] is True
+    assert active()
+
+
 def test_the_job_is_registered_to_run_every_hour():
     from procrastinate.contrib.django import app
     tasks = {task.task.name: task.cron for task in app.periodic_registry.periodic_tasks.values()}

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { createFileRoute, Link, useBlocker } from "@tanstack/react-router"
-import { useEffect, useRef, useState } from "react"
+import { createFileRoute, Link } from "@tanstack/react-router"
+import { type FormEvent, useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -12,14 +12,7 @@ import {
 } from "@/api/generated/endpoints"
 import { Role, type ImportPreview, type ImportRow, type SheetRow } from "@/api/generated/model"
 import { FormField } from "@/components/form-field"
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { LeavePageDialog, LeavePageGuard } from "@/components/password-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
@@ -38,6 +31,7 @@ export const Route = createFileRoute("/_signed-in/nurses_/import")({
 const MAX_ROWS = 500
 const MAX_MEGABYTES = 1
 const COULD_NOT_CHECK = "That did not work. Check your connection and try again."
+const NO_PASSWORD_AGAIN = "Nobody can see these passwords again. A nurse without theirs needs a password reset, one at a time, on the Nurses page."
 const COLUMN_NAMES: Record<string, string> = {
   hospital_id: "Hospital ID",
   full_name: "Full name",
@@ -61,32 +55,48 @@ const fileSchema = z.object({
 })
 type FileChoice = z.infer<typeof fileSchema>
 
-function CheckFileForm({ busy, onChecked }: { busy: boolean; onChecked: (checked: CheckedFile) => void }) {
+function CheckFileForm({ adding, checking, onChecking, onChecked }: {
+  adding: boolean
+  checking: boolean
+  onChecking: (checking: boolean) => void
+  onChecked: (checked: CheckedFile) => void
+}) {
   const check = usePreviewNurseImport({ mutation: { gcTime: 0 } })
   const form = useForm<FileChoice>({ resolver: zodResolver(fileSchema), defaultValues: { file: null } })
-  const [reading, setReading] = useState(false)
   const { errors } = form.formState
 
-  const submit = form.handleSubmit(async ({ file: files }) => {
+  const readAndSend = form.handleSubmit(async ({ file: files }) => {
     let bytes: Blob
-    setReading(true)
     try {
       bytes = new Blob([await (files as FileList)[0].arrayBuffer()])
     } catch {
       // A browser refuses to read a file that was saved again after it was chosen.
       form.setError("file", { message: "This file changed after you chose it. Choose it again." }, { shouldFocus: true })
       return
-    } finally {
-      setReading(false)
     }
-    check.mutate({ data: { file: bytes } }, {
-      onSuccess: (preview) => {
-        check.reset()
-        onChecked({ bytes, preview })
-      },
-      onError: (error) => showServerErrors(form, error),
-    })
+    let preview: ImportPreview
+    try {
+      preview = await check.mutateAsync({ data: { file: bytes } })
+    } catch (error) {
+      showServerErrors(form, error)
+      return
+    }
+    check.reset()
+    onChecked({ bytes, preview })
   })
+
+  /** A check and an import never overlap, because a check's answer replaces the file an import is working from. So
+   *  this is one stretch for the page, from the press to the answer, reading the file and all. */
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (adding || checking) return
+    onChecking(true)
+    try {
+      await readAndSend(event)
+    } finally {
+      onChecking(false)
+    }
+  }
 
   return (
     <form onSubmit={submit} noValidate>
@@ -94,7 +104,7 @@ function CheckFileForm({ busy, onChecked }: { busy: boolean; onChecked: (checked
         <FormField label="CSV file" type="file" accept=".csv,text/csv" registration={form.register("file")} error={errors.file} />
         {check.isError && serverErrors(check.error).length === 0 && <p role="alert" className="text-sm text-destructive">{COULD_NOT_CHECK}</p>}
         <div>
-          <Button type="submit" disabled={busy || reading || check.isPending}>{check.isPending ? "Checking…" : "Check file"}</Button>
+          <Button type="submit" disabled={adding || checking}>{checking ? "Checking…" : "Check file"}</Button>
         </div>
       </FieldGroup>
     </form>
@@ -143,10 +153,11 @@ function RowsTable({ rows, label }: { rows: ImportRow[]; label: string }) {
   )
 }
 
-function Preview({ file, changed, adding, refusal, onAdd }: {
+function Preview({ file, changed, adding, checking, refusal, onAdd }: {
   file: CheckedFile
   changed: boolean
   adding: boolean
+  checking: boolean
   refusal: string | null
   onAdd: (token: string) => void
 }) {
@@ -176,7 +187,7 @@ function Preview({ file, changed, adding, refusal, onAdd }: {
         )}
         {token && (
           <div className="flex flex-col items-start gap-2">
-            <Button onClick={() => onAdd(token)} disabled={adding}>{adding ? "Adding…" : `Add ${nurseCount(rows.length)}`}</Button>
+            <Button onClick={() => onAdd(token)} disabled={adding || checking}>{adding ? "Adding…" : `Add ${nurseCount(rows.length)}`}</Button>
             <p role="status" className="text-sm text-muted-foreground empty:sr-only">
               {adding && "Making each password takes a moment on purpose, so a large file can take a few minutes. Keep this page open."}
             </p>
@@ -254,39 +265,18 @@ function PasswordSheetCard({ rows, onDone }: { rows: SheetRow[]; onDone: () => v
   )
 }
 
-function LeaveDialog({ open, title, action, onStay, onLeave }: { open: boolean; title: string; action: string; onStay: () => void; onLeave: () => void }) {
-  return (
-    <AlertDialog open={open} onOpenChange={(next) => { if (!next) onStay() }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>
-            Nobody can see these passwords again. A nurse without theirs needs a password reset, one at a time, on the Nurses page.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <Button variant="outline" onClick={onStay}>Stay</Button>
-          <Button variant="destructive" onClick={onLeave}>{action}</Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
 function ImportPage() {
   const [file, setFile] = useState<CheckedFile | null>(null)
   const [changed, setChanged] = useState(false)
+  const [checking, setChecking] = useState(false)
   const confirm = useConfirmNurseImport({ mutation: { gcTime: 0 } })
   const [sheet, setSheet] = useState<SheetRow[] | null>(null) // The passwords live in this state and nowhere else.
   const [finishing, setFinishing] = useState(false)
   const [done, setDone] = useState("")
   const heading = useRef<HTMLHeadingElement>(null)
 
-  const holding = sheet !== null || confirm.isPending
-  const blocker = useBlocker({ shouldBlockFn: () => holding, enableBeforeUnload: () => holding, withResolver: true, disabled: !holding })
-
   function add(token: string) {
-    if (!file) return
+    if (!file || checking || confirm.isPending) return
     confirm.mutate({ data: { file: file.bytes, token } }, {
       onSuccess: (answer) => {
         confirm.reset() // The mutation holds its answer until told otherwise, and that answer holds passwords.
@@ -339,15 +329,16 @@ function ImportPage() {
                 <dt className="font-medium">Start date</dt>
                 <dd className="text-muted-foreground">YYYY-MM-DD, such as 2027-01-31. In Excel, format the column as yyyy-mm-dd, or saving changes the dates.</dd>
               </dl>
-              <CheckFileForm busy={confirm.isPending} onChecked={(next) => { setDone(""); setChanged(false); confirm.reset(); setFile(next) }} />
+              {/* The reset only clears what the last import said: no check runs during one, nor one during a check. */}
+              <CheckFileForm adding={confirm.isPending} checking={checking} onChecking={setChecking}
+                onChecked={(next) => { setDone(""); setChanged(false); confirm.reset(); setFile(next) }} />
             </CardContent>
           </Card>
-          {file && <Preview file={file} changed={changed} adding={confirm.isPending} refusal={refusal} onAdd={add} />}
+          {file && <Preview file={file} changed={changed} adding={confirm.isPending} checking={checking} refusal={refusal} onAdd={add} />}
         </>
       )}
-      <LeaveDialog open={blocker.status === "blocked"} title="Leave without the passwords?" action="Leave"
-        onStay={() => blocker.reset?.()} onLeave={() => blocker.proceed?.()} />
-      <LeaveDialog open={finishing} title="Close these passwords?" action="Close passwords"
+      <LeavePageGuard holding={sheet !== null || confirm.isPending} title="Leave without the passwords?" description={NO_PASSWORD_AGAIN} />
+      <LeavePageDialog open={finishing} title="Close these passwords?" description={NO_PASSWORD_AGAIN} action="Close passwords"
         onStay={() => setFinishing(false)} onLeave={finish} />
     </div>
   )
