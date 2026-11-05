@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router"
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -23,15 +23,7 @@ import {
   listRamadanMonthsQueryYearMin as FIRST_YEAR,
 } from "@/api/generated/zod"
 import { CHECKBOX, FormField } from "@/components/form-field"
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -66,35 +58,6 @@ function dayRanges(dates: string[]): string {
 }
 
 const isOneRun = (dates: string[]) => dates.length > 0 && dates.every((day, index) => index === 0 || dayOf(day) === dayOf(dates[index - 1]) + 1)
-
-type Question = { title: string; body: string; confirm: string }
-
-/** Asks before something the CNO would have to enter again by hand. `focusAfter` names what takes focus
- *  once it is done, because the button that opened this is gone by then. Cancelling returns to that button. */
-function ConfirmDialog({ question, pending, failed, focusAfter, onConfirm, onCancel }: {
-  question: Question | null
-  pending: boolean
-  failed: boolean
-  focusAfter: RefObject<string | null>
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  return (
-    <AlertDialog open={question !== null} onOpenChange={(open) => { if (!open && !pending) onCancel() }}>
-      <AlertDialogContent finalFocus={() => (focusAfter.current ? document.getElementById(focusAfter.current) : true)}>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{question?.title}</AlertDialogTitle>
-          <AlertDialogDescription>{question?.body}</AlertDialogDescription>
-        </AlertDialogHeader>
-        {failed && <p role="alert" className="text-sm text-destructive">That did not work. Check your connection and try again.</p>}
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <Button variant="destructive" disabled={pending} onClick={onConfirm}>{question?.confirm}</Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
 
 // Unlike the shifts' table, a row's actions here do not stay in view on a narrow screen: two buttons
 // would cover the dates, which are what the row is for.

@@ -85,13 +85,14 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Approve or reject a submitted roster | | yes | yes | | |
 | Unit rules; nurses' rostering attributes (gender aside: the CNO sets and corrects it) and opening values | | | | own unit | |
 | Read the unit rules, and the rostering attributes and opening values of a unit's nurses | | yes | yes | own unit | |
-| Request windows; decide requests; decide swaps; record leave | | | | own unit | |
+| Request windows; decide requests; decide swaps; record, correct and remove leave, and read it with its type | | | | own unit | |
 | Solve, edit the draft, submit, edit the approved roster, re-plan, re-close a month | | | | own unit | |
 | Exports (CSV, Excel, print page) of any roster version | | yes | yes | own unit | |
 | Reset a staff nurse's password (a manager's stays the System Admin's) | | yes | | own unit | |
 | Read the name of own unit | | | | | yes |
 | View own unit's approved roster (names and shifts only) and own summary | | | | | yes |
 | Make and withdraw requests; propose, accept and reject swaps | | | | | yes |
+| Read own leave with its type (a manager with a nurse profile too) | | | | yes | yes |
 
 Cardinalities: exactly one active CNO and one active Deputy CNO per hospital (a deactivated one
 stays on record, so a successor gets a new account); one Unit Manager per unit and one unit per
@@ -109,6 +110,12 @@ A manager with a nurse profile sets their own attributes, because nobody else ma
 and the Deputy CNO can read the values and the audit log shows whose hand changed them. A nurse's attributes are their
 current unit's manager's until they arrive: the manager of a unit they are due to join reads them, and sets only the
 allowed shifts there, so that unit can roster the months ahead of them.
+
+A leave's type says something about a person, so only the nurse and the manager of that month read it. The CNO and the
+Deputy CNO do not: a roster shows them that a nurse is on leave, and a solve input holds dates alone. The manager of a date
+is the manager of the unit its month falls under, whichever unit the nurse is in today. Across a transfer each reaches their
+own months and sees nothing of the other's: the old unit keeps its past months for late facts, and the new one reaches its
+months before the nurse arrives. A manager with a nurse profile records their own, and the audit log shows whose hand it was.
 
 The CNO stands in for an absent Deputy CNO; the CNO reassigns a unit to another manager
 account when its manager is unavailable. There is no delegation feature.
@@ -161,7 +168,10 @@ returns it to `draft` with the comment kept. Exactly one draft per unit-month.
 when, why and origin (solve, manual edit, re-plan, swap, request), plus the result it came
 from when a solve produced it. The latest version of an approved roster is in force.
 
-**Leave**: nurse, date, leave type, recorded by.
+**Leave**: nurse, date, leave type, recorded by and when; removed by and when. One row a date, and at most one current row
+for a nurse and date. A correction or removal ends the row rather than rewriting it, because the audit log may hold none of
+this. A date must lie within the nurse's start and end dates when it is entered; a later correction to those dates leaves
+the row, flagged to the manager, where it counts for nothing.
 
 **Pinned cell**: nurse, date, shift or off, origin (manager, accepted request, accepted swap).
 
@@ -320,7 +330,7 @@ to read, roster overview and approvals); Deputy CNO (roster overview, approvals,
 rostering attributes to read); Unit Manager (unit rules, rostering attributes, nurses, request
 windows and requests, swaps, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close); Staff Nurse (unit roster, own summary,
-requests, swaps, notifications, password). The Deputy CNO, Unit Manager and Staff Nurse also read
+requests, swaps, own leave, notifications, password). The Deputy CNO, Unit Manager and Staff Nurse also read
 the shift catalogue, leave types, holidays and Ramadan; the System Admin may open those pages
 but has no link to them, because nothing in that role's work calls for it.
 
@@ -341,7 +351,8 @@ who took it and how many nurses it held, and nothing from the file. Its import t
 logged. Nurses see colleagues' names and shifts only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
 changed and by whom, without its value or even which one, since a change to a two-way flag gives its value away. Unit
 rules are logged with their values, as hospital rules are: they say nothing about a person. Attributes also stay off
-the staff list, a file that leaves the system.
+the staff list, a file that leaves the system. Leave is logged the same way, as whose changed and by whom: not its type, its
+dates or how many, since a long run gives the type away and a date is part of a roster.
 
 ### Nurse import and the staff list
 
@@ -375,8 +386,8 @@ last backup and queue state. Nothing else is bundled.
   by the role that owns them.
 - A unit manager may roster any future month, not only the next.
 - Nothing is hard-deleted: units are archived when they have no nurses, nurses are
-  deactivated, requests and swaps keep their final state, every roster version and solve is
-  kept. The exceptions are a public holiday and a month's fixed Ramadan dates, which have no
+  deactivated, requests and swaps keep their final state, leave corrected or removed stays as
+  an ended row, every roster version and solve is kept. The exceptions are a public holiday and a month's fixed Ramadan dates, which have no
   history of their own: what a solve used is stored with it and the audit log keeps the rest.
 
 ## 10. Repository, build and tests

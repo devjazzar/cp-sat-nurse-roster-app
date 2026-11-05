@@ -10,3 +10,8 @@
 - [ ] Live validation debounced through one hook, calling validate with the grid as it would be; violations and cost delta shown
 - [ ] Saved pins stored as pinned cells with origin 'manager' and included in the next solve input
 - [ ] API tests cover saving pins, validation pass-through and that a re-solve keeps pins
+
+## Comments
+
+**From ticket 10 (2026-11-05).** The solver refuses a shift pinned on a leave date. The cell editor must refuse pinning a shift on one, and leave can now arrive on a date already pinned: `_refuse_dates` in `nurses/leave_api.py` is the path of every write that adds a date, where a refusal or a warning belongs. Removing leave goes only through `_rows_to_change`, and leaves the cell as it stands.
+

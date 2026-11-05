@@ -58,9 +58,12 @@ def _month_in_range(value: str) -> str:
     return value
 
 
+MonthText = Annotated[str, Field(pattern=MONTH_PATTERN, examples=["2027-01"]), AfterValidator(_month_in_range)]
+
+
 class TransferBody(Body):
     unit_id: UUID
-    from_month: Annotated[str, Field(pattern=MONTH_PATTERN, examples=["2027-01"]), AfterValidator(_month_in_range)]
+    from_month: MonthText
 
 
 class EndDateBody(Body):

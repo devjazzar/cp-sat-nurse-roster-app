@@ -1,3 +1,5 @@
+import datetime as dt
+
 from django.conf import settings
 from django.db import models
 from django.db.models.functions import UUID7
@@ -49,4 +51,37 @@ class Placement(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["nurse", "from_month"], name="nurses_one_placement_a_month"),
             models.CheckConstraint(condition=models.Q(from_month__day=1), name="nurses_placement_starts_a_month"),
+        ]
+
+
+class LeaveQuerySet(models.QuerySet):
+    def current(self) -> "LeaveQuerySet":
+        return self.filter(removed_at__isnull=True)
+
+    def in_month(self, month: dt.date) -> "LeaveQuerySet":
+        return self.filter(date__year=month.year, date__month=month.month)
+
+
+class Leave(models.Model):
+    """One date a nurse is off for a recorded reason. A correction or a removal ends the row rather than rewriting or
+    deleting it, because the audit log may hold neither the date nor the type (the System Admin reads it), so this is
+    the only record of what was there. Only `current()` rows mean anything to anyone. The unit is not here: the manager
+    of a date is whoever runs its month, which a placement says (`nurses.membership.placement_in`)."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    nurse = models.ForeignKey(NurseProfile, on_delete=models.PROTECT, related_name="leave")
+    date = models.DateField()
+    leave_type = models.ForeignKey("hospital.LeaveType", on_delete=models.PROTECT, related_name="+")
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    removed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    removed_at = models.DateTimeField(null=True, blank=True)
+
+    objects = LeaveQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["date"]
+        constraints = [
+            models.UniqueConstraint(fields=["nurse", "date"], condition=models.Q(removed_at__isnull=True),
+                                    name="nurses_one_leave_a_day"),
         ]

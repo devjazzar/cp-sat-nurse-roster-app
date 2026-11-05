@@ -1421,6 +1421,139 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
 
 
 /**
+ * The unit's month. A nurse's month in another unit is not here, before or after a transfer.
+ * @summary Unit Leave
+ */
+export const ListUnitLeaveParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const listUnitLeaveQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ListUnitLeaveQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(listUnitLeaveQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The hospital\'s current month when left out.')
+})
+
+export const ListUnitLeaveResponse = zod.object({
+  "month": zod.string().describe('YYYY-MM.'),
+  "nurses": zod.array(zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string()
+})).describe('Who may have leave recorded this month, and anyone who has some.'),
+  "runs": zod.array(zod.object({
+  "leave_ids": zod.array(zod.uuid()),
+  "nurse": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string()
+}),
+  "leave_type": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean().describe('False once the CNO has retired it. Recorded leave keeps it.')
+}),
+  "first": zod.iso.date(),
+  "last": zod.iso.date(),
+  "days": zod.int(),
+  "outside_dates": zod.boolean().describe('A correction to the nurse\'s start or end date has left these days outside them, where they count for nothing. Its manager can remove them.')
+}).describe('Consecutive days of one nurse and one type in the month asked for, which is what a manager thinks of as one leave.'))
+})
+
+
+/**
+ * All of it or none of it. A manager with a nurse profile records their own, because nobody else may, and the log
+ * shows whose hand it was.
+ * @summary Record Leave
+ */
+export const RecordLeaveParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const RecordLeaveBody = zod.object({
+  "leave_type_id": zod.uuid(),
+  "first": zod.iso.date(),
+  "last": zod.iso.date().describe('The same as `first` for one day.'),
+  "nurse_id": zod.uuid()
+})
+
+export const RecordLeaveResponse = zod.object({
+  "leave_ids": zod.array(zod.uuid()),
+  "nurse": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string()
+}),
+  "leave_type": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean().describe('False once the CNO has retired it. Recorded leave keeps it.')
+}),
+  "first": zod.iso.date(),
+  "last": zod.iso.date(),
+  "days": zod.int(),
+  "outside_dates": zod.boolean().describe('A correction to the nurse\'s start or end date has left these days outside them, where they count for nothing. Its manager can remove them.')
+}).describe('Consecutive days of one nurse and one type in the month asked for, which is what a manager thinks of as one leave.')
+
+
+/**
+ * Days that stay as they were keep their rows. The rest end, and new ones begin.
+ * @summary Change Leave
+ */
+export const ChangeLeaveParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const changeLeaveBodyLeaveIdsMax = 366;
+
+
+
+export const ChangeLeaveBody = zod.object({
+  "leave_type_id": zod.uuid(),
+  "first": zod.iso.date(),
+  "last": zod.iso.date().describe('The same as `first` for one day.'),
+  "leave_ids": zod.array(zod.uuid()).min(1).max(changeLeaveBodyLeaveIdsMax).describe('The leave these dates and this type replace, all of one nurse.')
+})
+
+export const ChangeLeaveResponse = zod.object({
+  "leave_ids": zod.array(zod.uuid()),
+  "nurse": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string()
+}),
+  "leave_type": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "active": zod.boolean().describe('False once the CNO has retired it. Recorded leave keeps it.')
+}),
+  "first": zod.iso.date(),
+  "last": zod.iso.date(),
+  "days": zod.int(),
+  "outside_dates": zod.boolean().describe('A correction to the nurse\'s start or end date has left these days outside them, where they count for nothing. Its manager can remove them.')
+}).describe('Consecutive days of one nurse and one type in the month asked for, which is what a manager thinks of as one leave.')
+
+
+/**
+ * @summary Remove Leave
+ */
+export const RemoveLeaveParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const removeLeaveBodyLeaveIdsMax = 366;
+
+
+
+export const RemoveLeaveBody = zod.object({
+  "leave_ids": zod.array(zod.uuid()).min(1).max(removeLeaveBodyLeaveIdsMax)
+})
+
+export const RemoveLeaveResponse = zod.void()
+
+
+/**
  * Everyone for the CNO. For a manager, the nurses of their unit and those due to join, naming no other unit.
  * @summary List Nurses
  */
@@ -1778,3 +1911,27 @@ export const ConfirmNurseImportResponse = zod.object({
  * @summary Export Staff List
  */
 export const ExportStaffListResponse = zod.unknown()
+
+
+/**
+ * Takes no nurse, so it cannot answer for a colleague. A manager is here because a manager with a nurse profile is a
+ * nurse too, and one holding no unit has no other way to read theirs; one with no profile simply has none. Days left
+ * outside the nurse's dates by a later correction are not here: they count for nothing, and are their manager's to clear.
+ * @summary My Leave
+ */
+export const getMyLeaveQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetMyLeaveQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getMyLeaveQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The hospital\'s current month when left out.')
+})
+
+export const GetMyLeaveResponse = zod.object({
+  "month": zod.string().describe('YYYY-MM.'),
+  "runs": zod.array(zod.object({
+  "first": zod.iso.date(),
+  "last": zod.iso.date(),
+  "days": zod.int(),
+  "leave_type": zod.string()
+}))
+})

@@ -12,6 +12,23 @@ const monthAndYear = new Intl.DateTimeFormat("en-GB", { month: "long", year: "nu
 /** "January 2027" from "2027-01". */
 export const monthName = (month: string) => monthAndYear.format(asDate(`${month}-01`))
 
+const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+/** "10 Nov 2026" from "2026-11-10". */
+export const shortDay = (iso: string) => shortDate.format(asDate(iso))
+/** "10 Nov 2026", "10 to 13 Nov 2026", or both in full across a month's end. */
+export function dayRange(first: string, last: string): string {
+  if (first === last) return shortDay(first)
+  if (first.slice(0, 7) === last.slice(0, 7)) return `${asDate(first).getUTCDate()} to ${shortDay(last)}`
+  return `${shortDay(first)} to ${shortDay(last)}`
+}
+
+/** "2026-12" from "2026-11" and 1. */
+export function monthAfter(month: string, by: number): string {
+  const day = asDate(`${month}-01`)
+  day.setUTCMonth(day.getUTCMonth() + by)
+  return day.toISOString().slice(0, 7)
+}
+
 /** `Table`'s container when nothing in the table can take focus, because a keyboard still has to scroll it. */
 export function scrollableRegion(label: string) {
   return {

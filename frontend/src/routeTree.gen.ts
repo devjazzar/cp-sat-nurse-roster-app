@@ -17,7 +17,9 @@ import { Route as SignedInAuditLogRouteImport } from './routes/_signed-in/audit-
 import { Route as SignedInHealthRouteImport } from './routes/_signed-in/health'
 import { Route as SignedInHolidaysRouteImport } from './routes/_signed-in/holidays'
 import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/hospital-rules'
+import { Route as SignedInLeaveRouteImport } from './routes/_signed-in/leave'
 import { Route as SignedInLeaveTypesRouteImport } from './routes/_signed-in/leave-types'
+import { Route as SignedInMyLeaveRouteImport } from './routes/_signed-in/my-leave'
 import { Route as SignedInNursesRouteImport } from './routes/_signed-in/nurses'
 import { Route as SignedInRosteringAttributesRouteImport } from './routes/_signed-in/rostering-attributes'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
@@ -66,9 +68,19 @@ const SignedInHospitalRulesRoute = SignedInHospitalRulesRouteImport.update({
   path: '/hospital-rules',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInLeaveRoute = SignedInLeaveRouteImport.update({
+  id: '/leave',
+  path: '/leave',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInLeaveTypesRoute = SignedInLeaveTypesRouteImport.update({
   id: '/leave-types',
   path: '/leave-types',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInMyLeaveRoute = SignedInMyLeaveRouteImport.update({
+  id: '/my-leave',
+  path: '/my-leave',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInNursesRoute = SignedInNursesRouteImport.update({
@@ -121,7 +133,9 @@ export interface FileRoutesByFullPath {
   '/health': typeof SignedInHealthRoute
   '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
+  '/leave': typeof SignedInLeaveRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
+  '/my-leave': typeof SignedInMyLeaveRoute
   '/nurses': typeof SignedInNursesRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
@@ -138,7 +152,9 @@ export interface FileRoutesByTo {
   '/health': typeof SignedInHealthRoute
   '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
+  '/leave': typeof SignedInLeaveRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
+  '/my-leave': typeof SignedInMyLeaveRoute
   '/nurses': typeof SignedInNursesRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
@@ -158,7 +174,9 @@ export interface FileRoutesById {
   '/_signed-in/health': typeof SignedInHealthRoute
   '/_signed-in/holidays': typeof SignedInHolidaysRoute
   '/_signed-in/hospital-rules': typeof SignedInHospitalRulesRoute
+  '/_signed-in/leave': typeof SignedInLeaveRoute
   '/_signed-in/leave-types': typeof SignedInLeaveTypesRoute
+  '/_signed-in/my-leave': typeof SignedInMyLeaveRoute
   '/_signed-in/nurses': typeof SignedInNursesRoute
   '/_signed-in/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
@@ -179,7 +197,9 @@ export interface FileRouteTypes {
     | '/health'
     | '/holidays'
     | '/hospital-rules'
+    | '/leave'
     | '/leave-types'
+    | '/my-leave'
     | '/nurses'
     | '/rostering-attributes'
     | '/settings'
@@ -196,7 +216,9 @@ export interface FileRouteTypes {
     | '/health'
     | '/holidays'
     | '/hospital-rules'
+    | '/leave'
     | '/leave-types'
+    | '/my-leave'
     | '/nurses'
     | '/rostering-attributes'
     | '/settings'
@@ -215,7 +237,9 @@ export interface FileRouteTypes {
     | '/_signed-in/health'
     | '/_signed-in/holidays'
     | '/_signed-in/hospital-rules'
+    | '/_signed-in/leave'
     | '/_signed-in/leave-types'
+    | '/_signed-in/my-leave'
     | '/_signed-in/nurses'
     | '/_signed-in/rostering-attributes'
     | '/_signed-in/settings'
@@ -291,11 +315,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInHospitalRulesRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/leave': {
+      id: '/_signed-in/leave'
+      path: '/leave'
+      fullPath: '/leave'
+      preLoaderRoute: typeof SignedInLeaveRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/leave-types': {
       id: '/_signed-in/leave-types'
       path: '/leave-types'
       fullPath: '/leave-types'
       preLoaderRoute: typeof SignedInLeaveTypesRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/my-leave': {
+      id: '/_signed-in/my-leave'
+      path: '/my-leave'
+      fullPath: '/my-leave'
+      preLoaderRoute: typeof SignedInMyLeaveRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/nurses': {
@@ -362,7 +400,9 @@ interface SignedInRouteChildren {
   SignedInHealthRoute: typeof SignedInHealthRoute
   SignedInHolidaysRoute: typeof SignedInHolidaysRoute
   SignedInHospitalRulesRoute: typeof SignedInHospitalRulesRoute
+  SignedInLeaveRoute: typeof SignedInLeaveRoute
   SignedInLeaveTypesRoute: typeof SignedInLeaveTypesRoute
+  SignedInMyLeaveRoute: typeof SignedInMyLeaveRoute
   SignedInNursesRoute: typeof SignedInNursesRoute
   SignedInRosteringAttributesRoute: typeof SignedInRosteringAttributesRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
@@ -379,7 +419,9 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInHealthRoute: SignedInHealthRoute,
   SignedInHolidaysRoute: SignedInHolidaysRoute,
   SignedInHospitalRulesRoute: SignedInHospitalRulesRoute,
+  SignedInLeaveRoute: SignedInLeaveRoute,
   SignedInLeaveTypesRoute: SignedInLeaveTypesRoute,
+  SignedInMyLeaveRoute: SignedInMyLeaveRoute,
   SignedInNursesRoute: SignedInNursesRoute,
   SignedInRosteringAttributesRoute: SignedInRosteringAttributesRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,

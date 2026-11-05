@@ -12,3 +12,11 @@
 - [ ] Nurse roster page shows the approved roster for the current and coming months with names and shifts only
 - [ ] Overview of every unit's state per month for the CNO and Deputy CNO; read-only roster view of any unit
 - [ ] API tests cover the state machine, authorization of each transition, and the nurse view's field restriction
+
+## Comments
+
+**From ticket 10 (2026-11-05): two things to hold.**
+
+- **Colleagues see a day off.** Ticket 10 ticked this at the seam only, and this ticket's nurse roster page is where it becomes true or false. A colleague's leave day must be the same `""` as any day off, which `roster` in a result already is. So the read's plain schema must not take anything from the result's `nurses[id]` (it holds `leave` and `leave_credit`), from the stored input's `nurses[].leave`, or from `Leave`, for anyone but the nurse reading. Add a test that a colleague's leave day and day off are indistinguishable in the answer, and one that their own cell may differ. An approver's read-only view may show leave as leave, with no type: only the nurse and the month's manager read that.
+- **Leave under a frozen or approved roster.** Leave writes look at no roster today. A submitted roster is frozen, but leave recorded during it changes what the approver is deciding on: refuse it there, or re-validate and show it, in `_refuse_dates` and `_rows_to_change` in `nurses/leave_api.py`. Ticket 16 has the approved case.
+

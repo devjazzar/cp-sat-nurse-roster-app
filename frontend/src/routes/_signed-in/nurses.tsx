@@ -44,7 +44,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
-import { asDate, cn, monthName, scrollableRegion } from "@/lib/utils"
+import { cn, monthName, scrollableRegion, shortDay } from "@/lib/utils"
 import { ROLE_NAMES } from "@/roles"
 import { onlyFor } from "@/session"
 
@@ -61,8 +61,6 @@ const GENDERS = { F: "Female", M: "Male" } as const
 const MONTHS_AHEAD = 24
 const COULD_NOT_SAVE = "That did not work. Check your connection and try again."
 
-const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
-const dayName = (iso: string) => shortDate.format(asDate(iso))
 
 /** This month and the ones after it. The browser's month, and the API has the last word on the hospital's. */
 function comingMonths(): string[] {
@@ -340,9 +338,9 @@ function EndDateForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
       onSuccess: (next) => {
         refresh()
         if (!next.end_date) onDone(`${next.full_name} has no end date now.`)
-        else if (!isStaffNurse) onDone(`The end date of ${next.full_name} is ${dayName(next.end_date)}. Their account stays active.`)
+        else if (!isStaffNurse) onDone(`The end date of ${next.full_name} is ${shortDay(next.end_date)}. Their account stays active.`)
         else if (!next.is_active) onDone(`${next.full_name} is deactivated.`)
-        else onDone(`${next.full_name} stays active until ${dayName(next.end_date)}.`)
+        else onDone(`${next.full_name} stays active until ${shortDay(next.end_date)}.`)
       },
       onError: (error) => showServerErrors(form, error),
     })
@@ -423,7 +421,7 @@ function Status({ nurse, isCno }: { nurse: NurseRow; isCno: boolean }) {
         {nurse.role !== Role.staff_nurse && <Badge variant="outline">{ROLE_NAMES[nurse.role]}</Badge>}
         {nurse.must_change_password && <Badge variant="outline">Password change due</Badge>}
       </div>
-      {nurse.end_date && <span className="text-muted-foreground">End date {dayName(nurse.end_date)}</span>}
+      {nurse.end_date && <span className="text-muted-foreground">End date {shortDay(nurse.end_date)}</span>}
       {transferLines(nurse, isCno).map((line) => <span key={line} className="text-muted-foreground">{line}</span>)}
     </div>
   )
@@ -545,7 +543,7 @@ function NursesPage() {
                       <TableCell translate="no">{nurse.hospital_id}</TableCell>
                       {isCno && <TableCell>{nurse.unit?.name}</TableCell>}
                       <TableCell>{GENDERS[nurse.gender]}</TableCell>
-                      <TableCell className="tabular-nums">{dayName(nurse.start_date)}</TableCell>
+                      <TableCell className="tabular-nums">{shortDay(nurse.start_date)}</TableCell>
                       <TableCell><Status nurse={nurse} isCno={isCno} /></TableCell>
                       <TableCell>
                         {/* Two by two for the CNO, because four in a line push the last out of view on a laptop. */}

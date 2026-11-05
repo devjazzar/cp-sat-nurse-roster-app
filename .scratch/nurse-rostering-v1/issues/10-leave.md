@@ -6,7 +6,54 @@
 
 **Status:** ready-for-agent
 
-- [ ] Record, edit and remove leave entries (nurse, leave type, dates), audited
-- [ ] Unit leave list by month and per-nurse view
-- [ ] A nurse sees her own leave with its type; colleagues see a day off
-- [ ] API tests cover recording, scoping and visibility
+- [x] Record, edit and remove leave entries (nurse, leave type, dates), audited
+- [x] Unit leave list by month and per-nurse view
+- [x] A nurse sees her own leave with its type; colleagues see a day off (the second half at the seam only, as no roster exists: see Comments)
+- [x] API tests cover recording, scoping and visibility
+
+## Comments
+
+Implemented on 2026-11-05. Backend under pytest on real PostgreSQL 18, frontend under Vitest with the real routes and generated client over a stubbed `fetch`.
+
+Driven in the built-in browser, **not on the dev overlay**, whose `admin` password no session knows and which was not running: a scratch PostgreSQL 18 container held a CNO, a Deputy CNO, a System Admin, managers and nurses, with `runserver` on its own port and Vite on 5173. It is removed. As a manager: recording three days, with focus back on the button; the empty form refused on the client; refusals beside First day with focus on it, for a date already on leave, for a date before the start date, and for a month the nurse is due in another unit, naming no unit; changing the type and extending the dates, with focus on the button that stays; one nurse's month from their name, with the count, in the address; the question before removing, Escape returning to the row's button, and removal with focus on Record leave; no sideways page scroll at 375 px on the manager's page with its form and table, and on the nurse's page. As a staff nurse: the home's link and My leave with the type. Over `fetch` on the same stack: a colleague's month empty, 403 on the unit's list for the staff nurse, the CNO and another unit's manager; the other unit's manager with the transferring nurse on the list for January and not for December; the System Admin's entries with actor and target and nothing else. The new action names on the audit page are a route test. The Deputy CNO was not signed in: their 403 is an API test. Dates went in by `form_input`, because typing into a native date input by tool did not take. After the review below, only the month link's focus was driven again; the other fixes are API and route tests.
+
+There are no read-only roles on these pages: only the manager of a month and the nurse read leave.
+
+**Migration:** `nurses/0003_leave.py`. The dev stack's `web` runs migrations at start, so it needs a restart to pick it up, and its running Vite a restart for the regenerated client, as ticket 07 noted. Neither was touched.
+
+What was not checked:
+
+- **"Colleagues see a day off" against a roster: none exists, so this half of the criterion holds only at the seam, and it is ticked on that footing.** What is proven: a staff nurse has no endpoint that reads anyone else's leave (403 on the unit's list and every write; `my-leave` takes no nurse and ignores one sent); a solve input carries dates and no type (`test_a_solve_input_carries_dates_and_no_type`); and the solver's own suite holds that a leave day is `""` in `roster`, the same as a day off (`solver/tests/test_request.py`). What is not: that the roster page tickets 14 and 15 build keeps to it. See their comments. It can still be broken there, because a result's `nurses[id].leave` names the dates.
+- **The solve input is proven at the seam:** saved leave through `nurses.rostering.leave_dates` and the solver's `load_request`, as ticket 09 did: first and last day of the month, a whole month, none, and corrected, removed and other months' leave staying out. No solve ran.
+- **The dev overlay and the production compose file through Caddy.** See above.
+- **A retired type, days flagged Outside their dates, a 409, and a manager with no unit in a browser.** Route tests and API tests.
+- **A transfer in a browser.** One refusal was driven; the rest is API tests.
+- **Two people at once.** The nurse's row lock and the partial unique constraint are there by design; no test races them, though a test proves the constraint.
+- **Dark mode, and browsers other than the built-in one.**
+
+Decisions this ticket took:
+
+- **The audit log holds whose leave changed and by whom, and nothing else:** `leave.recorded`, `leave.changed` and `leave.removed` have no before or after. No type, because Sick or Maternity says something about a person. No dates, because a date is part of a roster the System Admin may not see. No count, because seventy days says Maternity. A test reads the entry as the System Admin does. **Worth your review:** an investigator learns from the log that something changed and when, and has to go to the rows for what.
+- **So nothing is deleted or rewritten.** A correction or removal ends the row (`removed_at`, `removed_by`) and a correction starts new ones, which is the only record of what was there, since the log has none of it. Days a correction leaves as they were keep their rows, so `recorded_by` stays true. Section 9 names this. **No page or endpoint reads ended rows yet; only the database does.**
+- **Only the nurse and the manager of that month read a leave's type. The CNO and the Deputy CNO do not**, and get 403 on the unit's list. Section 3 said only that a manager records it. An approver sees from a roster that a nurse is on leave, and a solve input holds no type, so they lose nothing they need. Giving them the read later is one word, and taking it back would not be. **Worth your review:** they do read a nurse's breastfeeding flag, so this may be stricter than you want.
+- **An entry is a run.** Section 4 has one row a date and the ticket has an entry with several dates. The rows stay one a date, for the solver and for overlaps, and the list groups consecutive days of one nurse and one type, within the month shown, into one line that changes and is removed together. Otherwise a fortnight's annual leave would take fourteen removals. A body names its rows by id. A long leave across a month's end is two lines, one in each month. Dates are entered as a first and last day, so a gap takes two saves, and the API takes the same pair: "a date entered twice" in one request cannot be said.
+- **A date entered twice, or an overlap, is refused whole,** beside First day, saying which date and how many more, and pointing to Change. It does not overwrite, because the two types may differ and one of them may be right. Two nurses may be off on one day. A removed date can be recorded again.
+- **Whose month:** `membership.placement_in`. A request whose days are not all in the caller's unit's months is refused whole, beside First day, naming no other unit, and before the nurse's dates are looked at, so a manager they have left learns nothing of them. A nurse the caller's unit has never held, and leave outside the caller's months, are the same 403 as a nurse or leave that does not exist. A transfer waiting replaced by another moves that month's leave to the new month's manager with the month, because leave is on the nurse.
+- **A nurse due to join by transfer:** the new manager records their months from the start of that placement. **A new nurse starting later:** their unit is theirs from now, and only dates from the start date are accepted.
+- **Dates:** within the start and end dates, both included, when entered. **A correction to those dates afterwards does not touch leave**, because it can be corrected back: the row stays, is marked Outside their dates on the manager's list, can be removed, and counts for nothing, since days outside are credited like leave anyway. A change to such a row is refused on its date, so it can only be removed. **The nurse does not see these days,** since they count for nothing.
+- **No limit on how far back or forward,** because section 5 lets a manager record late facts and roster any future month, up to 366 days at a time. Ticket 21 closes the past.
+- **A retired type** cannot be newly chosen, and leave that has it may keep it when its dates change. The form offers it as "(retired)" on that leave only.
+- **A stale page gets a 409,** saying so, rather than undoing someone's correction. Ids change on a correction, which is what detects it.
+- **A nurse's own view is a new page, My leave,** month by month, with a link in the header and on the home, because their home says only "No roster yet." Ticket 15's own month should take it in. Its endpoint and page also admit a manager, because a manager with a nurse profile is a nurse and one holding no unit has no other way to read theirs; the Leave page links there only in that case, and a manager with a unit reads their own on the unit's list. A manager with no profile gets an empty month.
+- **Editing or removing leave once a month's roster exists: nothing checks, because there is no roster.** Every write says so at one comment in `nurses/leave_api.py`, and tickets 11, 13, 14, 16, 19 and 21 have what they must add in their own comments. No month closes either.
+- **The month defaults to the hospital's,** from the API, which says which it chose, so a page has no browser clock to get wrong at midnight.
+- **In the app `nurses`,** beside the attributes: leave is about a nurse, and section 8's `rosters` does not exist yet.
+
+Things a later ticket should know:
+
+- **Membership:** `placed_in(unit, month)` is whose month it is there, whatever their dates. `rostered_in(unit, month)` is those with a day in it between their dates, without a nurse who was never present: the query ticket 07 asked for. `placement_in(nurse, month)` is the placement of any month.
+- **Audit actions added:** `leave.recorded`, `leave.changed`, `leave.removed`, named in `ACTION_NAMES`.
+- **Lock order:** the user and the profile, then the leave type's row. Leave takes no catalogue lock, because no leave type write does.
+- **Frontend:** `ConfirmDialog` moved to `components/confirm-dialog.tsx`, with an optional `failure` message. `MonthNav` and `MONTH_LINK` are in `components/month-nav.tsx`. `shortDay`, `dayRange` and `monthAfter` are in `lib/utils.ts`. `buttonVariants` on a link needs `cn(...)` or its `border-transparent` wins and an outline has no border: **the year links on the holidays page and "Newest entries" on the audit log have this bug today**, left as they are.
+
+**Review (2026-11-05).** The `code-review` skill's two axes found focus lost on every month change (the page unmounted while the next month loaded), a refusal telling a former manager a nurse's current end date, a save's answer read after commit (a 500 if removed at that moment), the per-nurse view silently lost on stepping past a transfer, days that count for nothing shown to the nurse, a stale list of tickets in a comment, three false claims in these comments, duplicates and `kind` as a name for a leave type. All fixed. Left as judgement calls: TanStack Table, as in tickets 07 to 09, which ADR 0008 names and this extends, with the sticky actions column left out as on the holidays page, both said in a comment; `unit_in_scope` is read before the nurse's lock, as in ticket 09, so a manager taken off a unit at that very moment can finish one write; "run" for consecutive days of leave is not a glossary word, and the glossary's Solve avoids it for another meaning; `first, last` travel together; months stay strings; `ConfirmDialog` and `shortDay` were moved out of their pages, unasked, because this ticket reuses them; `COULD_NOT_SAVE`'s words repeat across pages as they did. `better-interface` and its domain skills were held against the pages by hand.

@@ -27,8 +27,10 @@ const UNITS = { to: "/units", label: "Units" } as const
 const NURSES = { to: "/nurses", label: "Nurses" } as const
 const UNIT_RULES = { to: "/unit-rules", label: "Unit rules" } as const
 const ATTRIBUTES = { to: "/rostering-attributes", label: "Rostering attributes" } as const
-const WITH_CATALOGUE = linkOptions([HOME, ...CATALOGUE])
-const MANAGER_PAGES = linkOptions([HOME, UNIT_RULES, ATTRIBUTES, NURSES, ...CATALOGUE])
+const LEAVE = { to: "/leave", label: "Leave" } as const
+const MY_LEAVE = { to: "/my-leave", label: "My leave" } as const
+const NURSE_PAGES = linkOptions([HOME, MY_LEAVE, ...CATALOGUE])
+const MANAGER_PAGES = linkOptions([HOME, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
 const DEPUTY_PAGES = linkOptions([HOME, UNIT_RULES, ATTRIBUTES, RULES, ...CATALOGUE])
 const CNO_PAGES = linkOptions([HOME, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, RULES, ...CATALOGUE])
 
@@ -40,5 +42,5 @@ export const NAVIGATION = {
   cno: CNO_PAGES,
   deputy_cno: DEPUTY_PAGES,
   unit_manager: MANAGER_PAGES,
-  staff_nurse: WITH_CATALOGUE,
+  staff_nurse: NURSE_PAGES,
 } satisfies Record<Role, unknown>

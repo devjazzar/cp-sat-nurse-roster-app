@@ -1694,6 +1694,204 @@
         ]
       }
     },
+    "/api/units/{unit_id}/leave": {
+      "get": {
+        "operationId": "listUnitLeave",
+        "summary": "Unit Leave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The hospital's current month when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The hospital's current month when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitLeaveMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "The unit's month. A nurse's month in another unit is not here, before or after a transfer.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "recordLeave",
+        "summary": "Record Leave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveRun"
+                }
+              }
+            }
+          }
+        },
+        "description": "All of it or none of it. A manager with a nurse profile records their own, because nobody else may, and the log\nshows whose hand it was.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewLeaveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/leave/change": {
+      "post": {
+        "operationId": "changeLeave",
+        "summary": "Change Leave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveRun"
+                }
+              }
+            }
+          }
+        },
+        "description": "Days that stay as they were keep their rows. The rest end, and new ones begin.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveChangeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/leave/remove": {
+      "post": {
+        "operationId": "removeLeave",
+        "summary": "Remove Leave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveRemovalBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/nurses": {
       "get": {
         "operationId": "listNurses",
@@ -2201,6 +2399,57 @@
           }
         },
         "description": "Every nurse the CNO's list shows, deactivated ones too, by name. Its first columns are the import's.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/my-leave": {
+      "get": {
+        "operationId": "getMyLeave",
+        "summary": "My Leave",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The hospital's current month when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The hospital's current month when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyLeaveMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "Takes no nurse, so it cannot answer for a colleague. A manager is here because a manager with a nurse profile is a\nnurse too, and one holding no unit has no other way to read theirs; one with no profile simply has none. Days left\noutside the nurse's dates by a later correction are not here: they count for nothing, and are their manager's to clear.",
         "tags": [
           "nurses"
         ],
@@ -4380,6 +4629,251 @@
         "title": "AllowedShiftsBody",
         "type": "object"
       },
+      "MonthFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. The hospital's current month when left out.",
+            "title": "Month"
+          }
+        },
+        "title": "MonthFilter",
+        "type": "object"
+      },
+      "LeaveNurse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hospital_id",
+          "full_name"
+        ],
+        "title": "LeaveNurse",
+        "type": "object"
+      },
+      "LeaveRun": {
+        "description": "Consecutive days of one nurse and one type in the month asked for, which is what a manager thinks of as one leave.",
+        "properties": {
+          "leave_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Leave Ids",
+            "type": "array"
+          },
+          "nurse": {
+            "$ref": "#/components/schemas/LeaveNurse"
+          },
+          "leave_type": {
+            "$ref": "#/components/schemas/LeaveTypeChoice"
+          },
+          "first": {
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "outside_dates": {
+            "description": "A correction to the nurse's start or end date has left these days outside them, where they count for nothing. Its manager can remove them.",
+            "title": "Outside Dates",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "leave_ids",
+          "nurse",
+          "leave_type",
+          "first",
+          "last",
+          "days",
+          "outside_dates"
+        ],
+        "title": "LeaveRun",
+        "type": "object"
+      },
+      "LeaveTypeChoice": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "active": {
+            "description": "False once the CNO has retired it. Recorded leave keeps it.",
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active"
+        ],
+        "title": "LeaveTypeChoice",
+        "type": "object"
+      },
+      "UnitLeaveMonth": {
+        "properties": {
+          "month": {
+            "description": "YYYY-MM.",
+            "title": "Month",
+            "type": "string"
+          },
+          "nurses": {
+            "description": "Who may have leave recorded this month, and anyone who has some.",
+            "items": {
+              "$ref": "#/components/schemas/LeaveNurse"
+            },
+            "title": "Nurses",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/LeaveRun"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "nurses",
+          "runs"
+        ],
+        "title": "UnitLeaveMonth",
+        "type": "object"
+      },
+      "NewLeaveBody": {
+        "additionalProperties": false,
+        "properties": {
+          "leave_type_id": {
+            "format": "uuid",
+            "title": "Leave Type Id",
+            "type": "string"
+          },
+          "first": {
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "description": "The same as `first` for one day.",
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          },
+          "nurse_id": {
+            "format": "uuid",
+            "title": "Nurse Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "leave_type_id",
+          "first",
+          "last",
+          "nurse_id"
+        ],
+        "title": "NewLeaveBody",
+        "type": "object"
+      },
+      "LeaveChangeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "leave_type_id": {
+            "format": "uuid",
+            "title": "Leave Type Id",
+            "type": "string"
+          },
+          "first": {
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "description": "The same as `first` for one day.",
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          },
+          "leave_ids": {
+            "description": "The leave these dates and this type replace, all of one nurse.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 366,
+            "minItems": 1,
+            "title": "Leave Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "leave_type_id",
+          "first",
+          "last",
+          "leave_ids"
+        ],
+        "title": "LeaveChangeBody",
+        "type": "object"
+      },
+      "LeaveRemovalBody": {
+        "additionalProperties": false,
+        "properties": {
+          "leave_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 366,
+            "minItems": 1,
+            "title": "Leave Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "leave_ids"
+        ],
+        "title": "LeaveRemovalBody",
+        "type": "object"
+      },
       "ComingTransfer": {
         "properties": {
           "from_month": {
@@ -4915,6 +5409,58 @@
           "generated_password"
         ],
         "title": "SheetRow",
+        "type": "object"
+      },
+      "MyLeaveMonth": {
+        "properties": {
+          "month": {
+            "description": "YYYY-MM.",
+            "title": "Month",
+            "type": "string"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/MyLeaveRun"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "runs"
+        ],
+        "title": "MyLeaveMonth",
+        "type": "object"
+      },
+      "MyLeaveRun": {
+        "properties": {
+          "first": {
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "leave_type": {
+            "title": "Leave Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "first",
+          "last",
+          "days",
+          "leave_type"
+        ],
+        "title": "MyLeaveRun",
         "type": "object"
       }
     },

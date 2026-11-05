@@ -11,3 +11,8 @@
 - [ ] Version list with author, time, reason, origin; compare any two versions
 - [ ] Nurses notified on every new version
 - [ ] API tests cover versioning, pins, compare and notification
+
+## Comments
+
+**From ticket 10 (2026-11-05): leave on an approved roster.** Ticket 10's writes (`nurses/leave_api.py`, one comment marks them) record, correct and remove leave with no roster to look at. Once one exists, late leave on a day with a shift breaks the solver's hard `unavailable` rule against the roster in force, and removed leave leaves a day with nothing owed. Decide here: a new version with origin `edit` taking the cell off, with the reason saved without the type, or a prompt to do so. Colleagues are notified of a change with no word of why. `Leave` keeps no roster reference, and a version's grid keeps what it had.
+

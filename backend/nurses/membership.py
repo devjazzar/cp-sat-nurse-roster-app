@@ -2,10 +2,11 @@
 the latest that has begun, and any after it are transfers still to come. Every question about that goes here."""
 from __future__ import annotations
 
+import calendar
 import datetime as dt
 from uuid import UUID
 
-from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery
+from django.db.models import Exists, F, OuterRef, Q, QuerySet, Subquery
 from django.utils import timezone
 
 from accounts.models import User
@@ -19,6 +20,10 @@ def today() -> dt.date:
 
 def this_month() -> dt.date:
     return today().replace(day=1)
+
+
+def last_day_of(month: dt.date) -> dt.date:
+    return month.replace(day=calendar.monthrange(month.year, month.month)[1])
 
 
 def place_new_nurse(nurse: NurseProfile, unit: Unit) -> None:
@@ -49,9 +54,30 @@ def from_now_on(nurse: NurseProfile) -> list[Placement]:
     return [p for p in placements if p.from_month <= month][-1:] + [p for p in placements if p.from_month > month]
 
 
+def placement_in(nurse: NurseProfile, month: dt.date) -> Placement | None:
+    """The placement a month falls under, past, present or to come. None before the first, which a start date can never
+    be: see `reach_back_to_start_date`."""
+    return next((p for p in reversed(list(nurse.placements.all())) if p.from_month <= month), None)
+
+
+def elsewhere_in(nurse: NurseProfile, unit: Unit, month: dt.date) -> bool:
+    """Whether the month falls under another unit's placement. Before their first placement it falls under none."""
+    placement = placement_in(nurse, month)
+    return placement is not None and placement.unit_id != unit.pk
+
+
+def ever_placed_in(nurse: NurseProfile, unit: Unit) -> bool:
+    return nurse.placements.filter(unit=unit).exists()
+
+
+def outside_dates(nurse: NurseProfile, day: dt.date) -> bool:
+    """Before their start date or after their end date, where days count like leave whatever is recorded."""
+    return day < nurse.start_date or (nurse.end_date is not None and day > nurse.end_date)
+
+
 def unit_in(nurse: NurseProfile, month: dt.date) -> Unit:
     """The unit a nurse belongs to in a month, this one or a later one."""
-    return [p.unit for p in nurse.placements.all() if p.from_month <= month][-1]
+    return placement_in(nurse, month).unit
 
 
 def transfer(nurse: NurseProfile, unit: Unit, month: dt.date) -> bool:
@@ -138,8 +164,24 @@ def carry_rename_through_allowed_shifts(old_code: str, new_code: str) -> None:
     Placement.objects.bulk_update(placements, ["allowed_shifts"])
 
 
-def _unit_in_force(placements: QuerySet[Placement]) -> Subquery:
-    return Subquery(placements.filter(from_month__lte=this_month()).order_by("-from_month").values("unit")[:1])
+def _unit_in_force(placements: QuerySet[Placement], month: dt.date | None = None) -> Subquery:
+    return Subquery(placements.filter(from_month__lte=month or this_month()).order_by("-from_month").values("unit")[:1])
+
+
+def placed_in(unit: Unit, month: dt.date) -> QuerySet[NurseProfile]:
+    """The nurses whose month this is in this unit, past, present or to come, whatever their dates: its manager answers for
+    what is recorded on them that month. A nurse who has since left is here for the months they were in it."""
+    return (NurseProfile.objects
+            .annotate(unit_that_month=_unit_in_force(Placement.objects.filter(nurse=OuterRef("pk")), month))
+            .filter(unit_that_month=unit.pk))
+
+
+def rostered_in(unit: Unit, month: dt.date) -> QuerySet[NurseProfile]:
+    """Those of them with a day in the month between their start and end dates. Not one whose end date is before their
+    start date, who was never present (`end_date_fits`)."""
+    return (placed_in(unit, month)
+            .filter(start_date__lte=last_day_of(month))
+            .filter(Q(end_date__isnull=True) | (Q(end_date__gte=month) & Q(end_date__gte=F("start_date")))))
 
 
 def on_the_list_of(unit: Unit) -> QuerySet[NurseProfile]:

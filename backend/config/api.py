@@ -14,6 +14,7 @@ from hospital.catalogue_api import router as catalogue_router
 from nurses.api import router as nurses_router
 from nurses.attributes_api import router as nurse_attributes_router
 from nurses.files_api import router as nurse_files_router
+from nurses.leave_api import my_leave_router, unit_leave_router
 from ops.api import router as ops_router
 from units.api import router as units_router
 from units.rules_api import router as unit_rules_router
@@ -28,5 +29,7 @@ api.add_router("/hospital", catalogue_router)
 api.add_router("/units", units_router)
 api.add_router("/units", unit_rules_router)
 api.add_router("/units", nurse_attributes_router)
+api.add_router("/units", unit_leave_router)
 api.add_router("/nurses", nurses_router)
 api.add_router("/nurses", nurse_files_router)
+api.add_router("/nurses", my_leave_router)

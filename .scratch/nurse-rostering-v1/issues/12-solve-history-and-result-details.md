@@ -10,3 +10,8 @@
 - [ ] Unit solve history with status, who asked, duration, cost; open any result; restore it as the draft
 - [ ] System Admin solve history across units without roster content
 - [ ] API tests cover history, restore and the admin view
+
+## Comments
+
+**From ticket 10 (2026-11-05).** A stored solve input and a result name a nurse's leave dates (`nurses[].leave`, `nurses[id].leave`). They hold no type. The System Admin's history "without roster content" must leave out both blocks: a run of leave dates against a nurse's ID is what ticket 10 kept out of the audit log.
+

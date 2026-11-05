@@ -29,3 +29,13 @@
 - **A nurse in the input:** start from `nurses.rostering.nurse_block(nurse, placement)`, with the placement of that month, since allowed shifts are on the placement. Add leave and pins, and replace the opening values and empty history with the carry-over once there is one.
 - **A block the solver now refuses:** a unit's save checks its night and day shifts against the CNO's `night_rest` and `shift_switch` weights as they stood. A one-shift unit saved with them at 0 is refused if one rises. Show that like a gap from seeding, as "review the unit rules", not as a failed solve.
 - **The time limit:** `Unit.default_time_limit` may be above the cap, if the System Admin lowered the cap after the unit's save. Use the lower. A nurse's `allowed_shifts_to_check` may still be up: consider a warning beside the precheck.
+
+**From ticket 10 (2026-11-05): leave in the solve input.** The seam is proven in `nurses/tests/test_leave.py`; extend it there.
+
+- **The nurses of a month:** `membership.rostered_in(unit, month)`, and each one's block from `nurse_block(nurse, membership.placement_in(nurse, month))`, not their latest placement. It leaves out a nurse who was never present. It does not filter on the account: a manager's profile whose account the System Admin deactivated, with no end date, is still on it, so decide what that means.
+- **Leave:** `block["leave"] = nurses.rostering.leave_dates(nurse, month)`: ISO dates in order, each once. An empty list is accepted.
+- **Days outside the start and end dates:** add them as a set, not a list. A date recorded before a correction can also be outside them (the manager sees it flagged), and the solver refuses `lists a day twice`.
+- **No type in a solve input,** and a test holds it. It is stored for good and read by people who may not see one. The summary before a solve can count leave per nurse; the manager's grid may look a type up from `Leave` for their own month.
+- **A pin on a leave day:** `load_request` refuses a shift pinned on a leave date (`on leave but pinned`), though `""` is fine and a desired or undesired day on leave is simply superseded. Leave does not look at pins, so the assembler must not pass such a pair on as a failed solve. Decide with ticket 13 which wins.
+- **Leave changed since the last solve:** like a corrected start date (see the comment from 07a), a draft solved before leave was recorded, corrected or removed must not pass as current. Compare with the stored input, warn, and validate before submit.
+

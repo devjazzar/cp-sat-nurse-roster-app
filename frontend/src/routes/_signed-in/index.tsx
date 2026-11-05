@@ -59,6 +59,7 @@ function NurseHome() {
     <>
       <p>Your unit is {unit.data.name}.</p>
       <p>No roster yet.</p>
+      <p>Any leave recorded for you is under <Link to="/my-leave" className="underline underline-offset-3">My leave</Link>.</p>
     </>
   )
 }

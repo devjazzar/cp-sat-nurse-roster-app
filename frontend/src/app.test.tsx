@@ -64,14 +64,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/leave", "/my-leave", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/leave", "/my-leave"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -739,8 +739,8 @@ describe("each role's navigation and home", () => {
   it.each([
     ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Unit rules", "Rostering attributes", "Nurses", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Unit rules", "Rostering attributes", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
-    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Unit rules", "Rostering attributes", "Nurses", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
-    ["staff_nurse", "Staff Nurse", "No roster yet.", ["Home", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit"]],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["staff_nurse", "Staff Nurse", "No roster yet.", ["Home", "My leave", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
     const { router, calls } = start("/", {
       ...session({ ...ME, username: "someone", full_name: "Some One", role }),
@@ -2968,5 +2968,253 @@ describe("the rostering attributes page", () => {
 
     await screen.findByText("No roster yet.")
     expect(router.state.location.pathname).toBe("/")
+  })
+})
+
+describe("the leave pages", () => {
+  const AMAL = { id: "n1", hospital_id: "h1", full_name: "Amal Saleh" }
+  const BADR = { id: "n2", hospital_id: "h2", full_name: "Badr Omar" }
+  const SICK = { id: "sick", name: "Sick", active: true }
+  const OLD = { id: "old", name: "Study", active: false }
+  const ANNUAL = { id: "annual", name: "Annual", active: true }
+  const RUN = { leave_ids: ["l1", "l2"], nurse: AMAL, leave_type: SICK, first: "2026-11-10", last: "2026-11-11", days: 2, outside_dates: false }
+  const BADR_RUN = { leave_ids: ["l3"], nurse: BADR, leave_type: OLD, first: "2026-11-20", last: "2026-11-20", days: 1, outside_dates: true }
+  const MONTH = { month: "2026-11", nurses: [AMAL, BADR], runs: [RUN, BADR_RUN] }
+  const pageOf = (extra = {}) => ({
+    ...session(ME_MANAGER),
+    "GET /api/units": { body: [ER_UNIT] },
+    "GET /api/units/er/leave": { body: MONTH },
+    "GET /api/hospital/leave-types": { body: [ANNUAL, SICK, OLD] },
+    ...extra,
+  })
+  const refused = (field: string, msg: string) => ({ status: 422, body: { detail: [{ loc: ["body", "body", field], msg }] } })
+
+  it("lists the unit's month with what a manager can do to each leave", async () => {
+    start("/leave", pageOf())
+
+    const row = within((await screen.findByRole("link", { name: "Amal Saleh" })).closest("tr")!)
+    expect(document.title).toBe("Leave · Nurse roster")
+    expect(screen.getByRole("heading", { name: "November 2026" })).toBeInTheDocument()
+    expect(row.getAllByRole("cell").map((cell) => cell.textContent).slice(0, 4)).toEqual(["Amal Saleh", "10 to 11 Nov 2026", "2", "Sick"])
+    expect(row.getByRole("button", { name: "Change leave of Amal Saleh, 10 to 11 Nov 2026" })).toBeInTheDocument()
+    expect(row.getByRole("button", { name: "Remove leave of Amal Saleh, 10 to 11 Nov 2026" })).toBeInTheDocument()
+    expect(screen.getByText("Outside their dates")).toBeInTheDocument()
+    expect(screen.getByText(/left the days marked Outside their dates/)).toBeInTheDocument()
+  })
+
+  it("moves by month in the address, keeping the nurse", async () => {
+    const { router, user, calls } = start("/leave?month=2026-11&nurse=n1", pageOf())
+
+    await user.click(await screen.findByRole("link", { name: "Next month" }))
+
+    await waitFor(() => expect(router.state.location.search).toEqual({ month: "2026-12", nurse: "n1" }))
+    expect(calls.some((call) => call.url.includes("/api/units/er/leave?month=2026-12"))).toBe(true)
+  })
+
+  it("keeps focus on the link while the next month loads", async () => {
+    const answer = ({ url }: { url: string }) => ({ body: { ...MONTH, month: new URL(url, "http://here").searchParams.get("month") } })
+    const { user } = start("/leave?month=2026-11", pageOf({ "GET /api/units/er/leave": answer }))
+
+    const next = await screen.findByRole("link", { name: "Next month" })
+    await user.click(next)
+
+    await waitFor(() => expect(next).toHaveAttribute("href", "/leave?month=2027-01"))
+    expect(next).toHaveFocus()
+  })
+
+  it("says so when the nurse chosen is not in the unit that month, and keeps them for the next", async () => {
+    start("/leave?month=2026-11&nurse=gone", pageOf())
+
+    expect(await screen.findByText("The nurse you chose is not in ER in November 2026, so this shows everyone.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Next month" })).toHaveAttribute("href", "/leave?month=2026-12&nurse=gone")
+    expect(screen.getByRole("link", { name: "Amal Saleh" })).toBeInTheDocument()
+  })
+
+  it("shows one nurse's month, with the count", async () => {
+    const { router, user } = start("/leave?month=2026-11", pageOf())
+
+    await user.selectOptions(await screen.findByLabelText("Show"), "n1")
+
+    expect(await screen.findByText("Amal Saleh has 2 days of leave in November 2026.")).toBeInTheDocument()
+    expect(screen.queryByText("Badr Omar", { selector: "a" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Nurse" })).not.toBeInTheDocument()
+    expect(router.state.location.search).toEqual({ month: "2026-11", nurse: "n1" })
+  })
+
+  it("says when a month has none", async () => {
+    start("/leave", pageOf({ "GET /api/units/er/leave": { body: { ...MONTH, runs: [] } } }))
+    expect(await screen.findByText("No leave is recorded in November 2026.")).toBeInTheDocument()
+  })
+
+  it("says when the unit has nobody that month", async () => {
+    start("/leave", pageOf({ "GET /api/units/er/leave": { body: { month: "2026-11", nurses: [], runs: [] } } }))
+    expect(await screen.findByText("ER has no nurses in November 2026.")).toBeInTheDocument()
+  })
+
+  it("records leave, offering only active types, then returns focus", async () => {
+    const { user, calls } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: RUN } }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    const types = within(await screen.findByLabelText("Leave type")).getAllByRole("option").map((option) => option.textContent)
+    expect(types).toEqual(["Choose a type", "Annual", "Sick"])
+    expect(screen.getByLabelText("Nurse")).toHaveFocus()
+
+    await user.selectOptions(screen.getByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2026-11-10")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("The leave of Amal Saleh is saved: 10 Nov 2026.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")!.body).toEqual({ nurse_id: "n1", leave_type_id: "sick", first: "2026-11-10", last: "2026-11-10" })
+    expect(screen.getByRole("button", { name: "Record leave" })).toHaveFocus()
+  })
+
+  it("goes to the month just saved when it is another", async () => {
+    const { user, router } = start("/leave?month=2026-11", pageOf({ "POST /api/units/er/leave": { status: 201, body: RUN } }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2027-01-10")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ month: "2027-01" }))
+  })
+
+  it("asks for what is missing on the client", async () => {
+    const { user, calls } = start("/leave", pageOf())
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.click(await screen.findByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("Choose a nurse.")).toBeInTheDocument()
+    expect(screen.getByText("Enter the first day.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+  })
+
+  it("shows a refusal beside its field with focus on it", async () => {
+    const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": refused("first", "Amal Saleh is already on leave on 10 November 2026. Change that leave instead.") }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2026-11-10")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText(/already on leave on 10 November 2026/)).toBeInTheDocument()
+    expect(screen.getByLabelText("First day")).toHaveFocus()
+    expect(screen.getByLabelText("First day")).toHaveAttribute("aria-invalid", "true")
+  })
+
+  it("changes leave, naming the ids it replaces, with focus on the button that stays", async () => {
+    const { user, calls } = start("/leave", pageOf({ "POST /api/units/er/leave/change": { body: RUN } }))
+
+    await user.click(await screen.findByRole("button", { name: "Change leave of Amal Saleh, 10 to 11 Nov 2026" }))
+    expect(await screen.findByRole("heading", { name: "Change leave of Amal Saleh" })).toBeInTheDocument()
+    expect(screen.queryByLabelText("Nurse")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("First day")).toHaveValue("2026-11-10")
+    expect(screen.getByLabelText("Last day")).toHaveValue("2026-11-11")
+    await waitFor(() => expect(screen.getByLabelText("Leave type")).toHaveValue("sick"))
+
+    await user.selectOptions(screen.getByLabelText("Leave type"), "annual")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("The leave of Amal Saleh is saved: 10 to 11 Nov 2026.")
+    expect(calls.find((call) => call.url.endsWith("/change"))!.body).toEqual({ leave_ids: ["l1", "l2"], leave_type_id: "annual", first: "2026-11-10", last: "2026-11-11" })
+    expect(screen.getByRole("button", { name: "Record leave" })).toHaveFocus()
+  })
+
+  it("lets leave of a retired type keep it and offers no other retired type", async () => {
+    const { user } = start("/leave", pageOf())
+
+    await user.click(await screen.findByRole("button", { name: "Change leave of Badr Omar, 20 Nov 2026" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Leave type")).toHaveValue("old"))
+    expect(within(screen.getByLabelText("Leave type")).getByRole("option", { name: "Study (retired)" })).toBeInTheDocument()
+  })
+
+  it("says so when the leave has changed since the page opened", async () => {
+    const stale = "This leave has changed since the page was opened. Reload the page to see it as it is."
+    const { user } = start("/leave", pageOf({ "POST /api/units/er/leave/change": { status: 409, body: { detail: stale } } }))
+
+    await user.click(await screen.findByRole("button", { name: "Change leave of Amal Saleh, 10 to 11 Nov 2026" }))
+    await user.click(await screen.findByRole("button", { name: "Save" }))
+
+    expect((await screen.findByRole("alert")).textContent).toBe(stale)
+  })
+
+  it("asks before removing, then keeps focus on the page", async () => {
+    const { user, calls } = start("/leave", pageOf({ "POST /api/units/er/leave/remove": { status: 204 } }))
+
+    await user.click(await screen.findByRole("button", { name: "Remove leave of Amal Saleh, 10 to 11 Nov 2026" }))
+    expect(await screen.findByText("Remove this leave of Amal Saleh?")).toBeInTheDocument()
+    expect(calls.some((call) => call.url.endsWith("/remove"))).toBe(false)
+
+    await user.click(screen.getByRole("button", { name: "Remove leave" }))
+
+    expect(await screen.findByText("The leave of Amal Saleh is removed: 10 to 11 Nov 2026.")).toBeInTheDocument()
+    expect(calls.find((call) => call.url.endsWith("/remove"))!.body).toEqual({ leave_ids: ["l1", "l2"] })
+    await waitFor(() => expect(screen.getByRole("button", { name: "Record leave" })).toHaveFocus())
+  })
+
+  it("tells a manager with no unit where their own leave is", async () => {
+    start("/leave", { ...session(ME_MANAGER), "GET /api/units": { body: [] } })
+
+    expect(await screen.findByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
+    expect(screen.getByText(/No unit is assigned to you yet/)).toBeInTheDocument()
+  })
+
+  it.each(["/leave"])("%s has no way in for a staff nurse", async (path) => {
+    const { router } = start(path, { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+
+    await screen.findByText("No roster yet.")
+    expect(router.state.location.pathname).toBe("/")
+  })
+
+  it("a staff nurse's home and header lead to their own leave", async () => {
+    start("/", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+
+    await screen.findByText("No roster yet.")
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
+    expect(within(screen.getByRole("main")).getByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
+  })
+
+  it("a nurse reads their own leave with its type", async () => {
+    const { user, router } = start("/my-leave", {
+      ...session(NURSE),
+      "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [{ first: "2026-11-10", last: "2026-11-12", days: 3, leave_type: "Annual" }] } },
+    })
+
+    const row = within((await screen.findByRole("cell", { name: "Annual" })).closest("tr")!)
+    expect(document.title).toBe("My leave · Nurse roster")
+    expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["10 to 12 Nov 2026", "3", "Annual"])
+    expect(screen.getByText(/colleagues see a day off/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole("link", { name: "Previous month" }))
+    await waitFor(() => expect(router.state.location.search).toEqual({ month: "2026-10" }))
+  })
+
+  it("the audit log names what was done to leave", async () => {
+    const entry = (id: number, action: string) => ({ id, action, actor: "mona", target: "h1", at: "2026-11-05T07:00:00+03:00", ip: null, before: null, after: null })
+    start("/audit-log", admin({
+      "GET /api/audit/entries": { body: { entries: [entry(1, "leave.recorded"), entry(2, "leave.changed"), entry(3, "leave.removed")], next_before: null } },
+      "GET /api/audit/filter-options": { body: { users: [], actions: [] } },
+    }))
+
+    expect(await screen.findByText("Recorded a nurse's leave")).toBeInTheDocument()
+    expect(screen.getByText("Changed a nurse's leave")).toBeInTheDocument()
+    expect(screen.getByText("Removed a nurse's leave")).toBeInTheDocument()
+  })
+
+  it("a nurse with none in a month is told so", async () => {
+    start("/my-leave", { ...session(NURSE), "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
+
+    expect(await screen.findByText("You have no leave recorded in November 2026.")).toBeInTheDocument()
+  })
+
+  it("a failed read says so", async () => {
+    start("/my-leave", { ...session(NURSE), "GET /api/nurses/my-leave": { status: 500 } })
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/could not be read/)
   })
 })
