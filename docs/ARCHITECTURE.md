@@ -79,14 +79,16 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read the shift catalogue, leave types, public holidays, Ramadan dates | yes | yes | yes | yes | yes |
 | Create, rename, archive units; assign each unit its manager | | yes | | | |
 | Read units | | yes | yes | own unit | |
-| Add nurses (form or CSV import), transfer, deactivate, export staff list | | yes | | | |
+| Add nurses (form or CSV import), give a unit manager a nurse profile, transfer, set end dates, export staff list | | yes | | | |
+| Read nurses | | yes | | own unit | |
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
 | Unit rules; nurses' rostering attributes and opening values | | | | own unit | |
 | Request windows; decide requests; decide swaps; record leave | | | | own unit | |
 | Solve, edit the draft, submit, edit the approved roster, re-plan, re-close a month | | | | own unit | |
 | Exports (CSV, Excel, print page) of any roster version | | yes | yes | own unit | |
-| Reset a nurse's password | | yes | | own unit | |
+| Reset a staff nurse's password (a manager's stays the System Admin's) | | yes | | own unit | |
+| Read the name of own unit | | | | | yes |
 | View own unit's approved roster (names and shifts only) and own summary | | | | | yes |
 | Make and withdraw requests; propose, accept and reject swaps | | | | | yes |
 
@@ -97,6 +99,8 @@ with or without its manager and waits with none until the CNO assigns one. Deact
 takes them off their unit at once, because ending an account cannot wait for the CNO, and
 reactivating does not give it back; the CNO's home names every unit with no manager. A unit
 manager sees nothing of other units. The System Admin sees no roster and no rostering attribute.
+A manager's nurse profile is in the unit they hold, if they hold one, because that unit is all they
+reach: moving one means taking them off, transferring the profile from this month, and assigning them.
 
 The CNO stands in for an absent Deputy CNO; the CNO reassigns a unit to another manager
 account when its manager is unavailable. There is no delegation feature.
@@ -127,10 +131,14 @@ the unit's) with a review flag, request cap per nurse per month (default 3), def
 
 **User**: username, full name, role, active flag, must-change-password flag.
 
-**Nurse profile** (0..1 per user): hospital ID (= username), gender, unit, start date, end
-date, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding, opening values
-(overtime this year, hours balance, night and weekend fairness balances; editable until her
-first month closes).
+**Nurse profile** (0..1 per user): hospital ID (= username), gender, start date, end date,
+team leader, score, allowed shifts, Ramadan-reduced, breastfeeding, opening values (overtime this
+year, hours balance, night and weekend fairness balances; editable until her first month closes).
+
+**Placement**: nurse, unit, first month. A nurse belongs to the unit of the latest placement that
+has begun; a later one is a transfer still to come, which can be replaced. A nurse belongs to a unit,
+and so stops it being archived, while placed there or due to join it, with an active account and an
+end date not passed.
 
 **Roster** (one per unit and month): state `draft`, `submitted`, `approved`; a rejection
 returns it to `draft` with the comment kept. Exactly one draft per unit-month.
@@ -267,6 +275,8 @@ Jobs:
   demand.
 - `backup` (cron, 02:00) and backup retention.
 - `expire_swaps` (hourly).
+- `close_ended_nurses` (hourly): deactivates staff nurses whose last day is over. An end date of
+  today or earlier deactivates at once. A manager's account stays the System Admin's.
 
 The queue code is one module of ours (enqueue, progress, cancel, schedule) so the library can
 be replaced without touching the API, the solver client or the solver.

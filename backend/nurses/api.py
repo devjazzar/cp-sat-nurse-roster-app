@@ -1,0 +1,299 @@
+"""The CNO's nurses, and a unit manager's view of the nurses of their unit. Who belongs where is
+`nurses.membership`; the account behind a nurse is `accounts.provisioning`."""
+from __future__ import annotations
+
+import datetime as dt
+from typing import Annotated, Literal
+from uuid import UUID
+
+from django.db import transaction
+from django.db.models.functions import Lower
+from django.http import Http404, HttpRequest, HttpResponse
+from django.shortcuts import get_object_or_404
+from ninja import Field, Router, Schema, Status
+from ninja.errors import HttpError
+from pydantic import AfterValidator, ConfigDict
+
+from accounts.api import FullName, Username
+from accounts.authz import SignedIn
+from accounts.models import Role, User
+from accounts.provisioning import UsernameTaken, create_user, deactivate, reactivate, reset_password
+from audit.log import record
+from hospital.api import refuse
+from hospital.catalogue_api import MONTH_PATTERN, IsoDate, iso_date
+from nurses import membership
+from nurses.models import Gender, NurseProfile
+from units.models import Unit
+from units.scope import unit_in_scope, units_in_scope
+
+router = Router(tags=["nurses"])
+cno = SignedIn(Role.CNO)
+
+GenderChoice = Literal[Gender.FEMALE, Gender.MALE]
+
+
+class Body(Schema):
+    # Not StrictSchema, whose strict mode would refuse every id, because JSON has only strings.
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProfileFields(Body):
+    gender: GenderChoice
+    unit_id: UUID
+    start_date: IsoDate
+
+
+class NewNurseBody(ProfileFields):
+    hospital_id: Username
+    full_name: FullName
+
+
+class ManagerProfileBody(ProfileFields):
+    user_id: UUID
+
+
+def _month_in_range(value: str) -> str:
+    iso_date(f"{value}-01")  # Year 0 and the like: the same limits as any other date here.
+    return value
+
+
+class TransferBody(Body):
+    unit_id: UUID
+    from_month: Annotated[str, Field(pattern=MONTH_PATTERN, examples=["2027-01"]), AfterValidator(_month_in_range)]
+
+
+class EndDateBody(Body):
+    end_date: IsoDate | None
+
+
+class UnitName(Schema):
+    id: UUID
+    name: str
+
+
+class ComingTransfer(Schema):
+    from_month: str = Field(description="YYYY-MM.")
+    unit: UnitName | None = Field(description="Empty when the unit is not the caller's: a manager sees nothing of others.")
+
+
+class NurseRow(Schema):
+    id: UUID
+    hospital_id: str
+    full_name: str
+    role: Role
+    gender: GenderChoice
+    start_date: dt.date
+    end_date: dt.date | None
+    is_active: bool
+    must_change_password: bool
+    unit: UnitName | None = Field(description="The unit this month, empty when it is not the caller's: a nurse due to "
+                                              "join a manager's unit is on their list before they arrive.")
+    transfers: list[ComingTransfer] = Field(description="The transfers still to come, soonest first.")
+
+
+class NurseWithPassword(Schema):
+    """Holds a password, so it asks not to be stored."""
+    nurse: NurseRow
+    generated_password: str
+
+
+class ManagerToPlace(Schema):
+    id: UUID
+    username: str
+    full_name: str
+    unit: UnitName | None = Field(description="The unit they hold, which their nurse profile has to be in.")
+
+
+def _month(day: dt.date) -> str:
+    return day.strftime("%Y-%m")
+
+
+def _row(nurse: NurseProfile, only_unit: UUID | None = None) -> NurseRow:
+    """`only_unit` is the one unit the caller may name, or None when they may name them all."""
+    def named(unit: Unit) -> UnitName | None:
+        return UnitName(id=unit.pk, name=unit.name) if only_unit in (None, unit.pk) else None
+
+    current, *coming = membership.from_now_on(nurse)
+    user = nurse.user
+    return NurseRow(id=nurse.pk, hospital_id=user.username, full_name=user.full_name, role=user.role,
+                    gender=nurse.gender, start_date=nurse.start_date, end_date=nurse.end_date,
+                    is_active=user.is_active, must_change_password=user.must_change_password,
+                    unit=named(current.unit),
+                    transfers=[ComingTransfer(from_month=_month(placement.from_month), unit=named(placement.unit))
+                               for placement in coming])
+
+
+def _with_units(nurses):
+    return nurses.select_related("user").prefetch_related("placements__unit").order_by(Lower("user__full_name"), "pk")
+
+
+def _row_as_saved(nurse_id: UUID) -> NurseRow:
+    return _row(_with_units(NurseProfile.objects).get(pk=nurse_id))
+
+
+def _unit_to_join(unit_id: UUID) -> Unit:
+    """Locks the unit's row, because archiving it counts its nurses under the same lock: the two cannot interleave."""
+    unit = Unit.objects.select_for_update().filter(pk=unit_id).first()
+    if unit is None:
+        refuse((("unit_id",), "There is no such unit."))
+    if unit.archived:
+        refuse((("unit_id",), f"{unit.name} is archived, so no nurse can join it."))
+    return unit
+
+
+def _keep_in_held_unit(user: User, unit: Unit) -> None:
+    """A manager reaches only the unit they hold, so their profile has to be in it. See `membership.placed_outside`."""
+    held = user.held_unit
+    if held is not None and held.pk != unit.pk:
+        refuse((("unit_id",), f"{user.username} manages {held.name}, so their nurse profile has to be there. "
+                              f"Give {held.name} another manager, or none, first."))
+
+
+def _new_profile(request: HttpRequest, user: User, unit: Unit, body: ProfileFields) -> NurseProfile:
+    nurse = NurseProfile.objects.create(user=user, gender=body.gender, start_date=body.start_date)
+    membership.place_new_nurse(nurse, unit)
+    record("nurse.added", actor=request.user, target=user.username, request=request,
+           after={"unit": unit.name, "start_date": body.start_date.isoformat()})
+    return nurse
+
+
+def _locked_nurse(nurse_id: UUID) -> NurseProfile:
+    """Locks the account with the profile: user's row before the unit's, as everywhere (see ticket 06)."""
+    return get_object_or_404(NurseProfile.objects.select_for_update(of=("self", "user")).select_related("user"),
+                             pk=nurse_id)
+
+
+@router.get("", response=list[NurseRow], auth=SignedIn(Role.CNO, Role.UNIT_MANAGER), operation_id="listNurses")
+def list_nurses(request: HttpRequest) -> list[NurseRow]:
+    """Everyone for the CNO. For a manager, the nurses of their unit and those due to join, naming no other unit."""
+    if request.user.role == Role.CNO:
+        return [_row(nurse) for nurse in _with_units(NurseProfile.objects.all())]
+    unit = units_in_scope(request.user).first()
+    if unit is None:
+        return []
+    return [_row(nurse, only_unit=unit.pk) for nurse in _with_units(membership.on_the_list_of(unit))]
+
+
+@router.post("", response={201: NurseWithPassword}, auth=cno, operation_id="createNurse")
+def add_nurse(request: HttpRequest, response: HttpResponse, body: NewNurseBody) -> Status:
+    """One transaction: the user, the nurse profile and the placement, or none of them."""
+    with transaction.atomic():
+        try:
+            user, password = create_user(request, username=body.hospital_id, full_name=body.full_name,
+                                         role=Role.STAFF_NURSE)
+        except UsernameTaken:
+            refuse((("hospital_id",), f"{body.hospital_id} is already in use."))
+        nurse = _new_profile(request, user, _unit_to_join(body.unit_id), body)
+    response["Cache-Control"] = "no-store"
+    return Status(201, NurseWithPassword(nurse=_row_as_saved(nurse.pk), generated_password=password))
+
+
+@router.get("/my-unit", response=UnitName, auth=SignedIn(Role.STAFF_NURSE), operation_id="getMyUnit")
+def my_unit(request: HttpRequest) -> Unit:
+    """All a staff nurse reads of their unit here. Colleagues reach them in the roster, as names and shifts only."""
+    unit = units_in_scope(request.user).first()
+    if unit is None:
+        raise Http404("You have no nurse profile.")
+    return unit
+
+
+@router.get("/managers", response=list[ManagerToPlace], auth=cno, operation_id="listManagersToPlace")
+def managers_to_place(request: HttpRequest) -> list[ManagerToPlace]:
+    """The active unit managers with no nurse profile yet."""
+    managers = (User.objects.filter(role=Role.UNIT_MANAGER, is_active=True, nurse_profile__isnull=True)
+                .select_related("managed_unit").order_by("username"))
+    return [ManagerToPlace(id=manager.pk, username=manager.username, full_name=manager.full_name,
+                           unit=UnitName(id=manager.held_unit.pk, name=manager.held_unit.name) if manager.held_unit else None)
+            for manager in managers]
+
+
+@router.post("/managers", response={201: NurseRow}, auth=cno, operation_id="giveManagerNurseProfile")
+def give_manager_a_profile(request: HttpRequest, body: ManagerProfileBody) -> Status:
+    """The role and the account stay as they are, so no password here. Their hospital ID is the username they have."""
+    with transaction.atomic():
+        manager = User.objects.select_for_update().filter(pk=body.user_id, role=Role.UNIT_MANAGER, is_active=True).first()
+        if manager is None:
+            refuse((("user_id",), "This is not an active unit manager."))
+        if NurseProfile.objects.filter(user=manager).exists():
+            refuse((("user_id",), f"{manager.username} already has a nurse profile."))
+        unit = _unit_to_join(body.unit_id)
+        _keep_in_held_unit(manager, unit)
+        nurse = _new_profile(request, manager, unit, body)
+    return Status(201, _row_as_saved(nurse.pk))
+
+
+@router.post("/{nurse_id}/transfer", response=NurseRow, auth=cno, operation_id="transferNurse")
+def transfer_nurse(request: HttpRequest, nurse_id: UUID, body: TransferBody) -> NurseRow:
+    month = dt.date.fromisoformat(f"{body.from_month}-01")
+    with transaction.atomic():
+        nurse = _locked_nurse(nurse_id)
+        user = nurse.user
+        if month < membership.this_month():
+            refuse((("from_month",), "That month is over. A transfer takes effect this month or later."))
+        unit = _unit_to_join(body.unit_id)
+        _keep_in_held_unit(user, unit)
+        if nurse.end_date and nurse.end_date >= membership.today() and month > nurse.end_date:
+            refuse((("from_month",), f"{user.full_name}'s end date is before that month."))
+        was = membership.unit_in(nurse, month)
+        if not membership.transfer(nurse, unit, month):
+            refuse((("unit_id",), f"{user.full_name} is already in {unit.name} from that month."))
+        record("nurse.transferred", actor=request.user, target=user.username, request=request,
+               before={"unit": was.name}, after={"unit": unit.name, "from_month": body.from_month})
+    return _row_as_saved(nurse_id)
+
+
+@router.put("/{nurse_id}/end-date", response=NurseRow, auth=cno, operation_id="setNurseEndDate")
+def set_end_date(request: HttpRequest, nurse_id: UUID, body: EndDateBody) -> NurseRow:
+    """A staff nurse's account follows: today or earlier deactivates at once, because ending an account should not
+    wait, a later date when it has passed (`nurses.tasks`), and clearing it or moving it on brings them back. A
+    manager's account is the System Admin's, so their profile ends alone."""
+    end = body.end_date
+    today = membership.today()
+    with transaction.atomic():
+        nurse = _locked_nurse(nurse_id)
+        user = nurse.user
+        if end == nurse.end_date:
+            return _row_as_saved(nurse_id)
+        # A nurse added by mistake, due to start later, has to be able to end today.
+        never_started = nurse.start_date > today and end is not None and end <= today
+        if end is not None and end < nurse.start_date and not never_started:
+            refuse((("end_date",), "The end date cannot be before the start date."))
+        before = nurse.end_date
+        nurse.end_date = end
+        nurse.save(update_fields=["end_date"])
+        cancelled = membership.cancel_transfers_after(nurse, end) if end else []
+        after = {"end_date": end.isoformat() if end else None}
+        if cancelled:
+            after["transfers_cancelled"] = [{"unit": placement.unit.name, "from_month": _month(placement.from_month)}
+                                            for placement in cancelled]
+        record("nurse.end_date_changed", actor=request.user, target=user.username, request=request,
+               before={"end_date": before.isoformat() if before else None}, after=after)
+        is_staff_nurse = user.role == Role.STAFF_NURSE
+        if is_staff_nurse and end is not None and end <= today:
+            deactivate(request, user.pk)
+        else:
+            in_the_way = membership.archived_unit_in_the_way(user)
+            if in_the_way:
+                refuse((("end_date",), f"{in_the_way.name} is archived. Transfer {user.full_name} first."))
+            if is_staff_nurse:
+                reactivate(request, user.pk)
+    return _row_as_saved(nurse_id)
+
+
+@router.post("/{nurse_id}/reset-password", response=NurseWithPassword, auth=SignedIn(Role.CNO, Role.UNIT_MANAGER),
+             operation_id="resetNursePassword")
+def reset_nurse_password(request: HttpRequest, response: HttpResponse, nurse_id: UUID) -> NurseWithPassword:
+    """A staff nurse's only: a manager's account is the System Admin's, and this would let one bypass their own
+    current password. A manager reaches the nurses of their unit this month, and the same 403 otherwise."""
+    nurse = _with_units(NurseProfile.objects).filter(pk=nurse_id).first()
+    if nurse is None:
+        if request.user.role == Role.CNO:
+            raise Http404("There is no such nurse.")
+        raise HttpError(403, "This is not your unit.")
+    unit = unit_in_scope(request.user, membership.unit_id_now(nurse))
+    if nurse.user.role != Role.STAFF_NURSE:
+        refuse((("nurse",), f"The System Admin resets {nurse.user.username}'s password, as a unit manager's."))
+    nurse.user, password = reset_password(request, nurse.user.pk)
+    response["Cache-Control"] = "no-store"
+    return NurseWithPassword(nurse=_row(nurse, only_unit=None if request.user.role == Role.CNO else unit.pk),
+                             generated_password=password)

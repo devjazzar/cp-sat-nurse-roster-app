@@ -13,12 +13,12 @@ from django.middleware.csrf import get_token
 from ninja import Router, Schema, Status
 from ninja.errors import HttpError
 from ninja.utils import check_csrf
-from pydantic import Field, StringConstraints, field_validator
+from pydantic import AfterValidator, Field, StringConstraints, field_validator
 
 from accounts.authz import SignedIn
 from accounts.login import LoginRefused, attempt_login
 from accounts.models import Role, User
-from accounts.provisioning import RoleTaken, UsernameTaken, create_user, deactivate, reactivate, reset_password
+from accounts.provisioning import RoleTaken, UnitArchived, UsernameTaken, create_user, deactivate, reactivate, reset_password
 from audit.log import record
 
 router = Router(tags=["auth"])
@@ -26,6 +26,18 @@ users_router = Router(tags=["users"], auth=SignedIn(Role.SYSTEM_ADMIN))
 
 # The System Admin's users are these three: never a nurse, and never their own account.
 MANAGED_ROLES = (Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER)
+
+
+def _no_nul(value: str) -> str:
+    # PostgreSQL cannot hold or compare one; it would otherwise be a 500.
+    if "\x00" in value:
+        raise ValueError("not a possible name")
+    return value
+
+
+Username = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=150,
+                                            pattern=r"^[A-Za-z0-9._-]+$")]
+FullName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200), AfterValidator(_no_nul)]
 
 
 class Me(Schema):
@@ -138,17 +150,9 @@ class ManagedUser(Schema):
 
 
 class NewUserBody(Schema):
-    username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=150,
-                                               pattern=r"^[A-Za-z0-9._-]+$")]
-    full_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    username: Username
+    full_name: FullName
     role: Literal[Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER]
-
-    @field_validator("full_name")
-    @classmethod
-    def no_nul(cls, value: str) -> str:
-        if "\x00" in value:
-            raise ValueError("not a possible name")
-        return value
 
 
 class NewUserRefusal(Schema):
@@ -204,6 +208,9 @@ def reactivate_user(request: HttpRequest, user_id: UUID):
         return Status(200, reactivate(request, _managed_or_404(user_id).pk))
     except RoleTaken as refused:
         return Status(409, ReactivateRefusal(detail=_role_taken(refused)))
+    except UnitArchived as refused:
+        return Status(409, ReactivateRefusal(detail=f"Their nurse profile is in {refused.unit.name}, which is archived. "
+                                                    "Ask the CNO to transfer it first."))
 
 
 @users_router.post("/{user_id}/reset-password", response=UserWithPassword, operation_id="resetUserPassword")

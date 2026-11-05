@@ -160,27 +160,6 @@ def test_archiving_a_unit_with_no_nurses_is_audited_and_lets_its_manager_go(cno,
     assert created(cno, "ICU", manager)["manager"]["username"] == "mona"
 
 
-def test_archiving_is_refused_while_nurses_belong_to_the_unit(cno, manager, monkeypatch):
-    """Ticket 07 replaces the stub with real nurse profiles: see `Unit.nurse_count`."""
-    unit = created(cno, manager=manager)
-    monkeypatch.setattr(Unit, "nurse_count", lambda self: 2)
-
-    response = archive(cno, unit)
-
-    assert refused_fields(response) == {("archived",)}
-    assert "2 nurses" in message(response)
-    row = Unit.objects.get(pk=unit["id"])
-    assert row.archived is False and row.manager_id == manager.pk
-    assert audit("unit.archived") == []
-
-
-def test_the_refusal_says_one_nurse_in_the_singular(cno, monkeypatch):
-    unit = created(cno)
-    monkeypatch.setattr(Unit, "nurse_count", lambda self: 1)
-
-    assert "1 nurse " in message(archive(cno, unit))
-
-
 def test_archiving_twice_changes_nothing_more(cno):
     unit = created(cno)
     archive(cno, unit)

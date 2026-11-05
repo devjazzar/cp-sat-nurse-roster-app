@@ -8,12 +8,15 @@ import secrets
 from django.contrib.auth import SESSION_KEY
 from django.contrib.sessions.models import Session
 from django.db import IntegrityError, transaction
+from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.utils import timezone
 
 from accounts.models import ONE_OF_A_KIND_CONSTRAINTS, LoginAttempts, User
 from audit.log import record
+from nurses.membership import archived_unit_in_the_way
 from units.assignment import release_managed_unit
+from units.models import Unit
 
 # Read aloud or copied from a note at times, so nothing that looks like something else.
 _ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
@@ -26,6 +29,14 @@ def generate_password() -> str:
 
 class UsernameTaken(Exception):
     pass
+
+
+class UnitArchived(Exception):
+    """Coming back into service would put this nurse in an archived unit."""
+
+    def __init__(self, unit: Unit):
+        super().__init__(unit.name)
+        self.unit = unit
 
 
 class RoleTaken(Exception):
@@ -63,18 +74,35 @@ def deactivate(request: HttpRequest, user_id) -> User:
         if user.is_active:
             user.is_active = False
             user.save(update_fields=["is_active"])
-            _end_sessions(user)
+            _end_sessions({str(user.pk)})
             record("user.deactivated", actor=request.user, target=user.username, request=request,
                    before={"is_active": True}, after={"is_active": False})
             release_managed_unit(request, user)
     return user
 
 
+def deactivate_many(users: QuerySet[User]) -> None:
+    """For the end of the day rather than a person's request, so no actor. Reads the sessions once however many
+    users there are. Only for users who hold no unit, since nothing here takes one off them."""
+    with transaction.atomic():
+        leaving = list(users.select_for_update(of=("self",)).order_by("pk"))
+        if not leaving:
+            return
+        User.objects.filter(pk__in=[user.pk for user in leaving]).update(is_active=False)
+        _end_sessions({str(user.pk) for user in leaving})
+        for user in leaving:
+            record("user.deactivated", target=user.username, before={"is_active": True}, after={"is_active": False})
+
+
 def reactivate(request: HttpRequest, user_id) -> User:
+    """Refused rather than leave a nurse in a unit archived while they were away."""
     try:
         with transaction.atomic():
             user = User.objects.select_for_update().get(pk=user_id)
             if not user.is_active:
+                unit = archived_unit_in_the_way(user)
+                if unit is not None:
+                    raise UnitArchived(unit)
                 user.is_active = True
                 user.save(update_fields=["is_active"])
                 record("user.reactivated", actor=request.user, target=user.username, request=request,
@@ -99,9 +127,9 @@ def reset_password(request: HttpRequest, user_id) -> tuple[User, str]:
     return user, password
 
 
-def _end_sessions(user: User) -> None:
+def _end_sessions(user_ids: set[str]) -> None:
     """Sessions are not indexed by user, so this reads them all. It is a rare action on a table of
     one hospital's sessions."""
     for session in Session.objects.filter(expire_date__gt=timezone.now()).iterator():
-        if session.get_decoded().get(SESSION_KEY) == str(user.pk):
+        if session.get_decoded().get(SESSION_KEY) in user_ids:
             session.delete()

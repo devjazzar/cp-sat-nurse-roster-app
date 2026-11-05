@@ -32,18 +32,18 @@ FIRST_YEAR, LAST_YEAR = GREGORIAN_RANGE[0].year + 1, GREGORIAN_RANGE[1].year - 1
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 
 
-def _no_nul(value: str) -> str:
+def no_nul(value: str) -> str:
     # PostgreSQL cannot hold one; it would otherwise be a 500.
     if "\x00" in value:
         raise ValueError("cannot contain a NUL character")
     return value
 
 
-Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100), AfterValidator(_no_nul)]
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100), AfterValidator(no_nul)]
 Colour = Annotated[str, Field(pattern="^#[0-9a-fA-F]{6}$", examples=["#0284c7"]), AfterValidator(str.lower)]
 
 
-def _iso_date(value: object) -> dt.date:
+def iso_date(value: object) -> dt.date:
     # A schema's strict mode would refuse every date, because JSON has only strings, and its lax mode
     # would take a number of seconds or a time of day as one.
     if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
@@ -54,7 +54,7 @@ def _iso_date(value: object) -> dt.date:
     return day
 
 
-IsoDate = Annotated[dt.date, BeforeValidator(_iso_date)]
+IsoDate = Annotated[dt.date, BeforeValidator(iso_date)]
 
 
 class YearFilter(Schema):

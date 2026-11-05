@@ -24,9 +24,11 @@ const CATALOGUE = [
   { to: "/holidays", label: "Holidays and Ramadan" },
 ] as const
 const UNITS = { to: "/units", label: "Units" } as const
+const NURSES = { to: "/nurses", label: "Nurses" } as const
 const WITH_CATALOGUE = linkOptions([HOME, ...CATALOGUE])
+const MANAGER_PAGES = linkOptions([HOME, NURSES, ...CATALOGUE])
 const WITH_RULES_AND_CATALOGUE = linkOptions([HOME, RULES, ...CATALOGUE])
-const CNO_PAGES = linkOptions([HOME, UNITS, RULES, ...CATALOGUE])
+const CNO_PAGES = linkOptions([HOME, UNITS, NURSES, RULES, ...CATALOGUE])
 
 /** What each role reaches from the header. A role's pages join its list as their tickets land; the
  *  API refuses the rest whatever this says. The catalogue's pages open for the System Admin too, since
@@ -35,6 +37,6 @@ export const NAVIGATION = {
   system_admin: ADMIN_PAGES,
   cno: CNO_PAGES,
   deputy_cno: WITH_RULES_AND_CATALOGUE,
-  unit_manager: WITH_CATALOGUE,
+  unit_manager: MANAGER_PAGES,
   staff_nurse: WITH_CATALOGUE,
 } satisfies Record<Role, unknown>

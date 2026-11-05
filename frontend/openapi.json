@@ -1399,6 +1399,306 @@
           }
         ]
       }
+    },
+    "/api/nurses": {
+      "get": {
+        "operationId": "listNurses",
+        "summary": "List Nurses",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NurseRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Everyone for the CNO. For a manager, the nurses of their unit and those due to join, naming no other unit.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createNurse",
+        "summary": "Add Nurse",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseWithPassword"
+                }
+              }
+            }
+          }
+        },
+        "description": "One transaction: the user, the nurse profile and the placement, or none of them.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewNurseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/my-unit": {
+      "get": {
+        "operationId": "getMyUnit",
+        "summary": "My Unit",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitName"
+                }
+              }
+            }
+          }
+        },
+        "description": "All a staff nurse reads of their unit here. Colleagues reach them in the roster, as names and shifts only.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/managers": {
+      "get": {
+        "operationId": "listManagersToPlace",
+        "summary": "Managers To Place",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ManagerToPlace"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "The active unit managers with no nurse profile yet.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "giveManagerNurseProfile",
+        "summary": "Give Manager A Profile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "The role and the account stay as they are, so no password here. Their hospital ID is the username they have.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerProfileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/{nurse_id}/transfer": {
+      "post": {
+        "operationId": "transferNurse",
+        "summary": "Transfer Nurse",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseRow"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/{nurse_id}/end-date": {
+      "put": {
+        "operationId": "setNurseEndDate",
+        "summary": "Set End Date",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "A staff nurse's account follows: today or earlier deactivates at once, because ending an account should not\nwait, a later date when it has passed (`nurses.tasks`), and clearing it or moving it on brings them back. A\nmanager's account is the System Admin's, so their profile ends alone.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndDateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/{nurse_id}/reset-password": {
+      "post": {
+        "operationId": "resetNursePassword",
+        "summary": "Reset Nurse Password",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseWithPassword"
+                }
+              }
+            }
+          }
+        },
+        "description": "A staff nurse's only: a manager's account is the System Admin's, and this would let one bypass their own\ncurrent password. A manager reaches the nurses of their unit this month, and the same 403 otherwise.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2804,6 +3104,319 @@
           "unit"
         ],
         "title": "ManagerChoice",
+        "type": "object"
+      },
+      "ComingTransfer": {
+        "properties": {
+          "from_month": {
+            "description": "YYYY-MM.",
+            "title": "From Month",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnitName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty when the unit is not the caller's: a manager sees nothing of others."
+          }
+        },
+        "required": [
+          "from_month",
+          "unit"
+        ],
+        "title": "ComingTransfer",
+        "type": "object"
+      },
+      "NurseRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "gender": {
+            "enum": [
+              "F",
+              "M"
+            ],
+            "title": "Gender",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "must_change_password": {
+            "title": "Must Change Password",
+            "type": "boolean"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnitName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit this month, empty when it is not the caller's: a nurse due to join a manager's unit is on their list before they arrive."
+          },
+          "transfers": {
+            "description": "The transfers still to come, soonest first.",
+            "items": {
+              "$ref": "#/components/schemas/ComingTransfer"
+            },
+            "title": "Transfers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "hospital_id",
+          "full_name",
+          "role",
+          "gender",
+          "start_date",
+          "end_date",
+          "is_active",
+          "must_change_password",
+          "unit",
+          "transfers"
+        ],
+        "title": "NurseRow",
+        "type": "object"
+      },
+      "UnitName": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "UnitName",
+        "type": "object"
+      },
+      "NurseWithPassword": {
+        "description": "Holds a password, so it asks not to be stored.",
+        "properties": {
+          "nurse": {
+            "$ref": "#/components/schemas/NurseRow"
+          },
+          "generated_password": {
+            "title": "Generated Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nurse",
+          "generated_password"
+        ],
+        "title": "NurseWithPassword",
+        "type": "object"
+      },
+      "NewNurseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "gender": {
+            "enum": [
+              "F",
+              "M"
+            ],
+            "title": "Gender",
+            "type": "string"
+          },
+          "unit_id": {
+            "format": "uuid",
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "hospital_id": {
+            "maxLength": 150,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gender",
+          "unit_id",
+          "start_date",
+          "hospital_id",
+          "full_name"
+        ],
+        "title": "NewNurseBody",
+        "type": "object"
+      },
+      "ManagerToPlace": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnitName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit they hold, which their nurse profile has to be in."
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "unit"
+        ],
+        "title": "ManagerToPlace",
+        "type": "object"
+      },
+      "ManagerProfileBody": {
+        "additionalProperties": false,
+        "properties": {
+          "gender": {
+            "enum": [
+              "F",
+              "M"
+            ],
+            "title": "Gender",
+            "type": "string"
+          },
+          "unit_id": {
+            "format": "uuid",
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gender",
+          "unit_id",
+          "start_date",
+          "user_id"
+        ],
+        "title": "ManagerProfileBody",
+        "type": "object"
+      },
+      "TransferBody": {
+        "additionalProperties": false,
+        "properties": {
+          "unit_id": {
+            "format": "uuid",
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "from_month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "From Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit_id",
+          "from_month"
+        ],
+        "title": "TransferBody",
+        "type": "object"
+      },
+      "EndDateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          }
+        },
+        "required": [
+          "end_date"
+        ],
+        "title": "EndDateBody",
         "type": "object"
       }
     },

@@ -39,7 +39,7 @@ import { FieldError, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
-import { scrollableRegion } from "@/lib/utils"
+import { asDate, monthName, scrollableRegion } from "@/lib/utils"
 
 /** A hand-edited year is dropped rather than sent: the API would refuse it and the page could only say "reload". */
 const searchSchema = z.object({ year: z.number().int().min(FIRST_YEAR).max(LAST_YEAR).optional().catch(undefined) })
@@ -51,11 +51,7 @@ export const Route = createFileRoute("/_signed-in/holidays")({
   component: HolidaysPage,
 })
 
-// Dates are calendar days with no time zone, so they are read and printed as UTC whatever the browser's is.
-const asDate = (iso: string) => new Date(`${iso}T00:00:00Z`)
 const longDate = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
-const monthAndYear = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })
-const monthName = (month: string) => monthAndYear.format(asDate(`${month}-01`))
 const dayOf = (iso: string) => Number(iso.slice(8))
 
 /** "1 to 19, 25" for days of one month, in order. */

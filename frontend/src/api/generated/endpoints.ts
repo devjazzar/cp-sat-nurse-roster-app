@@ -28,6 +28,7 @@ import type {
   AuditPage,
   ChangePasswordBody,
   ChangePasswordRefusal,
+  EndDateBody,
   Health,
   HospitalRules,
   HospitalRulesState,
@@ -41,9 +42,14 @@ import type {
   LoginRefusal,
   ManagedUser,
   ManagerChoice,
+  ManagerProfileBody,
+  ManagerToPlace,
   Me,
+  NewNurseBody,
   NewUserBody,
   NewUserRefusal,
+  NurseRow,
+  NurseWithPassword,
   PublicHolidayBody,
   PublicHolidaySchema,
   RamadanFix,
@@ -53,7 +59,9 @@ import type {
   ShiftBody,
   ShiftSchema,
   TechnicalSettingsSchema,
+  TransferBody,
   UnitBody,
+  UnitName,
   UnitSchema,
   UserWithPassword
 } from './model';
@@ -3382,4 +3390,745 @@ export const useArchiveUnit = <TError = unknown,
         TContext
       > => {
       return useMutation(getArchiveUnitMutationOptions(options), queryClient);
+    }
+
+export const getListNursesUrl = () => {
+
+
+
+
+  return `/api/nurses`
+}
+
+/**
+ * Everyone for the CNO. For a manager, the nurses of their unit and those due to join, naming no other unit.
+ * @summary List Nurses
+ */
+export const listNurses = async ( options?: Parameters<typeof apiFetch>[1]): Promise<NurseRow[]> => {
+
+  return apiFetch<NurseRow[]>(getListNursesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNursesQueryKey = () => {
+    return [
+    `/api/nurses`
+    ] as const;
+    }
+
+
+export const getListNursesQueryOptions = <TData = Awaited<ReturnType<typeof listNurses>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNurses>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNursesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNurses>>> = ({ signal }) => listNurses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNurses>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListNursesQueryResult = NonNullable<Awaited<ReturnType<typeof listNurses>>>
+export type ListNursesQueryError = unknown
+
+
+export function useListNurses<TData = Awaited<ReturnType<typeof listNurses>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNurses>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listNurses>>,
+          TError,
+          Awaited<ReturnType<typeof listNurses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListNurses<TData = Awaited<ReturnType<typeof listNurses>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNurses>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listNurses>>,
+          TError,
+          Awaited<ReturnType<typeof listNurses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListNurses<TData = Awaited<ReturnType<typeof listNurses>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNurses>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Nurses
+ */
+
+export function useListNurses<TData = Awaited<ReturnType<typeof listNurses>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNurses>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListNursesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateNurseUrl = () => {
+
+
+
+
+  return `/api/nurses`
+}
+
+/**
+ * One transaction: the user, the nurse profile and the placement, or none of them.
+ * @summary Add Nurse
+ */
+export const createNurse = async (newNurseBody: NewNurseBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseWithPassword> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseWithPassword>(getCreateNurseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(newNurseBody)
+  }
+);}
+
+
+
+
+
+export const getCreateNurseMutationKey = () => ['createNurse'] as const;
+
+export const getCreateNurseMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNurse>>, TError,CreateNurseMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNurse>>, TError,CreateNurseMutationVariables, TContext> => {
+
+const mutationKey = getCreateNurseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNurse>>, CreateNurseMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNurse(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNurseMutationResult = NonNullable<Awaited<ReturnType<typeof createNurse>>>
+    export type CreateNurseMutationBody = NewNurseBody
+    export type CreateNurseMutationError = unknown
+    export type CreateNurseMutationVariables = {data: NewNurseBody}
+
+    /**
+ * @summary Add Nurse
+ */
+export const useCreateNurse = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNurse>>, TError,CreateNurseMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createNurse>>,
+        TError,
+        CreateNurseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateNurseMutationOptions(options), queryClient);
+    }
+
+export const getGetMyUnitUrl = () => {
+
+
+
+
+  return `/api/nurses/my-unit`
+}
+
+/**
+ * All a staff nurse reads of their unit here. Colleagues reach them in the roster, as names and shifts only.
+ * @summary My Unit
+ */
+export const getMyUnit = async ( options?: Parameters<typeof apiFetch>[1]): Promise<UnitName> => {
+
+  return apiFetch<UnitName>(getGetMyUnitUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyUnitQueryKey = () => {
+    return [
+    `/api/nurses/my-unit`
+    ] as const;
+    }
+
+
+export const getGetMyUnitQueryOptions = <TData = Awaited<ReturnType<typeof getMyUnit>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyUnit>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyUnitQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyUnit>>> = ({ signal }) => getMyUnit({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyUnit>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyUnitQueryResult = NonNullable<Awaited<ReturnType<typeof getMyUnit>>>
+export type GetMyUnitQueryError = unknown
+
+
+export function useGetMyUnit<TData = Awaited<ReturnType<typeof getMyUnit>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyUnit>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyUnit>>,
+          TError,
+          Awaited<ReturnType<typeof getMyUnit>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyUnit<TData = Awaited<ReturnType<typeof getMyUnit>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyUnit>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyUnit>>,
+          TError,
+          Awaited<ReturnType<typeof getMyUnit>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyUnit<TData = Awaited<ReturnType<typeof getMyUnit>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyUnit>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Unit
+ */
+
+export function useGetMyUnit<TData = Awaited<ReturnType<typeof getMyUnit>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyUnit>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyUnitQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListManagersToPlaceUrl = () => {
+
+
+
+
+  return `/api/nurses/managers`
+}
+
+/**
+ * The active unit managers with no nurse profile yet.
+ * @summary Managers To Place
+ */
+export const listManagersToPlace = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ManagerToPlace[]> => {
+
+  return apiFetch<ManagerToPlace[]>(getListManagersToPlaceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListManagersToPlaceQueryKey = () => {
+    return [
+    `/api/nurses/managers`
+    ] as const;
+    }
+
+
+export const getListManagersToPlaceQueryOptions = <TData = Awaited<ReturnType<typeof listManagersToPlace>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagersToPlace>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListManagersToPlaceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listManagersToPlace>>> = ({ signal }) => listManagersToPlace({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listManagersToPlace>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListManagersToPlaceQueryResult = NonNullable<Awaited<ReturnType<typeof listManagersToPlace>>>
+export type ListManagersToPlaceQueryError = unknown
+
+
+export function useListManagersToPlace<TData = Awaited<ReturnType<typeof listManagersToPlace>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagersToPlace>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listManagersToPlace>>,
+          TError,
+          Awaited<ReturnType<typeof listManagersToPlace>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListManagersToPlace<TData = Awaited<ReturnType<typeof listManagersToPlace>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagersToPlace>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listManagersToPlace>>,
+          TError,
+          Awaited<ReturnType<typeof listManagersToPlace>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListManagersToPlace<TData = Awaited<ReturnType<typeof listManagersToPlace>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagersToPlace>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Managers To Place
+ */
+
+export function useListManagersToPlace<TData = Awaited<ReturnType<typeof listManagersToPlace>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagersToPlace>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListManagersToPlaceQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGiveManagerNurseProfileUrl = () => {
+
+
+
+
+  return `/api/nurses/managers`
+}
+
+/**
+ * The role and the account stay as they are, so no password here. Their hospital ID is the username they have.
+ * @summary Give Manager A Profile
+ */
+export const giveManagerNurseProfile = async (managerProfileBody: ManagerProfileBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseRow>(getGiveManagerNurseProfileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(managerProfileBody)
+  }
+);}
+
+
+
+
+
+export const getGiveManagerNurseProfileMutationKey = () => ['giveManagerNurseProfile'] as const;
+
+export const getGiveManagerNurseProfileMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveManagerNurseProfile>>, TError,GiveManagerNurseProfileMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof giveManagerNurseProfile>>, TError,GiveManagerNurseProfileMutationVariables, TContext> => {
+
+const mutationKey = getGiveManagerNurseProfileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof giveManagerNurseProfile>>, GiveManagerNurseProfileMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  giveManagerNurseProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GiveManagerNurseProfileMutationResult = NonNullable<Awaited<ReturnType<typeof giveManagerNurseProfile>>>
+    export type GiveManagerNurseProfileMutationBody = ManagerProfileBody
+    export type GiveManagerNurseProfileMutationError = unknown
+    export type GiveManagerNurseProfileMutationVariables = {data: ManagerProfileBody}
+
+    /**
+ * @summary Give Manager A Profile
+ */
+export const useGiveManagerNurseProfile = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveManagerNurseProfile>>, TError,GiveManagerNurseProfileMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof giveManagerNurseProfile>>,
+        TError,
+        GiveManagerNurseProfileMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGiveManagerNurseProfileMutationOptions(options), queryClient);
+    }
+
+export const getTransferNurseUrl = (nurseId: string,) => {
+
+
+
+
+  return `/api/nurses/${nurseId}/transfer`
+}
+
+/**
+ * @summary Transfer Nurse
+ */
+export const transferNurse = async (nurseId: string,
+    transferBody: TransferBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseRow>(getTransferNurseUrl(nurseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(transferBody)
+  }
+);}
+
+
+
+
+
+export const getTransferNurseMutationKey = () => ['transferNurse'] as const;
+
+export const getTransferNurseMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferNurse>>, TError,TransferNurseMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof transferNurse>>, TError,TransferNurseMutationVariables, TContext> => {
+
+const mutationKey = getTransferNurseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transferNurse>>, TransferNurseMutationVariables> = (props) => {
+          const {nurseId,data} = props ?? {};
+
+          return  transferNurse(nurseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransferNurseMutationResult = NonNullable<Awaited<ReturnType<typeof transferNurse>>>
+    export type TransferNurseMutationBody = TransferBody
+    export type TransferNurseMutationError = unknown
+    export type TransferNurseMutationVariables = {nurseId: string;data: TransferBody}
+
+    /**
+ * @summary Transfer Nurse
+ */
+export const useTransferNurse = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferNurse>>, TError,TransferNurseMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof transferNurse>>,
+        TError,
+        TransferNurseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTransferNurseMutationOptions(options), queryClient);
+    }
+
+export const getSetNurseEndDateUrl = (nurseId: string,) => {
+
+
+
+
+  return `/api/nurses/${nurseId}/end-date`
+}
+
+/**
+ * A staff nurse's account follows: today or earlier deactivates at once, because ending an account should not
+ * wait, a later date when it has passed (`nurses.tasks`), and clearing it or moving it on brings them back. A
+ * manager's account is the System Admin's, so their profile ends alone.
+ * @summary Set End Date
+ */
+export const setNurseEndDate = async (nurseId: string,
+    endDateBody: EndDateBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseRow>(getSetNurseEndDateUrl(nurseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(endDateBody)
+  }
+);}
+
+
+
+
+
+export const getSetNurseEndDateMutationKey = () => ['setNurseEndDate'] as const;
+
+export const getSetNurseEndDateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setNurseEndDate>>, TError,SetNurseEndDateMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setNurseEndDate>>, TError,SetNurseEndDateMutationVariables, TContext> => {
+
+const mutationKey = getSetNurseEndDateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setNurseEndDate>>, SetNurseEndDateMutationVariables> = (props) => {
+          const {nurseId,data} = props ?? {};
+
+          return  setNurseEndDate(nurseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetNurseEndDateMutationResult = NonNullable<Awaited<ReturnType<typeof setNurseEndDate>>>
+    export type SetNurseEndDateMutationBody = EndDateBody
+    export type SetNurseEndDateMutationError = unknown
+    export type SetNurseEndDateMutationVariables = {nurseId: string;data: EndDateBody}
+
+    /**
+ * @summary Set End Date
+ */
+export const useSetNurseEndDate = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setNurseEndDate>>, TError,SetNurseEndDateMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setNurseEndDate>>,
+        TError,
+        SetNurseEndDateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetNurseEndDateMutationOptions(options), queryClient);
+    }
+
+export const getResetNursePasswordUrl = (nurseId: string,) => {
+
+
+
+
+  return `/api/nurses/${nurseId}/reset-password`
+}
+
+/**
+ * A staff nurse's only: a manager's account is the System Admin's, and this would let one bypass their own
+ * current password. A manager reaches the nurses of their unit this month, and the same 403 otherwise.
+ * @summary Reset Nurse Password
+ */
+export const resetNursePassword = async (nurseId: string, options?: Parameters<typeof apiFetch>[1]): Promise<NurseWithPassword> => {
+
+  return apiFetch<NurseWithPassword>(getResetNursePasswordUrl(nurseId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResetNursePasswordMutationKey = () => ['resetNursePassword'] as const;
+
+export const getResetNursePasswordMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetNursePassword>>, TError,ResetNursePasswordMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetNursePassword>>, TError,ResetNursePasswordMutationVariables, TContext> => {
+
+const mutationKey = getResetNursePasswordMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetNursePassword>>, ResetNursePasswordMutationVariables> = (props) => {
+          const {nurseId} = props ?? {};
+
+          return  resetNursePassword(nurseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetNursePasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetNursePassword>>>
+
+    export type ResetNursePasswordMutationError = unknown
+    export type ResetNursePasswordMutationVariables = {nurseId: string}
+
+    /**
+ * @summary Reset Nurse Password
+ */
+export const useResetNursePassword = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetNursePassword>>, TError,ResetNursePasswordMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetNursePassword>>,
+        TError,
+        ResetNursePasswordMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResetNursePasswordMutationOptions(options), queryClient);
     }

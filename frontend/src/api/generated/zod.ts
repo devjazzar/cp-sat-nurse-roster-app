@@ -1054,3 +1054,253 @@ export const ArchiveUnitResponse = zod.object({
 }),zod.null()]),
   "rules_need_review": zod.boolean()
 })
+
+
+/**
+ * Everyone for the CNO. For a manager, the nurses of their unit and those due to join, naming no other unit.
+ * @summary List Nurses
+ */
+export const ListNursesResponseItem = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date(),
+  "end_date": zod.union([zod.iso.date(),zod.null()]),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit this month, empty when it is not the caller\'s: a nurse due to join a manager\'s unit is on their list before they arrive.'),
+  "transfers": zod.array(zod.object({
+  "from_month": zod.string().describe('YYYY-MM.'),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
+})).describe('The transfers still to come, soonest first.')
+})
+export const ListNursesResponse = zod.array(ListNursesResponseItem)
+
+
+/**
+ * One transaction: the user, the nurse profile and the placement, or none of them.
+ * @summary Add Nurse
+ */
+export const createNurseBodyHospitalIdMax = 150;
+
+
+export const createNurseBodyHospitalIdRegExp = new RegExp('^[A-Za-z0-9._-]+$');
+export const createNurseBodyFullNameMax = 200;
+
+
+
+export const CreateNurseBody = zod.object({
+  "gender": zod.enum(['F', 'M']),
+  "unit_id": zod.uuid(),
+  "start_date": zod.iso.date(),
+  "hospital_id": zod.string().min(1).max(createNurseBodyHospitalIdMax).regex(createNurseBodyHospitalIdRegExp),
+  "full_name": zod.string().min(1).max(createNurseBodyFullNameMax)
+})
+
+export const CreateNurseResponse = zod.object({
+  "nurse": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date(),
+  "end_date": zod.union([zod.iso.date(),zod.null()]),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit this month, empty when it is not the caller\'s: a nurse due to join a manager\'s unit is on their list before they arrive.'),
+  "transfers": zod.array(zod.object({
+  "from_month": zod.string().describe('YYYY-MM.'),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
+})).describe('The transfers still to come, soonest first.')
+}),
+  "generated_password": zod.string()
+}).describe('Holds a password, so it asks not to be stored.')
+
+
+/**
+ * All a staff nurse reads of their unit here. Colleagues reach them in the roster, as names and shifts only.
+ * @summary My Unit
+ */
+export const GetMyUnitResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+})
+
+
+/**
+ * The active unit managers with no nurse profile yet.
+ * @summary Managers To Place
+ */
+export const ListManagersToPlaceResponseItem = zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit they hold, which their nurse profile has to be in.')
+})
+export const ListManagersToPlaceResponse = zod.array(ListManagersToPlaceResponseItem)
+
+
+/**
+ * The role and the account stay as they are, so no password here. Their hospital ID is the username they have.
+ * @summary Give Manager A Profile
+ */
+export const GiveManagerNurseProfileBody = zod.object({
+  "gender": zod.enum(['F', 'M']),
+  "unit_id": zod.uuid(),
+  "start_date": zod.iso.date(),
+  "user_id": zod.uuid()
+})
+
+export const GiveManagerNurseProfileResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date(),
+  "end_date": zod.union([zod.iso.date(),zod.null()]),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit this month, empty when it is not the caller\'s: a nurse due to join a manager\'s unit is on their list before they arrive.'),
+  "transfers": zod.array(zod.object({
+  "from_month": zod.string().describe('YYYY-MM.'),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
+})).describe('The transfers still to come, soonest first.')
+})
+
+
+/**
+ * @summary Transfer Nurse
+ */
+export const TransferNurseParams = zod.object({
+  "nurse_id": zod.uuid()
+})
+
+export const transferNurseBodyFromMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const TransferNurseBody = zod.object({
+  "unit_id": zod.uuid(),
+  "from_month": zod.string().regex(transferNurseBodyFromMonthRegExp)
+})
+
+export const TransferNurseResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date(),
+  "end_date": zod.union([zod.iso.date(),zod.null()]),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit this month, empty when it is not the caller\'s: a nurse due to join a manager\'s unit is on their list before they arrive.'),
+  "transfers": zod.array(zod.object({
+  "from_month": zod.string().describe('YYYY-MM.'),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
+})).describe('The transfers still to come, soonest first.')
+})
+
+
+/**
+ * A staff nurse's account follows: today or earlier deactivates at once, because ending an account should not
+ * wait, a later date when it has passed (`nurses.tasks`), and clearing it or moving it on brings them back. A
+ * manager's account is the System Admin's, so their profile ends alone.
+ * @summary Set End Date
+ */
+export const SetNurseEndDateParams = zod.object({
+  "nurse_id": zod.uuid()
+})
+
+export const SetNurseEndDateBody = zod.object({
+  "end_date": zod.union([zod.iso.date(),zod.null()])
+})
+
+export const SetNurseEndDateResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date(),
+  "end_date": zod.union([zod.iso.date(),zod.null()]),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit this month, empty when it is not the caller\'s: a nurse due to join a manager\'s unit is on their list before they arrive.'),
+  "transfers": zod.array(zod.object({
+  "from_month": zod.string().describe('YYYY-MM.'),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
+})).describe('The transfers still to come, soonest first.')
+})
+
+
+/**
+ * A staff nurse's only: a manager's account is the System Admin's, and this would let one bypass their own
+ * current password. A manager reaches the nurses of their unit this month, and the same 403 otherwise.
+ * @summary Reset Nurse Password
+ */
+export const ResetNursePasswordParams = zod.object({
+  "nurse_id": zod.uuid()
+})
+
+export const ResetNursePasswordResponse = zod.object({
+  "nurse": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date(),
+  "end_date": zod.union([zod.iso.date(),zod.null()]),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit this month, empty when it is not the caller\'s: a nurse due to join a manager\'s unit is on their list before they arrive.'),
+  "transfers": zod.array(zod.object({
+  "from_month": zod.string().describe('YYYY-MM.'),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
+})).describe('The transfers still to come, soonest first.')
+}),
+  "generated_password": zod.string()
+}).describe('Holds a password, so it asks not to be stored.')

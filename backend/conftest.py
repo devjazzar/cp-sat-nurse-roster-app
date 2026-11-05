@@ -25,5 +25,16 @@ def signed_in(make_user):
     return sign_in
 
 
+@pytest.fixture
+def client_of(make_user):
+    """A client signed in as a new user of the given role, under a username the test chooses."""
+    def sign_in(username, role, **fields):
+        make_user(username, role, **fields)
+        client = Client()
+        assert post(client, "/api/auth/login", {"username": username, "password": PASSWORD}).status_code == 200
+        return client
+    return sign_in
+
+
 def post(client, path, body):
     return client.post(path, body, content_type="application/json")

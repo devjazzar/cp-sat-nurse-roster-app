@@ -27,6 +27,14 @@ _Avoid_: staff record, employee record, nurse record
 The first and (optional) last day a nurse is part of her unit. Days outside them count like leave: nothing owed, nothing worked, no debt.
 _Avoid_: hire date, joining date, termination date
 
+**Transfer**:
+A nurse's move to another unit, effective from a chosen month. Until that month begins the nurse belongs where they are.
+_Avoid_: move, reassignment, secondment
+
+**Placement**:
+From a given month on, the unit a nurse belongs to. The latest that has begun is in force; a later one is a transfer still to come.
+_Avoid_: assignment, membership record
+
 **Hospital ID**:
 The hospital's own identifier for a nurse. It is her username and the name she carries on every roster.
 _Avoid_: employee number, badge number, staff number

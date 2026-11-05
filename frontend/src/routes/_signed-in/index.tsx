@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useRouteContext } from "@tanstack/react-router"
 import type { ReactNode } from "react"
 
-import { useListUnits } from "@/api/generated/endpoints"
+import { useGetMyUnit, useListUnits } from "@/api/generated/endpoints"
 import { Role } from "@/api/generated/model"
 import { ROLE_NAMES } from "@/roles"
 
@@ -19,7 +19,8 @@ function CnoHome() {
   const waiting = (units.data ?? []).filter((unit) => !unit.archived && !unit.manager).map((unit) => unit.name)
   return (
     <>
-      <p>Set the rules every unit rosters by under Hospital rules, and keep the shifts, leave types, holidays and Ramadan dates they use. The hospital's nurses will be managed from here.</p>
+      <p>Set the rules every unit rosters by under Hospital rules, and keep the shifts, leave types, holidays and Ramadan dates they use.</p>
+      <p>Add the hospital's nurses under <Link to="/nurses" className="underline underline-offset-3">Nurses</Link>.</p>
       {units.isError && <p role="alert">The units could not be read, so any with no manager are not listed. Reload the page to try again.</p>}
       {waiting.length > 0 && (
         <p>
@@ -45,12 +46,24 @@ function ManagerHome() {
   )
 }
 
+function NurseHome() {
+  const unit = useGetMyUnit()
+  if (unit.isPending) return <p>Loading…</p>
+  if (unit.isError) return <p role="alert">Your unit could not be read. Reload the page to try again.</p>
+  return (
+    <>
+      <p>Your unit is {unit.data.name}.</p>
+      <p>No roster yet.</p>
+    </>
+  )
+}
+
 /** Every role but the System Admin's, so a new role cannot go without a home. */
 const HOME_OF: Record<Exclude<Role, "system_admin">, () => ReactNode> = {
   cno: CnoHome,
   deputy_cno: () => <p>Submitted rosters waiting for your decision will be listed here.</p>,
   unit_manager: ManagerHome,
-  staff_nurse: () => <p>Your unit's approved roster will be shown here.</p>,
+  staff_nurse: NurseHome,
 }
 
 function HomePage() {

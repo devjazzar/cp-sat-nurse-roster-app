@@ -13,6 +13,7 @@ from audit.log import record
 from hospital.api import differing, refuse, save_unless_taken
 from hospital.catalogue_api import Name
 from hospital.models import HospitalSettings
+from nurses.membership import placed_outside
 from units.models import Unit
 from units.rules import seeded_rules
 from units.scope import unit_in_scope, units_in_scope
@@ -62,6 +63,12 @@ def _manager_to_assign(manager_id: UUID | None, unit_id: UUID | None) -> User | 
     if held is not None:
         refuse((("manager_id",), f"{manager.username} already manages {held.name}. A manager holds one unit: "
                                  f"give {held.name} another manager, or none, first."))
+    elsewhere = placed_outside(manager, unit_id)
+    if elsewhere is not None:
+        how = ("Transfer it here from this month first." if unit_id else
+               "Add the unit with no manager, transfer the profile there from this month, then assign them.")
+        refuse((("manager_id",), f"{manager.username}'s nurse profile is in {elsewhere.name}, and a manager's must be "
+                                 f"in the unit they hold. {how}"))
     return manager
 
 

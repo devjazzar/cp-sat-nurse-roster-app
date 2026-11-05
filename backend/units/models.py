@@ -27,6 +27,6 @@ class Unit(models.Model):
         ]
 
     def nurse_count(self) -> int:
-        """How many nurses belong to this unit, which is what stops it being archived. Ticket 07 brings the
-        nurse profile and must make this count them: until then no nurse can belong to a unit."""
-        return 0
+        """How many nurses belong to this unit, which is what stops it being archived."""
+        from nurses.membership import belonging_to  # That module's models point here.
+        return belonging_to(self).count()

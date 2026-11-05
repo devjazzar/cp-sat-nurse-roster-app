@@ -17,18 +17,21 @@ from django.http import Http404
 from ninja.errors import HttpError
 
 from accounts.models import Role, User
+from nurses.membership import unit_of_nurse
 from units.models import Unit
 
 HOSPITAL_WIDE = (Role.CNO, Role.DEPUTY_CNO)
 
 
 def units_in_scope(user: User) -> QuerySet[Unit]:
-    """Every unit for the CNO and the Deputy CNO, the one he holds for a manager, and none for anyone else.
-    A staff nurse's unit arrives with her nurse profile in ticket 07."""
+    """Every unit for the CNO and the Deputy CNO, the one they hold for a manager, whose nurse profile if any is in
+    it (`nurses.membership`), the one they belong to this month for a staff nurse, and none for anyone else."""
     if user.role in HOSPITAL_WIDE:
         return Unit.objects.all()
     if user.role == Role.UNIT_MANAGER:
         return Unit.objects.filter(manager=user)
+    if user.role == Role.STAFF_NURSE:
+        return unit_of_nurse(user)
     return Unit.objects.none()
 
 

@@ -9,6 +9,7 @@ from ninja.errors import HttpError
 
 from accounts.models import Role, User
 from conftest import post
+from nurses.models import NurseProfile, Placement
 from units.models import Unit
 from units.scope import unit_in_scope, units_in_scope
 
@@ -82,13 +83,25 @@ def test_the_cno_and_deputy_see_every_unit(make_user, role, her_unit, other_unit
         unit_in_scope(user, uuid4())
 
 
-@pytest.mark.parametrize("role", [Role.SYSTEM_ADMIN, Role.STAFF_NURSE])
-def test_other_roles_have_nothing_in_scope(make_user, role, her_unit):
-    user = make_user("other", role)
+def test_the_system_admin_has_nothing_in_scope(make_user, her_unit):
+    user = make_user("other", Role.SYSTEM_ADMIN)
 
     assert list(units_in_scope(user)) == []
     with pytest.raises(HttpError) as refused:
         unit_in_scope(user, her_unit.pk)
+    assert refused.value.status_code == 403
+
+
+def test_a_staff_nurses_scope_is_the_unit_they_belong_to_now(make_user, her_unit, other_unit):
+    user = make_user("h123", Role.STAFF_NURSE)
+    nurse = NurseProfile.objects.create(user=user, gender="F", start_date="2026-01-01")
+    Placement.objects.create(nurse=nurse, unit=her_unit, from_month="2026-01-01")
+    Placement.objects.create(nurse=nurse, unit=other_unit, from_month="2076-01-01")
+
+    assert list(units_in_scope(user)) == [her_unit]
+    assert unit_in_scope(user, her_unit.pk) == her_unit
+    with pytest.raises(HttpError) as refused:
+        unit_in_scope(user, other_unit.pk)
     assert refused.value.status_code == 403
 
 

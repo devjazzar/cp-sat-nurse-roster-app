@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, useBlocker } from "@tanstack/react-router"
-import { useRef, useState } from "react"
+import { createFileRoute } from "@tanstack/react-router"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -27,6 +27,7 @@ import {
   createUserBodyUsernameRegExp as USERNAME,
 } from "@/api/generated/zod"
 import { FormField, SelectField } from "@/components/form-field"
+import { PasswordDialog, type Shown } from "@/components/password-dialog"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -40,7 +41,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { hospitalTime } from "@/lib/utils"
@@ -64,9 +64,6 @@ const schema = z.object({
     .regex(USERNAME, "Use only letters, digits, dots, dashes and underscores."),
 })
 type NewUser = z.input<typeof schema>
-
-/** The password from a creation or a reset. It lives in this state and nowhere else, until Done. */
-type Shown = { username: string; full_name: string; password: string }
 
 function NewUserForm({ users, onCreated }: { users: ManagedUser[]; onCreated: (shown: Shown) => void }) {
   const queryClient = useQueryClient()
@@ -122,45 +119,6 @@ function NewUserForm({ users, onCreated }: { users: ManagedUser[]; onCreated: (s
         <Button type="submit" disabled={create.isPending} className="self-start">Create user</Button>
       </FieldGroup>
     </form>
-  )
-}
-
-function PasswordDialog({ shown, onDone }: { shown: Shown | null; onDone: () => void }) {
-  const [copied, setCopied] = useState("")
-  const passwordBox = useRef<HTMLInputElement>(null)
-  // Going back or reloading would lose a password nobody can see again.
-  useBlocker({ shouldBlockFn: () => shown !== null, enableBeforeUnload: () => shown !== null, disabled: shown === null })
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(shown?.password ?? "")
-      setCopied("Copied.")
-    } catch {
-      setCopied("It could not be copied. It is selected in the box: copy it by hand.")
-      passwordBox.current?.select()
-    }
-  }
-
-  // Only Done closes this: nobody can see the password again, so Escape must not lose it either.
-  return (
-    <AlertDialog open={shown !== null}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Password for {shown?.username}</AlertDialogTitle>
-          <AlertDialogDescription>
-            This is the only time it is shown. Give it to {shown?.full_name}, who must choose a new one at their next login.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <Input ref={passwordBox} readOnly translate="no" aria-label="Generated password" value={shown?.password ?? ""}
-          autoComplete="off" spellCheck={false} onFocus={(event) => event.target.select()}
-          className="text-center font-mono text-base md:text-base" />
-        <p role="status" className="text-sm text-muted-foreground empty:sr-only">{copied}</p>
-        <AlertDialogFooter>
-          <Button variant="outline" onClick={copy}>Copy password</Button>
-          <Button onClick={() => { setCopied(""); onDone() }}>Done</Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   )
 }
 

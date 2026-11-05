@@ -64,14 +64,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/nurses", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/nurses"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -92,13 +92,13 @@ describe("route guards", () => {
     expect(router.state.location.pathname).toBe("/health")
   })
 
-  it.each(["/health", "/settings", "/users", "/audit-log", "/units"])("%s is not for another role", async (path) => {
-    const { router, calls } = start(path, session(NURSE))
+  it.each(["/health", "/settings", "/users", "/audit-log", "/units", "/nurses"])("%s is not for another role", async (path) => {
+    const { router, calls } = start(path, { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
 
-    expect(await screen.findByText(/approved roster will be shown here/)).toBeInTheDocument()
+    expect(await screen.findByText("No roster yet.")).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/")
     expect(screen.queryByRole("link", { name: "Technical settings" })).not.toBeInTheDocument()
-    expect(calls.map((call) => call.url)).toEqual(["/api/auth/session"])
+    expect(calls.map((call) => call.url)).toEqual(["/api/auth/session", "/api/nurses/my-unit"])
   })
 
   it("says so when the application cannot be reached", async () => {
@@ -737,14 +737,15 @@ describe("each role's navigation and home", () => {
   })
 
   it.each([
-    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Nurses", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
-    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
-    ["staff_nurse", "Staff Nurse", /approved roster will be shown here/, ["Home", ...CATALOGUE_LINKS, "Change password"], []],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Nurses", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["staff_nurse", "Staff Nurse", "No roster yet.", ["Home", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
     const { router, calls } = start("/", {
       ...session({ ...ME, username: "someone", full_name: "Some One", role }),
       "GET /api/units": { body: [] },
+      "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } },
     })
 
     expect(await screen.findByText(says)).toBeInTheDocument()
@@ -1666,5 +1667,356 @@ describe("deactivating a manager who holds a unit", () => {
     await user.click(await screen.findByRole("button", { name: "Deactivate khalid" }))
 
     expect(within(screen.getByRole("alertdialog")).queryByText(/no manager/)).not.toBeInTheDocument()
+  })
+})
+
+describe("a staff nurse's home", () => {
+  it("shows their unit and that there is no roster yet", async () => {
+    start("/", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+
+    expect(await screen.findByText("Your unit is ER.")).toBeInTheDocument()
+    expect(screen.getByText("No roster yet.")).toBeInTheDocument()
+  })
+
+  it("does not claim a unit or a roster when the answer could not be read", async () => {
+    start("/", { ...session(NURSE), "GET /api/nurses/my-unit": { status: 500 } })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read/)
+    expect(screen.queryByText("No roster yet.")).not.toBeInTheDocument()
+  })
+})
+
+describe("the nurses page", () => {
+  const UNIT_ER = { id: "u1", name: "ER", archived: false, manager: null, rules_need_review: true }
+  const UNIT_ICU = { ...UNIT_ER, id: "u2", name: "ICU" }
+  const UNIT_OLD = { ...UNIT_ER, id: "u3", name: "Old", archived: true }
+  const AMAL = {
+    id: "n1", hospital_id: "h123", full_name: "Amal Saleh", role: "staff_nurse", gender: "F", start_date: "2026-01-10",
+    end_date: null, is_active: true, must_change_password: false, unit: { id: "u1", name: "ER" }, transfers: [],
+  }
+  const BADR = { ...AMAL, id: "n2", hospital_id: "h124", full_name: "Badr Omar", gender: "M", unit: { id: "u2", name: "ICU" } }
+  const MONA_NURSE = { ...AMAL, id: "n3", hospital_id: "mona", full_name: "Mona Ali", role: "unit_manager" }
+  const CHOICE = { id: "m1", username: "mona", full_name: "Mona Ali", unit: { id: "u1", name: "ER" } }
+  const refusal = (loc: string[], msg: string) => ({ status: 422, body: { detail: [{ type: "value_error", loc: ["body", "body", ...loc], msg }] } })
+
+  const asCnoHere = (extra = {}, nurses: unknown[] = [AMAL, BADR]) => ({
+    ...session({ ...ME, username: "chief", full_name: "The Chief", role: "cno" }),
+    "GET /api/nurses": { body: nurses },
+    "GET /api/nurses/managers": { body: [CHOICE] },
+    "GET /api/units": { body: [UNIT_ER, UNIT_ICU, UNIT_OLD] },
+    ...extra,
+  })
+  const asManagerHere = (nurses: unknown[], units: unknown[] = [UNIT_ER], extra = {}) => ({
+    ...session({ ...ME, username: "mona", full_name: "Mona Ali", role: "unit_manager" }),
+    "GET /api/nurses": { body: nurses },
+    "GET /api/units": { body: units },
+    ...extra,
+  })
+
+  it("lists every nurse with their unit for the CNO, and names the page", async () => {
+    start("/nurses", asCnoHere())
+
+    const row = (await screen.findByText("Amal Saleh")).closest("tr") as HTMLElement
+    expect(within(row).getByText("h123")).toBeInTheDocument()
+    expect(within(row).getByText("ER")).toBeInTheDocument()
+    expect(within(row).getByText("Female")).toBeInTheDocument()
+    expect(within(row).getByText("10 Jan 2026")).toBeInTheDocument()
+    expect(within(row).getByText("Active")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 1, name: "Nurses" })).toBeInTheDocument()
+    expect(document.title).toBe("Nurses · Nurse roster")
+  })
+
+  it("narrows the list to one unit", async () => {
+    const { user, router } = start("/nurses", asCnoHere())
+    await screen.findByText("Amal Saleh")
+
+    await user.selectOptions(screen.getByLabelText("Show"), "ICU")
+
+    expect(screen.queryByText("Amal Saleh")).not.toBeInTheDocument()
+    expect(screen.getByText("Badr Omar")).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.search).toEqual({ unit: "u2" }))
+  })
+
+  it("keeps the unit it narrows to in the address, and counts a nurse due to join", async () => {
+    start("/nurses?unit=u2", asCnoHere({}, [{ ...AMAL, transfers: [{ from_month: "2027-01", unit: { id: "u2", name: "ICU" } }] }, MONA_NURSE]))
+
+    expect(await screen.findByText("Amal Saleh")).toBeInTheDocument()
+    expect(screen.getByLabelText("Show")).toHaveValue("u2")
+    expect(screen.queryByText("Mona Ali")).not.toBeInTheDocument()
+  })
+
+  it("does not take a unit in the address that is not there", async () => {
+    start("/nurses?unit=gone", asCnoHere())
+
+    expect(await screen.findByText("Amal Saleh")).toBeInTheDocument()
+    expect(screen.getByText("Badr Omar")).toBeInTheDocument()
+    expect(screen.getByLabelText("Show")).toHaveValue("")
+  })
+
+  it("says so when a unit it narrows to has nobody this month", async () => {
+    const { user } = start("/nurses", asCnoHere({}, [AMAL]))
+    await screen.findByText("Amal Saleh")
+
+    await user.selectOptions(screen.getByLabelText("Show"), "ICU")
+
+    expect(screen.getByText("No nurse is in this unit or due to join it.")).toBeInTheDocument()
+    expect(screen.queryByRole("table")).not.toBeInTheDocument()
+  })
+
+  it("says so when the nurses cannot be read", async () => {
+    start("/nurses", asCnoHere({ "GET /api/nurses": { status: 500 } }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read/)
+  })
+
+  it("says so when there are no nurses yet", async () => {
+    start("/nurses", asCnoHere({}, []))
+
+    expect(await screen.findByText(/There are no nurses yet/)).toBeInTheDocument()
+  })
+
+  it("adds a nurse, shows the password once and then forgets it", async () => {
+    const { user, calls } = start("/nurses", asCnoHere({
+      "POST /api/nurses": { status: 201, body: { nurse: AMAL, generated_password: "abcd-efgh-jkmn-pqrs" } },
+    }))
+
+    const opener = await screen.findByRole("button", { name: "Add a nurse" })
+    await user.click(opener)
+    await waitFor(() => expect(screen.getByLabelText("Hospital ID")).toHaveFocus())
+    await user.type(screen.getByLabelText("Hospital ID"), "h123")
+    await user.type(screen.getByLabelText("Full name"), "Amal Saleh")
+    await user.selectOptions(screen.getByLabelText("Gender"), "Female")
+    expect(within(screen.getByLabelText("Unit")).queryByRole("option", { name: "Old" })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText("Unit"), "ER")
+    await user.type(screen.getByLabelText("Start date"), "2026-01-10")
+    await user.click(screen.getByRole("button", { name: "Add nurse" }))
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Password for h123" })
+    expect(within(dialog).getByLabelText("Generated password")).toHaveValue("abcd-efgh-jkmn-pqrs")
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({
+      hospital_id: "h123", full_name: "Amal Saleh", gender: "F", unit_id: "u1", start_date: "2026-01-10",
+    })
+
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    expect(screen.queryByDisplayValue("abcd-efgh-jkmn-pqrs")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Hospital ID")).not.toBeInTheDocument()
+  })
+
+  it("asks for what is missing before sending anything", async () => {
+    const { user, calls } = start("/nurses", asCnoHere())
+
+    await user.click(await screen.findByRole("button", { name: "Add a nurse" }))
+    await user.click(screen.getByRole("button", { name: "Add nurse" }))
+
+    expect(await screen.findByText("Enter their hospital ID.")).toBeInTheDocument()
+    expect(screen.getByText("Choose a unit.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+  })
+
+  it("puts a taken hospital ID beside its field with focus on it", async () => {
+    const { user } = start("/nurses", asCnoHere({
+      "POST /api/nurses": refusal(["hospital_id"], "h123 is already in use."),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Add a nurse" }))
+    await user.type(screen.getByLabelText("Hospital ID"), "h123")
+    await user.type(screen.getByLabelText("Full name"), "Amal Saleh")
+    await user.selectOptions(screen.getByLabelText("Gender"), "Male")
+    await user.selectOptions(screen.getByLabelText("Unit"), "ICU")
+    await user.type(screen.getByLabelText("Start date"), "2026-01-10")
+    await user.click(screen.getByRole("button", { name: "Add nurse" }))
+
+    expect(await screen.findByText("h123 is already in use.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Hospital ID")).toHaveFocus()
+  })
+
+  it("gives a unit manager a nurse profile, starting from the unit they hold, with no password", async () => {
+    const { user, calls } = start("/nurses", asCnoHere({
+      "POST /api/nurses/managers": { status: 201, body: MONA_NURSE },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Give a unit manager a nurse profile" }))
+    await user.selectOptions(await screen.findByLabelText("Unit manager"), "Mona Ali (mona)")
+    expect(screen.getByLabelText("Unit")).toHaveValue("u1")
+    await user.selectOptions(screen.getByLabelText("Gender"), "Female")
+    await user.type(screen.getByLabelText("Start date"), "2026-01-10")
+    await user.click(screen.getByRole("button", { name: "Give profile" }))
+
+    expect(await screen.findByText(/Mona Ali now has a nurse profile/)).toBeInTheDocument()
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({
+      user_id: "m1", gender: "F", unit_id: "u1", start_date: "2026-01-10",
+    })
+  })
+
+  it("transfers from a chosen month and returns focus to the row", async () => {
+    const waiting = { ...AMAL, transfers: [{ from_month: "2027-01", unit: { id: "u2", name: "ICU" } }] }
+    const { user, calls } = start("/nurses", asCnoHere({ "POST /api/nurses/n1/transfer": { body: waiting } }))
+
+    const opener = await screen.findByRole("button", { name: "Transfer Amal Saleh" })
+    await user.click(opener)
+    await waitFor(() => expect(screen.getByLabelText("To unit")).toHaveFocus())
+    expect(within(screen.getByLabelText("To unit")).queryByRole("option", { name: "Old" })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText("To unit"), "ICU")
+    const months = within(screen.getByLabelText("Effective from")).getAllByRole("option")
+    await user.selectOptions(screen.getByLabelText("Effective from"), months[2])
+    await user.click(screen.getByRole("button", { name: "Transfer" }))
+
+    await waitFor(() => expect(calls.find((call) => call.method === "POST")?.body).toMatchObject({ unit_id: "u2" }))
+    const body = calls.find((call) => call.method === "POST")?.body as { from_month: string }
+    expect(body.from_month).toMatch(/^\d{4}-\d{2}$/)
+    expect(await screen.findByText(/Amal Saleh transfers to ICU from/)).toBeInTheDocument()
+    await waitFor(() => expect(opener).toHaveFocus())
+  })
+
+  it("shows a transfer waiting on the row", async () => {
+    start("/nurses", asCnoHere({}, [{ ...AMAL, transfers: [{ from_month: "2027-01", unit: { id: "u2", name: "ICU" } }] }]))
+
+    expect(await screen.findByText("ICU from January 2027")).toBeInTheDocument()
+  })
+
+  it("puts a refused transfer beside its field", async () => {
+    const { user } = start("/nurses", asCnoHere({
+      "POST /api/nurses/n1/transfer": refusal(["unit_id"], "Amal Saleh is already in ER from that month."),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Transfer Amal Saleh" }))
+    await user.selectOptions(screen.getByLabelText("To unit"), "ER")
+    await user.selectOptions(screen.getByLabelText("Effective from"), within(screen.getByLabelText("Effective from")).getAllByRole("option")[1])
+    await user.click(screen.getByRole("button", { name: "Transfer" }))
+
+    expect(await screen.findByText(/already in ER from that month/)).toBeInTheDocument()
+  })
+
+  it("sets an end date and says what became of the account", async () => {
+    const { user, calls } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n1/end-date": { body: { ...AMAL, end_date: "2026-11-05", is_active: false } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Set end date of Amal Saleh" }))
+    expect(screen.getByText(/deactivates them at once/)).toBeInTheDocument()
+    await user.type(screen.getByLabelText("End date"), "2026-11-05")
+    await user.click(screen.getByRole("button", { name: "Save end date" }))
+
+    expect(await screen.findByText("Amal Saleh is deactivated.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ end_date: "2026-11-05" })
+  })
+
+  it("says a later end date leaves them active until then", async () => {
+    const { user } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n1/end-date": { body: { ...AMAL, end_date: "2076-11-05" } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Set end date of Amal Saleh" }))
+    await user.type(screen.getByLabelText("End date"), "2076-11-05")
+    await user.click(screen.getByRole("button", { name: "Save end date" }))
+
+    expect(await screen.findByText(/stays active until 5 Nov 2076/)).toBeInTheDocument()
+  })
+
+  it("says a manager's profile ends with their account as it was", async () => {
+    const { user } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n3/end-date": { body: { ...MONA_NURSE, end_date: "2026-01-20" } },
+    }, [MONA_NURSE]))
+
+    await user.click(await screen.findByRole("button", { name: "Set end date of Mona Ali" }))
+    expect(screen.getByText(/Their account stays as it is/)).toBeInTheDocument()
+    await user.type(screen.getByLabelText("End date"), "2026-01-20")
+    await user.click(screen.getByRole("button", { name: "Save end date" }))
+
+    expect(await screen.findByText("The end date of Mona Ali is 20 Jan 2026. Their account stays active.")).toBeInTheDocument()
+  })
+
+  it("clears an end date, and a refusal stays on the field", async () => {
+    const ended = { ...AMAL, end_date: "2026-11-05", is_active: false }
+    const { user, calls } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n1/end-date": refusal(["end_date"], "ER is archived. Transfer Amal Saleh first."),
+    }, [ended]))
+
+    expect(await screen.findByText("Deactivated")).toBeInTheDocument()
+    expect(screen.getByText("End date 5 Nov 2026")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Change end date of Amal Saleh" }))
+    expect(screen.getByLabelText("End date")).toHaveValue("2026-11-05")
+    await user.click(screen.getByRole("button", { name: "Clear end date" }))
+
+    expect(await screen.findByText(/ER is archived/)).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ end_date: null })
+  })
+
+  it("asks before resetting a password, then shows the new one once", async () => {
+    const { user, calls } = start("/nurses", asCnoHere({
+      "POST /api/nurses/n1/reset-password": { body: { nurse: AMAL, generated_password: "wxyz-wxyz-wxyz-wxyz" } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Reset password of Amal Saleh" }))
+    const question = screen.getByRole("alertdialog", { name: "Reset the password of h123?" })
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+    await user.click(within(question).getByRole("button", { name: "Reset password" }))
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Password for h123" })
+    expect(within(dialog).getByLabelText("Generated password")).toHaveValue("wxyz-wxyz-wxyz-wxyz")
+  })
+
+  it("offers no reset for a manager, whose account is the System Admin's", async () => {
+    start("/nurses", asCnoHere({}, [MONA_NURSE]))
+
+    expect(await screen.findByText("Unit Manager")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reset password of Mona Ali" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Transfer Mona Ali" })).toBeInTheDocument()
+  })
+
+  it("gives a manager their unit's list with resets only, and nothing the CNO changes", async () => {
+    const { calls } = start("/nurses", asManagerHere([AMAL]))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Nurses of ER" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Reset password of Amal Saleh" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Add a nurse" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Transfer/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /end date/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Unit" })).not.toBeInTheDocument()
+    expect(calls.some((call) => call.url === "/api/nurses/managers")).toBe(false)
+  })
+
+  it("tells a manager who is joining and who is leaving, and offers no reset for one not yet theirs", async () => {
+    start("/nurses", asManagerHere([
+      { ...AMAL, unit: null, transfers: [{ from_month: "2027-01", unit: { id: "u1", name: "ER" } }] },
+      { ...BADR, unit: { id: "u1", name: "ER" }, transfers: [{ from_month: "2027-02", unit: null }] },
+    ]))
+
+    expect(await screen.findByText("Joins from January 2027")).toBeInTheDocument()
+    expect(screen.getByText("Leaves from February 2027")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reset password of Amal Saleh" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset password of Badr Omar" })).toBeInTheDocument()
+  })
+
+  it("says nothing to a manager of transfers that do not touch their unit", async () => {
+    start("/nurses", asManagerHere([{
+      ...AMAL,
+      unit: null,
+      transfers: [{ from_month: "2027-01", unit: null }, { from_month: "2027-03", unit: { id: "u1", name: "ER" } }],
+    }]))
+
+    expect(await screen.findByText("Joins from March 2027")).toBeInTheDocument()
+    expect(screen.queryByText(/Leaves from/)).not.toBeInTheDocument()
+  })
+
+  it("lets a keyboard scroll a manager's table when nothing in it can take focus", async () => {
+    start("/nurses", asManagerHere([MONA_NURSE]))
+
+    expect(await screen.findByRole("region", { name: "Nurses of ER" })).toHaveAttribute("tabindex", "0")
+  })
+
+  it("says so to a manager with no unit, or with no nurses yet", async () => {
+    start("/nurses", asManagerHere([], []))
+
+    expect(await screen.findByText(/No unit is assigned to you yet/)).toBeInTheDocument()
+  })
+
+  it("says so to a manager whose unit has no nurses yet", async () => {
+    start("/nurses", asManagerHere([]))
+
+    expect(await screen.findByText(/ER has no nurses yet/)).toBeInTheDocument()
   })
 })
