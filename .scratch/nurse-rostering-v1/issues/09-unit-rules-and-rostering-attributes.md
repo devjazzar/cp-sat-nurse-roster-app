@@ -13,3 +13,7 @@
 - [ ] Opening values editable (overtime this year, hours balance, two fairness balances), default zero
 - [ ] Only the unit's manager edits; CNO and Deputy CNO read; nurses never see attributes
 - [ ] API tests cover rules, the retire guard, attributes and scoping
+
+## Comments
+
+**From ticket 07a (2026-11-05): gender stays out of this ticket's form.** The CNO sets and corrects it (`nurses.api.correct_details`), and section 3 now says so. It is not on this ticket's list of attributes, though the glossary counts it among them.

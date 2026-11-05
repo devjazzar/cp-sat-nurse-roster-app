@@ -20,7 +20,7 @@ A user who appears on a unit's rosters: any user with a nurse profile. Every sta
 _Avoid_: staff, employee, staff member
 
 **Nurse profile**:
-A user's roster identity: her hospital ID, her unit and her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding). Her username is her hospital ID.
+A user's roster identity: her hospital ID, her unit and her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding). Her username is her hospital ID. The CNO sets and corrects her gender; her unit manager sets the rest.
 _Avoid_: staff record, employee record, nurse record
 
 **Start date**, **End date**:
@@ -52,7 +52,7 @@ The hospital IT role. Creates the accounts of the CNO, the Deputy CNO and the un
 _Avoid_: admin, superuser, IT
 
 **CNO**:
-The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses; and may approve or reject submitted rosters like the Deputy CNO.
+The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses and corrects their names, genders and start dates; and may approve or reject submitted rosters like the Deputy CNO.
 _Avoid_: nursing director, matron
 
 **Deputy CNO**:

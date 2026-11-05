@@ -19,7 +19,7 @@ from accounts.authz import SignedIn
 from accounts.models import Role, User
 from accounts.provisioning import UsernameTaken, create_user, deactivate, reactivate, reset_password
 from audit.log import record
-from hospital.api import refuse
+from hospital.api import differing, refuse
 from hospital.catalogue_api import MONTH_PATTERN, IsoDate, iso_date
 from nurses import membership
 from nurses.models import Gender, NurseProfile
@@ -66,6 +66,13 @@ class EndDateBody(Body):
     end_date: IsoDate | None
 
 
+class CorrectionBody(Body):
+    """The hospital ID is not here: it is the username, and usernames cannot be reused."""
+    full_name: FullName
+    gender: GenderChoice
+    start_date: IsoDate
+
+
 class UnitName(Schema):
     id: UUID
     name: str
@@ -95,6 +102,17 @@ class NurseWithPassword(Schema):
     """Holds a password, so it asks not to be stored."""
     nurse: NurseRow
     generated_password: str
+
+
+class FirstPlacement(Schema):
+    unit: UnitName
+    from_month: str = Field(description="YYYY-MM.")
+
+
+class CorrectedNurse(Schema):
+    nurse: NurseRow
+    first_placement_extended: FirstPlacement | None = Field(
+        description="Set when the start date went before the nurse's first placement, which now begins earlier.")
 
 
 class ManagerToPlace(Schema):
@@ -254,9 +272,7 @@ def set_end_date(request: HttpRequest, nurse_id: UUID, body: EndDateBody) -> Nur
         user = nurse.user
         if end == nurse.end_date:
             return _row_as_saved(nurse_id)
-        # A nurse added by mistake, due to start later, has to be able to end today.
-        never_started = nurse.start_date > today and end is not None and end <= today
-        if end is not None and end < nurse.start_date and not never_started:
+        if end is not None and not membership.end_date_fits(nurse.start_date, end):
             refuse((("end_date",), "The end date cannot be before the start date."))
         before = nurse.end_date
         nurse.end_date = end
@@ -278,6 +294,51 @@ def set_end_date(request: HttpRequest, nurse_id: UUID, body: EndDateBody) -> Nur
             if is_staff_nurse:
                 reactivate(request, user.pk)
     return _row_as_saved(nurse_id)
+
+
+@router.put("/{nurse_id}/details", response=CorrectedNurse, auth=cno, operation_id="correctNurseDetails")
+def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) -> CorrectedNurse:
+    """Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and
+    an ended nurse stays ended. Ticket 21 adds the guard for a closed month here, and ticket 11 warns of a solved one."""
+    extended = None
+    with transaction.atomic():
+        nurse = _locked_nurse(nurse_id)
+        user = nurse.user
+        name_changes = body.full_name != user.full_name
+        start_changes = body.start_date != nurse.start_date
+        gender_changes = body.gender != nurse.gender
+        refusals = []
+        if name_changes and user.role != Role.STAFF_NURSE:
+            refusals.append((("full_name",), f"{user.username}'s name is on their unit manager account, which is the "
+                                             "System Admin's."))
+        # Only when it changes: a nurse never present has an end date before their start, and their name still corrects.
+        if start_changes and nurse.end_date and not membership.start_date_fits(nurse.start_date, body.start_date, nurse.end_date):
+            refusals.append((("start_date",), "The start date cannot be after the end date. Change the end date first."))
+        if refusals:
+            refuse(*refusals)
+
+        before, after = differing({"full_name": user.full_name, "start_date": nurse.start_date.isoformat()},
+                                  {"full_name": body.full_name, "start_date": body.start_date.isoformat()})
+        if gender_changes:
+            after["gender_changed"] = True  # That it did, never what from or to: the System Admin reads the log.
+        if name_changes:
+            user.full_name = body.full_name
+            user.save(update_fields=["full_name"])
+        if start_changes or gender_changes:
+            nurse.gender = body.gender
+            nurse.start_date = body.start_date
+            nurse.save(update_fields=["gender", "start_date"])
+        reached_back = membership.reach_back_to_start_date(nurse) if start_changes else None
+        if reached_back:
+            placement, began = reached_back
+            extended = FirstPlacement(unit=UnitName(id=placement.unit.pk, name=placement.unit.name),
+                                   from_month=_month(placement.from_month))
+            before["first_placement"] = {"unit": placement.unit.name, "from_month": _month(began)}
+            after["first_placement"] = {"unit": placement.unit.name, "from_month": extended.from_month}
+        if after:
+            record("nurse.details_corrected", actor=request.user, target=user.username, request=request,
+                   before=before, after=after)
+    return CorrectedNurse(nurse=_row_as_saved(nurse_id), first_placement_extended=extended)
 
 
 @router.post("/{nurse_id}/reset-password", response=NurseWithPassword, auth=SignedIn(Role.CNO, Role.UNIT_MANAGER),

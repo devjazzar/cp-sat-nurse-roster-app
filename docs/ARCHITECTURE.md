@@ -79,11 +79,11 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read the shift catalogue, leave types, public holidays, Ramadan dates | yes | yes | yes | yes | yes |
 | Create, rename, archive units; assign each unit its manager | | yes | | | |
 | Read units | | yes | yes | own unit | |
-| Add nurses (form or CSV import), give a unit manager a nurse profile, transfer, set end dates, export staff list | | yes | | | |
+| Add nurses (form or CSV import), give a unit manager a nurse profile, correct a nurse's name, gender and start date, transfer, set end dates, export staff list | | yes | | | |
 | Read nurses | | yes | | own unit | |
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
-| Unit rules; nurses' rostering attributes and opening values | | | | own unit | |
+| Unit rules; nurses' rostering attributes (gender aside: the CNO sets and corrects it) and opening values | | | | own unit | |
 | Request windows; decide requests; decide swaps; record leave | | | | own unit | |
 | Solve, edit the draft, submit, edit the approved roster, re-plan, re-close a month | | | | own unit | |
 | Exports (CSV, Excel, print page) of any roster version | | yes | yes | own unit | |
@@ -101,6 +101,8 @@ reactivating does not give it back; the CNO's home names every unit with no mana
 manager sees nothing of other units. The System Admin sees no roster and no rostering attribute.
 A manager's nurse profile is in the unit they hold, if they hold one, because that unit is all they
 reach: moving one means taking them off, transferring the profile from this month, and assigning them.
+The CNO corrects a manager's gender and start date on their nurse profile, but not their name, which is
+on the account and so the System Admin's. A nurse's hospital ID cannot be corrected: it is the username.
 
 The CNO stands in for an absent Deputy CNO; the CNO reassigns a unit to another manager
 account when its manager is unavailable. There is no delegation feature.
@@ -135,7 +137,8 @@ the unit's) with a review flag, request cap per nurse per month (default 3), def
 team leader, score, allowed shifts, Ramadan-reduced, breastfeeding, opening values (overtime this
 year, hours balance, night and weekend fairness balances; editable until her first month closes).
 
-**Placement**: nurse, unit, first month. A nurse belongs to the unit of the latest placement that
+**Placement**: nurse, unit, first month. A start date corrected to before the first placement makes that
+placement begin in the date's month, so no month after a start date is without a unit. A nurse belongs to the unit of the latest placement that
 has begun; a later one is a transfer still to come, which can be replaced. A nurse belongs to a unit,
 and so stops it being archived, while placed there or due to join it, with an active account and an
 end date not passed.

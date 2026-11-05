@@ -8,6 +8,7 @@ import { z } from "zod"
 import {
   getListManagersToPlaceQueryKey,
   getListNursesQueryKey,
+  useCorrectNurseDetails,
   useCreateNurse,
   useGiveManagerNurseProfile,
   useListManagersToPlace,
@@ -86,10 +87,12 @@ const profileFields = {
   start_date: required("Enter the start date."),
 }
 
+const fullName = z.string().trim().min(1, "Enter their full name.").max(FULL_NAME_MAX, `At most ${FULL_NAME_MAX} characters.`)
+
 const newNurseSchema = z.object({
   hospital_id: z.string().trim().min(1, "Enter their hospital ID.").max(HOSPITAL_ID_MAX, `At most ${HOSPITAL_ID_MAX} characters.`)
     .regex(HOSPITAL_ID, "Use only letters, digits, dots, dashes and underscores."),
-  full_name: z.string().trim().min(1, "Enter their full name.").max(FULL_NAME_MAX, `At most ${FULL_NAME_MAX} characters.`),
+  full_name: fullName,
   ...profileFields,
 })
 type NewNurse = z.input<typeof newNurseSchema>
@@ -268,6 +271,55 @@ function TransferForm({ nurse, units, onDone, onCancel }: { nurse: NurseRow; uni
   )
 }
 
+const detailsSchema = z.object({ full_name: fullName, gender: profileFields.gender, start_date: profileFields.start_date })
+type Details = z.input<typeof detailsSchema>
+
+function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (message: string) => void; onCancel: () => void }) {
+  const refresh = useRefreshNurses()
+  const correct = useCorrectNurseDetails()
+  const form = useForm<Details>({
+    resolver: zodResolver(detailsSchema),
+    defaultValues: { full_name: nurse.full_name, gender: nurse.gender, start_date: nurse.start_date },
+  })
+  const { errors } = form.formState
+  const isStaffNurse = nurse.role === Role.staff_nurse
+
+  useEffect(() => { form.setFocus(isStaffNurse ? "full_name" : "gender") }, [form, isStaffNurse])
+
+  const submit = form.handleSubmit((data) =>
+    correct.mutate({ nurseId: nurse.id, data: data as z.output<typeof detailsSchema> }, {
+      onSuccess: ({ nurse: next, first_placement_extended: extended }) => {
+        refresh()
+        const renamed = next.full_name !== nurse.full_name
+        if (!renamed && next.gender === nurse.gender && next.start_date === nurse.start_date) {
+          onDone(`Nothing changed for ${next.full_name}.`)
+          return
+        }
+        const longer = extended ? ` Their time in ${extended.unit.name} now begins in ${monthName(extended.from_month)}.` : ""
+        onDone(`The details of ${next.full_name} are corrected.${longer}`)
+      },
+      onError: (error) => showServerErrors(form, error),
+    }),
+  )
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <FieldGroup>
+        <FormField label="Full name" autoComplete="off" readOnly={!isStaffNurse} className="read-only:bg-muted" registration={form.register("full_name")} error={errors.full_name}
+          description={isStaffNurse ? undefined : "It is on their account, which is the System Admin's, so it cannot be corrected here."} />
+        <SelectField label="Gender" registration={form.register("gender")} error={errors.gender}><GenderOptions /></SelectField>
+        <FormField label="Start date" type="date" registration={form.register("start_date")} error={errors.start_date}
+          description="A date before their first month in a unit starts their time in that unit from that date's month." />
+        <p className="text-sm text-muted-foreground">
+          Hospital ID <span translate="no">{nurse.hospital_id}</span> cannot be corrected, because it is their username.
+        </p>
+        <Unexpected error={correct.error} />
+        <FormButtons submit="Save details" pending={correct.isPending} onCancel={onCancel} />
+      </FieldGroup>
+    </form>
+  )
+}
+
 const endDateSchema = z.object({ end_date: required("Enter the end date.") })
 type EndDate = z.infer<typeof endDateSchema>
 
@@ -378,12 +430,14 @@ function Status({ nurse, isCno }: { nurse: NurseRow; isCno: boolean }) {
 type Panel =
   | { kind: "add" }
   | { kind: "manager" }
+  | { kind: "details"; nurse: NurseRow }
   | { kind: "transfer"; nurse: NurseRow }
   | { kind: "end"; nurse: NurseRow }
 
 const PANEL_TITLES: Record<Panel["kind"], (name: string) => string> = {
   add: () => "Add a nurse",
   manager: () => "Give a unit manager a nurse profile",
+  details: (name) => `Correct the details of ${name}`,
   transfer: (name) => `Transfer ${name}`,
   end: (name) => `End date of ${name}`,
 }
@@ -437,6 +491,9 @@ function NursesPage() {
               <AddNurseForm units={liveUnits} onCancel={finish} onCreated={(next) => { setShown(next); finished(`${next.full_name} is added.`) }} />
             )}
             {panel.kind === "manager" && <ManagerProfileForm units={liveUnits} onCancel={finish} onDone={finished} />}
+            {panel.kind === "details" && (
+              <DetailsForm key={panel.nurse.id} nurse={panel.nurse} onCancel={finish} onDone={finished} />
+            )}
             {panel.kind === "transfer" && <TransferForm key={panel.nurse.id} nurse={panel.nurse} units={liveUnits} onCancel={finish} onDone={finished} />}
             {panel.kind === "end" && <EndDateForm key={panel.nurse.id} nurse={panel.nurse} onCancel={finish} onDone={finished} />}
           </CardContent>
@@ -486,9 +543,14 @@ function NursesPage() {
                       <TableCell className="tabular-nums">{dayName(nurse.start_date)}</TableCell>
                       <TableCell><Status nurse={nurse} isCno={isCno} /></TableCell>
                       <TableCell>
-                        <div className="flex justify-end gap-2">
+                        {/* Two by two for the CNO, because four in a line push the last out of view on a laptop. */}
+                        <div className={isCno ? "ml-auto grid w-fit grid-cols-[auto_auto] gap-2" : "flex justify-end"}>
                           {isCno && (
                             <>
+                              <Button variant="outline" size="sm" aria-label={`Correct details of ${nurse.full_name}`}
+                                onClick={(event) => open({ kind: "details", nurse }, event.currentTarget)}>
+                                Correct details
+                              </Button>
                               <Button variant="outline" size="sm" aria-label={`Transfer ${nurse.full_name}`}
                                 onClick={(event) => open({ kind: "transfer", nurse }, event.currentTarget)}>
                                 Transfer

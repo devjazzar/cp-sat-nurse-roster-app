@@ -1945,6 +1945,138 @@ describe("the nurses page", () => {
     expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ end_date: null })
   })
 
+  it("opens with what the nurse has, corrects all three and says so, with focus back on the row", async () => {
+    const { user, calls } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n1/details": { body: { nurse: { ...AMAL, full_name: "Amal Salih", gender: "M", start_date: "2026-02-01" }, first_placement_extended: null } },
+    }))
+
+    const opener = await screen.findByRole("button", { name: "Correct details of Amal Saleh" })
+    await user.click(opener)
+    expect(screen.getByRole("heading", { name: "Correct the details of Amal Saleh" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Full name")).toHaveFocus()
+    expect(screen.getByLabelText("Full name")).toHaveValue("Amal Saleh")
+    expect(screen.getByLabelText("Gender")).toHaveValue("F")
+    expect(screen.getByLabelText("Start date")).toHaveValue("2026-01-10")
+    expect(screen.getByText(/cannot be corrected, because it is their username/)).toHaveTextContent("Hospital ID h123")
+    expect(screen.queryByRole("textbox", { name: /Hospital ID/ })).not.toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText("Full name"))
+    await user.type(screen.getByLabelText("Full name"), "  Amal Salih ")
+    await user.selectOptions(screen.getByLabelText("Gender"), "Male")
+    await user.clear(screen.getByLabelText("Start date"))
+    await user.type(screen.getByLabelText("Start date"), "2026-02-01")
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    expect(await screen.findByText("The details of Amal Salih are corrected.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ full_name: "Amal Salih", gender: "M", start_date: "2026-02-01" })
+    expect(screen.queryByRole("heading", { name: /Correct the details/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(opener).toHaveFocus())
+  })
+
+  it("keeps focus on the row when a new name moves it down the list", async () => {
+    const renamed = { ...AMAL, full_name: "Zaina Saleh" }
+    const nurses = { body: [AMAL, BADR] }
+    const { user } = start("/nurses", asCnoHere({
+      "GET /api/nurses": nurses,
+      "PUT /api/nurses/n1/details": () => { nurses.body = [BADR, renamed]; return { body: { nurse: renamed, first_placement_extended: null } } },
+    }))
+
+    const opener = await screen.findByRole("button", { name: "Correct details of Amal Saleh" })
+    await user.click(opener)
+    await user.clear(screen.getByLabelText("Full name"))
+    await user.type(screen.getByLabelText("Full name"), "Zaina Saleh")
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    const moved = await screen.findByRole("button", { name: "Correct details of Zaina Saleh" })
+    await waitFor(() => expect(moved).toHaveFocus())
+  })
+
+  it("says when a start date began their time in a unit earlier", async () => {
+    const { user } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n1/details": { body: { nurse: { ...AMAL, start_date: "2025-10-05" }, first_placement_extended: { unit: { id: "u1", name: "ER" }, from_month: "2025-10" } } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))
+    expect(screen.getByText(/before their first month in a unit/)).toBeInTheDocument()
+    await user.clear(screen.getByLabelText("Start date"))
+    await user.type(screen.getByLabelText("Start date"), "2025-10-05")
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    expect(await screen.findByText("The details of Amal Saleh are corrected. Their time in ER now begins in October 2025.")).toBeInTheDocument()
+  })
+
+  it("says when a save changed nothing", async () => {
+    const { user } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n1/details": { body: { nurse: AMAL, first_placement_extended: null } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    expect(await screen.findByText("Nothing changed for Amal Saleh.")).toBeInTheDocument()
+  })
+
+  it("asks for what is empty, without calling the API", async () => {
+    const { user, calls } = start("/nurses", asCnoHere())
+
+    await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))
+    await user.clear(screen.getByLabelText("Full name"))
+    await user.clear(screen.getByLabelText("Start date"))
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    expect(await screen.findByText("Enter their full name.")).toBeInTheDocument()
+    expect(screen.getByText("Enter the start date.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Full name")).toHaveFocus()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+  })
+
+  it("puts a refused start date beside its field, with focus on it, and stays open", async () => {
+    const { user } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n1/details": refusal(["start_date"], "The start date cannot be after the end date. Change the end date first."),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))
+    await user.clear(screen.getByLabelText("Start date"))
+    await user.type(screen.getByLabelText("Start date"), "2027-01-01")
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    expect(await screen.findByText(/cannot be after the end date/)).toBeInTheDocument()
+    expect(screen.getByLabelText("Start date")).toHaveFocus()
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("aria-invalid", "true")
+  })
+
+  it("says plainly when a correction could not be saved", async () => {
+    const { user } = start("/nurses", asCnoHere({ "PUT /api/nurses/n1/details": { status: 500, body: {} } }))
+
+    await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("That did not work")
+  })
+
+  it("keeps a manager's name as it is, because it is on their account, and starts from their gender", async () => {
+    const { user, calls } = start("/nurses", asCnoHere({
+      "PUT /api/nurses/n3/details": { body: { nurse: { ...MONA_NURSE, gender: "M" }, first_placement_extended: null } },
+    }, [MONA_NURSE]))
+
+    await user.click(await screen.findByRole("button", { name: "Correct details of Mona Ali" }))
+    expect(screen.getByLabelText("Full name")).toHaveAttribute("readonly")
+    expect(screen.getByLabelText("Full name")).toHaveAccessibleDescription(/System Admin's/)
+    expect(screen.getByLabelText("Gender")).toHaveFocus()
+    await user.selectOptions(screen.getByLabelText("Gender"), "Male")
+    await user.click(screen.getByRole("button", { name: "Save details" }))
+
+    expect(await screen.findByText("The details of Mona Ali are corrected.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toMatchObject({ full_name: "Mona Ali", gender: "M" })
+  })
+
+  it("offers a manager no correction", async () => {
+    start("/nurses", asManagerHere([AMAL]))
+
+    expect(await screen.findByRole("button", { name: "Reset password of Amal Saleh" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Correct details/ })).not.toBeInTheDocument()
+  })
+
   it("asks before resetting a password, then shows the new one once", async () => {
     const { user, calls } = start("/nurses", asCnoHere({
       "POST /api/nurses/n1/reset-password": { body: { nurse: AMAL, generated_password: "wxyz-wxyz-wxyz-wxyz" } },

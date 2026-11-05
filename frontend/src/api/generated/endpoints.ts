@@ -28,6 +28,8 @@ import type {
   AuditPage,
   ChangePasswordBody,
   ChangePasswordRefusal,
+  CorrectedNurse,
+  CorrectionBody,
   EndDateBody,
   Health,
   HospitalRules,
@@ -4055,6 +4057,97 @@ export const useSetNurseEndDate = <TError = unknown,
         TContext
       > => {
       return useMutation(getSetNurseEndDateMutationOptions(options), queryClient);
+    }
+
+export const getCorrectNurseDetailsUrl = (nurseId: string,) => {
+
+
+
+
+  return `/api/nurses/${nurseId}/details`
+}
+
+/**
+ * Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and
+ * an ended nurse stays ended. Ticket 21 adds the guard for a closed month here, and ticket 11 warns of a solved one.
+ * @summary Correct Details
+ */
+export const correctNurseDetails = async (nurseId: string,
+    correctionBody: CorrectionBody, options?: Parameters<typeof apiFetch>[1]): Promise<CorrectedNurse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CorrectedNurse>(getCorrectNurseDetailsUrl(nurseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(correctionBody)
+  }
+);}
+
+
+
+
+
+export const getCorrectNurseDetailsMutationKey = () => ['correctNurseDetails'] as const;
+
+export const getCorrectNurseDetailsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctNurseDetails>>, TError,CorrectNurseDetailsMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof correctNurseDetails>>, TError,CorrectNurseDetailsMutationVariables, TContext> => {
+
+const mutationKey = getCorrectNurseDetailsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof correctNurseDetails>>, CorrectNurseDetailsMutationVariables> = (props) => {
+          const {nurseId,data} = props ?? {};
+
+          return  correctNurseDetails(nurseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CorrectNurseDetailsMutationResult = NonNullable<Awaited<ReturnType<typeof correctNurseDetails>>>
+    export type CorrectNurseDetailsMutationBody = CorrectionBody
+    export type CorrectNurseDetailsMutationError = unknown
+    export type CorrectNurseDetailsMutationVariables = {nurseId: string;data: CorrectionBody}
+
+    /**
+ * @summary Correct Details
+ */
+export const useCorrectNurseDetails = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof correctNurseDetails>>, TError,CorrectNurseDetailsMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof correctNurseDetails>>,
+        TError,
+        CorrectNurseDetailsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCorrectNurseDetailsMutationOptions(options), queryClient);
     }
 
 export const getResetNursePasswordUrl = (nurseId: string,) => {

@@ -14,3 +14,12 @@
 - [ ] Shift-code renames mapped into histories; a transferred nurse's carry-over follows her into the new unit from the effective month
 - [ ] 'Closed' shown in the overview; projected carry-over per nurse shown to the manager
 - [ ] API and direct tests cover the chain across three months with the fake solver and one real closing of the four-nurse sample
+
+## Comments
+
+**From ticket 07a (2026-11-05): closed months have to stop a correction.** `nurses.api.correct_details` lets the CNO change a nurse's start date and gender and has no guard, because no month closes yet. Add the guard there, with its test:
+
+- A closed month is a fact. Its stored close result and carry-over are never rewritten by a correction.
+- **Start date:** refuse on `start_date` (`hospital.api.refuse`) a change that would alter which days counted in a closed month, on either the old or the new date's side. The refusal should say which month. While the month can still be re-closed, the alternative is to allow the change and tell the manager to re-close: decide which and record why.
+- **First placement:** `membership.reach_back_to_start_date` must not move a placement back into a closed month.
+- **Gender:** it changes no hours or carry-over, so it need not be refused. It applies from the next solve on, and closed months keep what their stored input says.

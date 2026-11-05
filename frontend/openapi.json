@@ -1661,6 +1661,55 @@
         ]
       }
     },
+    "/api/nurses/{nurse_id}/details": {
+      "put": {
+        "operationId": "correctNurseDetails",
+        "summary": "Correct Details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrectedNurse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and\nan ended nurse stays ended. Ticket 21 adds the guard for a closed month here, and ticket 11 warns of a solved one.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/nurses/{nurse_id}/reset-password": {
       "post": {
         "operationId": "resetNursePassword",
@@ -3417,6 +3466,80 @@
           "end_date"
         ],
         "title": "EndDateBody",
+        "type": "object"
+      },
+      "CorrectedNurse": {
+        "properties": {
+          "nurse": {
+            "$ref": "#/components/schemas/NurseRow"
+          },
+          "first_placement_extended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FirstPlacement"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the start date went before the nurse's first placement, which now begins earlier."
+          }
+        },
+        "required": [
+          "nurse",
+          "first_placement_extended"
+        ],
+        "title": "CorrectedNurse",
+        "type": "object"
+      },
+      "FirstPlacement": {
+        "properties": {
+          "unit": {
+            "$ref": "#/components/schemas/UnitName"
+          },
+          "from_month": {
+            "description": "YYYY-MM.",
+            "title": "From Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "from_month"
+        ],
+        "title": "FirstPlacement",
+        "type": "object"
+      },
+      "CorrectionBody": {
+        "additionalProperties": false,
+        "description": "The hospital ID is not here: it is the username, and usernames cannot be reused.",
+        "properties": {
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "gender": {
+            "enum": [
+              "F",
+              "M"
+            ],
+            "title": "Gender",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name",
+          "gender",
+          "start_date"
+        ],
+        "title": "CorrectionBody",
         "type": "object"
       }
     },

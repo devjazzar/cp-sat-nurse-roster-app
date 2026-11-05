@@ -56,6 +56,7 @@ const ACTION_NAMES: Record<string, string> = {
   "leave_type.changed": "Changed a leave type",
   "leave_type.created": "Added a leave type",
   "nurse.added": "Added a nurse",
+  "nurse.details_corrected": "Corrected a nurse's details",
   "nurse.end_date_changed": "Changed a nurse's end date",
   "nurse.transferred": "Transferred a nurse",
   "public_holiday.changed": "Changed a public holiday",

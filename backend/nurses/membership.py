@@ -27,6 +27,21 @@ def place_new_nurse(nurse: NurseProfile, unit: Unit) -> None:
     Placement.objects.create(nurse=nurse, unit=unit, from_month=min(nurse.start_date.replace(day=1), this_month()))
 
 
+def reach_back_to_start_date(nurse: NurseProfile) -> tuple[Placement, dt.date] | None:
+    """A start date corrected to before the first placement would leave months with no unit, so that placement
+    begins earlier. It and the month it began are returned, so the caller can say so. Those months had no unit, so
+    none is rewritten. It only ever moves back: a placement before the start date means nothing, as `place_new_nurse`
+    shows, and moving it forward could leave a nurse with none in force."""
+    first = nurse.placements.select_related("unit").first()
+    month = nurse.start_date.replace(day=1)
+    if month >= first.from_month:
+        return None
+    began = first.from_month
+    first.from_month = month
+    first.save(update_fields=["from_month"])
+    return first, began
+
+
 def from_now_on(nurse: NurseProfile) -> list[Placement]:
     """The placement in force, then any still to come."""
     month = this_month()
@@ -99,6 +114,18 @@ def archived_unit_in_the_way(user: User) -> Unit | None:
     ids = [placement.unit_id for placement in from_now_on(nurse)]
     return next((unit for unit in Unit.objects.select_for_update().filter(pk__in=ids).order_by("pk") if unit.archived),
                 None)
+
+
+def end_date_fits(start: dt.date, end: dt.date) -> bool:
+    """On or after the start date, or today or earlier for a nurse who has not started: one added by mistake has to
+    be able to end now. Ticket 11 treats that nurse as never present."""
+    return end >= start or (start > today() and end <= today())
+
+
+def start_date_fits(was: dt.date, start: dt.date, end: dt.date) -> bool:
+    """On or before the end date, or still to come for a nurse who has not started. The exception needs both dates:
+    a nurse who really worked must not be corrected into one who was never present, whose days ticket 11 drops."""
+    return start <= end or (was > today() and end_date_fits(start, end))
 
 
 def cancel_transfers_after(nurse: NurseProfile, day: dt.date) -> list[Placement]:

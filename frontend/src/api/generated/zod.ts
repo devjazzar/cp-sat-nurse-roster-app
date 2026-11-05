@@ -1271,6 +1271,58 @@ export const SetNurseEndDateResponse = zod.object({
 
 
 /**
+ * Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and
+ * an ended nurse stays ended. Ticket 21 adds the guard for a closed month here, and ticket 11 warns of a solved one.
+ * @summary Correct Details
+ */
+export const CorrectNurseDetailsParams = zod.object({
+  "nurse_id": zod.uuid()
+})
+
+export const correctNurseDetailsBodyFullNameMax = 200;
+
+
+
+export const CorrectNurseDetailsBody = zod.object({
+  "full_name": zod.string().min(1).max(correctNurseDetailsBodyFullNameMax),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date()
+}).describe('The hospital ID is not here: it is the username, and usernames cannot be reused.')
+
+export const CorrectNurseDetailsResponse = zod.object({
+  "nurse": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
+  "gender": zod.enum(['F', 'M']),
+  "start_date": zod.iso.date(),
+  "end_date": zod.union([zod.iso.date(),zod.null()]),
+  "is_active": zod.boolean(),
+  "must_change_password": zod.boolean(),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('The unit this month, empty when it is not the caller\'s: a nurse due to join a manager\'s unit is on their list before they arrive.'),
+  "transfers": zod.array(zod.object({
+  "from_month": zod.string().describe('YYYY-MM.'),
+  "unit": zod.union([zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
+})).describe('The transfers still to come, soonest first.')
+}),
+  "first_placement_extended": zod.union([zod.object({
+  "unit": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string()
+}),
+  "from_month": zod.string().describe('YYYY-MM.')
+}),zod.null()]).describe('Set when the start date went before the nurse\'s first placement, which now begins earlier.')
+})
+
+
+/**
  * A staff nurse's only: a manager's account is the System Admin's, and this would let one bypass their own
  * current password. A manager reaches the nurses of their unit this month, and the same 403 otherwise.
  * @summary Reset Nurse Password
