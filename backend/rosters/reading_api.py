@@ -5,6 +5,7 @@ colleague's day of leave is the same `""` as any day off. Their own row may say 
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
@@ -22,7 +23,8 @@ from nurses.models import Leave, NurseProfile
 from rosters import review
 from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names
-from rosters.models import Roster, RosterState
+from rosters.models import Roster, RosterState, RosterVersion
+from rosters.own_month import OwnHours, own_hours
 from units.models import Unit
 
 router = Router(tags=["rosters"])
@@ -155,34 +157,117 @@ class MyRosterFilter(Schema):
     month: MonthText | None = Field(None, description="YYYY-MM. The hospital's current one when left out.")
 
 
-@router.get("/mine", response=MyRosterMonth, auth=SignedIn(Role.STAFF_NURSE, Role.UNIT_MANAGER), operation_id="getMyRoster")
-def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterMonth:
-    """Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too. The unit is the one
-    the month falls under for them, so across a transfer each month shows its own unit's roster, and a nurse due to start sees
-    their unit's with no row of their own."""
-    month = dt.date.fromisoformat(f"{filters.month}-01") if filters.month else membership.this_month()
-    first = membership.this_month()
-    nurse = NurseProfile.objects.filter(user=request.user).first()
+@dataclass
+class _InForce:
+    """The month a nurse reads, the unit it falls under for them and the version in force there, if any."""
+    month: dt.date
+    first: dt.date
+    nurse: NurseProfile | None
+    unit: Unit | None
+    roster: Roster | None = None
+    version: RosterVersion | None = None
+
+    @property
+    def grid(self) -> dict[str, dict[str, str]]:
+        return in_current_codes(self.version.grid)
+
+
+def _in_force(user, chosen: str | None) -> _InForce:
+    """The unit is the one the month falls under for them, so across a transfer each month shows its own unit's roster, and a
+    nurse due to start sees their unit's with no row of their own. Nothing before this month."""
+    month = dt.date.fromisoformat(f"{chosen}-01") if chosen else membership.this_month()
+    nurse = NurseProfile.objects.filter(user=user).select_related("user").first()
     placement = membership.placement_in(nurse, month) if nurse else None
-    answer = MyRosterMonth(month=month.strftime("%Y-%m"), first_month=first.strftime("%Y-%m"),
-                           unit=placement.unit.name if placement else None, roster=None)
-    if placement is None or month < first:
+    found = _InForce(month=month, first=membership.this_month(), nurse=nurse, unit=placement.unit if placement else None)
+    if found.unit is None or month < found.first:
+        return found
+    found.roster = Roster.objects.filter(unit=found.unit, month=month, state=RosterState.APPROVED).first()
+    if found.roster is not None:
+        found.version = found.roster.versions.first()  # The latest, by `RosterVersion.Meta.ordering`: the one in force.
+    return found
+
+
+nurse_reader = SignedIn(Role.STAFF_NURSE, Role.UNIT_MANAGER)
+
+
+@router.get("/mine", response=MyRosterMonth, auth=nurse_reader, operation_id="getMyRoster")
+def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterMonth:
+    """Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too."""
+    found = _in_force(request.user, filters.month)
+    answer = MyRosterMonth(month=found.month.strftime("%Y-%m"), first_month=found.first.strftime("%Y-%m"),
+                           unit=found.unit.name if found.unit else None, roster=None)
+    if found.version is None:
         return answer
-    roster = Roster.objects.filter(unit=placement.unit, month=month, state=RosterState.APPROVED).first()
-    if roster is None:
-        return answer
-    version = roster.versions.first()  # The latest, by `RosterVersion.Meta.ordering`: the one in force.
-    grid = in_current_codes(version.grid)
-    days = _days(month)
+    grid = found.grid
+    days = _days(found.month)
     names = full_names(grid)
     used = {code for row in grid.values() for code in row.values() if code}
-    mine = nurse.user.username
+    mine = found.nurse.user.username
     answer.roster = NurseRoster(
-        approved_at=timezone.localtime(review.approval(roster).decided_at), version=version.number, days=days,
+        approved_at=timezone.localtime(review.approval(found.roster).decided_at), version=found.version.number, days=days,
         shifts=[NurseShift(code=shift.code, display_name=shift.display_name, colour=shift.colour, hours=shift.hours)
                 for shift in Shift.objects.filter(code__in=used)],
         rows=[ColleagueRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""),
                            shifts=[grid[hospital_id].get(day.date.isoformat(), "") for day in days])
               for hospital_id in by_name(grid, names)],
-        mine=_mine(nurse, grid[mine], days) if mine in grid else None)
+        mine=_mine(found.nurse, grid[mine], days) if mine in grid else None)
     return answer
+
+
+class ShiftCount(Schema):
+    code: str
+    display_name: str
+    colour: str
+    count: int
+
+
+class MyHours(Schema):
+    worked: int = Field(description="Hours of the shifts on the reader's row.")
+    leave_credit: int = Field(description="Hours their leave and any days outside their dates count as worked.")
+    owed: int | None = Field(description="Hours this month asks of them in shifts: what their days owe, less the leave "
+                                         "credit, plus what the last month carried. Null with the hours rule off.")
+    overtime: int
+    carried: int | None = Field(description="Hours carried into next month: owed when above 0, worked ahead when below. "
+                                            "Projected until the month closes. Null with the hours rule off.")
+    shifts: list[ShiftCount] = Field(description="Each shift they work, in the catalogue's order.")
+
+
+class MyMonthInForce(Schema):
+    version: int
+    approved_at: dt.datetime
+    hours: MyHours | None = Field(description="Null when the reader has no row on it, such as a nurse due to start, or when "
+                                              "the month as it stands no longer has them.")
+
+
+class MyMonth(Schema):
+    month: str
+    first_month: str = Field(description="The earliest month with hours here: this one.")
+    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
+                                         "their first placement.")
+    roster: MyMonthInForce | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
+                                                      "before `first_month`.")
+
+
+@router.get("/mine/month", response=MyMonth, auth=nurse_reader, operation_id="getMyMonth")
+def my_month(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyMonth:
+    """The reader's own hours and shift counts in the version in force, worked out on the month as it stands, so leave recorded
+    since counts, and a new version (ticket 16) is read as it comes. Nothing of a colleague: the arithmetic reads the reader's
+    row only. Their leave with its type is `GET /api/nurses/my-leave`, which reads any month."""
+    found = _in_force(request.user, filters.month)
+    answer = MyMonth(month=found.month.strftime("%Y-%m"), first_month=found.first.strftime("%Y-%m"),
+                     unit=found.unit.name if found.unit else None, roster=None)
+    if found.version is None:
+        return answer
+    mine = found.nurse.user.username
+    grid = found.grid
+    hours = own_hours(found.unit, found.month, mine, grid[mine]) if mine in grid else None
+    answer.roster = MyMonthInForce(version=found.version.number, approved_at=timezone.localtime(review.approval(found.roster).decided_at),
+                                   hours=_my_hours(hours) if hours else None)
+    return answer
+
+
+def _my_hours(hours: OwnHours) -> MyHours:
+    shifts = Shift.objects.filter(code__in=hours.shifts)
+    return MyHours(worked=hours.worked, leave_credit=hours.leave_credit, owed=hours.owed, overtime=hours.overtime,
+                   carried=hours.carried, shifts=[ShiftCount(code=shift.code, display_name=shift.display_name, colour=shift.colour,
+                                                             count=hours.shifts[shift.code]) for shift in shifts])
