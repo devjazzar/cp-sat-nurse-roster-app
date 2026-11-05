@@ -259,7 +259,8 @@ def _as_saved(nurse: NurseProfile, first: dt.date, last: dt.date) -> LeaveRun:
 
 
 # Every write below goes through `_refuse_dates`, `_rows_to_change` or both, then writes leave and one audit entry. A date added
-# ends any pin on it (`_begin`), and nothing else here looks at a roster. Tickets 14, 16, 19 and 21 have what they must add.
+# ends any pin on it (`_begin`), and nothing else here looks at a roster. Leave under a submitted roster is allowed, and the
+# approval checks the month again (ticket 14). Tickets 16, 19 and 21 have what they must add.
 @unit_leave_router.get("/{unit_id}/leave", response=UnitLeaveMonth, auth=reader, operation_id="listUnitLeave")
 def unit_leave(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) -> UnitLeaveMonth:
     """The unit's month, for its manager and, to read, for the CNO and the Deputy CNO. A nurse's month in another unit is

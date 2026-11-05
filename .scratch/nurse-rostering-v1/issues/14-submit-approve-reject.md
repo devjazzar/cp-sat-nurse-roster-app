@@ -100,6 +100,8 @@ What was NOT checked:
   - Rosters (`/rosters`) is every unit's state over four months.
   - Unit roster (`/unit-roster?unit=&month=`) shows the roster read-only, what changed, with "since it was submitted" marked, the check, the pins leave ended, the result's panels, and Approve behind a question with a Reject form needing a comment.
   - The solve history pages stay the manager's in the interface. The API opens them to the approvers for submitted and approved months, and `restore_refusal` tells an approver only the manager restores.
+- **`RosterMonth.draft` still carries the grid when the roster is submitted or approved,** under that name, rather than renaming the field and every page and test that reads it. `state` says which it is.
+- **A manager with a nurse profile can open My roster** (the route and the API admit them), but their header has no link to it, as it has none to My leave: the header cannot tell whether they have a profile. Say if they should have one.
 - **Small additions:** a `Textarea` in the shadcn style, `ConfirmDialog`'s `tone`, and `components/roster-notes.tsx` holding what the two roster pages share.
 
 `docs/ARCHITECTURE.md` sections 4 and 5 and the glossary's Submitted and Rejected moved. **Migration:** `rosters.0004_submissions_and_versions`.
