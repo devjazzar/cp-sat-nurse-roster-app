@@ -22,4 +22,4 @@
 **Decisions from the user (2026-11-05).** Leave wins over a pinned shift. An accepted request for a shift is a pin, so:
 
 - **Accepting a shift request on a leave date is refused,** because pinning a shift on a leave day is refused.
-- **Leave recorded later over an accepted request removes the pin and tells the manager,** which answers "ticket 11's to resolve" above. The request stays on record; which state it then takes is for this ticket, along with what the form says.
+- **Leave recorded later over an accepted request removes the pin and tells the manager,** which answers "ticket 11's to resolve" above. The request then takes a new final state saying leave replaced it, stays on record, and the nurse is told. What the form says about a request on a nurse's own leave date is still for this ticket.

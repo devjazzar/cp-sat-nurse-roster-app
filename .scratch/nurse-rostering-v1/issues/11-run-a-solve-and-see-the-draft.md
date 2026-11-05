@@ -46,7 +46,7 @@
 - **A draft older than a change to a start date, gender or leave:** warn the manager, and block submit only if validating again fails. Ticket 14 holds the submit side.
 - **A review flag up on the hospital or unit rules:** warn beside the precheck, with no block.
 - **A block the solver itself refuses** (a unit seeded with a gap, or a one-shift unit after the CNO raised a weight) shows as "review the unit rules", not as a failed solve.
-- **Scores nobody has reviewed at the 0.8 default:** show a count beside the precheck, with no block. Ticket 09 left nothing that marks a score as looked at, so this ticket has to work out what it counts.
+- **Scores nobody has reviewed at the 0.8 default:** show a count beside the precheck, with no block. The count is the nurses whose attributes a manager has never saved. Ticket 09 left nothing that marks this, so this ticket adds a small marker, set on the first save.
 - **A manager whose account is deactivated but whose nurse profile has no end date:** leave them out of the solve and warn. `membership.rostered_in` does not filter on the account, so the assembler has to.
 - **Leave wins over a pinned shift.** Recording leave on a pinned day removes the pin and tells the manager, and pinning a shift on a leave day is refused (tickets 13 and 19). So the assembler should never meet the pair `load_request` refuses as `on leave but pinned`; if a row ever holds one, leave wins and it is not a failed solve.
 - **Run the production compose file through Caddy once and report back.** Tickets 04 to 10 ran only the dev overlay or a scratch stack.
