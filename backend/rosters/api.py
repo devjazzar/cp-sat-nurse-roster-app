@@ -21,6 +21,7 @@ from hospital.catalogue_api import IsoDate
 from hospital.models import HospitalSettings, Shift
 from nurses import membership
 from nurses.api import MonthText
+from notifications import sending
 from nurses.models import NurseProfile
 from rosters import review
 from rosters.drafts import MONTH_OVER, in_current_codes, why_frozen
@@ -438,6 +439,7 @@ def submit_roster(request: HttpRequest, unit_id: UUID, body: MonthBody) -> Roste
             raise HttpError(409, refusal)
         review.submit(roster, request.user)
         record("roster.submitted", actor=request.user, target=_target(unit, month), request=request)
+        sending.roster_submitted(unit, month, request.user)
     return _roster_month(unit, month, request.user)
 
 
@@ -459,6 +461,7 @@ def approve_roster(request: HttpRequest, unit_id: UUID, body: MonthBody) -> Rost
         version = review.approve(roster, request.user)
         record("roster.approved", actor=request.user, target=_target(unit, month), request=request,
                after={"version": version.number})
+        sending.roster_approved(unit, month, request.user, version.number)
     return _roster_month(unit, month, request.user)
 
 
@@ -478,4 +481,5 @@ def reject_roster(request: HttpRequest, unit_id: UUID, body: RejectBody) -> Rost
             raise HttpError(409, refusal)
         review.reject(roster, request.user, body.comment.strip())
         record("roster.rejected", actor=request.user, target=_target(unit, month), request=request)
+        sending.roster_rejected(unit, month, request.user)
     return _roster_month(unit, month, request.user)

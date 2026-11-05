@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from audit.log import record
 from hospital.models import HospitalSettings
+from notifications import sending
 from ops import solver_client
 from ops.queue import still_on_the_queue
 from ops.solver_client import SolverBusy, SolverJobUnknown, SolverRefused, SolverUnreachable
@@ -55,13 +56,13 @@ def run(solve_id: UUID | str) -> None:
             _finish(solve, _attempt(solve))
             return
         except SolverRefused as e:
-            _end(solve, state=SolveState.FAILED, failure=SolveFailure.REFUSED, error=str(e), solver_job_id="")
+            _fail(solve, failure=SolveFailure.REFUSED, error=str(e))
             return
         except Exception as e:  # noqa: BLE001 Whatever went wrong, the row has to say so, or the page waits for good.
             logger.exception("solve %s: attempt %s failed", solve.pk, solve.attempts)
             reason = str(e) or type(e).__name__
             if solve.attempts >= MAX_ATTEMPTS:
-                _end(solve, state=SolveState.FAILED, failure=SolveFailure.SOLVER, error=reason, solver_job_id="")
+                _fail(solve, failure=SolveFailure.SOLVER, error=reason)
                 return
             _set(solve, error=reason, solver_job_id="")
             time.sleep(WAIT_BEFORE_RETRY_SECONDS)
@@ -134,6 +135,12 @@ def _end(solve: Solve, **fields) -> None:
     _set(solve, finished_at=timezone.now(), **fields)
 
 
+def _fail(solve: Solve, **fields) -> None:
+    with transaction.atomic():
+        _end(solve, state=SolveState.FAILED, solver_job_id="", **fields)
+        sending.solve_ended(solve.unit_id, solve.month, solve.pk, "failed")
+
+
 def _finish(solve: Solve, job: dict) -> None:
     """A stopped solve keeps the best roster found. A search that ended with no roster, or one breaking a hard rule, which the
     solver reports with `ok` false, leaves the draft as it was: the result says why. So does a roster submitted or approved
@@ -151,12 +158,16 @@ def _finish(solve: Solve, job: dict) -> None:
         # Submitting refuses while a solve is active, so only a roster frozen behind the API's back meets this. The result stays
         # in the history, and the frozen grid as it was.
         frozen = drafts.frozen_month(solve.unit, solve.month)
+        outcome = "no_roster"
         if frozen:
             logger.warning("solve %s: ended on a frozen roster, which keeps its grid", solve.pk)
+            outcome = "frozen"
         elif has_a_roster_to_keep(result):
             drafts.replace_grid(solve, result["roster"])
             record("roster.draft_replaced", actor=solve.requested_by, target=solve.audit_target,
                    after={"solve": str(solve.pk), "cost": result["cost"]})
+            outcome = "stopped_draft" if state == SolveState.CANCELLED else "draft"
+        sending.solve_ended(solve.unit_id, solve.month, solve.pk, outcome)
 
 
 def _solves_nothing_will_run() -> list[Solve]:
@@ -169,5 +180,4 @@ def end_what_the_queue_lost() -> None:
     """A job can end without its row knowing only if the database went away as it tried to write. Without this the row would
     stay active for good, and with it the month's one active solve."""
     for solve in _solves_nothing_will_run():
-        _end(solve, state=SolveState.FAILED, failure=SolveFailure.SOLVER, solver_job_id="",
-             error="The worker lost this solve.")
+        _fail(solve, failure=SolveFailure.SOLVER, error="The worker lost this solve.")

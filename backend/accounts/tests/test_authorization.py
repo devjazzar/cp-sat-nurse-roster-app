@@ -16,7 +16,10 @@ PUBLIC = {"GET /api/health", "GET /api/auth/session", "POST /api/auth/login"}
 # The catalogue: the ticket gives every role its reading, and it is neither a roster nor a rostering attribute.
 ANY_ROLE = {"POST /api/auth/logout", "POST /api/auth/change-password",
             "GET /api/hospital/shifts", "GET /api/hospital/leave-types", "GET /api/hospital/public-holidays",
-            "GET /api/hospital/ramadan"}
+            "GET /api/hospital/ramadan",
+            # Each user's own, and nobody else's: nothing here takes a user.
+            "GET /api/notifications", "GET /api/notifications/unread", "POST /api/notifications/{notification_id}/read",
+            "POST /api/notifications/read-all"}
 
 
 def endpoints():
