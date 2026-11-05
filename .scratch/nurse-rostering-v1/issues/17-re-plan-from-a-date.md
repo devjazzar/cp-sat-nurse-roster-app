@@ -10,3 +10,7 @@
 - [ ] Re-plan solve runs through the same queue with progress and cancel; success creates a version with origin 're-plan'
 - [ ] Comparison view: cells changed, cost before and after, per-rule differences; elapsed violations listed as facts
 - [ ] API tests cover the assembler's fact pinning and the version created, with the fake and once with the real solver
+
+## Comments
+
+**From ticket 11 (2026-11-05).** `solves.input.assemble` has no re-plan yet. A month that has started can be solved from scratch today, which replaces the draft's whole grid: `_what_stops_it` refuses only a month that is over. Once a month has an approved roster a plain solve should be refused in favour of a re-plan.

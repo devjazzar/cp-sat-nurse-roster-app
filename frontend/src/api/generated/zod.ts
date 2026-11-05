@@ -720,8 +720,6 @@ export const CreateShiftResponse = zod.object({
 /**
  * Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's
  * rules likewise, which both this and saving either set of rules must see the other's finished work to keep true.
- * No roster exists yet, so nothing here can hold section 4's "hours cannot change while an open month's roster uses
- * the shift": ticket 11, which brings rosters, adds that as a refusal on `hours`.
  * @summary Update Shift
  */
 export const UpdateShiftParams = zod.object({
@@ -1552,6 +1550,232 @@ export const RemoveLeaveBody = zod.object({
 })
 
 export const RemoveLeaveResponse = zod.void()
+
+
+/**
+ * @summary Preview
+ */
+export const PreviewSolveParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const previewSolveQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const PreviewSolveQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(previewSolveQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.')
+})
+
+export const PreviewSolveResponse = zod.object({
+  "month": zod.string(),
+  "summary": zod.object({
+  "nurses": zod.int(),
+  "leave_days": zod.int().describe('Recorded leave within the nurses\' dates.'),
+  "outside_days": zod.int().describe('Days before a start date or after an end date, credited like leave.'),
+  "pins": zod.int()
+}),
+  "warnings": zod.object({
+  "hospital_rules_need_review": zod.boolean(),
+  "unit_rules_need_review": zod.boolean(),
+  "unreviewed_scores": zod.int().describe('Nurses of the month whose attributes no manager has ever saved, so their score is still the default.'),
+  "left_out": zod.array(zod.string()).describe('Names of managers with a nurse profile whose account is deactivated.')
+}),
+  "precheck": zod.union([zod.array(zod.string()),zod.null()]).describe('Reasons the month may have no roster. Empty when none are known; null when the check could not run.'),
+  "rules_refusal": zod.union([zod.string(),zod.null()]).describe('Why the solver would refuse the rules as they stand. Not a failed solve: review the unit rules.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why no solve can start for this month, whatever the rules say.'),
+  "time_limit_default": zod.int(),
+  "time_limit_cap": zod.int()
+})
+
+
+/**
+ * The solve input is stored as it stands now, whatever changes while the solve waits for its turn.
+ * @summary Start Solve
+ */
+export const StartSolveParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const startSolveBodyMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+
+export const StartSolveBody = zod.object({
+  "month": zod.string().regex(startSolveBodyMonthRegExp),
+  "time_limit_seconds": zod.int().min(1).describe('At most the System Admin\'s cap.')
+})
+
+export const StartSolveResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+})
+
+
+/**
+ * A timer calls this, so it does not count as the manager being there, whatever it answers: a test holds it.
+ * @summary Solveprogress Of
+ */
+export const GetSolveProgressParams = zod.object({
+  "unit_id": zod.uuid(),
+  "solve_id": zod.uuid()
+})
+
+export const GetSolveProgressResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+})
+
+
+/**
+ * A queued solve ends here. A running one is the worker's to stop, which keeps the best roster found. Asking again, or
+ * after the end, changes nothing.
+ * @summary Stop Solve
+ */
+export const StopSolveParams = zod.object({
+  "unit_id": zod.uuid(),
+  "solve_id": zod.uuid()
+})
+
+export const StopSolveResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+})
+
+
+/**
+ * @summary Roster Month
+ */
+export const GetRosterMonthParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const getRosterMonthQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetRosterMonthQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getRosterMonthQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.')
+})
+
+export const GetRosterMonthResponse = zod.object({
+  "month": zod.string(),
+  "active_solve": zod.union([zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+}),zod.null()]),
+  "last_solve": zod.union([zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+}),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for.'),
+  "draft": zod.union([zod.object({
+  "solve_id": zod.uuid(),
+  "updated_at": zod.iso.datetime({"offset":true}),
+  "cost": zod.int(),
+  "stopped_early": zod.boolean(),
+  "days": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "weekend": zod.boolean(),
+  "holiday": zod.boolean()
+})),
+  "rows": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "cells": zod.array(zod.object({
+  "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
+  "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
+}))
+})),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "colour": zod.string(),
+  "hours": zod.int()
+})),
+  "penalties": zod.array(zod.object({
+  "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
+  "penalty": zod.int()
+})),
+  "changes": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left'])
+})).describe('What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14).')
+}),zod.null()])
+})
 
 
 /**

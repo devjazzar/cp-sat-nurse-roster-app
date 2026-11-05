@@ -35,6 +35,7 @@ import type {
   CorrectionBody,
   EndDateBody,
   GetMyLeaveParams,
+  GetRosterMonthParams,
   Health,
   HospitalRules,
   HospitalRulesState,
@@ -67,14 +68,19 @@ import type {
   NurseWithPassword,
   PasswordSheet,
   PreviewNurseImportBody,
+  PreviewSolveParams,
   PublicHolidayBody,
   PublicHolidaySchema,
   RamadanFix,
   RamadanMonth,
   ReactivateRefusal,
+  RosterMonth,
   SessionState,
   ShiftBody,
   ShiftSchema,
+  SolvePreview,
+  SolveProgress,
+  StartSolveBody,
   TechnicalSettingsSchema,
   TransferBody,
   UnitBody,
@@ -1950,8 +1956,6 @@ export const getUpdateShiftUrl = (shiftId: string,) => {
 /**
  * Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's
  * rules likewise, which both this and saving either set of rules must see the other's finished work to keep true.
- * No roster exists yet, so nothing here can hold section 4's "hours cannot change while an open month's roster uses
- * the shift": ticket 11, which brings rosters, adds that as a refusal on `hours`.
  * @summary Update Shift
  */
 export const updateShift = async (shiftId: string,
@@ -4371,6 +4375,516 @@ export const useRemoveLeave = <TError = unknown,
       > => {
       return useMutation(getRemoveLeaveMutationOptions(options), queryClient);
     }
+
+export const getPreviewSolveUrl = (unitId: string,
+    params?: PreviewSolveParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/solves/preview?${stringifiedParams}` : `/api/units/${unitId}/solves/preview`
+}
+
+/**
+ * @summary Preview
+ */
+export const previewSolve = async (unitId: string,
+    params?: PreviewSolveParams, options?: Parameters<typeof apiFetch>[1]): Promise<SolvePreview> => {
+
+  return apiFetch<SolvePreview>(getPreviewSolveUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPreviewSolveQueryKey = (unitId: string,
+    params?: PreviewSolveParams,) => {
+    return [
+    `/api/units/${unitId}/solves/preview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPreviewSolveQueryOptions = <TData = Awaited<ReturnType<typeof previewSolve>>, TError = unknown>(unitId: string,
+    params?: PreviewSolveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewSolve>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewSolveQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewSolve>>> = ({ signal }) => previewSolve(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewSolve>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PreviewSolveQueryResult = NonNullable<Awaited<ReturnType<typeof previewSolve>>>
+export type PreviewSolveQueryError = unknown
+
+
+export function usePreviewSolve<TData = Awaited<ReturnType<typeof previewSolve>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  PreviewSolveParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewSolve>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewSolve>>,
+          TError,
+          Awaited<ReturnType<typeof previewSolve>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewSolve<TData = Awaited<ReturnType<typeof previewSolve>>, TError = unknown>(
+ unitId: string,
+    params?: PreviewSolveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewSolve>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewSolve>>,
+          TError,
+          Awaited<ReturnType<typeof previewSolve>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewSolve<TData = Awaited<ReturnType<typeof previewSolve>>, TError = unknown>(
+ unitId: string,
+    params?: PreviewSolveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewSolve>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Preview
+ */
+
+export function usePreviewSolve<TData = Awaited<ReturnType<typeof previewSolve>>, TError = unknown>(
+ unitId: string,
+    params?: PreviewSolveParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewSolve>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPreviewSolveQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartSolveUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/solves`
+}
+
+/**
+ * The solve input is stored as it stands now, whatever changes while the solve waits for its turn.
+ * @summary Start Solve
+ */
+export const startSolve = async (unitId: string,
+    startSolveBody: StartSolveBody, options?: Parameters<typeof apiFetch>[1]): Promise<SolveProgress> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SolveProgress>(getStartSolveUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(startSolveBody)
+  }
+);}
+
+
+
+
+
+export const getStartSolveMutationKey = () => ['startSolve'] as const;
+
+export const getStartSolveMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startSolve>>, TError,StartSolveMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startSolve>>, TError,StartSolveMutationVariables, TContext> => {
+
+const mutationKey = getStartSolveMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startSolve>>, StartSolveMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  startSolve(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartSolveMutationResult = NonNullable<Awaited<ReturnType<typeof startSolve>>>
+    export type StartSolveMutationBody = StartSolveBody
+    export type StartSolveMutationError = unknown
+    export type StartSolveMutationVariables = {unitId: string;data: StartSolveBody}
+
+    /**
+ * @summary Start Solve
+ */
+export const useStartSolve = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startSolve>>, TError,StartSolveMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startSolve>>,
+        TError,
+        StartSolveMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStartSolveMutationOptions(options), queryClient);
+    }
+
+export const getGetSolveProgressUrl = (unitId: string,
+    solveId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/solves/${solveId}`
+}
+
+/**
+ * A timer calls this, so it does not count as the manager being there, whatever it answers: a test holds it.
+ * @summary Solveprogress Of
+ */
+export const getSolveProgress = async (unitId: string,
+    solveId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SolveProgress> => {
+
+  return apiFetch<SolveProgress>(getGetSolveProgressUrl(unitId,solveId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSolveProgressQueryKey = (unitId: string,
+    solveId: string,) => {
+    return [
+    `/api/units/${unitId}/solves/${solveId}`
+    ] as const;
+    }
+
+
+export const getGetSolveProgressQueryOptions = <TData = Awaited<ReturnType<typeof getSolveProgress>>, TError = unknown>(unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveProgress>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSolveProgressQueryKey(unitId,solveId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSolveProgress>>> = ({ signal }) => getSolveProgress(unitId,solveId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined && solveId !== null && solveId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSolveProgress>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSolveProgressQueryResult = NonNullable<Awaited<ReturnType<typeof getSolveProgress>>>
+export type GetSolveProgressQueryError = unknown
+
+
+export function useGetSolveProgress<TData = Awaited<ReturnType<typeof getSolveProgress>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveProgress>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSolveProgress>>,
+          TError,
+          Awaited<ReturnType<typeof getSolveProgress>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSolveProgress<TData = Awaited<ReturnType<typeof getSolveProgress>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveProgress>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSolveProgress>>,
+          TError,
+          Awaited<ReturnType<typeof getSolveProgress>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSolveProgress<TData = Awaited<ReturnType<typeof getSolveProgress>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveProgress>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Solveprogress Of
+ */
+
+export function useGetSolveProgress<TData = Awaited<ReturnType<typeof getSolveProgress>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveProgress>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSolveProgressQueryOptions(unitId,solveId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStopSolveUrl = (unitId: string,
+    solveId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/solves/${solveId}/stop`
+}
+
+/**
+ * A queued solve ends here. A running one is the worker's to stop, which keeps the best roster found. Asking again, or
+ * after the end, changes nothing.
+ * @summary Stop Solve
+ */
+export const stopSolve = async (unitId: string,
+    solveId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SolveProgress> => {
+
+  return apiFetch<SolveProgress>(getStopSolveUrl(unitId,solveId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStopSolveMutationKey = () => ['stopSolve'] as const;
+
+export const getStopSolveMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stopSolve>>, TError,StopSolveMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof stopSolve>>, TError,StopSolveMutationVariables, TContext> => {
+
+const mutationKey = getStopSolveMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof stopSolve>>, StopSolveMutationVariables> = (props) => {
+          const {unitId,solveId} = props ?? {};
+
+          return  stopSolve(unitId,solveId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StopSolveMutationResult = NonNullable<Awaited<ReturnType<typeof stopSolve>>>
+
+    export type StopSolveMutationError = unknown
+    export type StopSolveMutationVariables = {unitId: string;solveId: string}
+
+    /**
+ * @summary Stop Solve
+ */
+export const useStopSolve = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stopSolve>>, TError,StopSolveMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof stopSolve>>,
+        TError,
+        StopSolveMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStopSolveMutationOptions(options), queryClient);
+    }
+
+export const getGetRosterMonthUrl = (unitId: string,
+    params?: GetRosterMonthParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/roster?${stringifiedParams}` : `/api/units/${unitId}/roster`
+}
+
+/**
+ * @summary Roster Month
+ */
+export const getRosterMonth = async (unitId: string,
+    params?: GetRosterMonthParams, options?: Parameters<typeof apiFetch>[1]): Promise<RosterMonth> => {
+
+  return apiFetch<RosterMonth>(getGetRosterMonthUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRosterMonthQueryKey = (unitId: string,
+    params?: GetRosterMonthParams,) => {
+    return [
+    `/api/units/${unitId}/roster`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRosterMonthQueryOptions = <TData = Awaited<ReturnType<typeof getRosterMonth>>, TError = unknown>(unitId: string,
+    params?: GetRosterMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterMonth>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRosterMonthQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRosterMonth>>> = ({ signal }) => getRosterMonth(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRosterMonth>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRosterMonthQueryResult = NonNullable<Awaited<ReturnType<typeof getRosterMonth>>>
+export type GetRosterMonthQueryError = unknown
+
+
+export function useGetRosterMonth<TData = Awaited<ReturnType<typeof getRosterMonth>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  GetRosterMonthParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterMonth>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRosterMonth>>,
+          TError,
+          Awaited<ReturnType<typeof getRosterMonth>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRosterMonth<TData = Awaited<ReturnType<typeof getRosterMonth>>, TError = unknown>(
+ unitId: string,
+    params?: GetRosterMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterMonth>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRosterMonth>>,
+          TError,
+          Awaited<ReturnType<typeof getRosterMonth>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRosterMonth<TData = Awaited<ReturnType<typeof getRosterMonth>>, TError = unknown>(
+ unitId: string,
+    params?: GetRosterMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterMonth>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Roster Month
+ */
+
+export function useGetRosterMonth<TData = Awaited<ReturnType<typeof getRosterMonth>>, TError = unknown>(
+ unitId: string,
+    params?: GetRosterMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterMonth>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetRosterMonthQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListNursesUrl = () => {
 

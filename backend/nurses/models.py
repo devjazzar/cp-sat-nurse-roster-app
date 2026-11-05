@@ -30,6 +30,8 @@ class NurseProfile(models.Model):
     hours_balance = models.IntegerField(default=0, help_text="Hours still owed (+) or worked ahead (-).")
     night_balance = models.FloatField(default=0.0, help_text="Night shifts above (+) or below (-) their fair share.")
     friday_balance = models.FloatField(default=0.0, help_text="Weekend days above (+) or below (-) their fair share.")
+    attributes_saved = models.BooleanField(
+        default=False, help_text="A manager has saved these attributes at least once, so a score at the default was looked at.")
 
 
 class Placement(models.Model):

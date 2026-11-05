@@ -1,0 +1,147 @@
+"""Once with everything real: the service in its own process on the solver's own four-nurse sample, the real queue and a real
+worker, spoken to through the API. Nothing here assumes how long a search takes: a stop is asked for only once the row shows a
+roster was found, and the sample with looser rules cannot be proven optimal for far longer than anything here waits."""
+from __future__ import annotations
+
+import datetime as dt
+import os
+import socket
+import subprocess
+import sys
+import threading
+import time
+
+import httpx
+import pytest
+
+from accounts.models import Role, User
+from conftest import post
+from hospital.models import HospitalSettings, LeaveType
+from nurses.models import Leave, NurseProfile, Placement
+from rosters.models import Roster
+from solves import running
+from solves.models import Solve
+from solves.tests.conftest import MONTH, NURSES, SOLVER, make_sample_unit, run_the_queue, started
+from solves.tests.test_flow import month_of, preview, url
+
+pytestmark = pytest.mark.usefixtures("empty_queue")
+TOKEN = "end-to-end-token"
+SURELY = 120.0  # How long a machine under any load may take before something is really wrong.
+
+
+@pytest.fixture(scope="module")
+def solver_service():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    environment = {key: value for key, value in os.environ.items() if key != "NURSE_ROSTER_WORKERS"} | {"SOLVER_TOKEN": TOKEN}
+    server = subprocess.Popen([sys.executable, "-m", "uvicorn", "--factory", "solver_service.app:create_app", "--host", "127.0.0.1",
+                               "--port", str(port), "--log-level", "warning"], cwd=SOLVER, env=environment)
+    address = f"http://127.0.0.1:{port}"
+    try:
+        deadline = time.monotonic() + SURELY
+        while True:
+            try:
+                httpx.get(f"{address}/health", timeout=1)
+                break
+            except httpx.TransportError:
+                assert server.poll() is None and time.monotonic() < deadline, "the service did not start"
+                time.sleep(0.1)
+        yield address
+    finally:
+        server.terminate()
+        server.wait(timeout=30)
+
+
+@pytest.fixture(autouse=True)
+def _real_solver(settings, solver_service, before_june, monkeypatch):
+    settings.SOLVER_URL, settings.SOLVER_TOKEN = solver_service, TOKEN
+    monkeypatch.setattr(running, "POLL_SECONDS", 0.02)
+    monkeypatch.setattr(running, "WAIT_BEFORE_RETRY_SECONDS", 0)
+
+
+def long_search(unit: object) -> None:
+    """The same four nurses, as in solver/service_tests/conftest.py: a first roster at once, and no proof for many seconds."""
+    settings = HospitalSettings.load()
+    settings.rules["weights"].update(score_spread=1, score_deficit=1, excess_weekend=1)
+    settings.save()
+    unit.rules.update(score_balance=True, score_balance_mode="spread", score_target=0.8, score_target_weekend=0.8,
+                      fair_tolerance=0.0, max_weekends=2, night_rest_days=1)
+    unit.rules["headcounts"] = [{"shift": shift, "weekday_min": 1, "weekday_max": 2, "weekend_min": 1, "weekend_max": 2,
+                                 "also_counts": []} for shift in ("D", "N")]
+    unit.save()
+    Placement.objects.filter(unit=unit).update(allowed_shifts=None)
+
+
+def working_in_the_background():
+    worker = threading.Thread(target=run_the_queue)
+    worker.start()
+    return worker
+
+
+def until(check, what: str):
+    deadline = time.monotonic() + SURELY
+    while time.monotonic() < deadline:
+        answer = check()
+        if answer:
+            return answer
+        time.sleep(0.02)
+    pytest.fail(f"never saw {what}")
+
+
+def test_the_whole_flow(mona, er):
+    badr = NurseProfile.objects.get(user__username="Badr")
+    sick = LeaveType.objects.get(name="Sick")
+    for day in (10, 11):
+        Leave.objects.create(nurse=badr, date=dt.date(2026, 6, day), leave_type=sick, recorded_by=badr.user)
+
+    plan = preview(mona, er)
+    assert plan["summary"]["nurses"] == 4 and plan["summary"]["leave_days"] == 2 and plan["rules_refusal"] is None
+    assert isinstance(plan["precheck"], list)
+
+    solve = started(mona, er, seconds=30)
+    run_the_queue()
+
+    stored = Solve.objects.get(pk=solve["id"])
+    assert stored.state == "succeeded" and stored.result["ok"] is True and stored.result["month"] == MONTH
+    answer = month_of(mona, er)
+    draft = answer["draft"]
+    assert answer["active_solve"] is None and draft["solve_id"] == solve["id"] and draft["cost"] == stored.result["cost"]
+    assert [row["hospital_id"] for row in draft["rows"]] == NURSES and len(draft["days"]) == 30
+    badr_cells = next(row for row in draft["rows"] if row["hospital_id"] == "Badr")["cells"]
+    assert badr_cells[9] == {"shift": "", "kind": "leave"} and badr_cells[10] == {"shift": "", "kind": "leave"}
+    assert {cell["kind"] for row in draft["rows"] for cell in row["cells"]} <= {"shift", "off", "leave"}
+    assert Roster.objects.get(unit=er).grid == stored.result["roster"]
+    assert {row["rule"] for row in draft["penalties"]} == set(stored.result["penalties"])
+
+
+def test_a_stop_keeps_the_best_roster_found(mona, er):
+    long_search(er)
+    solve = started(mona, er, seconds=120)
+    worker = working_in_the_background()
+    try:
+        until(lambda: Solve.objects.get(pk=solve["id"]).improvements >= 1, "a first roster")
+        assert Solve.objects.get(pk=solve["id"]).state == "running"
+        assert post(mona, url(er, f"/solves/{solve['id']}/stop"), {}).status_code == 200
+    finally:
+        worker.join(SURELY)
+    assert not worker.is_alive()
+
+    stored = Solve.objects.get(pk=solve["id"])
+    assert stored.state == "cancelled" and stored.result["solver"]["stopped_by"] == "cancelled"
+    draft = month_of(mona, er)["draft"]
+    assert draft["stopped_early"] is True and draft["cost"] == stored.result["cost"]
+
+
+def test_two_units_queue_first_come_first_served(mona, er, make_user, client_of):
+    other = client_of("omar", Role.UNIT_MANAGER)
+    icu = make_sample_unit("ICU", User.objects.get(username="omar"), make_user, prefix="i")
+    first, second = started(mona, er, seconds=30), started(other, icu, seconds=30)
+    assert (first["queue_ahead"], second["queue_ahead"]) == (0, 1)
+
+    run_the_queue()
+
+    one, two = Solve.objects.get(pk=first["id"]), Solve.objects.get(pk=second["id"])
+    assert one.state == two.state == "succeeded"
+    assert one.finished_at <= two.started_at
+    assert Roster.objects.filter(unit=er).exists() and Roster.objects.filter(unit=icu).exists()

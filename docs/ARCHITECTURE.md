@@ -149,7 +149,8 @@ the unit's) with a review flag, request cap per nurse per month (default 3), def
 
 **Nurse profile** (0..1 per user): hospital ID (= username), gender, start date, end date,
 team leader, score, Ramadan-reduced, breastfeeding, opening values (overtime this year, hours balance,
-night and weekend fairness balances; editable until her first month closes).
+night and weekend fairness balances; editable until her first month closes), whether a manager has ever saved
+these, which is how a score at the default is told from one somebody looked at.
 
 **Placement**: nurse, unit, first month, allowed shifts. A nurse's allowed shifts are on the placement, not the
 profile, because a list means something only in a unit and two units can each roster their own months of one nurse at
@@ -163,7 +164,8 @@ and so stops it being archived, while placed there or due to join it, with an ac
 end date not passed.
 
 **Roster** (one per unit and month): state `draft`, `submitted`, `approved`; a rejection
-returns it to `draft` with the comment kept. Exactly one draft per unit-month.
+returns it to `draft` with the comment kept. Exactly one draft per unit-month. Its grid is the one in use and
+follows a shift's rename, while the solve it came from keeps what it was given and answered.
 
 **Roster version**: the roster's full grid (nurse × date → shift code or off) with who,
 when, why and origin (solve, manual edit, re-plan, swap, request), plus the result it came
@@ -188,8 +190,13 @@ manager cancels after acceptance becomes `cancelled`.
 `awaiting_manager`, `approved`, `rejected`, `withdrawn`, `expired`), decided by, reason.
 
 **Solve**: unit, month, requested by, time limit, state (`queued`, `running`, `succeeded`,
-`failed`, `cancelled`), queue position, progress (elapsed, best cost, improvements), the
-complete solve input and result as stored, error text.
+`failed`, `cancelled`), the queue's job, progress (elapsed, best cost, improvements), the
+complete solve input and result as stored, error text. A queue position is worked out when asked,
+from the solves ahead on the queue, so it cannot be out of date. `succeeded` means the solver ran
+to its end, which may have found no roster; `cancelled` may still hold the best roster found, which
+becomes the draft; only `failed` means the solver gave no answer. Rules the solver refuses are
+`failed` with the failure `refused`, and read as rules to review, not as a failed solve. At most one
+solve of a unit's month is active at a time.
 
 **Month close**: unit, month, closed at, closed by (system or manager), the close result,
 and the carry-over per nurse.
@@ -214,7 +221,8 @@ backup time and retention, close time.
                                                            versions, in force at once
 ```
 
-- Each solve replaces the draft's grid; the solve history keeps every result, and any result
+- Each solve replaces the draft's grid, unless its result has no roster or `ok` is false, which
+  leaves the draft as it was; the solve history keeps every result, and any result
   can be restored as the draft. The draft grid is editable by hand with instant validation;
   a re-solve keeps pins. Submitting freezes the draft until the decision.
 - After approval, the unit manager alone changes the roster: direct cell edits, swaps,
@@ -292,10 +300,13 @@ Procrastinate, with its tables in the application database, run by the `worker` 
 Jobs:
 
 - `run_solve(solve_id)`: under a hospital-wide lock, so solves run first come first served
-  across units; submits the solve input to the solver, polls progress into the `Solve` row
-  (queue position before it starts, best cost while it runs), stores the result, relays a
-  cancellation. A failed solve (solver crash, unreachable) is marked failed with its reason
-  and retried once; the manager can re-run it.
+  across units; submits the solve input to the solver, polls progress into the `Solve` row,
+  stores the result, relays a cancellation. A failed attempt (solver crash, unreachable) is
+  retried once inside the same job, so it keeps its place in line; a second failure is marked
+  failed with its reason, and the manager can re-run it. A worker that dies goes on watching the
+  job the solver still holds when it comes back.
+- `recover_lost_jobs` (every five minutes): puts a dead worker's job back on the queue, which would
+  otherwise hold the lock for good, and fails a solve whose job is gone.
 - `close_month` (cron, close time on the first of each month) and `project_carry_over` on
   demand.
 - `backup` (cron, 02:00) and backup retention.
@@ -345,8 +356,8 @@ roster in force.
 Local accounts only, designed so an LDAP or SSO backend can be added as a Django
 authentication backend. Generated passwords shown once, forced change at first login.
 Minimum length 10 with Django's common-password and similarity checks, lockout for 15
-minutes after 5 failed logins, sessions expire after 12 hours of inactivity, no two-factor
-authentication in v1. Every login, failed login and every change to settings, accounts,
+minutes after 5 failed logins, sessions expire after 12 hours of inactivity (polling a solve's
+progress is not activity), no two-factor authentication in v1. Every login, failed login and every change to settings, accounts,
 rosters, requests and swaps goes to the audit log. So does each taking of the staff list, which holds everyone's gender:
 who took it and how many nurses it held, and nothing from the file. Its import template holds no one's data and is not
 logged. Nurses see colleagues' names and shifts only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose

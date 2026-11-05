@@ -16,6 +16,8 @@ from nurses.attributes_api import router as nurse_attributes_router
 from nurses.files_api import router as nurse_files_router
 from nurses.leave_api import my_leave_router, unit_leave_router
 from ops.api import router as ops_router
+from rosters.api import router as rosters_router
+from solves.api import router as solves_router
 from units.api import router as units_router
 from units.rules_api import router as unit_rules_router
 
@@ -30,6 +32,8 @@ api.add_router("/units", units_router)
 api.add_router("/units", unit_rules_router)
 api.add_router("/units", nurse_attributes_router)
 api.add_router("/units", unit_leave_router)
+api.add_router("/units", solves_router)
+api.add_router("/units", rosters_router)
 api.add_router("/nurses", nurses_router)
 api.add_router("/nurses", nurse_files_router)
 api.add_router("/nurses", my_leave_router)

@@ -38,3 +38,13 @@ export function scrollableRegion(label: string) {
     className: "rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring",
   }
 }
+
+/** Black or white, whichever reads better on a shift's colour ("#0284c7"), by WCAG's relative luminance. */
+export function readableOn(colour: string): "#000000" | "#ffffff" {
+  const [r, g, b] = [1, 3, 5].map((at) => {
+    const channel = parseInt(colour.slice(at, at + 2), 16) / 255
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  })
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.05 ? "#ffffff" : "#000000"
+}

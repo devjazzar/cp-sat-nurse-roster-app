@@ -32,3 +32,10 @@ export function showServerErrors<Fields extends FieldValues>(
   errors.forEach(({ path, message }) => form.setError(path as FieldPath<Fields>, { message }))
   if (errors[0]) form.setFocus(errors[0].path as FieldPath<Fields>)
 }
+
+/** What a refusal that is not about a field says, when the answer says anything: 403 and 409 explain themselves. */
+export function plainRefusal(error: unknown): string | undefined {
+  if (!(error instanceof ApiError) || error.status === 422) return undefined
+  const detail = (error.body as { detail?: unknown } | undefined)?.detail
+  return typeof detail === "string" ? detail : undefined
+}

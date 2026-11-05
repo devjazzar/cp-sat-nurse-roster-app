@@ -44,12 +44,14 @@ INSTALLED_APPS = [
     "units",
     "nurses",
     "ops",
+    "rosters",
+    "solves",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
+    "accounts.sessions.IdleAwareSessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -78,8 +80,9 @@ AUTH_PASSWORD_VALIDATORS = [
      "OPTIONS": {"user_attributes": ("username", "full_name")}},
 ]
 
-# Twelve idle hours: every request a signed-in browser makes pushes the expiry forward, so nothing
-# may poll on a timer without the user being there, or an open tab would never expire.
+# Twelve idle hours: every request a signed-in browser makes pushes the expiry forward, so anything
+# that polls on a timer has to say it is not activity (`accounts.sessions.not_activity`), or an open
+# tab would never expire.
 SESSION_COOKIE_AGE = 12 * 60 * 60
 SESSION_SAVE_EVERY_REQUEST = True
 

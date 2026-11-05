@@ -21,6 +21,7 @@ import { Route as SignedInLeaveRouteImport } from './routes/_signed-in/leave'
 import { Route as SignedInLeaveTypesRouteImport } from './routes/_signed-in/leave-types'
 import { Route as SignedInMyLeaveRouteImport } from './routes/_signed-in/my-leave'
 import { Route as SignedInNursesRouteImport } from './routes/_signed-in/nurses'
+import { Route as SignedInRosterRouteImport } from './routes/_signed-in/roster'
 import { Route as SignedInRosteringAttributesRouteImport } from './routes/_signed-in/rostering-attributes'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
 import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
@@ -88,6 +89,11 @@ const SignedInNursesRoute = SignedInNursesRouteImport.update({
   path: '/nurses',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInRosterRoute = SignedInRosterRouteImport.update({
+  id: '/roster',
+  path: '/roster',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInRosteringAttributesRoute =
   SignedInRosteringAttributesRouteImport.update({
     id: '/rostering-attributes',
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/my-leave': typeof SignedInMyLeaveRoute
   '/nurses': typeof SignedInNursesRoute
+  '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/my-leave': typeof SignedInMyLeaveRoute
   '/nurses': typeof SignedInNursesRoute
+  '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/_signed-in/leave-types': typeof SignedInLeaveTypesRoute
   '/_signed-in/my-leave': typeof SignedInMyLeaveRoute
   '/_signed-in/nurses': typeof SignedInNursesRoute
+  '/_signed-in/roster': typeof SignedInRosterRoute
   '/_signed-in/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
   '/_signed-in/shifts': typeof SignedInShiftsRoute
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/leave-types'
     | '/my-leave'
     | '/nurses'
+    | '/roster'
     | '/rostering-attributes'
     | '/settings'
     | '/shifts'
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/leave-types'
     | '/my-leave'
     | '/nurses'
+    | '/roster'
     | '/rostering-attributes'
     | '/settings'
     | '/shifts'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/_signed-in/leave-types'
     | '/_signed-in/my-leave'
     | '/_signed-in/nurses'
+    | '/_signed-in/roster'
     | '/_signed-in/rostering-attributes'
     | '/_signed-in/settings'
     | '/_signed-in/shifts'
@@ -343,6 +355,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInNursesRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/roster': {
+      id: '/_signed-in/roster'
+      path: '/roster'
+      fullPath: '/roster'
+      preLoaderRoute: typeof SignedInRosterRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/rostering-attributes': {
       id: '/_signed-in/rostering-attributes'
       path: '/rostering-attributes'
@@ -404,6 +423,7 @@ interface SignedInRouteChildren {
   SignedInLeaveTypesRoute: typeof SignedInLeaveTypesRoute
   SignedInMyLeaveRoute: typeof SignedInMyLeaveRoute
   SignedInNursesRoute: typeof SignedInNursesRoute
+  SignedInRosterRoute: typeof SignedInRosterRoute
   SignedInRosteringAttributesRoute: typeof SignedInRosteringAttributesRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
   SignedInShiftsRoute: typeof SignedInShiftsRoute
@@ -423,6 +443,7 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInLeaveTypesRoute: SignedInLeaveTypesRoute,
   SignedInMyLeaveRoute: SignedInMyLeaveRoute,
   SignedInNursesRoute: SignedInNursesRoute,
+  SignedInRosterRoute: SignedInRosterRoute,
   SignedInRosteringAttributesRoute: SignedInRosteringAttributesRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
   SignedInShiftsRoute: SignedInShiftsRoute,

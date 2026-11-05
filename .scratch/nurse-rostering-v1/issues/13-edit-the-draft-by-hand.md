@@ -19,3 +19,5 @@
 
 - **Recording leave on a pinned day removes the pin and tells the manager.** The write is not refused. `_refuse_dates` in `nurses/leave_api.py` is the path of every write that adds a date, as the comment above says, so the removal belongs on that path and the answer has to carry what the page tells the manager.
 - **Pinning a shift on a leave day is refused,** in the cell editor and when saving pins.
+
+**From ticket 11 (2026-11-05).** Pins go in `solves/input.py`, `assemble`, which counts them for the summary too: `Summary.pins` in `solves/api.py` is a literal 0 until then. Its docstring holds the decision: if a row ever holds a shift pinned on a credited day, leave wins and the pin is dropped there, so it is not a failed solve. A pin in the input also has to be part of `changes_since`, or a pin saved after a solve will not warn. `Roster.grid` is what the cell editor edits, and it follows renames through `rosters.drafts.carry_rename_through_grids`.

@@ -130,8 +130,8 @@ def update_nurse_attributes(request, unit_id: UUID, nurse_id: UUID, body: Attrib
         _, changing = differing({name: getattr(nurse, name) for name in fields}, fields)
         for name, value in changing.items():
             setattr(nurse, name, value)
-        if changing:
-            nurse.save(update_fields=list(changing))
+        nurse.attributes_saved = True  # A save that changes nothing still says someone looked: see ticket 11.
+        nurse.save(update_fields=[*changing, "attributes_saved"])
         shifts_changed = membership.set_allowed_shifts(nurse, unit, body.allowed_shifts)
         if changing or shifts_changed:
             record("nurse.attributes_changed", actor=request.user, target=nurse.user.username, request=request)

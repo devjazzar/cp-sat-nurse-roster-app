@@ -6,14 +6,14 @@
 
 **Status:** ready-for-agent
 
-- [ ] Solve input assembler builds the complete solver JSON from hospital rules, unit rules, Ramadan days, holidays, nurses with opening values or zero carry-over, leave, and credits days outside start and end dates like leave; the input is stored verbatim with the solve
-- [ ] Precheck shown before solving via the solver's precheck call
-- [ ] Time limit defaults to the unit's and is capped by the technical setting
-- [ ] Solve rows go through the queue; the worker runs one at a time under a hospital-wide lock, writes queue position and progress, relays cancellation, retries a failed solve once and records the failure reason
-- [ ] The draft roster is created or its grid replaced on success; the result is stored verbatim
-- [ ] Draft grid shows the nurse × date cells with shift colours, leave, and the penalties per rule
-- [ ] Changing a shift's hours is refused while any open month's roster uses it
-- [ ] API tests run the whole flow with the scripted solver fake and once end to end with the real solver service on the four-nurse sample, including cancellation and the queue order across two units
+- [x] Solve input assembler builds the complete solver JSON from hospital rules, unit rules, Ramadan days, holidays, nurses with opening values or zero carry-over, leave, and credits days outside start and end dates like leave; the input is stored verbatim with the solve
+- [x] Precheck shown before solving via the solver's precheck call
+- [x] Time limit defaults to the unit's and is capped by the technical setting
+- [x] Solve rows go through the queue; the worker runs one at a time under a hospital-wide lock, writes queue position and progress, relays cancellation, retries a failed solve once and records the failure reason
+- [x] The draft roster is created or its grid replaced on success; the result is stored verbatim
+- [x] Draft grid shows the nurse × date cells with shift colours, leave, and the penalties per rule
+- [x] Changing a shift's hours is refused while any open month's roster uses it
+- [x] API tests run the whole flow with the scripted solver fake and once end to end with the real solver service on the four-nurse sample, including cancellation and the queue order across two units
 
 ## Comments
 
@@ -53,3 +53,44 @@
 - **The session may read `INITIAL_ADMIN_PASSWORD` from `deploy/.env`** to use the dev stack. Earlier sessions worked around not knowing it.
 
 **From ticket 10b (2026-11-05): how this ticket's frontend tests should be written.** Keep adding to `frontend/src/app.test.tsx`, through `start` and `hold`. A new route's chunk is imported before the tests by `test-setup.ts` without any change here. Do not raise a timeout in a test to wait for the solve's progress: let a handler change its answer and let `findBy` see the page change, keeping any poll interval short in the test. `vi.useFakeTimers()` does not work with `start` as it stands, because `findBy` and `user` would both stall, and nothing in the file has needed it. Before acting on a page you have just gone to, wait for something on it rather than for the address, which changes first. A wait that proves something did not happen, like the 50 ms one in the users page's test, can only pass more easily on a busy machine, so prove it another way if there is one.
+
+Implemented on 2026-11-05. Backend under pytest on real PostgreSQL 18, frontend under Vitest with the real routes and generated client over a stubbed `fetch`. Seams: the assembler (`solves/tests/test_input.py`, with the solver's own four-nurse sample as the expected answer), the API with the scripted solver and the real job called directly (`test_flow.py`), the real queue on real connections with the scripted solver (`test_queue.py`), and everything real, with the service in its own process (`test_end_to_end.py`: the whole flow, a stop, and the queue order across two units). None of them waits on a clock: a stop is asked for once the row shows a roster.
+
+**The production compose file through Caddy, as you asked: it works.** Run twice under its own project (`-p nr-t11`), its own image tag and its own volumes, and removed afterwards, image, volumes and networks; the dev stack's data was not involved. The second run was on the final code. From an HTTP client over HTTPS through Caddy: all five services healthy, `/api/health` reports the solver reachable, plain HTTP answers 308 to HTTPS, a deep link serves the page, login and CSRF work behind TLS, Caddy's container cannot resolve `solver`. Two units' solves: the second reported 1 ahead and ran after the first ended; 409 for a second solve of the same month, 422 over the cap; a stop mid-search ended `cancelled` with cost 420 as the draft, stopped early. No traceback in the worker's or web's logs. **Not through Caddy in a browser:** the built-in browser refuses Caddy's self-signed certificate, and only you can accept that in the pane. Run once earlier in the work, before the review's changes: a real solve kept going through `docker compose restart worker`, its progress frozen for 219 s until `recover_lost_jobs` put the job back, at `attempts` 1, and then a stop kept its best roster.
+
+**Driven in the built-in browser,** on that same scratch project with `web` also published on `127.0.0.1:18000` under `DJANGO_DEBUG` and Vite on `localhost:5173`, because of the certificate. Twelve nurses in each of two units, real solver, real worker, real clicks on Start and Stop. The summary, the warnings and the time limit; Start with focus moving to the card; progress with the best cost going down; a solve queued behind others showing 2 ahead, then 1; a real Stop ending at cost 377 with "you stopped this solve early", the status announced and focus on the draft; the grid with shift colours, L, the dots before a late start date and shaded Fridays; the penalties under the hospital rules' names; a corrected gender warning beside the draft; a nurse's emptied list blocking the month and naming them; the grid at 375 px with names in view and no sideways page scroll. That browser run found two bugs no test had: each cell's screen-reader text was escaping the scroller, so the whole page scrolled sideways, and times were shown in UTC rather than the hospital's. Both fixed.
+
+**The dev stack:** I restarted `web` and `worker` for the code and migrations, and stopped `worker` for a while. Its database now has `nurses.0004_attributes_saved`, `solves.0001_solve` and `rosters.0001_roster`. Those were first applied under other names, rolled back and applied again as the models changed, which only touched what this ticket added. The `frontend` service I started and stopped, so it is stopped as it was. I logged in as nobody there and ran no solve there: it holds a manager whose password I have no business knowing, so everything was driven on the scratch project. **The new page has therefore not been opened on your dev data.**
+
+What was not checked:
+
+- **A grid long enough to be windowed, in a real browser.** Above 60 nurses only the rows in view are drawn. A test with a stubbed size shows that and `aria-rowcount`; scrolling it for real was not done.
+- **Rules the solver refuses, on a real page with a real unit.** The refusal is in API tests against the real loader, and the page in Vitest. The block for an emptied list was seen with the flag set by hand; a real transfer reaching it is in an API test.
+- **A solver crash for real, and so a real retry.** Scripted only.
+- **The hours guard on the Shifts page.** Its refusal came back correctly from the real API, naming the rosters; the field's display is the page's existing one.
+- **Dark mode, 320 px, 200% zoom, RTL and browsers other than the built-in one.** Viewed at 375 px only.
+- **`recover_lost_jobs` on the final code.** That run was before the review's changes, none of which touched it apart from moving its decorator's helper.
+
+**Decisions taken here:**
+
+- **Worth your review: the queue position is worked out when asked, not written by the worker.** The criterion says the worker writes it. A written one goes stale when a solve ahead is stopped, and needs every other row rewriting. It counts active solves with a lower queue job id, which is the order they run in. Section 4 and 7 now say so.
+- **Worth your review: `succeeded` with no roster.** A search that ends with no roster, or with one the validator says breaks a hard rule (`ok` false), is `succeeded` with the draft left as it was and the page saying why, not `failed`, because the solver did give an answer and a retry would not change it. It is not retried. A stopped solve with a roster replaces the draft, **even if that roster costs more than the draft it replaces**, as "each solve replaces the draft's grid" says: seen at cost 377 over 216. The history (ticket 12) keeps the other.
+- **Worth your review: a month already over is refused, and the current month is allowed,** replacing its whole grid. "Any future month" did not say whether the current one counts, and a hospital starting out needs it. Ticket 17 has a comment.
+- **Worth your review: the hours guard also refuses while a queued or running solve's input names the shift,** not only a roster, because that solve's result would otherwise have been worked out on the old hours. Asked only for rosters.
+- **Grids follow a rename:** `Roster.grid` carries it, the stored input and result do not. Otherwise renaming a shift and then changing its hours would pass the guard, and the page could not colour it. A solve that ends after a rename gets the new code as it is written, under the catalogue's lock.
+- **Retrying inside the job,** not with Procrastinate's retry, so one counter decides, on the row, and the solve keeps its place in line. A retry that works keeps the first failure's reason in `error`. A worker's death is not an attempt while the solver still has the job; one the solver has lost is.
+- **`recover_lost_jobs`, which nobody asked for.** Without it a dead worker's job holds the hospital-wide lock for good and no solve ever runs again. Every five minutes, so a solve can wait that long after a crash.
+- **A job the solver is running that no solve is watching** is stopped before the next starts: only a worker that died between starting it and writing its id can leave one.
+- **Stale drafts compare gender, credited days and who is in the month** with the stored input. A start date counts only if it moves a day of that month. Other attributes do not warn, as you asked only for these.
+- **A deactivated account:** left out and warned when it has no end date, or one still to come. One whose end date has come stays for the days worked, as a staff nurse's does.
+- **`attributes_saved`** is set by a save of the attributes form even if nothing changes, and not by the allowed-shifts-only save, which is all a joining unit's manager has. Existing nurses count as never saved.
+- **What is outside a nurse's dates is stored with the solve** (`Solve.outside_days`), because the input lists those days with leave and a cell should say what it was when solved. A later correction shows as a warning instead of changing the cell.
+- **The worker's concurrency stays 1.** The lock would hold at any number, but a five-minute solve delays the crons by that much. A later ticket with a job that cannot wait should raise it.
+- **Rules refused are checked in `web` with the solver's own loader,** so a refusal needs no call to the solver, and in the worker too in case the rules change while it waits.
+- **No roster version yet:** ticket 14 creates version 1 at the first approval.
+- **`jsonb` keeps no key order,** so "verbatim" holds as values, not as text.
+- **Polling:** 1.5 s while the page is open and a solve is active, stops on a refusal. A poll, refused or not, does not move the idle limit, unless authentication itself refuses it, and then the page stops asking.
+
+**Review.** The `code-review` skill's two axes. Spec found a refused poll polling forever and keeping the session alive, a retry's reason being lost, focus lost after taking a solve out of the queue and taken from elsewhere when a solve ended, and a cell's label going wrong after a correction: all fixed, with tests. Standards found roster reads in the `solves` app, no `result` reader, Avoid words, an unsorted audit map, a badly named migration, the table's accessors unused and several duplications: all fixed. Left as judgement calls: `solver_health` keeps its own `httpx.get`, because the health tests patch that; `plural` is one more ad hoc plural beside the others, in an English-only v1; `changes_since` returns dicts; `POLL_MS` has a test branch in production code, which this ticket's last comment suggests. `better-interface` and its six skills, by hand, from the code and the screenshots: nurse names truncated with only a title now wrap, a public holiday carried only by shading now says Hol, the muted weekday on a shaded day now uses the plain foreground, because the page's own tokens looked short of 4.5:1 (computed by eye, not measured). `interface-review` is yours to invoke.
+
+**Things later tickets should know:** comments are on 10b, 12, 13, 14, 17, 19, 21 and 22. Tests that use a real worker need the `empty_queue` fixture and `run_the_queue` from `solves/tests/conftest.py`: flushing leaves the queue's tables alone. `TanStack Table` and `Virtual` are installed at 9.3.1 and 3.14.26; `components/roster-grid.tsx` is where ticket 13's cell editor starts.

@@ -805,7 +805,7 @@
             }
           }
         },
-        "description": "Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's\nrules likewise, which both this and saving either set of rules must see the other's finished work to keep true.\nNo roster exists yet, so nothing here can hold section 4's \"hours cannot change while an open month's roster uses\nthe shift\": ticket 11, which brings rosters, adds that as a refusal on `hours`.",
+        "description": "Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's\nrules likewise, which both this and saving either set of rules must see the other's finished work to keep true.",
         "tags": [
           "hospital"
         ],
@@ -1885,6 +1885,273 @@
           },
           "required": true
         },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/solves/preview": {
+      "get": {
+        "operationId": "previewSolve",
+        "summary": "Preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolvePreview"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "solves"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/solves": {
+      "post": {
+        "operationId": "startSolve",
+        "summary": "Start Solve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolveProgress"
+                }
+              }
+            }
+          }
+        },
+        "description": "The solve input is stored as it stands now, whatever changes while the solve waits for its turn.",
+        "tags": [
+          "solves"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSolveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/solves/{solve_id}": {
+      "get": {
+        "operationId": "getSolveProgress",
+        "summary": "Solveprogress Of",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "solve_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Solve Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolveProgress"
+                }
+              }
+            }
+          }
+        },
+        "description": "A timer calls this, so it does not count as the manager being there, whatever it answers: a test holds it.",
+        "tags": [
+          "solves"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/solves/{solve_id}/stop": {
+      "post": {
+        "operationId": "stopSolve",
+        "summary": "Stop Solve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "solve_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Solve Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolveProgress"
+                }
+              }
+            }
+          }
+        },
+        "description": "A queued solve ends here. A running one is the worker's to stop, which keeps the best roster found. Asking again, or\nafter the end, changes nothing.",
+        "tags": [
+          "solves"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/roster": {
+      "get": {
+        "operationId": "getRosterMonth",
+        "summary": "Roster Month",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterMonth"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "rosters"
+        ],
         "security": [
           {
             "SignedIn": []
@@ -4872,6 +5139,580 @@
           "leave_ids"
         ],
         "title": "LeaveRemovalBody",
+        "type": "object"
+      },
+      "SolvePreview": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          },
+          "warnings": {
+            "$ref": "#/components/schemas/Warnings"
+          },
+          "precheck": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reasons the month may have no roster. Empty when none are known; null when the check could not run.",
+            "title": "Precheck"
+          },
+          "rules_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the solver would refuse the rules as they stand. Not a failed solve: review the unit rules.",
+            "title": "Rules Refusal"
+          },
+          "refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why no solve can start for this month, whatever the rules say.",
+            "title": "Refusal"
+          },
+          "time_limit_default": {
+            "title": "Time Limit Default",
+            "type": "integer"
+          },
+          "time_limit_cap": {
+            "title": "Time Limit Cap",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "summary",
+          "warnings",
+          "precheck",
+          "rules_refusal",
+          "refusal",
+          "time_limit_default",
+          "time_limit_cap"
+        ],
+        "title": "SolvePreview",
+        "type": "object"
+      },
+      "Summary": {
+        "properties": {
+          "nurses": {
+            "title": "Nurses",
+            "type": "integer"
+          },
+          "leave_days": {
+            "description": "Recorded leave within the nurses' dates.",
+            "title": "Leave Days",
+            "type": "integer"
+          },
+          "outside_days": {
+            "description": "Days before a start date or after an end date, credited like leave.",
+            "title": "Outside Days",
+            "type": "integer"
+          },
+          "pins": {
+            "title": "Pins",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nurses",
+          "leave_days",
+          "outside_days",
+          "pins"
+        ],
+        "title": "Summary",
+        "type": "object"
+      },
+      "Warnings": {
+        "properties": {
+          "hospital_rules_need_review": {
+            "title": "Hospital Rules Need Review",
+            "type": "boolean"
+          },
+          "unit_rules_need_review": {
+            "title": "Unit Rules Need Review",
+            "type": "boolean"
+          },
+          "unreviewed_scores": {
+            "description": "Nurses of the month whose attributes no manager has ever saved, so their score is still the default.",
+            "title": "Unreviewed Scores",
+            "type": "integer"
+          },
+          "left_out": {
+            "description": "Names of managers with a nurse profile whose account is deactivated.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Left Out",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_rules_need_review",
+          "unit_rules_need_review",
+          "unreviewed_scores",
+          "left_out"
+        ],
+        "title": "Warnings",
+        "type": "object"
+      },
+      "SolveProgress": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "queue_ahead": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Solves of any unit that go first. Null once this one has started.",
+            "title": "Queue Ahead"
+          },
+          "time_limit_seconds": {
+            "title": "Time Limit Seconds",
+            "type": "integer"
+          },
+          "stop_requested": {
+            "title": "Stop Requested",
+            "type": "boolean"
+          },
+          "elapsed_seconds": {
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "best_cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Cost"
+          },
+          "improvements": {
+            "title": "Improvements",
+            "type": "integer"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "solver",
+                  "refused"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`refused` is a matter of the rules, to be shown as such and not as a failed solve.",
+            "title": "Failure"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "found_roster": {
+            "description": "Whether this solve ended with a roster that became the draft.",
+            "title": "Found Roster",
+            "type": "boolean"
+          },
+          "message": {
+            "description": "Why the solver found no roster, in its words.",
+            "title": "Message",
+            "type": "string"
+          },
+          "precheck": {
+            "description": "What the solver's own precheck said, once it has ended.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Precheck",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "state",
+          "queue_ahead",
+          "time_limit_seconds",
+          "stop_requested",
+          "elapsed_seconds",
+          "best_cost",
+          "improvements",
+          "attempts",
+          "requested_at",
+          "finished_at",
+          "failure",
+          "error",
+          "found_roster",
+          "message",
+          "precheck"
+        ],
+        "title": "SolveProgress",
+        "type": "object"
+      },
+      "StartSolveBody": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          },
+          "time_limit_seconds": {
+            "description": "At most the System Admin's cap.",
+            "minimum": 1,
+            "title": "Time Limit Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "time_limit_seconds"
+        ],
+        "title": "StartSolveBody",
+        "type": "object"
+      },
+      "Draft": {
+        "properties": {
+          "solve_id": {
+            "format": "uuid",
+            "title": "Solve Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "cost": {
+            "title": "Cost",
+            "type": "integer"
+          },
+          "stopped_early": {
+            "title": "Stopped Early",
+            "type": "boolean"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/GridDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/GridRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "shifts": {
+            "items": {
+              "$ref": "#/components/schemas/GridShift"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "penalties": {
+            "items": {
+              "$ref": "#/components/schemas/RulePenalty"
+            },
+            "title": "Penalties",
+            "type": "array"
+          },
+          "changes": {
+            "description": "What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14).",
+            "items": {
+              "$ref": "#/components/schemas/DraftChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "solve_id",
+          "updated_at",
+          "cost",
+          "stopped_early",
+          "days",
+          "rows",
+          "shifts",
+          "penalties",
+          "changes"
+        ],
+        "title": "Draft",
+        "type": "object"
+      },
+      "DraftChange": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "what": {
+            "enum": [
+              "gender",
+              "leave",
+              "joined",
+              "left"
+            ],
+            "title": "What",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "what"
+        ],
+        "title": "DraftChange",
+        "type": "object"
+      },
+      "GridCell": {
+        "properties": {
+          "shift": {
+            "description": "The shift's code. Empty for a day not worked.",
+            "title": "Shift",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`outside` is before a start date or after an end date, credited like leave.",
+            "enum": [
+              "shift",
+              "off",
+              "leave",
+              "outside"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shift",
+          "kind"
+        ],
+        "title": "GridCell",
+        "type": "object"
+      },
+      "GridDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "weekend": {
+            "title": "Weekend",
+            "type": "boolean"
+          },
+          "holiday": {
+            "title": "Holiday",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date",
+          "weekend",
+          "holiday"
+        ],
+        "title": "GridDay",
+        "type": "object"
+      },
+      "GridRow": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/GridCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "cells"
+        ],
+        "title": "GridRow",
+        "type": "object"
+      },
+      "GridShift": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "colour",
+          "hours"
+        ],
+        "title": "GridShift",
+        "type": "object"
+      },
+      "RosterMonth": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "active_solve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolveProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_solve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolveProgress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for."
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Draft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "month",
+          "active_solve",
+          "last_solve",
+          "draft"
+        ],
+        "title": "RosterMonth",
+        "type": "object"
+      },
+      "RulePenalty": {
+        "properties": {
+          "rule": {
+            "description": "The soft rule's name: the same as its weight's.",
+            "title": "Rule",
+            "type": "string"
+          },
+          "penalty": {
+            "title": "Penalty",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rule",
+          "penalty"
+        ],
+        "title": "RulePenalty",
         "type": "object"
       },
       "ComingTransfer": {

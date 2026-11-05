@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-import { ApiError } from "@/api/fetcher"
 import {
   getListUnitLeaveQueryKey,
   useChangeLeave,
@@ -25,7 +24,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UnitPicker, useChosenUnit } from "@/components/unit-picker"
-import { serverErrors, showServerErrors } from "@/lib/server-errors"
+import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { dayRange, monthName, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
@@ -54,13 +53,6 @@ const formSchema = z.object({
   last: z.iso.date("Enter a date, or leave this empty for one day.").or(z.literal("")),
 })
 type FormValues = z.infer<typeof formSchema>
-
-/** What a refusal that is not about a field says, when the answer says anything: 403 and 409 explain themselves. */
-function plainRefusal(error: unknown): string | undefined {
-  if (!(error instanceof ApiError) || error.status === 422) return undefined
-  const detail = (error.body as { detail?: unknown } | undefined)?.detail
-  return typeof detail === "string" ? detail : undefined
-}
 
 function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
   unitId: string

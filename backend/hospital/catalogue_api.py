@@ -24,6 +24,8 @@ from hospital.models import FixedRamadanMonth, HospitalSettings, LeaveType, Publ
 from hospital.rules import changes
 from nurses.membership import carry_rename_through_allowed_shifts
 from ops.api import ClockTime
+from rosters.drafts import carry_rename_through_grids, current_code, using_shift
+from solves.models import ACTIVE_STATES, Solve
 from units.models import Unit
 from units.rules import units_using, with_shift_codes
 
@@ -161,9 +163,7 @@ def create_shift(request, body: ShiftBody) -> tuple[int, Shift]:
 @router.put("/shifts/{shift_id}", response=ShiftSchema, auth=cno, operation_id="updateShift")
 def update_shift(request, shift_id: UUID, body: ShiftBody) -> Shift:
     """Hold the rules' lock throughout: a forbidden succession only ever names an active shift, and a live unit's
-    rules likewise, which both this and saving either set of rules must see the other's finished work to keep true.
-    No roster exists yet, so nothing here can hold section 4's "hours cannot change while an open month's roster uses
-    the shift": ticket 11, which brings rosters, adds that as a refusal on `hours`."""
+    rules likewise, which both this and saving either set of rules must see the other's finished work to keep true."""
     with transaction.atomic():
         settings = HospitalSettings.load(for_update=True)
         shift = get_object_or_404(Shift, pk=shift_id)
@@ -180,15 +180,29 @@ def update_shift(request, shift_id: UUID, body: ShiftBody) -> Shift:
             if units:
                 refuse((("active",), f"{before['code']} is in the unit rules of {', '.join(units)}. "
                                      "The unit's manager has to take it out of them first."))
+        if "hours" in new:
+            _refuse_hours_in_use(before["code"])
         if "code" in new:
             _refuse_a_taken_code(body.code, shift.pk)
             ShiftRename.objects.create(shift=shift, old_code=before["code"], new_code=body.code, by=request.user)
             _carry_rename_through_the_rules(request, settings, before["code"], body.code)
             _carry_rename_through_the_units(request, before["code"], body.code)
             carry_rename_through_allowed_shifts(before["code"], body.code)
+            carry_rename_through_grids(before["code"], body.code)
         _write_shift(shift, body)
         record("shift.changed", actor=request.user, target=shift.code, before=old, after=new, request=request)
     return shift
+
+
+def _refuse_hours_in_use(code: str) -> None:
+    """A roster's hours were worked out with the shift's hours as they stood, and so were those of a solve on its way."""
+    uses = [f"{roster.unit.name}, {roster.month:%B %Y}" for roster in using_shift(code)]
+    waiting = Solve.objects.select_related("unit").filter(state__in=ACTIVE_STATES)
+    uses += [f"{solve.unit.name}, {solve.month:%B %Y}" for solve in waiting
+             if code in {current_code(shift) for shift in solve.input["department"]["shifts"]}]
+    if uses:
+        refuse((("hours",), f"The hours of {code} cannot change while the roster of an open month uses it: "
+                            f"{'; '.join(dict.fromkeys(uses))}."))
 
 
 def _carry_rename_through_the_rules(request, settings: HospitalSettings, old_code: str, new_code: str) -> None:
