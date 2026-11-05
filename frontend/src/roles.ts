@@ -32,10 +32,12 @@ const ROSTER = { to: "/roster", label: "Roster" } as const
 const SOLVE_HISTORY = { to: "/solve-history", label: "Solve history" } as const
 const LEAVE = { to: "/leave", label: "Leave" } as const
 const MY_LEAVE = { to: "/my-leave", label: "My leave" } as const
-const NURSE_PAGES = linkOptions([HOME, MY_LEAVE, ...CATALOGUE])
+const MY_ROSTER = { to: "/my-roster", label: "My roster" } as const
+const ROSTERS = { to: "/rosters", label: "Rosters" } as const
+const NURSE_PAGES = linkOptions([HOME, MY_ROSTER, MY_LEAVE, ...CATALOGUE])
 const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
-const DEPUTY_PAGES = linkOptions([HOME, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
-const CNO_PAGES = linkOptions([HOME, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])
+const DEPUTY_PAGES = linkOptions([HOME, ROSTERS, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
+const CNO_PAGES = linkOptions([HOME, ROSTERS, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])
 
 /** What each role reaches from the header. A role's pages join its list as their tickets land; the
  *  API refuses the rest whatever this says. The catalogue's pages open for the System Admin too, since

@@ -8173,12 +8173,17 @@
           "colour": {
             "title": "Colour",
             "type": "string"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "integer"
           }
         },
         "required": [
           "code",
           "display_name",
-          "colour"
+          "colour",
+          "hours"
         ],
         "title": "NurseShift",
         "type": "object"

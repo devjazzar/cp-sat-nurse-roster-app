@@ -99,6 +99,7 @@ class NurseShift(Schema):
     code: str
     display_name: str
     colour: str
+    hours: int
 
 
 class ColleagueRow(Schema):
@@ -177,7 +178,7 @@ def my_roster(request: HttpRequest, filters: Query[OverviewFilter]) -> MyRosterM
     mine = nurse.user.username
     answer.roster = NurseRoster(
         approved_at=timezone.localtime(review.approval(roster).decided_at), version=version.number, days=days,
-        shifts=[NurseShift(code=shift.code, display_name=shift.display_name, colour=shift.colour)
+        shifts=[NurseShift(code=shift.code, display_name=shift.display_name, colour=shift.colour, hours=shift.hours)
                 for shift in Shift.objects.filter(code__in=used)],
         rows=[ColleagueRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""),
                            shifts=[grid[hospital_id].get(day.date.isoformat(), "") for day in days])

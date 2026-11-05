@@ -18,15 +18,13 @@ import {
   useSaveDraftPins,
   useStartSolve,
   useStopSolve,
+  useSubmitRoster,
 } from "@/api/generated/endpoints"
 import {
   Role,
   type Draft,
-  type DraftChange,
   type DraftCheck,
-  type DraftPin,
   type EditBody,
-  type GridCheck,
   type RosterMonth,
   type SolvePreview,
   type SolveProgress,
@@ -36,6 +34,7 @@ import { FormField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { LeavePageDialog } from "@/components/password-dialog"
 import { type CellMarks, GridLegend, RosterGrid } from "@/components/roster-grid"
+import { CHANGE_SAYS, longDay, PinNotes, plural, RosterStatus, Violations } from "@/components/roster-notes"
 import { SolveResultPanels } from "@/components/solve-result"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,7 +42,7 @@ import { useChosenUnit } from "@/components/unit-picker"
 import { cellKey, keyOf, usePendingEdits } from "@/lib/pending-edits"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useDebounced } from "@/lib/use-debounced"
-import { asDate, hospitalTime, monthName } from "@/lib/utils"
+import { hospitalTime, monthName } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress })
@@ -61,7 +60,6 @@ const LINK = "underline underline-offset-3"
 
 const isRefusal = (error: unknown) => error instanceof ApiError && error.status < 500
 const isActive = (solve: SolveProgress) => solve.state === "queued" || solve.state === "running"
-const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
 
 function ProgressCard({ unitId, solve: first, onEnded }: { unitId: string; solve: SolveProgress; onEnded: (solve: SolveProgress) => void }) {
   const queryClient = useQueryClient()
@@ -161,42 +159,7 @@ function LastSolve({ solve }: { solve: SolveProgress }) {
   )
 }
 
-const CHANGE_SAYS: Record<DraftChange["what"], string> = {
-  gender: "gender was corrected",
-  leave: "leave or dates changed",
-  joined: "is now in this month but not in this draft",
-  left: "is no longer in this month but still in this draft",
-  pins: "pinned cells changed",
-}
-
-const dayOf = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
-const longDay = (date: string) => dayOf.format(asDate(date))
-const shiftWord = (code: string) => (code ? code : "a day off")
-
-const SET_ASIDE: Record<NonNullable<DraftPin["set_aside"]>, string> = {
-  not_in_month: "no longer in this unit's month",
-  outside_dates: "outside their start and end dates",
-  leave: "on leave that day",
-  shift_not_worked: "a shift this unit no longer works",
-  shift_not_allowed: "not one of their allowed shifts",
-}
-
 type Pending = ReturnType<typeof usePendingEdits>
-
-function Violations({ check, what }: { check: GridCheck; what: string }) {
-  if (check.reason) return <p className="text-sm">The solver's code could not check {what}, so whether it breaks a hard rule is not known. It says: {check.reason}</p>
-  if (check.ok) return <p className="text-sm">{what[0].toUpperCase() + what.slice(1)} breaks no hard rule.</p>
-  return (
-    <div className="flex flex-col gap-1 text-sm">
-      <p className="font-medium">{what[0].toUpperCase() + what.slice(1)} breaks {plural(check.violations.length, "hard rule")}:</p>
-      <ul className="list-disc ps-5">
-        {check.violations.map((violation, index) => (
-          <li key={index}>{[violation.full_name, violation.date && longDay(violation.date)].filter(Boolean).join(", ")}{violation.full_name || violation.date ? ": " : ""}{violation.text}</li>
-        ))}
-      </ul>
-    </div>
-  )
-}
 
 const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "no change")
 
@@ -310,33 +273,6 @@ function PendingPanel({ unitId, draft, month, pending, onSaved, refused, setRefu
   )
 }
 
-function PinNotes({ draft }: { draft: Draft }) {
-  const aside = draft.pins.filter((pin) => pin.set_aside)
-  return (
-    <>
-      {draft.pins_lost_to_leave.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-md border p-3 text-sm">
-          <p className="font-medium">Leave recorded since this solve replaced these pins, as leave wins over a pin:</p>
-          <ul className="list-disc ps-5">
-            {draft.pins_lost_to_leave.map((pin) => (
-              <li key={pin.hospital_id + pin.date}>{pin.full_name || pin.hospital_id}, {longDay(pin.date)}: {shiftWord(pin.shift)}, by the leave {pin.by} recorded</li>
-            ))}
-          </ul>
-          <p>A cell still holding a shift on a day of leave can be taken off by hand, or solve again.</p>
-        </div>
-      )}
-      {aside.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-md border p-3 text-sm">
-          <p className="font-medium">These pins count for nothing at present, so no solve is given them. They come back if that changes, or you can clear them:</p>
-          <ul className="list-disc ps-5">
-            {aside.map((pin) => <li key={pin.hospital_id + pin.date}>{pin.full_name || pin.hospital_id}, {longDay(pin.date)}: {shiftWord(pin.shift)}, {SET_ASIDE[pin.set_aside!]}</li>)}
-          </ul>
-        </div>
-      )}
-    </>
-  )
-}
-
 function DraftDetails({ unitId, solveId }: { unitId: string; solveId: string }) {
   const result = useGetSolveResult(unitId, solveId)
   if (result.isPending) return <p className="text-sm">Loading the details of this result…</p>
@@ -344,10 +280,33 @@ function DraftDetails({ unitId, solveId }: { unitId: string; solveId: string }) 
   return <SolveResultPanels result={result.data} />
 }
 
-function DraftCard({ unitId, month, draft, label, pending, solving, onSaved }: {
+const HEADING: Record<RosterMonth["state"], string> = { none: "Draft", draft: "Draft", submitted: "Submitted roster", approved: "Approved roster" }
+
+/** Sends the draft to the CNO and the Deputy CNO. The server checks it again on the month as it stands, and says why if it
+ *  cannot go: a refusal it would give is on the month's answer already, so the page says it before the press. */
+function SubmitForm({ unitId, answer, unsaved, onSubmitted }: { unitId: string; answer: RosterMonth; unsaved: boolean; onSubmitted: (answer: RosterMonth) => void }) {
+  const submit = useSubmitRoster()
+  const refusal = answer.submit_refusal
+  const failed = submit.isError && (plainRefusal(submit.error) ?? "The roster could not be submitted. Check your connection and try again.")
+  return (
+    <section aria-labelledby="submit" className="flex flex-col items-start gap-2 rounded-md border p-3">
+      <h3 id="submit" className="font-medium">Submit for approval</h3>
+      <p className="text-sm text-muted-foreground">The CNO or the Deputy CNO then approves it, or rejects it with a comment. Until they decide, nothing can change it: no solve, no edit.</p>
+      {answer.draft && answer.draft.changes.length > 0 && !refusal && <p className="text-sm">It was solved before the changes listed above. It breaks no hard rule on the month as it stands, so it can go as it is, or you can solve again first.</p>}
+      {refusal && <p className="text-sm">{refusal}</p>}
+      {unsaved && <p className="text-sm">Only what is saved can be submitted, so save or discard your changes first.</p>}
+      {failed && <p role="alert" className="text-sm text-destructive">{failed}</p>}
+      <Button onClick={() => submit.mutate({ unitId, data: { month: answer.month } }, { onSuccess: onSubmitted })}
+        disabled={submit.isPending || !!refusal || unsaved}>{submit.isPending ? "Submitting…" : "Submit for approval"}</Button>
+    </section>
+  )
+}
+
+function DraftCard({ unitId, month, draft, state, label, pending, solving, onSaved }: {
   unitId: string
   month: string
   draft: Draft
+  state: RosterMonth["state"]
   label: string
   pending: Pending
   solving: boolean
@@ -399,7 +358,7 @@ function DraftCard({ unitId, month, draft, label, pending, solving, onSaved }: {
   return (
     <section aria-labelledby="draft" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h3 id="draft" tabIndex={-1} className="font-medium outline-none">Draft</h3>
+        <h3 id="draft" tabIndex={-1} className="font-medium outline-none">{HEADING[state]}</h3>
         <p className="text-sm text-muted-foreground tabular-nums">
           {draft.restored_at ? `Restored ${hospitalTime(draft.restored_at)} from the solve of ${hospitalTime(draft.solved_at)}.` : `Solved ${hospitalTime(draft.solved_at)}.`}{" "}
           {draft.edited && "Edited by hand since. "}
@@ -573,7 +532,15 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
     setSaid(`${plural(count, "change")} saved.${month.active_solve ? " The solve under way was given the month without them: they go on top of its roster when it ends." : ""}`)
     backToTheGrid()
   }
+  const submitted = (month: RosterMonth) => {
+    queryClient.setQueryData(getGetRosterMonthQueryKey(unit.id, inAddress ? { month: inAddress } : undefined), month)
+    void queryClient.invalidateQueries({ queryKey: getPreviewSolveQueryKey(unit.id) })
+    setSaid("Submitted. The CNO and the Deputy CNO can now see it and decide. Nothing can change it until they do.")
+    // Submit is gone with the form, so focus goes to what now says where the roster stands.
+    focusNext.current = "roster-status"
+  }
   const active = answer?.active_solve
+  const frozen = answer?.state === "submitted" || answer?.state === "approved"
   return (
     <>
       <UnsavedEditsGuard holding={unsaved} />
@@ -587,10 +554,12 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
           <p><Link to="/solve-history" search={{ month: answer.month }} className={`text-sm ${LINK}`}>Solve history of {monthName(answer.month)}</Link></p>
           {active && <ProgressCard key={active.id} unitId={unit.id} solve={active} onEnded={ended} />}
           {!active && answer.last_solve && <LastSolve solve={answer.last_solve} />}
-          {answer.draft && <DraftCard unitId={unit.id} month={answer.month} draft={answer.draft} label={`Draft of ${unit.name}, ${monthName(answer.month)}`}
-            pending={pending} solving={!!active} onSaved={saved} />}
+          <RosterStatus answer={answer} />
+          {answer.draft && <DraftCard unitId={unit.id} month={answer.month} draft={answer.draft} state={answer.state}
+            label={`${HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}`} pending={pending} solving={!!active} onSaved={saved} />}
+          {answer.draft && answer.state === "draft" && <SubmitForm unitId={unit.id} answer={answer} unsaved={unsaved} onSubmitted={submitted} />}
           {!answer.draft && !active && !answer.last_solve && <p>No draft yet for {monthName(answer.month)}.</p>}
-          {!active && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} unsaved={unsaved} />}
+          {!active && !frozen && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} unsaved={unsaved} />}
         </>
       )}
     </>
@@ -604,7 +573,7 @@ function RosterPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <h1 className="text-xl font-medium">{chosen ? `Roster of ${chosen.name}` : "Roster"}</h1>
-      <p className="text-muted-foreground">Solve a month to get its draft, then change any cell by hand. Each solve replaces the draft's grid and keeps your pins. Only you see a draft.</p>
+      <p className="text-muted-foreground">Solve a month to get its draft, then change any cell by hand. Each solve replaces the draft's grid and keeps your pins. Only you see a draft, until you submit it for approval.</p>
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">Your unit could not be read. Reload the page to try again.</p>}
       {units.data && !chosen && <p>No unit is assigned to you yet. The CNO assigns each unit its manager.</p>}

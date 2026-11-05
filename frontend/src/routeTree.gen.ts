@@ -20,12 +20,15 @@ import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/h
 import { Route as SignedInLeaveRouteImport } from './routes/_signed-in/leave'
 import { Route as SignedInLeaveTypesRouteImport } from './routes/_signed-in/leave-types'
 import { Route as SignedInMyLeaveRouteImport } from './routes/_signed-in/my-leave'
+import { Route as SignedInMyRosterRouteImport } from './routes/_signed-in/my-roster'
 import { Route as SignedInNursesRouteImport } from './routes/_signed-in/nurses'
 import { Route as SignedInRosterRouteImport } from './routes/_signed-in/roster'
 import { Route as SignedInRosteringAttributesRouteImport } from './routes/_signed-in/rostering-attributes'
+import { Route as SignedInRostersRouteImport } from './routes/_signed-in/rosters'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
 import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
 import { Route as SignedInSolveHistoryRouteImport } from './routes/_signed-in/solve-history'
+import { Route as SignedInUnitRosterRouteImport } from './routes/_signed-in/unit-roster'
 import { Route as SignedInUnitRulesRouteImport } from './routes/_signed-in/unit-rules'
 import { Route as SignedInUnitsRouteImport } from './routes/_signed-in/units'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
@@ -86,6 +89,11 @@ const SignedInMyLeaveRoute = SignedInMyLeaveRouteImport.update({
   path: '/my-leave',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInMyRosterRoute = SignedInMyRosterRouteImport.update({
+  id: '/my-roster',
+  path: '/my-roster',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInNursesRoute = SignedInNursesRouteImport.update({
   id: '/nurses',
   path: '/nurses',
@@ -102,6 +110,11 @@ const SignedInRosteringAttributesRoute =
     path: '/rostering-attributes',
     getParentRoute: () => SignedInRoute,
   } as any)
+const SignedInRostersRoute = SignedInRostersRouteImport.update({
+  id: '/rosters',
+  path: '/rosters',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInSettingsRoute = SignedInSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -115,6 +128,11 @@ const SignedInShiftsRoute = SignedInShiftsRouteImport.update({
 const SignedInSolveHistoryRoute = SignedInSolveHistoryRouteImport.update({
   id: '/solve-history',
   path: '/solve-history',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInUnitRosterRoute = SignedInUnitRosterRouteImport.update({
+  id: '/unit-roster',
+  path: '/unit-roster',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInUnitRulesRoute = SignedInUnitRulesRouteImport.update({
@@ -155,12 +173,15 @@ export interface FileRoutesByFullPath {
   '/leave': typeof SignedInLeaveRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/my-leave': typeof SignedInMyLeaveRoute
+  '/my-roster': typeof SignedInMyRosterRoute
   '/nurses': typeof SignedInNursesRoute
   '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
+  '/rosters': typeof SignedInRostersRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
   '/solve-history': typeof SignedInSolveHistoryRoute
+  '/unit-roster': typeof SignedInUnitRosterRoute
   '/unit-rules': typeof SignedInUnitRulesRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
@@ -177,12 +198,15 @@ export interface FileRoutesByTo {
   '/leave': typeof SignedInLeaveRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/my-leave': typeof SignedInMyLeaveRoute
+  '/my-roster': typeof SignedInMyRosterRoute
   '/nurses': typeof SignedInNursesRoute
   '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
+  '/rosters': typeof SignedInRostersRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
   '/solve-history': typeof SignedInSolveHistoryRoute
+  '/unit-roster': typeof SignedInUnitRosterRoute
   '/unit-rules': typeof SignedInUnitRulesRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
@@ -202,12 +226,15 @@ export interface FileRoutesById {
   '/_signed-in/leave': typeof SignedInLeaveRoute
   '/_signed-in/leave-types': typeof SignedInLeaveTypesRoute
   '/_signed-in/my-leave': typeof SignedInMyLeaveRoute
+  '/_signed-in/my-roster': typeof SignedInMyRosterRoute
   '/_signed-in/nurses': typeof SignedInNursesRoute
   '/_signed-in/roster': typeof SignedInRosterRoute
   '/_signed-in/rostering-attributes': typeof SignedInRosteringAttributesRoute
+  '/_signed-in/rosters': typeof SignedInRostersRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
   '/_signed-in/shifts': typeof SignedInShiftsRoute
   '/_signed-in/solve-history': typeof SignedInSolveHistoryRoute
+  '/_signed-in/unit-roster': typeof SignedInUnitRosterRoute
   '/_signed-in/unit-rules': typeof SignedInUnitRulesRoute
   '/_signed-in/units': typeof SignedInUnitsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
@@ -228,12 +255,15 @@ export interface FileRouteTypes {
     | '/leave'
     | '/leave-types'
     | '/my-leave'
+    | '/my-roster'
     | '/nurses'
     | '/roster'
     | '/rostering-attributes'
+    | '/rosters'
     | '/settings'
     | '/shifts'
     | '/solve-history'
+    | '/unit-roster'
     | '/unit-rules'
     | '/units'
     | '/users'
@@ -250,12 +280,15 @@ export interface FileRouteTypes {
     | '/leave'
     | '/leave-types'
     | '/my-leave'
+    | '/my-roster'
     | '/nurses'
     | '/roster'
     | '/rostering-attributes'
+    | '/rosters'
     | '/settings'
     | '/shifts'
     | '/solve-history'
+    | '/unit-roster'
     | '/unit-rules'
     | '/units'
     | '/users'
@@ -274,12 +307,15 @@ export interface FileRouteTypes {
     | '/_signed-in/leave'
     | '/_signed-in/leave-types'
     | '/_signed-in/my-leave'
+    | '/_signed-in/my-roster'
     | '/_signed-in/nurses'
     | '/_signed-in/roster'
     | '/_signed-in/rostering-attributes'
+    | '/_signed-in/rosters'
     | '/_signed-in/settings'
     | '/_signed-in/shifts'
     | '/_signed-in/solve-history'
+    | '/_signed-in/unit-roster'
     | '/_signed-in/unit-rules'
     | '/_signed-in/units'
     | '/_signed-in/users'
@@ -373,6 +409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInMyLeaveRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/my-roster': {
+      id: '/_signed-in/my-roster'
+      path: '/my-roster'
+      fullPath: '/my-roster'
+      preLoaderRoute: typeof SignedInMyRosterRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/nurses': {
       id: '/_signed-in/nurses'
       path: '/nurses'
@@ -394,6 +437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInRosteringAttributesRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/rosters': {
+      id: '/_signed-in/rosters'
+      path: '/rosters'
+      fullPath: '/rosters'
+      preLoaderRoute: typeof SignedInRostersRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/settings': {
       id: '/_signed-in/settings'
       path: '/settings'
@@ -413,6 +463,13 @@ declare module '@tanstack/react-router' {
       path: '/solve-history'
       fullPath: '/solve-history'
       preLoaderRoute: typeof SignedInSolveHistoryRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/unit-roster': {
+      id: '/_signed-in/unit-roster'
+      path: '/unit-roster'
+      fullPath: '/unit-roster'
+      preLoaderRoute: typeof SignedInUnitRosterRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/unit-rules': {
@@ -461,12 +518,15 @@ interface SignedInRouteChildren {
   SignedInLeaveRoute: typeof SignedInLeaveRoute
   SignedInLeaveTypesRoute: typeof SignedInLeaveTypesRoute
   SignedInMyLeaveRoute: typeof SignedInMyLeaveRoute
+  SignedInMyRosterRoute: typeof SignedInMyRosterRoute
   SignedInNursesRoute: typeof SignedInNursesRoute
   SignedInRosterRoute: typeof SignedInRosterRoute
   SignedInRosteringAttributesRoute: typeof SignedInRosteringAttributesRoute
+  SignedInRostersRoute: typeof SignedInRostersRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
   SignedInShiftsRoute: typeof SignedInShiftsRoute
   SignedInSolveHistoryRoute: typeof SignedInSolveHistoryRoute
+  SignedInUnitRosterRoute: typeof SignedInUnitRosterRoute
   SignedInUnitRulesRoute: typeof SignedInUnitRulesRoute
   SignedInUnitsRoute: typeof SignedInUnitsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
@@ -483,12 +543,15 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInLeaveRoute: SignedInLeaveRoute,
   SignedInLeaveTypesRoute: SignedInLeaveTypesRoute,
   SignedInMyLeaveRoute: SignedInMyLeaveRoute,
+  SignedInMyRosterRoute: SignedInMyRosterRoute,
   SignedInNursesRoute: SignedInNursesRoute,
   SignedInRosterRoute: SignedInRosterRoute,
   SignedInRosteringAttributesRoute: SignedInRosteringAttributesRoute,
+  SignedInRostersRoute: SignedInRostersRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
   SignedInShiftsRoute: SignedInShiftsRoute,
   SignedInSolveHistoryRoute: SignedInSolveHistoryRoute,
+  SignedInUnitRosterRoute: SignedInUnitRosterRoute,
   SignedInUnitRulesRoute: SignedInUnitRulesRoute,
   SignedInUnitsRoute: SignedInUnitsRoute,
   SignedInUsersRoute: SignedInUsersRoute,

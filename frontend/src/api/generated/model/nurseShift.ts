@@ -9,4 +9,5 @@ export interface NurseShift {
   code: string;
   display_name: string;
   colour: string;
+  hours: number;
 }

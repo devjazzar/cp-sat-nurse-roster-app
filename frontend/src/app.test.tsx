@@ -51,6 +51,14 @@ function start(path: string, handlers: Record<string, Handler | Answer>) {
 }
 
 const session = (user: unknown) => ({ "GET /api/auth/session": { body: { user } } })
+/** A staff nurse's month with no approved roster, as their home and My roster first read it. */
+const NO_ROSTER_YET = { month: "2026-12", first_month: "2026-11", unit: "ER", roster: null }
+const nurseHome = (unitId = "u1", extra = {}) => ({
+  ...session(NURSE),
+  "GET /api/nurses/my-unit": { body: { id: unitId, name: "ER" } },
+  "GET /api/rosters/mine": { body: NO_ROSTER_YET },
+  ...extra,
+})
 const admin = (extra = {}) => ({
   ...session(ME),
   "GET /api/ops/health": { body: HEALTH },
@@ -112,14 +120,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/rosters", "/unit-roster", "/my-roster", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/rosters", "/unit-roster", "/my-roster"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -141,12 +149,12 @@ describe("route guards", () => {
   })
 
   it.each(["/health", "/settings", "/users", "/audit-log", "/units", "/nurses"])("%s is not for another role", async (path) => {
-    const { router, calls } = start(path, { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+    const { router, calls } = start(path, nurseHome("u1"))
 
-    expect(await screen.findByText("No roster yet.")).toBeInTheDocument()
+    expect(await screen.findByText("No roster yet for December 2026.")).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/")
     expect(screen.queryByRole("link", { name: "Technical settings" })).not.toBeInTheDocument()
-    expect(calls.map((call) => call.url)).toEqual(["/api/auth/session", "/api/nurses/my-unit"])
+    expect(calls.map((call) => call.url).sort()).toEqual(["/api/auth/session", "/api/nurses/my-unit", "/api/rosters/mine"])
   })
 
   it("says so when the application cannot be reached", async () => {
@@ -785,15 +793,17 @@ describe("each role's navigation and home", () => {
   })
 
   it.each([
-    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
-    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
+    ["cno", "CNO", /under Hospital rules/, ["Home", "Rosters", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted", "/api/units"]],
+    ["deputy_cno", "Deputy CNO", "No roster is waiting for a decision.", ["Home", "Rosters", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted"]],
     ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Solve history", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
-    ["staff_nurse", "Staff Nurse", "No roster yet.", ["Home", "My leave", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit"]],
+    ["staff_nurse", "Staff Nurse", "No roster yet for December 2026.", ["Home", "My roster", "My leave", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit", "/api/rosters/mine"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
     const { router, calls } = start("/", {
       ...session({ ...ME, username: "someone", full_name: "Some One", role }),
       "GET /api/units": { body: [] },
       "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } },
+      "GET /api/rosters/mine": { body: NO_ROSTER_YET },
+      "GET /api/rosters/submitted": { body: [] },
     })
 
     expect(await screen.findByText(says)).toBeInTheDocument()
@@ -801,7 +811,7 @@ describe("each role's navigation and home", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Some One" })).toBeInTheDocument()
     expect(screen.getByText(`someone · ${name}`)).toBeInTheDocument()
     expect(navLinks()).toEqual(links)
-    await waitFor(() => expect(calls.map((call) => call.url)).toEqual(["/api/auth/session", ...reads]))
+    await waitFor(() => expect(calls.map((call) => call.url).sort()).toEqual(["/api/auth/session", ...reads].sort()))
   })
 })
 
@@ -1324,7 +1334,8 @@ describe("the audit log page", () => {
 const SHIFT_D ={ id: "s1", code: "D", display_name: "Day", hours: 12, start_time: "07:00", end_time: "19:00", colour: "#0284c7", active: true, renames: [] }
 const SHIFT_N = { id: "s2", code: "N", display_name: "Night", hours: 12, start_time: "19:00", end_time: "07:00", colour: "#4338ca", active: true, renames: [] }
 const refusal = (field: (string | number)[], msg: string) => ({ status: 422, body: { detail: [{ loc: ["body", "body", ...field], msg: `Value error, ${msg}`, type: "value_error" }] } })
-const asCno = (extra = {}) => ({ ...session(CNO_ME), ...extra })
+/** The CNO's home lists the rosters waiting for a decision: none, unless a test says otherwise. */
+const asCno = (extra = {}) => ({ ...session(CNO_ME), "GET /api/rosters/submitted": { body: [] }, ...extra })
 
 describe("the shifts page", () => {
   const listed = { "GET /api/hospital/shifts": { body: [SHIFT_D, SHIFT_N] } }
@@ -1951,17 +1962,17 @@ describe("deactivating a manager who holds a unit", () => {
 
 describe("a staff nurse's home", () => {
   it("shows their unit and that there is no roster yet", async () => {
-    start("/", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+    start("/", nurseHome("u1"))
 
     expect(await screen.findByText("Your unit is ER.")).toBeInTheDocument()
-    expect(screen.getByText("No roster yet.")).toBeInTheDocument()
+    expect(screen.getByText("No roster yet for December 2026.")).toBeInTheDocument()
   })
 
   it("does not claim a unit or a roster when the answer could not be read", async () => {
     start("/", { ...session(NURSE), "GET /api/nurses/my-unit": { status: 500 } })
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read/)
-    expect(screen.queryByText("No roster yet.")).not.toBeInTheDocument()
+    expect(screen.queryByText("No roster yet for December 2026.")).not.toBeInTheDocument()
   })
 })
 
@@ -3316,9 +3327,9 @@ describe("the unit rules page", () => {
   })
 
   it("a staff nurse and the System Admin have no way in", async () => {
-    const { router } = start("/unit-rules", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+    const { router } = start("/unit-rules", nurseHome("er"))
 
-    await screen.findByText("No roster yet.")
+    await screen.findByText("No roster yet for December 2026.")
     expect(router.state.location.pathname).toBe("/")
   })
 
@@ -3484,9 +3495,9 @@ describe("the rostering attributes page", () => {
   })
 
   it("a staff nurse has no way in", async () => {
-    const { router } = start("/rostering-attributes", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+    const { router } = start("/rostering-attributes", nurseHome("er"))
 
-    await screen.findByText("No roster yet.")
+    await screen.findByText("No roster yet for December 2026.")
     expect(router.state.location.pathname).toBe("/")
   })
 })
@@ -3781,16 +3792,16 @@ describe("the leave pages", () => {
   })
 
   it.each(["/leave"])("%s has no way in for a staff nurse", async (path) => {
-    const { router } = start(path, { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+    const { router } = start(path, nurseHome("er"))
 
-    await screen.findByText("No roster yet.")
+    await screen.findByText("No roster yet for December 2026.")
     expect(router.state.location.pathname).toBe("/")
   })
 
   it("a staff nurse's home and header lead to their own leave", async () => {
-    start("/", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
+    start("/", nurseHome("er"))
 
-    await screen.findByText("No roster yet.")
+    await screen.findByText("No roster yet for December 2026.")
     expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
     expect(within(screen.getByRole("main")).getByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
   })
@@ -3901,7 +3912,13 @@ describe("the roster page", () => {
     nurses: [{ hospital_id: "h1", full_name: "Amal Saleh", contract: 192, leave_credit: 24, required: 168, hours_worked: 180, overtime: 12, shortfall: 0, shifts: { D: 15, N: 0 }, cost: 3 }],
     statistics: STATISTICS, grid: { days: DAYS, rows: DRAFT.rows, shifts: SHIFTS }, restore_refusal: "This result is the draft already.",
   }
-  const EMPTY = { month: "2026-06", active_solve: null, last_solve: null, draft: null }
+  const NOT_THEIRS = "Only the CNO or the Deputy CNO approve or reject a roster."
+  const EMPTY = {
+    month: "2026-06", state: "none", submitted: null, last_rejection: null, approved: null, submit_refusal: "This month has no roster yet.",
+    approve_refusal: NOT_THEIRS, reject_refusal: NOT_THEIRS, active_solve: null, last_solve: null, draft: null,
+  }
+  /** A month with a draft that can be submitted. */
+  const DRAFTED = { ...EMPTY, state: "draft", submit_refusal: null }
 
   const manager = (extra = {}) => ({
     ...session(MANAGER),
@@ -3913,9 +3930,9 @@ describe("the roster page", () => {
   })
 
   it("is for a unit's manager", async () => {
-    const { router } = start("/roster", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+    const { router } = start("/roster", nurseHome("u1"))
 
-    await screen.findByText("No roster yet.")
+    await screen.findByText("No roster yet for December 2026.")
     expect(router.state.location.pathname).toBe("/")
   })
 
@@ -4032,7 +4049,7 @@ describe("the roster page", () => {
       [`POST ${UNIT}/solves`]: () => { solving = true; return { status: 201, body: QUEUED } },
       [`GET ${UNIT}/roster`]: () => {
         if (!solving) return { body: EMPTY }
-        return { body: progress === DONE ? { ...EMPTY, draft: DRAFT } : { ...EMPTY, active_solve: QUEUED } }
+        return { body: progress === DONE ? { ...DRAFTED, draft: DRAFT } : { ...EMPTY, active_solve: QUEUED } }
       },
       [`GET ${UNIT}/solves/${SOLVE_ID}`]: () => ({ body: progress }),
     }))
@@ -4136,7 +4153,7 @@ describe("the roster page", () => {
   it("leaves focus alone when a solve ends with the manager elsewhere on the page", async () => {
     let answer: object = RUNNING
     start("/roster", manager({
-      [`GET ${UNIT}/roster`]: () => ({ body: answer === DONE ? { ...EMPTY, draft: DRAFT } : { ...EMPTY, active_solve: RUNNING } }),
+      [`GET ${UNIT}/roster`]: () => ({ body: answer === DONE ? { ...DRAFTED, draft: DRAFT } : { ...EMPTY, active_solve: RUNNING } }),
       [`GET ${UNIT}/solves/${SOLVE_ID}`]: () => ({ body: answer }),
     }))
     const next = await screen.findByRole("link", { name: "Next month" })
@@ -4191,7 +4208,7 @@ describe("the roster page", () => {
   })
 
   it("beside the draft, lists the penalties per rule, largest first, under the names the hospital rules give them", async () => {
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } } }))
 
     const rules = await screen.findByRole("region", { name: "Penalties per rule" })
     expect(within(rules).getAllByRole("listitem")[0]).toHaveTextContent(/^Night rest.*9/)
@@ -4203,7 +4220,7 @@ describe("the roster page", () => {
   })
 
   it("beside the draft, gives each nurse's hours and cost, and what the unit costs apart from them", async () => {
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } } }))
 
     const hours = await screen.findByRole("region", { name: "Hours and cost per nurse" })
     const cells = within(within(hours).getByRole("row", { name: /Amal Saleh/ })).getAllByRole("cell").map((cell) => cell.textContent)
@@ -4212,7 +4229,7 @@ describe("the roster page", () => {
   })
 
   it("beside the draft, gives the solver's statistics and what stopped it", async () => {
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } } }))
 
     const statistics = await screen.findByRole("region", { name: "Solver statistics" })
     expect(within(statistics).getByText("What stopped it").nextElementSibling).toHaveTextContent("The time limit")
@@ -4222,18 +4239,18 @@ describe("the roster page", () => {
 
   it("says what the precheck warned of, and that it warned of nothing", async () => {
     const warned = { ...RESULT, precheck: ["capacity: too few"] }
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: warned } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: warned } }))
 
     expect(within(await screen.findByRole("region", { name: "The solver's check" })).getByText("capacity: too few")).toBeInTheDocument()
     cleanup()
 
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } } }))
     expect(within(await screen.findByRole("region", { name: "The solver's check" })).getByText(/warned of nothing/)).toBeInTheDocument()
   })
 
   it("shows recorded facts that broke rules, and only when there are some", async () => {
     const fact = { rule: "consecutive", hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-05", text: "consecutive: 6 shifts in a row" }
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, elapsed_violations: [fact] } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, elapsed_violations: [fact] } } }))
 
     const facts = await screen.findByRole("region", { name: "Recorded facts that broke rules" })
     expect(within(facts).getByText(/Amal Saleh, 5 Jun 2026/)).toHaveTextContent("6 shifts in a row")
@@ -4242,14 +4259,14 @@ describe("the roster page", () => {
 
   it("does not repeat a date the solver's words already hold", async () => {
     const rules = [{ ...RESULT.rules[0], largest: [{ hospital_id: null, full_name: "", date: "2026-06-05", amount: 2, text: "2026-06-05 D: avg 0.80 above band 0.78" }] }]
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules } } }))
 
     expect(await screen.findByText("The unit: 2026-06-05 D: avg 0.80 above band 0.78")).toBeInTheDocument()
   })
 
   it("says so when the explanation cannot be worked out, and still shows the penalties", async () => {
     const rules = RESULT.rules.map((rule) => ({ ...rule, weight: null, amount: null, counted_in: null, largest: [], others: 0 }))
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules, explained: false } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules, explained: false } } }))
 
     const region = await screen.findByRole("region", { name: "Penalties per rule" })
     expect(within(region).getByText(/could not be explained/)).toBeInTheDocument()
@@ -4257,7 +4274,7 @@ describe("the roster page", () => {
   })
 
   it("keeps the grid when the result's details cannot be read", async () => {
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { status: 500 } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { status: 500 } }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("The details of this result could not be read")
     expect(screen.getByRole("region", { name: "Draft of ER, June 2026" })).toBeInTheDocument()
@@ -4324,7 +4341,7 @@ describe("the roster page", () => {
     const CHECK = { reason: null, ok: true, violations: [], cost: 15, cost_before: 12, delta: 3, refusals: [] }
     const cellNamed = (name: RegExp | string) => screen.findByRole("button", { name })
     const editing = (extra = {}) => manager({
-      [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } },
+      [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } },
       [`POST ${UNIT}/roster/check`]: { body: CHECK },
       ...extra,
     })
@@ -4556,14 +4573,14 @@ describe("the roster page", () => {
     })
 
     it("says a solve under way will not have the changes saved now", async () => {
-      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT, active_solve: RUNNING } }, [`GET ${UNIT}/solves/${SOLVE_ID}`]: { body: RUNNING } }))
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT, active_solve: RUNNING } }, [`GET ${UNIT}/solves/${SOLVE_ID}`]: { body: RUNNING } }))
 
       expect(await screen.findByText(/changes you save now are put on top of its roster when it ends/)).toBeInTheDocument()
     })
   })
 
   it("offers to solve again over a draft, saying what that does", async () => {
-    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } } }))
 
     expect(await screen.findByRole("button", { name: "Solve again" })).toBeInTheDocument()
     expect(screen.getByText(/Solving again replaces the draft's grid/)).toBeInTheDocument()
@@ -4640,9 +4657,9 @@ describe("the roster page", () => {
     })
 
     it("is for a manager and the System Admin only", async () => {
-      const { router } = start("/solve-history", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+      const { router } = start("/solve-history", nurseHome("u1"))
 
-      await screen.findByText("No roster yet.")
+      await screen.findByText("No roster yet for December 2026.")
       expect(router.state.location.pathname).toBe("/")
     })
 
@@ -4844,5 +4861,260 @@ describe("the roster page", () => {
         expect(await screen.findByText("No unit has solved a month yet.")).toBeInTheDocument()
       })
     })
+  })
+
+  describe("its approval", () => {
+    const FROZEN = "This roster is submitted and waits for the CNO or the Deputy CNO, so nothing can change it until they decide. A rejection returns it to draft."
+    const WAITING = { submitted_by: "Mona Ali", submitted_at: "2026-05-16T09:00:00+03:00", new_since: [] as object[] }
+    const SUBMITTED = {
+      ...DRAFTED, state: "submitted", submitted: WAITING, submit_refusal: FROZEN, draft: { ...DRAFT, editor: { ...EDITOR, refusal: FROZEN } },
+    }
+    const REJECTION = { rejected_by: "Dina Deputy", rejected_at: "2026-05-16T11:00:00+03:00", comment: "Too many nights for Amal.\nSee the 5th." }
+    const APPROVED = {
+      ...SUBMITTED, state: "approved", submitted: null, approved: { approved_by: "Dina Deputy", approved_at: "2026-05-16T12:00:00+03:00", version: 1 },
+      submit_refusal: "This roster is approved and in force, so it cannot change here.",
+    }
+
+    it("submits the draft, freezes it, and moves focus to where it now stands", async () => {
+      const { user, calls } = start("/roster", manager({
+        [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } },
+        [`POST ${UNIT}/roster/submit`]: { body: SUBMITTED },
+      }))
+
+      const form = await screen.findByRole("region", { name: "Submit for approval" })
+      await user.click(within(form).getByRole("button", { name: "Submit for approval" }))
+
+      const status = await screen.findByText(/^Submitted 2026-05-16 09:00:00 by Mona Ali, waiting for a decision/)
+      await waitFor(() => expect(status).toHaveFocus())
+      expect(status).toHaveTextContent("Nothing can change it until they decide.")
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ month: "2026-06" })
+      expect(screen.getByRole("status")).toHaveTextContent("Submitted. The CNO and the Deputy CNO can now see it and decide.")
+      expect(screen.getByRole("heading", { name: "Submitted roster" })).toBeInTheDocument()
+      expect(screen.getByText(FROZEN)).toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Submit for approval" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "What the solver will receive" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /Amal Saleh, 1 June/ })).not.toBeInTheDocument()
+    })
+
+    it("says why a draft cannot be submitted, before the press", async () => {
+      const refusal = "This draft breaks 1 hard rule on the month as it stands, listed with it. Change it by hand or solve again, then submit it."
+      start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, submit_refusal: refusal, draft: DRAFT } } }))
+
+      const form = await screen.findByRole("region", { name: "Submit for approval" })
+      expect(within(form).getByText(refusal)).toBeInTheDocument()
+      expect(within(form).getByRole("button", { name: "Submit for approval" })).toHaveAttribute("aria-disabled", "true")
+    })
+
+    it("shows a refusal the server gives at the press", async () => {
+      const { user } = start("/roster", manager({
+        [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } },
+        [`POST ${UNIT}/roster/submit`]: { status: 409, body: { detail: "A solve of this month is queued or running." } },
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Submit for approval" }))
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("A solve of this month is queued or running.")
+    })
+
+    it("shows the manager the rejection's comment with the draft, and keeps it through the next submit", async () => {
+      start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, last_rejection: REJECTION, draft: DRAFT } } }))
+
+      const comment = await screen.findByText(/Too many nights for Amal/)
+      expect(comment.closest("figure")).toHaveTextContent("Rejected 2026-05-16 11:00:00 by Dina Deputy, who said:")
+      expect(comment).toHaveTextContent("See the 5th.")
+      cleanup()
+
+      start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...SUBMITTED, last_rejection: REJECTION } } }))
+      expect((await screen.findByText(/Too many nights for Amal/)).closest("figure")).toHaveTextContent("Rejected before this submit")
+    })
+
+    it("says when it was approved and which version is in force", async () => {
+      start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...APPROVED, last_rejection: REJECTION } } }))
+
+      expect(await screen.findByText(/^Approved 2026-05-16 12:00:00 by Dina Deputy. Version 1 is in force/)).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Approved roster" })).toBeInTheDocument()
+      expect(screen.queryByText(/Too many nights/)).not.toBeInTheDocument()
+    })
+
+    const ER_UNIT = { id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }
+    const ICU_UNIT = { ...ER_UNIT, id: "u2", name: "ICU" }
+    const FOR_APPROVER = {
+      ...SUBMITTED, submit_refusal: "Only the unit's manager changes its roster or submits it.", approve_refusal: null, reject_refusal: null,
+      draft: { ...DRAFT, editor: { ...EDITOR, refusal: "Only the unit's manager changes its roster or submits it." } },
+    }
+    const approver = (extra = {}) => ({
+      ...session(ME_DEPUTY),
+      "GET /api/units": { body: [ER_UNIT, ICU_UNIT] },
+      [`GET ${UNIT}/roster`]: { body: FOR_APPROVER },
+      [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, restore_refusal: "Only the unit's manager can restore a result." } },
+      ...extra,
+    })
+
+    it("lists what waits on the approvers' home, oldest first as the answer has it, each a link to its roster", async () => {
+      start("/", approver({
+        "GET /api/rosters/submitted": { body: [
+          { unit_id: "u2", unit: "ICU", month: "2026-06", submitted_by: "Omar Said", submitted_at: "2026-05-14T08:00:00+03:00", changed_since: true },
+          { unit_id: "u1", unit: "ER", month: "2026-06", submitted_by: "Mona Ali", submitted_at: "2026-05-16T09:00:00+03:00", changed_since: false },
+        ] },
+      }))
+
+      const waiting = await screen.findByRole("region", { name: "Waiting for a decision" })
+      const items = within(waiting).getAllByRole("listitem")
+      expect(items.map((item) => item.textContent)).toEqual([
+        "ICU, June 2026, submitted 2026-05-14 08:00:00 by Omar Said. Something has changed since it was submitted.",
+        "ER, June 2026, submitted 2026-05-16 09:00:00 by Mona Ali.",
+      ])
+      expect(within(items[1]).getByRole("link", { name: "ER, June 2026" })).toHaveAttribute("href", "/unit-roster?unit=u1&month=2026-06")
+    })
+
+    it("gives the approvers every unit's state per month, linking only what they may read", async () => {
+      start("/rosters", approver({
+        "GET /api/rosters/overview": { body: { months: ["2026-05", "2026-06", "2026-07", "2026-08"], units: [
+          { id: "u1", name: "ER", archived: false, states: ["none", "approved", "draft", "none"] },
+          { id: "u2", name: "ICU", archived: false, states: ["none", "submitted", "none", "none"] },
+        ] } },
+      }))
+
+      const er = (await screen.findByRole("rowheader", { name: "ER" })).closest("tr") as HTMLElement
+      expect(within(er).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["No roster", "Approved", "Draft", "No roster"])
+      expect(within(er).getByRole("link", { name: "Approved" })).toHaveAttribute("href", "/unit-roster?unit=u1&month=2026-06")
+      expect(within(er).queryByRole("link", { name: "Draft" })).not.toBeInTheDocument()
+      const icu = screen.getByRole("rowheader", { name: "ICU" }).closest("tr") as HTMLElement
+      expect(within(icu).getByRole("link", { name: "Submitted" })).toHaveAttribute("href", "/unit-roster?unit=u2&month=2026-06")
+      expect(screen.getByRole("heading", { name: "May 2026 to August 2026" })).toBeInTheDocument()
+    })
+
+    it("lets an approver read a submitted roster, with what changed since it was submitted, and nothing to edit", async () => {
+      const changes = [{ hospital_id: "h1", full_name: "Amal Saleh", what: "leave" }, { hospital_id: "h2", full_name: "Badr Noor", what: "gender" }]
+      start("/unit-roster?unit=u1&month=2026-06", approver({ [`GET ${UNIT}/roster?month=2026-06`]: { body: {
+        ...FOR_APPROVER, submitted: { ...WAITING, new_since: [changes[0]] }, draft: { ...FOR_APPROVER.draft, changes },
+      } } }))
+
+      const grid = await screen.findByRole("region", { name: "Submitted roster of ER, June 2026" })
+      expect(within(grid).queryAllByRole("button")).toEqual([])
+      expect(screen.getByText(/Amal Saleh: leave or dates changed/)).toHaveTextContent(", since it was submitted")
+      expect(screen.getByText(/Badr Noor: gender was corrected/)).not.toHaveTextContent("since it was submitted")
+      expect(screen.getByText(/^Submitted 2026-05-16 09:00:00 by Mona Ali/)).not.toHaveTextContent("Nothing can change it")
+      expect(await screen.findByRole("region", { name: "Penalties per rule" })).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument()
+    })
+
+    it("approves after asking, and moves focus to where it now stands", async () => {
+      const { user, calls } = start("/unit-roster?unit=u1&month=2026-06", approver({
+        [`GET ${UNIT}/roster?month=2026-06`]: { body: FOR_APPROVER },
+        [`POST ${UNIT}/roster/approve`]: { body: { ...APPROVED, approve_refusal: "This roster has been approved already by Deputy." } },
+        "GET /api/rosters/overview": { body: { months: [], units: [] } },
+        "GET /api/rosters/submitted": { body: [] },
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Approve" }))
+      const dialog = await screen.findByRole("alertdialog", { name: "Approve the roster of June 2026?" })
+      await user.click(within(dialog).getByRole("button", { name: "Approve" }))
+
+      const status = await screen.findByText(/^Approved 2026-05-16 12:00:00 by Dina Deputy/)
+      await waitFor(() => expect(status).toHaveFocus())
+      expect(calls.filter((call) => call.method === "POST").map((call) => [call.url, call.body])).toEqual([[`${UNIT}/roster/approve`, { month: "2026-06" }]])
+      expect(screen.getByRole("status")).toHaveTextContent("Approved. The roster of June 2026 is in force, and the unit's nurses see it.")
+      expect(screen.queryByRole("region", { name: "Your decision" })).not.toBeInTheDocument()
+    })
+
+    it("cannot approve what the server says it may not, and says why", async () => {
+      const refusal = "This roster breaks 1 hard rule on the month as it stands, listed with it. Reject it with a comment, so its manager can put it right."
+      start("/unit-roster?unit=u1&month=2026-06", approver({ [`GET ${UNIT}/roster?month=2026-06`]: { body: { ...FOR_APPROVER, approve_refusal: refusal } } }))
+
+      const decision = await screen.findByRole("region", { name: "Your decision" })
+      expect(within(decision).getByText(refusal)).toBeInTheDocument()
+      expect(within(decision).getByRole("button", { name: "Approve" })).toHaveAttribute("aria-disabled", "true")
+      expect(within(decision).getByRole("button", { name: "Reject with this comment" })).toHaveAttribute("aria-disabled", "false")
+    })
+
+    it("rejects only with a comment, which it sends", async () => {
+      const { user, calls } = start("/unit-roster?unit=u1&month=2026-06", approver({
+        [`GET ${UNIT}/roster?month=2026-06`]: { body: FOR_APPROVER },
+        [`POST ${UNIT}/roster/reject`]: { body: { ...FOR_APPROVER, state: "draft", submitted: null, draft: null } },
+        "GET /api/rosters/overview": { body: { months: [], units: [] } },
+        "GET /api/rosters/submitted": { body: [] },
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Reject with this comment" }))
+      const comment = screen.getByLabelText("Why reject it")
+      await waitFor(() => expect(comment).toHaveFocus())
+      expect(comment).toHaveAccessibleDescription(/Say why, for the unit's manager./)
+      expect(calls.some((call) => call.method === "POST")).toBe(false)
+
+      await user.type(comment, "  Too many nights for Amal.  ")
+      await user.click(screen.getByRole("button", { name: "Reject with this comment" }))
+
+      const status = await screen.findByText("Rejected. The roster of June 2026 is a draft again, and its manager sees your comment.")
+      await waitFor(() => expect(status).toHaveFocus())
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ month: "2026-06", comment: "Too many nights for Amal." })
+      expect(screen.getByText("ER has a draft for June 2026, not submitted yet. It is its manager's until they submit it.")).toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: /roster of ER/ })).not.toBeInTheDocument()
+    })
+
+    it("says a month in draft is its manager's, and shows no grid", async () => {
+      start("/unit-roster?unit=u1&month=2026-06", approver({ [`GET ${UNIT}/roster?month=2026-06`]: { body: {
+        ...EMPTY, state: "draft", submit_refusal: "Only the unit's manager changes its roster or submits it.",
+        approve_refusal: "This month has no roster waiting for a decision.", reject_refusal: "This month has no roster waiting for a decision.",
+      } } }))
+
+      expect(await screen.findByText("ER has a draft for June 2026, not submitted yet. It is its manager's until they submit it.")).toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Your decision" })).not.toBeInTheDocument()
+    })
+
+    it.each(["/rosters", "/unit-roster"])("%s is for the CNO and the Deputy CNO only", async (path) => {
+      const { router } = start(path, manager({ "GET /api/units": { body: [] } }))
+
+      await screen.findByText(/No unit is assigned to you yet/)
+      expect(router.state.location.pathname).toBe("/")
+    })
+  })
+})
+
+describe("a nurse's roster page", () => {
+  const ROSTER = {
+    approved_at: "2026-05-16T12:00:00+03:00", version: 1,
+    days: [{ date: "2026-12-01", weekend: false, holiday: false }, { date: "2026-12-02", weekend: false, holiday: false }, { date: "2026-12-03", weekend: false, holiday: false }],
+    shifts: [{ code: "D", display_name: "Day", colour: "#fde047", hours: 12 }],
+    rows: [
+      { hospital_id: "a1", full_name: "Amal Saleh", shifts: ["D", "", ""] },
+      { hospital_id: "h123", full_name: "Hana Ali", shifts: ["", "D", ""] },
+    ],
+    mine: [{ date: "2026-12-01", kind: "leave" }, { date: "2026-12-02", kind: "shift" }, { date: "2026-12-03", kind: "off" }],
+  }
+  const reading = (answer: object, month = "") => nurseHome("u1", { [`GET /api/rosters/mine${month}`]: { body: answer } })
+
+  it("shows the approved roster with their own row first, their leave as leave, and a colleague's empty day as a day off", async () => {
+    start("/my-roster", reading({ ...NO_ROSTER_YET, roster: ROSTER }))
+
+    const grid = await screen.findByRole("region", { name: "Roster of ER, December 2026" })
+    const rows = within(grid).getAllByRole("rowheader").map((row) => row.textContent)
+    expect(rows).toEqual(["Hana Ali (you)", "Amal Saleh"])
+    const mine = within(within(grid).getByRole("rowheader", { name: "Hana Ali (you)" }).closest("tr") as HTMLElement).getAllByRole("cell")
+    expect(mine.map((cell) => cell.getAttribute("title"))).toEqual(["Hana Ali (you), 1 December: Leave", "Hana Ali (you), 2 December: Day", "Hana Ali (you), 3 December: Off"])
+    const amal = within(within(grid).getByRole("rowheader", { name: "Amal Saleh" }).closest("tr") as HTMLElement).getAllByRole("cell")
+    expect(amal.map((cell) => cell.getAttribute("title"))).toEqual(["Amal Saleh, 1 December: Day", "Amal Saleh, 2 December: Off", "Amal Saleh, 3 December: Off"])
+    expect(screen.getByText("Approved 2026-05-16 12:00:00.")).toBeInTheDocument()
+  })
+
+  it("says there is no roster yet, and offers no month before this one", async () => {
+    start("/my-roster", reading({ ...NO_ROSTER_YET, month: "2026-11" }))
+
+    expect(await screen.findByText("No roster yet for November 2026.")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Previous month" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Next month" })).toHaveAttribute("href", "/my-roster?month=2026-12")
+  })
+
+  it("says when the reader is not on the roster they see", async () => {
+    start("/my-roster", reading({ ...NO_ROSTER_YET, roster: { ...ROSTER, rows: [ROSTER.rows[0]], mine: null } }))
+
+    expect(await screen.findByText("Approved 2026-05-16 12:00:00. You are not on it.")).toBeInTheDocument()
+  })
+
+  it("leads there from the home once the month is approved", async () => {
+    start("/", reading({ ...NO_ROSTER_YET, roster: ROSTER }))
+
+    const said = await screen.findByText(/The roster of December 2026 is approved/)
+    expect(within(said).getByRole("link", { name: "See it under My roster" })).toHaveAttribute("href", "/my-roster")
   })
 })

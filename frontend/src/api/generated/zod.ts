@@ -2871,7 +2871,8 @@ export const GetMyRosterResponse = zod.object({
   "shifts": zod.array(zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
-  "colour": zod.string()
+  "colour": zod.string(),
+  "hours": zod.int()
 })),
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
