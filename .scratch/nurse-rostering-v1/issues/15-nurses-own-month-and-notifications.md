@@ -185,3 +185,10 @@ All fixed. Kept as judgement calls: each new event touches `Event`, `sending` an
 - `interface-review` is yours to invoke.
 
 **Things later tickets should know:** comments are on 16, 19, 20 and 21. `docs/ARCHITECTURE.md` sections 4 and 8 and the glossary's new Notification entry say where this sits.
+
+**Reviewed by the user (2026-11-06), and kept as built:**
+- An approval's notification carries no version number, since its words are worked out when it is read.
+- What awaits a manager today is a rejection only.
+- A nurse sees the hours the month asks of them, which a Ramadan or breastfeeding reduction lowers, without the reduction being named.
+- "Mark all as read" also marks notifications beyond the 50 shown.
+- A manager with a nurse profile has no link to My month in their header.
