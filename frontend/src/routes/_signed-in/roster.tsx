@@ -556,10 +556,8 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
     void queryClient.invalidateQueries({ queryKey: getPreviewSolveQueryKey(unit.id) })
     pending.clear()
     void queryClient.invalidateQueries({ queryKey: getListRosterVersionsQueryKey(unit.id) })
-    const versionBefore = answer?.approved?.version
-    setSaid(month.state === "approved" && month.approved?.version === versionBefore
-      ? "Nothing in these changes differs from the roster in force, so no version was made."
-      : month.state === "approved"
+    // An approved roster's save that changes no cell is refused, so one that succeeds always made a version.
+    setSaid(month.state === "approved"
       ? `${plural(count, "change")} saved as version ${month.approved?.version}, now in force. The unit's nurses are told the roster has changed.`
       : `${plural(count, "change")} saved.${month.active_solve ? " The solve under way was given the month without them: they go on top of its roster when it ends." : ""}`)
     backToTheGrid()

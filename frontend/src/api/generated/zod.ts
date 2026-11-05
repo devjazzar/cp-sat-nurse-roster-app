@@ -2083,8 +2083,9 @@ export const SaveDraftPinsResponse = zod.object({
 
 /**
  * An approved roster's direct edits, all of it or none of it, under the locks `_locked_for_edits` names: a new version with
- * origin `edit` and the reason, in force at once, each edited cell a manager's pin as on the draft. A save that changes nothing
- * makes none. One that breaks a hard rule saves, and the answer's `draft.check` says what it breaks: the roster in force has to
+ * origin `edit` and the reason, in force at once, each edited cell a manager's pin as on the draft. Edits that change no cell
+ * are refused and nothing is saved, a pin included, as the user decided: no version and nobody told of a change no nurse
+ * could see. One that breaks a hard rule saves, and the answer's `draft.check` says what it breaks: the roster in force has to
  * say what is so, such as a shift left short by a nurse taken off sick. The audit entry says a version was made, and never why.
  * The unit's nurses of the month are told, with no reason, cell or name.
  * @summary Save Version

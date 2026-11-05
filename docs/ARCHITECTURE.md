@@ -184,13 +184,14 @@ with origin `solve` and the roster's solve, and its grid is the roster's as appr
 solve history say where each cell came from. A version keeps the codes it was saved with, as a stored result does, and is
 read under today's. `Roster.grid` is always the latest version's grid under today's codes: every version is made by one
 function, `rosters.versions.make_version`, under the roster's row lock, which numbers it. A manager's direct edit needs a
-reason, saves even when it breaks a hard rule (the roster in force has to say what is so, a shift left short included) and
-makes each edited cell a manager's pin. Leave recorded on a day an approved roster of a month not over works takes the shift
-off as a version of its own, origin `edit`, by whoever recorded it, with a reason that says leave and never the type; removing
-the leave puts nothing back. The reason, which can say a cell was leave, is read by the unit's manager, the CNO and the Deputy
-CNO, in the version list and its comparison of any two versions; never by a nurse, in a notification or in the audit log, whose
-entry `roster.changed` says only which version was made and how many pins and cells changed. A leave-made version has no
-entry of its own, since one beside the leave's would date that leave for the System Admin.
+reason, is refused when it changes no cell (a pin alone included), saves even when it breaks a hard rule (the roster in force
+has to say what is so, a shift left short included) and makes each edited cell a manager's pin. Leave recorded on a day an
+approved roster of a month not over works takes the shift off as a version of its own, origin `edit`, by whoever recorded it,
+with a reason that says leave and never the type; removing the leave puts nothing back. The reason, which can say a cell was
+leave, is read by the unit's manager, the CNO and the Deputy CNO, in the version list and its comparison of any two versions;
+never by a nurse, in a notification or in the audit log, whose entry `roster.changed` says only which version was made and how
+many pins and cells changed. A leave-made version has no entry of its own, since one beside the leave's would date that leave
+for the System Admin.
 
 **Leave**: nurse, date, leave type, recorded by and when; removed by and when. One row a date, and at most one current row
 for a nurse and date. A correction or removal ends the row rather than rewriting it, because the audit log may hold none of

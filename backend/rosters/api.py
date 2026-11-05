@@ -44,6 +44,8 @@ ONLY_THE_MANAGER = "Only the unit's manager changes its roster or submits it."
 ONLY_APPROVERS = "Only the CNO or the Deputy CNO approve or reject a roster."
 IN_FORCE_OVER = "This month is over, so its roster in force cannot change."
 SAVED_AS_A_VERSION = "This roster is approved, so a change to it is saved as a new version in force at once, with a reason."
+NOTHING_CHANGED = ("These changes leave every cell of the roster in force as it is, so there is no new version to save. Discard "
+                   "them, or change a cell.")
 NOT_APPROVED = "This roster is not approved yet, so its changes are saved as pins on the draft, with no version or reason."
 
 
@@ -438,8 +440,9 @@ class VersionBody(EditsBody):
 @router.post("/{unit_id}/roster/versions", response=RosterMonth, auth=manager, operation_id="saveRosterVersion")
 def save_version(request: HttpRequest, unit_id: UUID, body: VersionBody) -> RosterMonth:
     """An approved roster's direct edits, all of it or none of it, under the locks `_locked_for_edits` names: a new version with
-    origin `edit` and the reason, in force at once, each edited cell a manager's pin as on the draft. A save that changes nothing
-    makes none. One that breaks a hard rule saves, and the answer's `draft.check` says what it breaks: the roster in force has to
+    origin `edit` and the reason, in force at once, each edited cell a manager's pin as on the draft. Edits that change no cell
+    are refused and nothing is saved, a pin included, as the user decided: no version and nobody told of a change no nurse
+    could see. One that breaks a hard rule saves, and the answer's `draft.check` says what it breaks: the roster in force has to
     say what is so, such as a shift left short by a nurse taken off sick. The audit entry says a version was made, and never why.
     The unit's nurses of the month are told, with no reason, cell or name."""
     month = dt.date.fromisoformat(f"{body.month}-01")
@@ -450,12 +453,13 @@ def save_version(request: HttpRequest, unit_id: UUID, body: VersionBody) -> Rost
     with transaction.atomic():
         editing = _locked_for_edits(request, unit_id, month, edits, RosterState.APPROVED)
         roster, unit = editing.roster, editing.roster.unit
+        if editing.grid_after(edits) == roster.grid:
+            raise HttpError(409, NOTHING_CHANGED)
         pins, cells = editing.save(edits, request.user)
-        if pins or cells:
-            version = make_version(roster, roster.grid, VersionOrigin.EDIT, request.user, reason)
-            record("roster.changed", actor=request.user, target=_target(unit, month), request=request,
-                   after={"version": version.number, "pins": pins, "cells": cells})
-            sending.roster_changed(unit, month, request.user)
+        version = make_version(roster, roster.grid, VersionOrigin.EDIT, request.user, reason)
+        record("roster.changed", actor=request.user, target=_target(unit, month), request=request,
+               after={"version": version.number, "pins": pins, "cells": cells})
+        sending.roster_changed(unit, month, request.user)
     return _roster_month(unit, month, request.user)
 
 

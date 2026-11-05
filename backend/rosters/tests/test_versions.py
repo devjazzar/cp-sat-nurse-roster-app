@@ -14,6 +14,7 @@ from notifications.models import Notification
 from nurses import membership
 from nurses.models import Leave, NurseProfile, Placement
 from rosters import drafts
+from rosters.api import NOTHING_CHANGED
 from rosters.drafts import FROZEN, in_current_codes
 from rosters.models import PinEnded, PinnedCell, PinOrigin, RosterState, RosterVersion, VersionOrigin
 from rosters.tests.test_pins import change_shift, clear, icu, off, pin, save
@@ -207,22 +208,26 @@ class TestADirectEdit:
 
         assert latest(er).number == 2
 
-    def test_a_save_that_changes_nothing_makes_no_version(self, mona, carla, er, solver):
-        approved(mona, carla, er, solver)
-
-        changed(mona, er, clear("Amal", 9))
-
-        assert RosterVersion.objects.count() == 1 and not AuditEntry.objects.filter(action="roster.changed").exists()
+    def nothing_was_made(self, er) -> None:
+        assert RosterVersion.objects.count() == 1 and not PinnedCell.objects.exists()
+        assert not AuditEntry.objects.filter(action="roster.changed").exists()
         assert not Notification.objects.filter(event="roster_changed").exists()
 
-    def test_pinning_a_cell_to_what_it_holds_is_a_version_with_no_cell_changed(self, mona, carla, er, solver):
-        """Every save that changes something is a version, so a pin that keeps a cell through a re-plan has its reason too."""
+    def test_a_save_that_changes_no_cell_is_refused_and_makes_nothing(self, mona, carla, er, solver):
+        """The user's decision (2026-11-06): no version and nobody told for a save the nurses could not see."""
         approved(mona, carla, er, solver)
 
-        changed(mona, er, pin("Amal", 1, "N"), reason="Amal keeps her nights.")
+        assert refused(change(mona, er, clear("Amal", 9))) == NOTHING_CHANGED
 
-        assert latest(er).number == 2 and latest(er).grid == RosterVersion.objects.get(number=1).grid
-        assert versions(mona, er)[0]["cells_changed"] == 0
+        self.nothing_was_made(er)
+
+    def test_pinning_a_cell_to_what_it_holds_is_nothing_changed_too(self, mona, carla, er, solver):
+        """A pin with no cell changed is no version either: nothing is saved, the pin included."""
+        approved(mona, carla, er, solver)
+
+        assert refused(change(mona, er, pin("Amal", 1, "N"), off("Amal", 5), reason="Amal keeps her nights.")) == NOTHING_CHANGED
+
+        self.nothing_was_made(er)
 
     def test_clearing_a_pin_gives_the_cell_back_to_its_solve_as_on_the_draft(self, mona, carla, er, solver):
         approved(mona, carla, er, solver)

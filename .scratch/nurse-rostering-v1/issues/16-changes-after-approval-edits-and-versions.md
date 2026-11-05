@@ -50,7 +50,7 @@ What was built:
 - **Direct edits:** `POST /units/{id}/roster/versions` (`saveRosterVersion`), body `month`, `edits` and a required `reason`.
   - It reuses ticket 13's `DraftEdits`: the same refusals, each edited cell a manager's pin, the same live check (`POST /roster/check`, now open on an approved roster).
   - A save that changes something makes a version with origin `edit`. Then comes the audit entry `roster.changed` with `{"version", "pins", "cells"}` and no reason. Then the nurses are told.
-  - A save that changes nothing makes no version and tells nobody.
+  - A save that changes no cell is refused with 409, "These changes leave every cell of the roster in force as it is, so there is no new version to save. Discard them, or change a cell." Nothing is saved, a pin included, and nobody is told. The page shows it in the unsaved panel and keeps the changes (changed after the user's review, below).
   - The draft's `POST /roster/pins` refuses an approved roster and says a change there is a version.
 - **Reads, for the unit's manager, the CNO and the Deputy CNO only:**
   - `GET /units/{id}/roster/versions` (`listRosterVersions`) lists versions newest first, with number, origin, author, time, reason, and cells changed from the one before.
@@ -130,7 +130,7 @@ What was NOT checked:
 - **Who reads a reason:** the unit's manager, the CNO and the Deputy CNO, in the version list. Never a nurse, a notification or the audit log, and tests search all three for it. An approver reads the reasons because they read a roster's leave with its type already (ticket 10's change).
 - **Worth your review: nurses have no version list and no compare.** A nurse reads the roster in force on My roster, with its version number as before, and is told of each change by the bell. Showing a nurse what changed in a colleague's row would say when a colleague's shift went, and a cell taken off for leave is exactly what must read as a day off. A nurse's own row could one day mark what changed for them; nothing does now.
 - **Compare:** any two versions, in either order, under today's codes. A day not worked reads "Off" for everyone, so an approver's compare shows leave as Off too. The approver can read the leave on the Leave page.
-- **Every save that changes a pin or a cell is a version** and tells the nurses, because the criterion says "notified on every new version". Pinning a cell to what it already holds is a version with no cell changed. **Worth your review:** the nurses are then told of a change they cannot see. It keeps the manager's reason and pin on record for a re-plan. Telling only when a cell changes would be one line.
+- **A save of an approved roster that changes no cell is refused, and makes no version and tells nobody** (changed after the user's review, below). This was first built as a version for every save that changed a pin or a cell, which told the nurses of a change they could not see. **A pin with no cell changed counts as nothing changed too:** pinning a cell to the shift it already holds, or clearing a pin whose cell stays, is refused, and the pin is not saved either. Saving it alone would be a change with no version and no reason, against "every change is a new version". So on an approved roster a pin is made only together with a change to its cell. The draft's save is as it was.
 - **The "roster changed" notification** follows ticket 15's comment exactly:
   - Recipients are the unit's nurses of the month (`membership.placed_in`), less whoever made the change.
   - It reads "Mona Ali changed the ER roster for December 2026." and links to My roster.
@@ -147,7 +147,7 @@ What was NOT checked:
 
 Spec found:
 - The rename's unordered lock, above.
-- A save that changed nothing still saying "saved as version N".
+- A save that changed nothing still saying "saved as version N". This was fixed then, and is moot since the user's review: such a save is now refused.
 - The Leave page not re-reading the roster after leave took a shift off.
 - "in this draft" in a refusal on an approved roster.
 
@@ -178,3 +178,10 @@ All fixed. Left as judgement calls:
 
 **The dev stack was not touched:** no restart, no migration, no login. When this branch reaches `main`, restart `web` and `worker` there for `notifications.0002`. It changes only the event's choices, so nothing fails before that restart, but the version endpoints and pages need the new code.
 
+**Reviewed by the user (2026-11-06).** Kept as built:
+- late leave on an approved roster takes the shift off automatically, as a version of its own;
+- an edit that breaks a hard rule saves, with its warning;
+- a version made by leave has no audit entry of its own;
+- nurses get no version list or compare.
+
+Changed: a save of an approved roster that changes no cell is refused, with no version, no notification and no audit entry. Pinning a cell to the shift it already holds is refused the same way, the pin included. The draft's save is unchanged. Tests: `test_a_save_that_changes_no_cell_is_refused_and_makes_nothing`, `test_pinning_a_cell_to_what_it_holds_is_nothing_changed_too`, and on the page "shows the refusal of changes that leave every cell as it is, keeping them". With the refusal disabled, both API tests fail.
