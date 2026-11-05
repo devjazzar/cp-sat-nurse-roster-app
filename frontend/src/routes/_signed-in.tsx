@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect, useRouteContext } from "@tanstack/react-router"
 
+import { NotificationBell } from "@/components/notification-bell"
 import { Button } from "@/components/ui/button"
 import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { NAVIGATION, ROLE_NAMES } from "@/roles"
@@ -35,6 +36,7 @@ function SignedInLayout() {
           <Link to="/change-password" className={linkClass}>Change password</Link>
         </nav>
         <div className="ms-auto flex items-center gap-3">
+          <NotificationBell />
           <span className="text-sm text-muted-foreground">{user.username} · {ROLE_NAMES[user.role]}</span>
           <Button variant="outline" size="sm" onClick={signOut.run} disabled={signOut.pending || awaitingPassword}>Log out</Button>
         </div>

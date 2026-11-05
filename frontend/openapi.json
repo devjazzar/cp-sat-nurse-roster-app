@@ -2717,7 +2717,58 @@
             }
           }
         },
-        "description": "Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too. The unit is the one\nthe month falls under for them, so across a transfer each month shows its own unit's roster, and a nurse due to start sees\ntheir unit's with no row of their own.",
+        "description": "Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too.",
+        "tags": [
+          "rosters"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/rosters/mine/month": {
+      "get": {
+        "operationId": "getMyMonth",
+        "summary": "My Month",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The hospital's current one when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The hospital's current one when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "The reader's own hours and shift counts in the version in force, worked out on the month as it stands, so leave recorded\nsince counts, and a new version (ticket 16) is read as it comes. Nothing of a colleague: the arithmetic reads the reader's\nrow only. Their leave with its type is `GET /api/nurses/my-leave`, which reads any month.",
         "tags": [
           "rosters"
         ],
@@ -3347,6 +3398,113 @@
         "description": "Takes no nurse, so it cannot answer for a colleague. A manager is here because a manager with a nurse profile is a\nnurse too, and one holding no unit has no other way to read theirs; one with no profile simply has none. Days left\noutside the nurse's dates by a later correction are not here: they count for nothing, and are their manager's to clear.",
         "tags": [
           "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/unread": {
+      "get": {
+        "operationId": "countUnreadNotifications",
+        "summary": "Unread",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unread"
+                }
+              }
+            }
+          }
+        },
+        "description": "What the bell polls. A test holds that it is not activity.",
+        "tags": [
+          "notifications"
+        ],
+        "security": [
+          {
+            "Polled": []
+          }
+        ]
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "operationId": "listNotifications",
+        "summary": "List Notifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationList"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "notifications"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "markNotificationRead",
+        "summary": "Mark Read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "A 404 for another user's, the same as for none.",
+        "tags": [
+          "notifications"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/read-all": {
+      "post": {
+        "operationId": "markAllNotificationsRead",
+        "summary": "Mark All Read",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "notifications"
         ],
         "security": [
           {
@@ -8210,6 +8368,169 @@
         "title": "NurseShift",
         "type": "object"
       },
+      "MyHours": {
+        "properties": {
+          "worked": {
+            "description": "Hours of the shifts on the reader's row.",
+            "title": "Worked",
+            "type": "integer"
+          },
+          "leave_credit": {
+            "description": "Hours their leave and any days outside their dates count as worked.",
+            "title": "Leave Credit",
+            "type": "integer"
+          },
+          "owed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hours this month asks of them in shifts: what their days owe, less the leave credit, plus what the last month carried. Null with the hours rule off.",
+            "title": "Owed"
+          },
+          "overtime": {
+            "title": "Overtime",
+            "type": "integer"
+          },
+          "carried": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hours carried into next month: owed when above 0, worked ahead when below. Projected until the month closes. Null with the hours rule off.",
+            "title": "Carried"
+          },
+          "shifts": {
+            "description": "Each shift they work, in the catalogue's order.",
+            "items": {
+              "$ref": "#/components/schemas/ShiftCount"
+            },
+            "title": "Shifts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "worked",
+          "leave_credit",
+          "owed",
+          "overtime",
+          "carried",
+          "shifts"
+        ],
+        "title": "MyHours",
+        "type": "object"
+      },
+      "MyMonth": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "first_month": {
+            "description": "The earliest month with hours here: this one.",
+            "title": "First Month",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.",
+            "title": "Unit"
+          },
+          "roster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MyMonthInForce"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until that unit's roster of the month is approved, and for a month before `first_month`."
+          }
+        },
+        "required": [
+          "month",
+          "first_month",
+          "unit",
+          "roster"
+        ],
+        "title": "MyMonth",
+        "type": "object"
+      },
+      "MyMonthInForce": {
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "approved_at": {
+            "format": "date-time",
+            "title": "Approved At",
+            "type": "string"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MyHours"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the reader has no row on it, such as a nurse due to start, or when the month as it stands no longer has them."
+          }
+        },
+        "required": [
+          "version",
+          "approved_at",
+          "hours"
+        ],
+        "title": "MyMonthInForce",
+        "type": "object"
+      },
+      "ShiftCount": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "colour",
+          "count"
+        ],
+        "title": "ShiftCount",
+        "type": "object"
+      },
       "PageFilter": {
         "properties": {
           "older_than": {
@@ -8962,10 +9283,132 @@
         ],
         "title": "MyLeaveRun",
         "type": "object"
+      },
+      "Unread": {
+        "properties": {
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread"
+        ],
+        "title": "Unread",
+        "type": "object"
+      },
+      "NotificationLink": {
+        "properties": {
+          "page": {
+            "enum": [
+              "roster",
+              "my_roster",
+              "unit_roster"
+            ],
+            "title": "Page",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id"
+          }
+        },
+        "required": [
+          "page",
+          "month"
+        ],
+        "title": "NotificationLink",
+        "type": "object"
+      },
+      "NotificationList": {
+        "properties": {
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          },
+          "items": {
+            "description": "The latest 50, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/NotificationRow"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "unread",
+          "items"
+        ],
+        "title": "NotificationList",
+        "type": "object"
+      },
+      "NotificationRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reader's own page for it. Null when they no longer have one."
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "event",
+          "text",
+          "link",
+          "created_at",
+          "read"
+        ],
+        "title": "NotificationRow",
+        "type": "object"
       }
     },
     "securitySchemes": {
       "SignedIn": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sessionid"
+      },
+      "Polled": {
         "type": "apiKey",
         "in": "cookie",
         "name": "sessionid"

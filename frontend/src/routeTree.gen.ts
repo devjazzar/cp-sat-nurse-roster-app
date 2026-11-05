@@ -20,7 +20,9 @@ import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/h
 import { Route as SignedInLeaveRouteImport } from './routes/_signed-in/leave'
 import { Route as SignedInLeaveTypesRouteImport } from './routes/_signed-in/leave-types'
 import { Route as SignedInMyLeaveRouteImport } from './routes/_signed-in/my-leave'
+import { Route as SignedInMyMonthRouteImport } from './routes/_signed-in/my-month'
 import { Route as SignedInMyRosterRouteImport } from './routes/_signed-in/my-roster'
+import { Route as SignedInNotificationsRouteImport } from './routes/_signed-in/notifications'
 import { Route as SignedInNursesRouteImport } from './routes/_signed-in/nurses'
 import { Route as SignedInRosterRouteImport } from './routes/_signed-in/roster'
 import { Route as SignedInRosteringAttributesRouteImport } from './routes/_signed-in/rostering-attributes'
@@ -89,9 +91,19 @@ const SignedInMyLeaveRoute = SignedInMyLeaveRouteImport.update({
   path: '/my-leave',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInMyMonthRoute = SignedInMyMonthRouteImport.update({
+  id: '/my-month',
+  path: '/my-month',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInMyRosterRoute = SignedInMyRosterRouteImport.update({
   id: '/my-roster',
   path: '/my-roster',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInNotificationsRoute = SignedInNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInNursesRoute = SignedInNursesRouteImport.update({
@@ -173,7 +185,9 @@ export interface FileRoutesByFullPath {
   '/leave': typeof SignedInLeaveRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/my-leave': typeof SignedInMyLeaveRoute
+  '/my-month': typeof SignedInMyMonthRoute
   '/my-roster': typeof SignedInMyRosterRoute
+  '/notifications': typeof SignedInNotificationsRoute
   '/nurses': typeof SignedInNursesRoute
   '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
@@ -198,7 +212,9 @@ export interface FileRoutesByTo {
   '/leave': typeof SignedInLeaveRoute
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/my-leave': typeof SignedInMyLeaveRoute
+  '/my-month': typeof SignedInMyMonthRoute
   '/my-roster': typeof SignedInMyRosterRoute
+  '/notifications': typeof SignedInNotificationsRoute
   '/nurses': typeof SignedInNursesRoute
   '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
@@ -226,7 +242,9 @@ export interface FileRoutesById {
   '/_signed-in/leave': typeof SignedInLeaveRoute
   '/_signed-in/leave-types': typeof SignedInLeaveTypesRoute
   '/_signed-in/my-leave': typeof SignedInMyLeaveRoute
+  '/_signed-in/my-month': typeof SignedInMyMonthRoute
   '/_signed-in/my-roster': typeof SignedInMyRosterRoute
+  '/_signed-in/notifications': typeof SignedInNotificationsRoute
   '/_signed-in/nurses': typeof SignedInNursesRoute
   '/_signed-in/roster': typeof SignedInRosterRoute
   '/_signed-in/rostering-attributes': typeof SignedInRosteringAttributesRoute
@@ -255,7 +273,9 @@ export interface FileRouteTypes {
     | '/leave'
     | '/leave-types'
     | '/my-leave'
+    | '/my-month'
     | '/my-roster'
+    | '/notifications'
     | '/nurses'
     | '/roster'
     | '/rostering-attributes'
@@ -280,7 +300,9 @@ export interface FileRouteTypes {
     | '/leave'
     | '/leave-types'
     | '/my-leave'
+    | '/my-month'
     | '/my-roster'
+    | '/notifications'
     | '/nurses'
     | '/roster'
     | '/rostering-attributes'
@@ -307,7 +329,9 @@ export interface FileRouteTypes {
     | '/_signed-in/leave'
     | '/_signed-in/leave-types'
     | '/_signed-in/my-leave'
+    | '/_signed-in/my-month'
     | '/_signed-in/my-roster'
+    | '/_signed-in/notifications'
     | '/_signed-in/nurses'
     | '/_signed-in/roster'
     | '/_signed-in/rostering-attributes'
@@ -409,11 +433,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInMyLeaveRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/my-month': {
+      id: '/_signed-in/my-month'
+      path: '/my-month'
+      fullPath: '/my-month'
+      preLoaderRoute: typeof SignedInMyMonthRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/my-roster': {
       id: '/_signed-in/my-roster'
       path: '/my-roster'
       fullPath: '/my-roster'
       preLoaderRoute: typeof SignedInMyRosterRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/notifications': {
+      id: '/_signed-in/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof SignedInNotificationsRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/nurses': {
@@ -518,7 +556,9 @@ interface SignedInRouteChildren {
   SignedInLeaveRoute: typeof SignedInLeaveRoute
   SignedInLeaveTypesRoute: typeof SignedInLeaveTypesRoute
   SignedInMyLeaveRoute: typeof SignedInMyLeaveRoute
+  SignedInMyMonthRoute: typeof SignedInMyMonthRoute
   SignedInMyRosterRoute: typeof SignedInMyRosterRoute
+  SignedInNotificationsRoute: typeof SignedInNotificationsRoute
   SignedInNursesRoute: typeof SignedInNursesRoute
   SignedInRosterRoute: typeof SignedInRosterRoute
   SignedInRosteringAttributesRoute: typeof SignedInRosteringAttributesRoute
@@ -543,7 +583,9 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInLeaveRoute: SignedInLeaveRoute,
   SignedInLeaveTypesRoute: SignedInLeaveTypesRoute,
   SignedInMyLeaveRoute: SignedInMyLeaveRoute,
+  SignedInMyMonthRoute: SignedInMyMonthRoute,
   SignedInMyRosterRoute: SignedInMyRosterRoute,
+  SignedInNotificationsRoute: SignedInNotificationsRoute,
   SignedInNursesRoute: SignedInNursesRoute,
   SignedInRosterRoute: SignedInRosterRoute,
   SignedInRosteringAttributesRoute: SignedInRosteringAttributesRoute,

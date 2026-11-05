@@ -92,7 +92,7 @@ function NurseHome() {
           <p><Link to="/my-roster" className="underline underline-offset-3">My roster</Link> has each coming month once it is approved.</p>
         </>)}
       {roster.isError && <p role="alert">Whether this month's roster is approved could not be read. My roster tries again.</p>}
-      <p>Any leave recorded for you is under <Link to="/my-leave" className="underline underline-offset-3">My leave</Link>.</p>
+      <p>Your hours, shifts and leave are under <Link to="/my-month" className="underline underline-offset-3">My month</Link>.</p>
     </>
   )
 }

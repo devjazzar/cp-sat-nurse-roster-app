@@ -1,0 +1,133 @@
+import { keepPreviousData } from "@tanstack/react-query"
+import { createFileRoute, Link } from "@tanstack/react-router"
+import { z } from "zod"
+
+import { useGetMyLeave, useGetMyMonth } from "@/api/generated/endpoints"
+import { Role, type MyHours, type MyMonth } from "@/api/generated/model"
+import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { dayRange, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
+import { onlyFor } from "@/session"
+
+const searchSchema = z.object({ month: monthInAddress })
+
+/** A nurse's own month: their hours and shifts in the roster in force, and their leave with its type. A manager with a nurse
+ *  profile reads theirs here too. */
+export const Route = createFileRoute("/_signed-in/my-month")({
+  validateSearch: (search) => searchSchema.parse(search),
+  beforeLoad: onlyFor(Role.staff_nurse, Role.unit_manager),
+  staticData: { title: "My month" },
+  component: MyMonthPage,
+})
+
+const LINK = "underline underline-offset-3"
+const hours = (count: number) => `${count} ${count === 1 ? "hour" : "hours"}`
+
+function carried(count: number): string {
+  if (count > 0) return `${hours(count)} owed`
+  if (count < 0) return `${hours(-count)} worked ahead`
+  return "None"
+}
+
+function HoursList({ mine }: { mine: MyHours }) {
+  const rows: [string, string][] = [
+    ["Hours worked", hours(mine.worked)],
+    ["Leave counted as worked", hours(mine.leave_credit)],
+    ...(mine.owed === null ? [] : [["Hours this month asks of you", hours(mine.owed)] as [string, string]]),
+    ...(mine.owed === null ? [] : [["Overtime", hours(mine.overtime)] as [string, string]]),
+    ...(mine.carried === null ? [] : [["Carried into next month", carried(mine.carried)] as [string, string]]),
+  ]
+  return (
+    <>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
+        {rows.map(([term, value]) => (
+          <div key={term} className="contents">
+            <dt className="text-muted-foreground">{term}</dt>
+            <dd className="tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <h4 className="mt-2 font-medium">Shifts</h4>
+      {mine.shifts.length === 0 ? <p>No shifts this month.</p> : (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1">
+          {mine.shifts.map((shift) => (
+            <li key={shift.code} className="tabular-nums">{shift.count} {shift.display_name}</li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+function Hours({ answer }: { answer: MyMonth }) {
+  const month = monthName(answer.month)
+  if (answer.month < answer.first_month) return <p>Hours are shown from this month on. Months already over are not shown here.</p>
+  if (!answer.unit) return <p>You are on no unit's roster in {month}.</p>
+  if (!answer.roster) return <p>No roster yet for {month}. Your hours show here once it is approved.</p>
+  return (
+    <>
+      <p className="text-sm text-muted-foreground">
+        From version {answer.roster.version} of the {answer.unit} roster, approved {hospitalTime(answer.roster.approved_at)}.{" "}
+        <Link to="/my-roster" search={{ month: answer.month }} className={LINK}>See it under My roster</Link>
+      </p>
+      {answer.roster.hours ? <HoursList mine={answer.roster.hours} /> : <p>You are not on this roster.</p>}
+      {answer.roster.hours?.carried != null && (
+        <p className="text-sm text-muted-foreground">What is carried is worked out again when the month closes, from what really happened.</p>
+      )}
+    </>
+  )
+}
+
+function MyMonthPage() {
+  const { month } = Route.useSearch()
+  const params = month ? { month } : undefined
+  const mine = useGetMyMonth(params, { query: { placeholderData: keepPreviousData } })
+  const leave = useGetMyLeave(params, { query: { placeholderData: keepPreviousData } })
+  const shown = mine.data?.month ?? leave.data?.month
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <h1 className="text-xl font-medium">My month</h1>
+      <p className="text-muted-foreground">Your hours and shifts in the approved roster, and your leave. Only you, your manager, the CNO and the Deputy CNO can see your leave's type: colleagues see a day off.</p>
+      {shown && <MonthNav month={shown} link={(next, label) => <Link to="/my-month" search={{ month: next }} className={MONTH_LINK}>{label}</Link>} />}
+      <Card>
+        <CardHeader><CardTitle><h3>Hours and shifts</h3></CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {mine.isPending && <p>Loading…</p>}
+          {mine.isError && <p role="alert">Your hours could not be read. Reload the page to try again.</p>}
+          {mine.data && <Hours answer={mine.data} />}
+        </CardContent>
+      </Card>
+      {/* Ticket 19: the nurse's requests for this month and their outcomes go here, as a card of their own. */}
+      <Card>
+        <CardHeader><CardTitle><h3>Leave</h3></CardTitle></CardHeader>
+        <CardContent>
+          {leave.isPending && <p>Loading…</p>}
+          {leave.isError && <p role="alert">Your leave could not be read. Reload the page to try again.</p>}
+          {leave.data && leave.data.runs.length === 0 && <p>You have no leave recorded in {monthName(leave.data.month)}.</p>}
+          {leave.data && leave.data.runs.length > 0 && (
+            <Table container={scrollableRegion(`Your leave in ${monthName(leave.data.month)}`)}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Dates</TableHead>
+                  <TableHead>Days</TableHead>
+                  <TableHead>Type</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leave.data.runs.map((run) => (
+                  <TableRow key={run.first}>
+                    <TableCell className="tabular-nums">{dayRange(run.first, run.last)}</TableCell>
+                    <TableCell className="tabular-nums">{run.days}</TableCell>
+                    <TableCell>{run.leave_type}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

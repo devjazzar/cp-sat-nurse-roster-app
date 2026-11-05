@@ -329,8 +329,8 @@ function LeavePage() {
       {units.isError && <p role="alert">{mayChange ? "Your unit" : "The units"} could not be read. Reload the page to try again.</p>}
       {units.data && !chosen && (mayChange ? (
         <p>
-          No unit is assigned to you yet. The CNO assigns each unit its manager. If you are on a roster yourself, your own leave is under{" "}
-          <Link to="/my-leave" className="underline underline-offset-3">My leave</Link>.
+          No unit is assigned to you yet. The CNO assigns each unit its manager. If you are on a roster yourself, your own leave and hours are under{" "}
+          <Link to="/my-month" className="underline underline-offset-3">My month</Link>.
         </p>
       ) : <p>There are no units yet.</p>)}
       {!mayChange && units.data && chosen && (

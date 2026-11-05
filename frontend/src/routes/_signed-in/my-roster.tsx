@@ -45,7 +45,7 @@ function MyRosterPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <h1 className="text-xl font-medium">{answer?.unit ? `Roster of ${answer.unit}` : "My roster"}</h1>
-      <p className="text-muted-foreground">Your unit's approved roster for this month and the months ahead. Your colleagues see the same names and shifts, and see a day off where you are on leave. Your leave and its type are under <Link to="/my-leave" className="underline underline-offset-3">My leave</Link>.</p>
+      <p className="text-muted-foreground">Your unit's approved roster for this month and the months ahead. Your colleagues see the same names and shifts, and see a day off where you are on leave. Your hours, shifts and leave with its type are under <Link to="/my-month" search={{ month: answer?.month }} className="underline underline-offset-3">My month</Link>.</p>
       {mine.isPending && <p>Loading…</p>}
       {mine.isError && <p role="alert">The roster could not be read. Reload the page to try again.</p>}
       {answer && (

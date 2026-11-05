@@ -2844,9 +2844,7 @@ export const ListSubmittedRostersResponse = zod.array(ListSubmittedRostersRespon
 
 
 /**
- * Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too. The unit is the one
- * the month falls under for them, so across a transfer each month shows its own unit's roster, and a nurse due to start sees
- * their unit's with no row of their own.
+ * Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too.
  * @summary My Roster
  */
 export const getMyRosterQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
@@ -2883,6 +2881,43 @@ export const GetMyRosterResponse = zod.object({
   "date": zod.iso.date(),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('The reader\'s own day. `outside` is before their start date or after their end date.')
 })),zod.null()]).describe('The reader\'s own row, one for each of `days`. Null when they are not on it.')
+}),zod.null()]).describe('Null until that unit\'s roster of the month is approved, and for a month before `first_month`.')
+})
+
+
+/**
+ * The reader's own hours and shift counts in the version in force, worked out on the month as it stands, so leave recorded
+ * since counts, and a new version (ticket 16) is read as it comes. Nothing of a colleague: the arithmetic reads the reader's
+ * row only. Their leave with its type is `GET /api/nurses/my-leave`, which reads any month.
+ * @summary My Month
+ */
+export const getMyMonthQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetMyMonthQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getMyMonthQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The hospital\'s current one when left out.')
+})
+
+export const GetMyMonthResponse = zod.object({
+  "month": zod.string(),
+  "first_month": zod.string().describe('The earliest month with hours here: this one.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
+  "roster": zod.union([zod.object({
+  "version": zod.int(),
+  "approved_at": zod.iso.datetime({"offset":true}),
+  "hours": zod.union([zod.object({
+  "worked": zod.int().describe('Hours of the shifts on the reader\'s row.'),
+  "leave_credit": zod.int().describe('Hours their leave and any days outside their dates count as worked.'),
+  "owed": zod.union([zod.int(),zod.null()]).describe('Hours this month asks of them in shifts: what their days owe, less the leave credit, plus what the last month carried. Null with the hours rule off.'),
+  "overtime": zod.int(),
+  "carried": zod.union([zod.int(),zod.null()]).describe('Hours carried into next month: owed when above 0, worked ahead when below. Projected until the month closes. Null with the hours rule off.'),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "colour": zod.string(),
+  "count": zod.int()
+})).describe('Each shift they work, in the catalogue\'s order.')
+}),zod.null()]).describe('Null when the reader has no row on it, such as a nurse due to start, or when the month as it stands no longer has them.')
 }),zod.null()]).describe('Null until that unit\'s roster of the month is approved, and for a month before `first_month`.')
 })
 
@@ -3302,3 +3337,49 @@ export const GetMyLeaveResponse = zod.object({
   "leave_type": zod.string()
 }))
 })
+
+
+/**
+ * What the bell polls. A test holds that it is not activity.
+ * @summary Unread
+ */
+export const CountUnreadNotificationsResponse = zod.object({
+  "unread": zod.int()
+})
+
+
+/**
+ * @summary List Notifications
+ */
+export const ListNotificationsResponse = zod.object({
+  "unread": zod.int(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "event": zod.string(),
+  "text": zod.string(),
+  "link": zod.union([zod.object({
+  "page": zod.enum(['roster', 'my_roster', 'unit_roster']),
+  "month": zod.string(),
+  "unit_id": zod.union([zod.uuid(),zod.null()]).optional()
+}),zod.null()]).describe('The reader\'s own page for it. Null when they no longer have one.'),
+  "created_at": zod.iso.datetime({"offset":true}),
+  "read": zod.boolean()
+})).describe('The latest 50, newest first.')
+})
+
+
+/**
+ * A 404 for another user's, the same as for none.
+ * @summary Mark Read
+ */
+export const MarkNotificationReadParams = zod.object({
+  "notification_id": zod.uuid()
+})
+
+export const MarkNotificationReadResponse = zod.void()
+
+
+/**
+ * @summary Mark All Read
+ */
+export const MarkAllNotificationsReadResponse = zod.void()

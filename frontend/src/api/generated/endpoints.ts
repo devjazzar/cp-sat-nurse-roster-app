@@ -37,6 +37,7 @@ import type {
   EditsBody,
   EndDateBody,
   GetMyLeaveParams,
+  GetMyMonthParams,
   GetMyRosterParams,
   GetRosterMonthParams,
   GetRosterOverviewParams,
@@ -65,12 +66,14 @@ import type {
   Me,
   MonthBody,
   MyLeaveMonth,
+  MyMonth,
   MyRosterMonth,
   NameCorrectionBody,
   NewLeaveBody,
   NewNurseBody,
   NewUserBody,
   NewUserRefusal,
+  NotificationList,
   NurseAttributesRow,
   NurseRow,
   NurseWithPassword,
@@ -102,6 +105,7 @@ import type {
   UnitRulesBody,
   UnitRulesState,
   UnitSchema,
+  Unread,
   UserWithPassword,
   WaitingRoster
 } from './model';
@@ -5893,9 +5897,7 @@ export const getGetMyRosterUrl = (params?: GetMyRosterParams,) => {
 }
 
 /**
- * Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too. The unit is the one
- * the month falls under for them, so across a transfer each month shows its own unit's roster, and a nurse due to start sees
- * their unit's with no row of their own.
+ * Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too.
  * @summary My Roster
  */
 export const getMyRoster = async (params?: GetMyRosterParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyRosterMonth> => {
@@ -5976,6 +5978,117 @@ export function useGetMyRoster<TData = Awaited<ReturnType<typeof getMyRoster>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMyRosterQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyMonthUrl = (params?: GetMyMonthParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rosters/mine/month?${stringifiedParams}` : `/api/rosters/mine/month`
+}
+
+/**
+ * The reader's own hours and shift counts in the version in force, worked out on the month as it stands, so leave recorded
+ * since counts, and a new version (ticket 16) is read as it comes. Nothing of a colleague: the arithmetic reads the reader's
+ * row only. Their leave with its type is `GET /api/nurses/my-leave`, which reads any month.
+ * @summary My Month
+ */
+export const getMyMonth = async (params?: GetMyMonthParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyMonth> => {
+
+  return apiFetch<MyMonth>(getGetMyMonthUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyMonthQueryKey = (params?: GetMyMonthParams,) => {
+    return [
+    `/api/rosters/mine/month`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMyMonthQueryOptions = <TData = Awaited<ReturnType<typeof getMyMonth>>, TError = unknown>(params?: GetMyMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyMonth>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyMonthQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyMonth>>> = ({ signal }) => getMyMonth(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyMonth>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyMonthQueryResult = NonNullable<Awaited<ReturnType<typeof getMyMonth>>>
+export type GetMyMonthQueryError = unknown
+
+
+export function useGetMyMonth<TData = Awaited<ReturnType<typeof getMyMonth>>, TError = unknown>(
+ params: undefined |  GetMyMonthParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyMonth>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyMonth>>,
+          TError,
+          Awaited<ReturnType<typeof getMyMonth>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyMonth<TData = Awaited<ReturnType<typeof getMyMonth>>, TError = unknown>(
+ params?: GetMyMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyMonth>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyMonth>>,
+          TError,
+          Awaited<ReturnType<typeof getMyMonth>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyMonth<TData = Awaited<ReturnType<typeof getMyMonth>>, TError = unknown>(
+ params?: GetMyMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyMonth>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Month
+ */
+
+export function useGetMyMonth<TData = Awaited<ReturnType<typeof getMyMonth>>, TError = unknown>(
+ params?: GetMyMonthParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyMonth>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyMonthQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -7391,3 +7504,361 @@ export function useGetMyLeave<TData = Awaited<ReturnType<typeof getMyLeave>>, TE
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
+export const getCountUnreadNotificationsUrl = () => {
+
+
+
+
+  return `/api/notifications/unread`
+}
+
+/**
+ * What the bell polls. A test holds that it is not activity.
+ * @summary Unread
+ */
+export const countUnreadNotifications = async ( options?: Parameters<typeof apiFetch>[1]): Promise<Unread> => {
+
+  return apiFetch<Unread>(getCountUnreadNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCountUnreadNotificationsQueryKey = () => {
+    return [
+    `/api/notifications/unread`
+    ] as const;
+    }
+
+
+export const getCountUnreadNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof countUnreadNotifications>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof countUnreadNotifications>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCountUnreadNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof countUnreadNotifications>>> = ({ signal }) => countUnreadNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof countUnreadNotifications>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CountUnreadNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof countUnreadNotifications>>>
+export type CountUnreadNotificationsQueryError = unknown
+
+
+export function useCountUnreadNotifications<TData = Awaited<ReturnType<typeof countUnreadNotifications>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof countUnreadNotifications>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof countUnreadNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof countUnreadNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCountUnreadNotifications<TData = Awaited<ReturnType<typeof countUnreadNotifications>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof countUnreadNotifications>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof countUnreadNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof countUnreadNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCountUnreadNotifications<TData = Awaited<ReturnType<typeof countUnreadNotifications>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof countUnreadNotifications>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Unread
+ */
+
+export function useCountUnreadNotifications<TData = Awaited<ReturnType<typeof countUnreadNotifications>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof countUnreadNotifications>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCountUnreadNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListNotificationsUrl = () => {
+
+
+
+
+  return `/api/notifications`
+}
+
+/**
+ * @summary List Notifications
+ */
+export const listNotifications = async ( options?: Parameters<typeof apiFetch>[1]): Promise<NotificationList> => {
+
+  return apiFetch<NotificationList>(getListNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNotificationsQueryKey = () => {
+    return [
+    `/api/notifications`
+    ] as const;
+    }
+
+
+export const getListNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listNotifications>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNotifications>>> = ({ signal }) => listNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listNotifications>>>
+export type ListNotificationsQueryError = unknown
+
+
+export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof listNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listNotifications>>,
+          TError,
+          Awaited<ReturnType<typeof listNotifications>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Notifications
+ */
+
+export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkNotificationReadUrl = (notificationId: string,) => {
+
+
+
+
+  return `/api/notifications/${notificationId}/read`
+}
+
+/**
+ * A 404 for another user's, the same as for none.
+ * @summary Mark Read
+ */
+export const markNotificationRead = async (notificationId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getMarkNotificationReadUrl(notificationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkNotificationReadMutationKey = () => ['markNotificationRead'] as const;
+
+export const getMarkNotificationReadMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,MarkNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,MarkNotificationReadMutationVariables, TContext> => {
+
+const mutationKey = getMarkNotificationReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markNotificationRead>>, MarkNotificationReadMutationVariables> = (props) => {
+          const {notificationId} = props ?? {};
+
+          return  markNotificationRead(notificationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markNotificationRead>>>
+
+    export type MarkNotificationReadMutationError = unknown
+    export type MarkNotificationReadMutationVariables = {notificationId: string}
+
+    /**
+ * @summary Mark Read
+ */
+export const useMarkNotificationRead = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,MarkNotificationReadMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markNotificationRead>>,
+        TError,
+        MarkNotificationReadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkNotificationReadMutationOptions(options), queryClient);
+    }
+
+export const getMarkAllNotificationsReadUrl = () => {
+
+
+
+
+  return `/api/notifications/read-all`
+}
+
+/**
+ * @summary Mark All Read
+ */
+export const markAllNotificationsRead = async ( options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getMarkAllNotificationsReadUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkAllNotificationsReadMutationKey = () => ['markAllNotificationsRead'] as const;
+
+export const getMarkAllNotificationsReadMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext> => {
+
+const mutationKey = getMarkAllNotificationsReadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAllNotificationsRead>>, void> = () => {
+
+
+          return  markAllNotificationsRead(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAllNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAllNotificationsRead>>>
+
+    export type MarkAllNotificationsReadMutationError = unknown
+
+
+    /**
+ * @summary Mark All Read
+ */
+export const useMarkAllNotificationsRead = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markAllNotificationsRead>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkAllNotificationsReadMutationOptions(options), queryClient);
+    }

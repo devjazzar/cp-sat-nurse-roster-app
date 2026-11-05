@@ -23,7 +23,14 @@ const HEALTH = {
   last_backup: null,
 }
 
-function start(path: string, handlers: Record<string, Handler | Answer>) {
+/** What the header's bell polls on every signed-in page. A test that needs other answers gives its own. */
+const BELL = "/api/notifications/unread"
+const NO_BELL = { [`GET ${BELL}`]: { body: { unread: 0 } } }
+/** The addresses a page read, without the bell's polls, whose number depends on how long the test took. */
+const pageReads = (calls: { url: string }[]) => calls.map((call) => call.url).filter((url) => url !== BELL)
+
+function start(path: string, given: Record<string, Handler | Answer>) {
+  const handlers: Record<string, Handler | Answer> = { ...NO_BELL, ...given }
   const calls: { url: string; method: string; body: unknown; headers: Headers }[] = []
   vi.stubGlobal(
     "fetch",
@@ -53,6 +60,8 @@ function start(path: string, handlers: Record<string, Handler | Answer>) {
 const session = (user: unknown) => ({ "GET /api/auth/session": { body: { user } } })
 /** A staff nurse's month with no approved roster, as their home and My roster first read it. */
 const NO_ROSTER_YET = { month: "2026-12", first_month: "2026-11", unit: "ER", roster: null }
+/** A nurse's own month with no approved roster yet. */
+const NO_HOURS_YET = { month: "2026-11", first_month: "2026-11", unit: "ER", roster: null }
 const nurseHome = (unitId = "u1", extra = {}) => ({
   ...session(NURSE),
   "GET /api/nurses/my-unit": { body: { id: unitId, name: "ER" } },
@@ -120,14 +129,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/rosters", "/unit-roster", "/my-roster", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/notifications", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/rosters", "/unit-roster", "/my-roster"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/notifications"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -154,7 +163,7 @@ describe("route guards", () => {
     expect(await screen.findByText("No roster yet for December 2026.")).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/")
     expect(screen.queryByRole("link", { name: "Technical settings" })).not.toBeInTheDocument()
-    expect(calls.map((call) => call.url).sort()).toEqual(["/api/auth/session", "/api/nurses/my-unit", "/api/rosters/mine"])
+    expect(pageReads(calls).sort()).toEqual(["/api/auth/session", "/api/nurses/my-unit", "/api/rosters/mine"])
   })
 
   it("says so when the application cannot be reached", async () => {
@@ -796,7 +805,7 @@ describe("each role's navigation and home", () => {
     ["cno", "CNO", /under Hospital rules/, ["Home", "Rosters", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted", "/api/units"]],
     ["deputy_cno", "Deputy CNO", "No roster is waiting for a decision.", ["Home", "Rosters", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted"]],
     ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Solve history", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
-    ["staff_nurse", "Staff Nurse", "No roster yet for December 2026.", ["Home", "My roster", "My leave", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit", "/api/rosters/mine"]],
+    ["staff_nurse", "Staff Nurse", "No roster yet for December 2026.", ["Home", "My month", "My roster", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit", "/api/rosters/mine"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
     const { router, calls } = start("/", {
       ...session({ ...ME, username: "someone", full_name: "Some One", role }),
@@ -811,7 +820,7 @@ describe("each role's navigation and home", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Some One" })).toBeInTheDocument()
     expect(screen.getByText(`someone · ${name}`)).toBeInTheDocument()
     expect(navLinks()).toEqual(links)
-    await waitFor(() => expect(calls.map((call) => call.url).sort()).toEqual(["/api/auth/session", ...reads].sort()))
+    await waitFor(() => expect(pageReads(calls).sort()).toEqual(["/api/auth/session", ...reads].sort()))
   })
 })
 
@@ -3007,7 +3016,9 @@ describe("importing nurses", () => {
     }))
     await check(user)
     await screen.findByRole("button", { name: "Add 2 nurses" })
-    vi.stubGlobal("fetch", vi.fn(() => new Promise((resolve) => {
+    // Everything else goes on as before: the header's bell polls meanwhile.
+    const through = globalThis.fetch
+    vi.stubGlobal("fetch", vi.fn((url: string, init: RequestInit = {}) => url !== "/api/nurses/import/confirm" ? through(url, init) : new Promise((resolve) => {
       finish = (answer) => resolve(new Response(JSON.stringify(answer.body), { status: answer.status }))
     })))
 
@@ -3706,7 +3717,7 @@ describe("the leave pages", () => {
   it("tells a manager with no unit where their own leave is", async () => {
     start("/leave", { ...session(ME_MANAGER), "GET /api/units": { body: [] } })
 
-    expect(await screen.findByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
+    expect(await screen.findByRole("link", { name: "My month" })).toHaveAttribute("href", "/my-month")
     expect(screen.getByText(/No unit is assigned to you yet/)).toBeInTheDocument()
   })
 
@@ -3802,20 +3813,21 @@ describe("the leave pages", () => {
     start("/", nurseHome("er"))
 
     await screen.findByText("No roster yet for December 2026.")
-    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
-    expect(within(screen.getByRole("main")).getByRole("link", { name: "My leave" })).toHaveAttribute("href", "/my-leave")
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "My month" })).toHaveAttribute("href", "/my-month")
+    expect(within(screen.getByRole("main")).getByRole("link", { name: "My month" })).toHaveAttribute("href", "/my-month")
   })
 
   it("a nurse reads their own leave with its type", async () => {
-    const { user, router } = start("/my-leave", {
+    const { user, router } = start("/my-month", {
       ...session(NURSE),
+      "GET /api/rosters/mine/month": { body: NO_HOURS_YET },
       "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [{ first: "2026-11-10", last: "2026-11-12", days: 3, leave_type: "Annual" }] } },
     })
 
     const row = within((await screen.findByRole("cell", { name: "Annual" })).closest("tr")!)
-    expect(document.title).toBe("My leave · Nurse roster")
+    expect(document.title).toBe("My month · Nurse roster")
     expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["10 to 12 Nov 2026", "3", "Annual"])
-    expect(screen.getByText(/Only you, your manager, the CNO and the Deputy CNO can see its type: colleagues see a day off/)).toBeInTheDocument()
+    expect(screen.getByText(/Only you, your manager, the CNO and the Deputy CNO can see your leave's type: colleagues see a day off/)).toBeInTheDocument()
 
     await user.click(screen.getByRole("link", { name: "Previous month" }))
     await waitFor(() => expect(router.state.location.search).toEqual({ month: "2026-10" }))
@@ -3834,15 +3846,15 @@ describe("the leave pages", () => {
   })
 
   it("a nurse with none in a month is told so", async () => {
-    start("/my-leave", { ...session(NURSE), "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
+    start("/my-month", { ...session(NURSE), "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
 
     expect(await screen.findByText("You have no leave recorded in November 2026.")).toBeInTheDocument()
   })
 
   it("a failed read says so", async () => {
-    start("/my-leave", { ...session(NURSE), "GET /api/nurses/my-leave": { status: 500 } })
+    start("/my-month", { ...session(NURSE), "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { status: 500 } })
 
-    expect((await screen.findByRole("alert")).textContent).toMatch(/could not be read/)
+    expect((await screen.findByRole("alert")).textContent).toMatch(/leave could not be read/)
   })
 })
 
@@ -5116,5 +5128,214 @@ describe("a nurse's roster page", () => {
 
     const said = await screen.findByText(/The roster of December 2026 is approved/)
     expect(within(said).getByRole("link", { name: "See it under My roster" })).toHaveAttribute("href", "/my-roster")
+  })
+})
+
+describe("the notification bell", () => {
+  const bell = (unread: number) => ({ [`GET ${BELL}`]: { body: { unread } } })
+  const NOTE = {
+    id: "n1", event: "roster_approved", text: "Carla CNO approved the ER roster for December 2026. Version 1 is in force.",
+    link: { page: "my_roster", month: "2026-12", unit_id: null }, created_at: "2026-11-06T09:00:00+03:00", read: false,
+  }
+  const OLDER = { ...NOTE, id: "n0", event: "roster_rejected", text: "An older one, already read.", link: null, read: true }
+
+  it("shows how many are unread and leads to them", async () => {
+    start("/", nurseHome("u1", bell(3)))
+
+    const link = await screen.findByRole("link", { name: "Notifications, 3 unread" })
+    expect(link).toHaveAttribute("href", "/notifications")
+  })
+
+  it("says nothing of a count when none are unread", async () => {
+    start("/", nurseHome("u1"))
+
+    expect(await screen.findByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/notifications")
+  })
+
+  it("is in every role's header", async () => {
+    start("/", admin())
+
+    await screen.findByRole("heading", { name: "Health" })
+    expect(screen.getByRole("link", { name: "Notifications" })).toBeInTheDocument()
+  })
+
+  it("asks again by itself, so a new one shows without leaving the page", async () => {
+    let unread = 0
+    start("/", nurseHome("u1", { [`GET ${BELL}`]: () => ({ body: { unread } }) }))
+    await screen.findByRole("link", { name: "Notifications" })
+
+    unread = 1
+
+    expect(await screen.findByRole("link", { name: "Notifications, 1 unread" })).toBeInTheDocument()
+  })
+
+  it("stops asking once it is refused", async () => {
+    const { router } = start("/", nurseHome("u1", { [`GET ${BELL}`]: { status: 403, body: { detail: "Change your password first." } } }))
+
+    await screen.findByText("No roster yet for December 2026.")
+    const [query] = router.options.context.queryClient.getQueryCache().findAll({ queryKey: [BELL] })
+    await waitFor(() => expect(query.state.status).toBe("error"))
+    // The query's own answer about its next poll, because waiting to see that none comes could only pass more easily when busy.
+    const next = (query.observers[0].options as { refetchInterval: (of: typeof query) => number | false }).refetchInterval
+    expect(next(query)).toBe(false)
+  })
+
+  it("sends a session that has ended to the login page", async () => {
+    const { router } = start("/", nurseHome("u1", { [`GET ${BELL}`]: { status: 401, body: { detail: "Unauthorized" } } }))
+
+    expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/login")
+  })
+
+  it("lists them newest first, and following one marks it read", async () => {
+    let read = false
+    const { user, router, calls } = start("/notifications", {
+      ...session(NURSE),
+      ...bell(1),
+      "GET /api/notifications": () => ({ body: { unread: read ? 0 : 1, items: [{ ...NOTE, read }, OLDER] } }),
+      "POST /api/notifications/n1/read": () => { read = true; return { status: 204 } },
+      "GET /api/rosters/mine": { body: NO_ROSTER_YET },
+    })
+
+    const items = within(await screen.findByRole("list", { name: "Notifications, newest first" })).getAllByRole("listitem")
+    expect(items.map((item) => item.textContent)).toEqual([
+      expect.stringContaining("New" + NOTE.text), expect.stringContaining(OLDER.text)])
+    expect(document.title).toBe("Notifications · Nurse roster")
+    expect(screen.getByRole("status")).toHaveTextContent("1 unread.")
+
+    await user.click(within(items[0]).getByRole("link", { name: "Open My roster" }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/my-roster"))
+    expect(router.state.location.search).toEqual({ month: "2026-12" })
+    await waitFor(() => expect(calls.some((call) => call.method === "POST" && call.url === "/api/notifications/n1/read")).toBe(true))
+  })
+
+  it("links an approver to the unit's roster and a manager to theirs", async () => {
+    start("/notifications", {
+      ...session(NURSE),
+      "GET /api/notifications": { body: { unread: 2, items: [
+        { ...NOTE, id: "a", link: { page: "unit_roster", month: "2026-12", unit_id: "u9" } },
+        { ...NOTE, id: "b", link: { page: "roster", month: "2026-12", unit_id: null } },
+      ] } },
+    })
+
+    const [approver, manager] = await screen.findAllByRole("link", { name: "Open the roster" })
+    expect(approver).toHaveAttribute("href", "/unit-roster?unit=u9&month=2026-12")
+    expect(manager).toHaveAttribute("href", "/roster?month=2026-12")
+  })
+
+  it("marks them all read, and the bell follows", async () => {
+    let read = false
+    const { user } = start("/notifications", {
+      ...session(NURSE),
+      [`GET ${BELL}`]: () => ({ body: { unread: read ? 0 : 1 } }),
+      "GET /api/notifications": () => ({ body: { unread: read ? 0 : 1, items: [{ ...NOTE, read }] } }),
+      "POST /api/notifications/read-all": () => { read = true; return { status: 204 } },
+    })
+    await screen.findByRole("link", { name: "Notifications, 1 unread" })
+
+    await user.click(await screen.findByRole("button", { name: "Mark all as read" }))
+
+    expect(await screen.findByText("All read.")).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "Notifications" })).toBeInTheDocument()
+  })
+
+  it("marks one read that leads nowhere", async () => {
+    let read = false
+    const { user } = start("/notifications", {
+      ...session(NURSE),
+      "GET /api/notifications": () => ({ body: { unread: read ? 0 : 1, items: [{ ...NOTE, link: null, read }] } }),
+      "POST /api/notifications/n1/read": () => { read = true; return { status: 204 } },
+    })
+
+    await user.click(await screen.findByRole("button", { name: "Mark as read" }))
+
+    expect(await screen.findByText("All read.")).toBeInTheDocument()
+  })
+
+  it("says when there are none", async () => {
+    start("/notifications", { ...session(ME), "GET /api/notifications": { body: { unread: 0, items: [] } } })
+
+    expect(await screen.findByText("You have no notifications.")).toBeInTheDocument()
+  })
+})
+
+describe("a nurse's own month", () => {
+  const LEAVE = { month: "2026-11", runs: [{ first: "2026-11-10", last: "2026-11-10", days: 1, leave_type: "Sick" }] }
+  const IN_FORCE = {
+    month: "2026-11", first_month: "2026-11", unit: "ER",
+    roster: {
+      version: 2, approved_at: "2026-10-28T10:00:00+03:00",
+      hours: { worked: 204, leave_credit: 8, owed: 200, overtime: 4, carried: -6, shifts: [
+        { code: "D", display_name: "Day", colour: "#ffcc00", count: 6 }, { code: "N", display_name: "Night", colour: "#3355aa", count: 11 }] },
+    },
+  }
+  const mine = (month: unknown, leave: unknown = LEAVE) => ({
+    ...session(NURSE), "GET /api/rosters/mine/month": { body: month }, "GET /api/nurses/my-leave": { body: leave },
+  })
+  const terms = () => Object.fromEntries(screen.getAllByRole("term").map((term) => [term.textContent, term.nextElementSibling?.textContent]))
+
+  it("shows the hours and shifts of the roster in force beside the leave", async () => {
+    start("/my-month", mine(IN_FORCE))
+
+    expect(await screen.findByText(/From version 2 of the ER roster/)).toBeInTheDocument()
+    expect(terms()).toEqual({
+      "Hours worked": "204 hours", "Leave counted as worked": "8 hours", "Hours this month asks of you": "200 hours",
+      "Overtime": "4 hours", "Carried into next month": "6 hours worked ahead",
+    })
+    expect(screen.getByText("6 Day")).toBeInTheDocument()
+    expect(screen.getByText("11 Night")).toBeInTheDocument()
+    expect(screen.getByRole("cell", { name: "Sick" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "See it under My roster" })).toHaveAttribute("href", "/my-roster?month=2026-11")
+  })
+
+  it("says hours owed into next month", async () => {
+    start("/my-month", mine({ ...IN_FORCE, roster: { ...IN_FORCE.roster, hours: { ...IN_FORCE.roster.hours, carried: 4 } } }))
+
+    expect(await screen.findByText("4 hours owed")).toBeInTheDocument()
+  })
+
+  it("shows nothing owed with the hours rule off", async () => {
+    start("/my-month", mine({ ...IN_FORCE, roster: { ...IN_FORCE.roster, hours: { ...IN_FORCE.roster.hours, owed: null, carried: null, overtime: 0 } } }))
+
+    await screen.findByText(/From version 2/)
+    expect(Object.keys(terms())).toEqual(["Hours worked", "Leave counted as worked"])
+  })
+
+  it("waits for the approval", async () => {
+    start("/my-month", mine(NO_HOURS_YET))
+
+    expect(await screen.findByText("No roster yet for November 2026. Your hours show here once it is approved.")).toBeInTheDocument()
+    expect(await screen.findByRole("cell", { name: "Sick" })).toBeInTheDocument()
+  })
+
+  it("shows a month already over with its leave and no hours", async () => {
+    start("/my-month?month=2026-10", mine({ ...NO_HOURS_YET, month: "2026-10" }, { ...LEAVE, month: "2026-10" }))
+
+    expect(await screen.findByText(/Months already over are not shown here/)).toBeInTheDocument()
+    expect(await screen.findByRole("cell", { name: "Sick" })).toBeInTheDocument()
+  })
+
+  it("says so for a nurse who is not on the roster yet", async () => {
+    start("/my-month", mine({ ...IN_FORCE, roster: { ...IN_FORCE.roster, hours: null } }))
+
+    expect(await screen.findByText("You are not on this roster.")).toBeInTheDocument()
+  })
+
+  it("My leave's old address leads here, keeping its month", async () => {
+    const { router } = start("/my-leave?month=2026-10", mine({ ...NO_HOURS_YET, month: "2026-10" }, { ...LEAVE, month: "2026-10" }))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "My month" })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/my-month")
+    expect(router.state.location.search).toEqual({ month: "2026-10" })
+  })
+
+  it.each(["cno", "deputy_cno", "system_admin"])("is not for the %s", async (role) => {
+    const { router } = start("/my-month", {
+      ...session({ ...ME, role }), "GET /api/rosters/submitted": { body: [] }, "GET /api/units": { body: [] },
+      "GET /api/ops/health": { body: HEALTH },
+    })
+
+    await waitFor(() => expect(router.state.location.pathname).not.toBe("/my-month"))
   })
 })

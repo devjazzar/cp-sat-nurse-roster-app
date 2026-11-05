@@ -286,6 +286,14 @@ class TestForcedChange:
         assert login(Client()).status_code == 401
         assert login(Client(), password="a-brand-new-passphrase").status_code == 200
 
+    @pytest.mark.parametrize("role", list(Role))
+    def test_every_role_changes_their_own_when_they_choose(self, signed_in, role):
+        client = signed_in(role)
+
+        assert self.change(client).status_code == 200
+        client.post("/api/auth/logout")
+        assert login(Client(), password="a-brand-new-passphrase").status_code == 200
+
     def test_another_session_of_theirs_ends(self, signed_in):
         client = signed_in()
         other = Client()
