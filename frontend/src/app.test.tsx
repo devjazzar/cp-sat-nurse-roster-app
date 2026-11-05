@@ -64,14 +64,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -92,7 +92,7 @@ describe("route guards", () => {
     expect(router.state.location.pathname).toBe("/health")
   })
 
-  it.each(["/health", "/settings", "/users", "/audit-log"])("%s is not for another role", async (path) => {
+  it.each(["/health", "/settings", "/users", "/audit-log", "/units"])("%s is not for another role", async (path) => {
     const { router, calls } = start(path, session(NURSE))
 
     expect(await screen.findByText(/approved roster will be shown here/)).toBeInTheDocument()
@@ -737,19 +737,22 @@ describe("each role's navigation and home", () => {
   })
 
   it.each([
-    ["cno", "CNO", /under Hospital rules/, ["Home", "Hospital rules", ...CATALOGUE_LINKS, "Change password"]],
-    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Hospital rules", ...CATALOGUE_LINKS, "Change password"]],
-    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", ...CATALOGUE_LINKS, "Change password"]],
-    ["staff_nurse", "Staff Nurse", /approved roster will be shown here/, ["Home", ...CATALOGUE_LINKS, "Change password"]],
-  ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links) => {
-    const { router, calls } = start("/", session({ ...ME, username: "someone", full_name: "Some One", role }))
+    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["staff_nurse", "Staff Nurse", /approved roster will be shown here/, ["Home", ...CATALOGUE_LINKS, "Change password"], []],
+  ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
+    const { router, calls } = start("/", {
+      ...session({ ...ME, username: "someone", full_name: "Some One", role }),
+      "GET /api/units": { body: [] },
+    })
 
     expect(await screen.findByText(says)).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/")
     expect(screen.getByRole("heading", { level: 1, name: "Some One" })).toBeInTheDocument()
     expect(screen.getByText(`someone · ${name}`)).toBeInTheDocument()
     expect(navLinks()).toEqual(links)
-    expect(calls.map((call) => call.url)).toEqual(["/api/auth/session"])
+    await waitFor(() => expect(calls.map((call) => call.url)).toEqual(["/api/auth/session", ...reads]))
   })
 })
 
@@ -1412,5 +1415,256 @@ describe("the holidays and Ramadan page", () => {
     expect(screen.getByRole("region", { name: "Ramadan dates in 2026" })).toHaveAttribute("tabindex", "0")
     expect(screen.queryByRole("button", { name: /Fix|Edit|Remove|Add/ })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Date")).not.toBeInTheDocument()
+  })
+})
+
+const ER = { id: "u1", name: "ER", archived: false, manager: null, rules_need_review: true }
+const MONA = { id: "m1", username: "mona", full_name: "Mona Ali" }
+const OMAR = { id: "m2", username: "omar", full_name: "Omar Said" }
+
+describe("a unit manager's home", () => {
+  const asManager = (units: Answer) => ({
+    ...session({ ...ME, username: "mona", full_name: "Mona Ali", role: "unit_manager" }),
+    "GET /api/units": units,
+  })
+
+  it("shows the unit they hold and that its rules are still to be reviewed", async () => {
+    start("/", asManager({ body: [{ ...ER, manager: MONA }] }))
+
+    expect(await screen.findByText("Your unit is ER.")).toBeInTheDocument()
+    expect(screen.getByText(/still the seeded defaults/)).toBeInTheDocument()
+    expect(screen.queryByText(/No unit is assigned/)).not.toBeInTheDocument()
+  })
+
+  it("says nothing of a review once the rules are saved", async () => {
+    start("/", asManager({ body: [{ ...ER, manager: MONA, rules_need_review: false }] }))
+
+    expect(await screen.findByText("Your unit is ER.")).toBeInTheDocument()
+    expect(screen.queryByText(/seeded defaults/)).not.toBeInTheDocument()
+  })
+
+  it("says no unit is assigned", async () => {
+    start("/", asManager({ body: [] }))
+
+    expect(await screen.findByText(/No unit is assigned to you yet/)).toBeInTheDocument()
+  })
+
+  it("does not claim no unit when the answer could not be read", async () => {
+    start("/", asManager({ status: 500 }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read/)
+    expect(screen.queryByText(/No unit is assigned/)).not.toBeInTheDocument()
+  })
+})
+
+describe("the CNO's home", () => {
+  it("names the units with no manager and links to them", async () => {
+    start("/", asCno({ "GET /api/units": { body: [ER, { ...ER, id: "u2", name: "ICU", manager: MONA }, { ...ER, id: "u3", name: "Old", archived: true }] } }))
+
+    const warning = await screen.findByText(/have no manager|has no manager/)
+    expect(warning).toHaveTextContent("ER has no manager.")
+    expect(within(warning).getByRole("link", { name: "Assign one under Units" })).toHaveAttribute("href", "/units")
+  })
+
+  it("says nothing when every unit has one", async () => {
+    start("/", asCno({ "GET /api/units": { body: [{ ...ER, manager: MONA }] } }))
+
+    await screen.findByText(/under Hospital rules/)
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith("/api/units", expect.anything()))
+    expect(screen.queryByText(/no manager/)).not.toBeInTheDocument()
+  })
+})
+
+describe("the CNO's home when the units cannot be read", () => {
+  it("says so rather than looking as though every unit has a manager", async () => {
+    start("/", asCno({ "GET /api/units": { status: 500 } }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read/)
+  })
+})
+
+describe("the units page", () => {
+  const CHOICES = [{ ...MONA, unit: "ICU" }, { ...OMAR, unit: null }]
+  const ICU = { ...ER, id: "u2", name: "ICU", manager: MONA }
+  const OLD = { ...ER, id: "u3", name: "Old", archived: true }
+  const page = (extra = {}, units: unknown[] = [ER, ICU, OLD]) => asCno({
+    "GET /api/units": { body: units },
+    "GET /api/units/managers": { body: CHOICES },
+    ...extra,
+  })
+
+  it("lists the units with their managers, and which have none", async () => {
+    start("/units", page())
+
+    const er = (await screen.findByRole("cell", { name: "ER" })).closest("tr")!
+    expect(within(er).getByText("No manager")).toBeInTheDocument()
+    const icu = screen.getByRole("cell", { name: "ICU" }).closest("tr")!
+    expect(within(icu).getByText("Mona Ali")).toBeInTheDocument()
+    expect(document.title).toBe("Units · Nurse roster")
+  })
+
+  it("an archived unit is on record and has nothing left to do", async () => {
+    start("/units", page())
+
+    const old = (await screen.findByRole("cell", { name: "Old" })).closest("tr")!
+    expect(within(old).getByText("Archived")).toBeInTheDocument()
+    expect(within(old).queryByRole("button")).not.toBeInTheDocument()
+    expect(within(old).queryByText("No manager")).not.toBeInTheDocument()
+  })
+
+  it("says so when there are no units yet", async () => {
+    start("/units", page({}, []))
+
+    expect(await screen.findByText(/There are no units yet/)).toBeInTheDocument()
+  })
+
+  it("a manager who holds another unit cannot be chosen, and says which", async () => {
+    start("/units", page())
+
+    const select = await screen.findByLabelText("Manager")
+    expect(within(select).getByRole("option", { name: "No manager yet" })).toBeEnabled()
+    expect(within(select).getByRole("option", { name: "Mona Ali (mona, manages ICU)" })).toBeDisabled()
+    expect(within(select).getByRole("option", { name: "Omar Said (omar)" })).toBeEnabled()
+  })
+
+  it("says who to ask when there are no manager accounts to choose", async () => {
+    start("/units", page({ "GET /api/units/managers": { body: [] } }))
+
+    expect(await screen.findByLabelText("Manager")).toHaveAccessibleDescription(/The System Admin creates unit manager accounts/)
+  })
+
+  it("adds a unit with its manager, and shows a taken name beside its field", async () => {
+    const answers = [refusal(["name"], "ER is already a unit"), { status: 201, body: { ...ER, id: "u4", name: "CCU", manager: OMAR } }]
+    const { user, calls } = start("/units", page({ "POST /api/units": () => answers.shift() as Answer }))
+
+    await user.type(await screen.findByLabelText("Name"), "ER")
+    await user.selectOptions(screen.getByLabelText("Manager"), "m2")
+    await user.click(screen.getByRole("button", { name: "Add unit" }))
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveAccessibleDescription(/already a unit/))
+    expect(screen.getByLabelText("Name")).toHaveFocus()
+
+    await user.clear(screen.getByLabelText("Name"))
+    await user.type(screen.getByLabelText("Name"), "CCU")
+    await user.click(screen.getByRole("button", { name: "Add unit" }))
+
+    expect(await screen.findByText("CCU is added.")).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === "POST").at(-1)?.body).toEqual({ name: "CCU", manager_id: "m2" })
+    expect(screen.getByLabelText("Name")).toHaveValue("")
+  })
+
+  it("adding sends no manager as none, and needs a name", async () => {
+    const { user, calls } = start("/units", page({ "POST /api/units": { status: 201, body: { ...ER, name: "CCU" } } }))
+
+    await screen.findByLabelText("Name")
+    await user.click(screen.getByRole("button", { name: "Add unit" }))
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+
+    await user.type(screen.getByLabelText("Name"), "CCU")
+    await user.click(screen.getByRole("button", { name: "Add unit" }))
+
+    await screen.findByText("CCU is added.")
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "CCU", manager_id: null })
+  })
+
+  it("renames and reassigns a unit, with its current manager offered and focus returned", async () => {
+    const { user, calls } = start("/units", page({
+      "PUT /api/units/u2": { body: { ...ICU, name: "Intensive care", manager: OMAR } },
+    }))
+
+    const edit = await screen.findByRole("button", { name: "Edit ICU" })
+    await user.click(edit)
+    expect(screen.getByRole("heading", { name: "Edit ICU" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Manager")).toHaveValue("m1")
+    expect(within(screen.getByLabelText("Manager")).getByRole("option", { name: /Mona Ali/ })).toBeEnabled()
+
+    await user.clear(screen.getByLabelText("Name"))
+    await user.type(screen.getByLabelText("Name"), "Intensive care")
+    await user.selectOptions(screen.getByLabelText("Manager"), "m2")
+    await user.click(screen.getByRole("button", { name: "Save unit" }))
+
+    expect(await screen.findByText("Intensive care is saved.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Intensive care", manager_id: "m2" })
+    await waitFor(() => expect(edit).toHaveFocus())
+  })
+
+  it("shows a refused manager beside the select", async () => {
+    const { user } = start("/units", page({
+      "PUT /api/units/u1": refusal(["manager_id"], "omar already manages CCU."),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit ER" }))
+    await user.selectOptions(screen.getByLabelText("Manager"), "m2")
+    await user.click(screen.getByRole("button", { name: "Save unit" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Manager")).toHaveAccessibleDescription(/already manages CCU/))
+    expect(screen.getByLabelText("Manager")).toHaveFocus()
+  })
+
+  it("archives after asking, and focus lands where the next unit is entered", async () => {
+    const { user, calls } = start("/units", page({ "POST /api/units/u2/archive": { body: { ...ICU, archived: true, manager: null } } }))
+
+    await user.click(await screen.findByRole("button", { name: "Archive ICU" }))
+    const dialog = screen.getByRole("alertdialog", { name: "Archive ICU?" })
+    expect(within(dialog).getByText(/Mona Ali can then hold another unit/)).toBeInTheDocument()
+    expect(calls.some((call) => call.url.endsWith("/archive"))).toBe(false)
+
+    await user.click(within(dialog).getByRole("button", { name: "Archive" }))
+
+    expect(await screen.findByText("ICU is archived.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus())
+  })
+
+  it("cancelling an archive changes nothing and returns focus to the row", async () => {
+    const { user, calls } = start("/units", page())
+
+    const button = await screen.findByRole("button", { name: "Archive ER" })
+    await user.click(button)
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(button).toHaveFocus())
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+  })
+
+  it("shows why an archive was refused and keeps the question open", async () => {
+    const { user } = start("/units", page({
+      "POST /api/units/u1/archive": refusal(["archived"], "2 nurses belong to ER. Transfer or deactivate them first."),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Archive ER" }))
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Archive" }))
+
+    expect(await within(screen.getByRole("alertdialog")).findByRole("alert")).toHaveTextContent("2 nurses belong to ER")
+  })
+
+  it("leaves the form when the unit it is editing is archived", async () => {
+    const { user } = start("/units", page({ "POST /api/units/u1/archive": { body: { ...ER, archived: true } } }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit ER" }))
+    await user.click(screen.getByRole("button", { name: "Archive ER" }))
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Archive" }))
+
+    expect(await screen.findByRole("heading", { name: "Add a unit" })).toBeInTheDocument()
+  })
+})
+
+describe("deactivating a manager who holds a unit", () => {
+  it("the users page says which unit they hold and what becomes of it", async () => {
+    const { user } = start("/users", admin({ "GET /api/users": { body: [{ ...MANAGER, unit: "ER" }] } }))
+
+    expect(await screen.findByText("ER")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Deactivate khalid" }))
+
+    const dialog = screen.getByRole("alertdialog", { name: "Deactivate khalid?" })
+    expect(within(dialog).getByText(/ER is left with no manager until the CNO assigns one/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Reactivating them does not give it back/)).toBeInTheDocument()
+  })
+
+  it("says nothing of a unit for anyone else", async () => {
+    const { user } = start("/users", admin({ "GET /api/users": { body: [{ ...MANAGER, unit: null }] } }))
+
+    await user.click(await screen.findByRole("button", { name: "Deactivate khalid" }))
+
+    expect(within(screen.getByRole("alertdialog")).queryByText(/no manager/)).not.toBeInTheDocument()
   })
 })

@@ -15,4 +15,6 @@ export interface ManagedUser {
   must_change_password: boolean;
   /** In the hospital's time zone. */
   last_login: string | null;
+  /** The unit a unit manager holds. */
+  unit: string | null;
 }

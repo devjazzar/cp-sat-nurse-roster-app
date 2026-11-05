@@ -34,21 +34,25 @@ export function FormField({ label, description, registration, error, ...input }:
 
 type SelectFieldProps = {
   label: string
+  description?: ReactNode
   registration: UseFormRegisterReturn
   error?: HookFormError
   children: ReactNode
 }
 
 /** The same for a native select, which is what a phone handles best. */
-export function SelectField({ label, registration, error, children }: SelectFieldProps) {
+export function SelectField({ label, description, registration, error, children }: SelectFieldProps) {
   const id = `field-${registration.name}`
+  const descriptionId = description ? `${id}-description` : undefined
   const errorId = error ? `${id}-error` : undefined
   return (
     <Field data-invalid={!!error || undefined}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <NativeSelect id={id} aria-invalid={!!error || undefined} aria-describedby={errorId} {...registration}>
+      <NativeSelect id={id} aria-invalid={!!error || undefined}
+        aria-describedby={[errorId, descriptionId].filter(Boolean).join(" ") || undefined} {...registration}>
         {children}
       </NativeSelect>
+      {description && <FieldDescription id={descriptionId}>{description}</FieldDescription>}
       <FieldError id={errorId} role={undefined} errors={error ? [error] : undefined} />
     </Field>
   )

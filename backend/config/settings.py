@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "accounts",
     "audit",
     "hospital",
+    "units",
     "ops",
 ]
 

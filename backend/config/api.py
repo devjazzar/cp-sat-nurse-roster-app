@@ -12,6 +12,7 @@ from audit.api import router as audit_router
 from hospital.api import router as hospital_router
 from hospital.catalogue_api import router as catalogue_router
 from ops.api import router as ops_router
+from units.api import router as units_router
 
 api = NinjaAPI(title="Nurse roster", version="1", openapi_url=None, docs_url=None, auth=SignedIn())
 api.add_router("", ops_router)
@@ -20,3 +21,4 @@ api.add_router("/users", users_router)
 api.add_router("/audit", audit_router)
 api.add_router("/hospital", hospital_router)
 api.add_router("/hospital", catalogue_router)
+api.add_router("/units", units_router)

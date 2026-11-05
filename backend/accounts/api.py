@@ -126,6 +126,11 @@ class ManagedUser(Schema):
     is_active: bool
     must_change_password: bool
     last_login: datetime | None = Field(description="In the hospital's time zone.")
+    unit: str | None = Field(description="The unit a unit manager holds.")
+
+    @staticmethod
+    def resolve_unit(user: User) -> str | None:
+        return user.managed_unit_name
 
     @staticmethod
     def resolve_last_login(user: User) -> datetime | None:
@@ -172,7 +177,7 @@ def _managed_or_404(user_id: UUID) -> User:
 
 @users_router.get("", response=list[ManagedUser], operation_id="listUsers")
 def list_users(request: HttpRequest):
-    return User.objects.filter(role__in=MANAGED_ROLES).order_by("username")
+    return User.objects.filter(role__in=MANAGED_ROLES).select_related("managed_unit").order_by("username")
 
 
 @users_router.post("", response={201: UserWithPassword, 409: NewUserRefusal}, operation_id="createUser")

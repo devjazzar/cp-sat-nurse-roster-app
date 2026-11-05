@@ -20,6 +20,7 @@ import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/h
 import { Route as SignedInLeaveTypesRouteImport } from './routes/_signed-in/leave-types'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
 import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
+import { Route as SignedInUnitsRouteImport } from './routes/_signed-in/units'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
 
 const SignedInRoute = SignedInRouteImport.update({
@@ -76,6 +77,11 @@ const SignedInShiftsRoute = SignedInShiftsRouteImport.update({
   path: '/shifts',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInUnitsRoute = SignedInUnitsRouteImport.update({
+  id: '/units',
+  path: '/units',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInUsersRoute = SignedInUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
+  '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
 }
 export interface FileRoutesByTo {
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/leave-types': typeof SignedInLeaveTypesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
+  '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
 }
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/_signed-in/leave-types': typeof SignedInLeaveTypesRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
   '/_signed-in/shifts': typeof SignedInShiftsRoute
+  '/_signed-in/units': typeof SignedInUnitsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
 }
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/leave-types'
     | '/settings'
     | '/shifts'
+    | '/units'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/leave-types'
     | '/settings'
     | '/shifts'
+    | '/units'
     | '/users'
     | '/'
   id:
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/_signed-in/leave-types'
     | '/_signed-in/settings'
     | '/_signed-in/shifts'
+    | '/_signed-in/units'
     | '/_signed-in/users'
     | '/_signed-in/'
   fileRoutesById: FileRoutesById
@@ -251,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInShiftsRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/units': {
+      id: '/_signed-in/units'
+      path: '/units'
+      fullPath: '/units'
+      preLoaderRoute: typeof SignedInUnitsRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/users': {
       id: '/_signed-in/users'
       path: '/users'
@@ -269,6 +288,7 @@ interface SignedInRouteChildren {
   SignedInLeaveTypesRoute: typeof SignedInLeaveTypesRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
   SignedInShiftsRoute: typeof SignedInShiftsRoute
+  SignedInUnitsRoute: typeof SignedInUnitsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
 }
@@ -281,6 +301,7 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInLeaveTypesRoute: SignedInLeaveTypesRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
   SignedInShiftsRoute: SignedInShiftsRoute,
+  SignedInUnitsRoute: SignedInUnitsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,
 }

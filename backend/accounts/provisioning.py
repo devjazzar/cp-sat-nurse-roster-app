@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from accounts.models import ONE_OF_A_KIND_CONSTRAINTS, LoginAttempts, User
 from audit.log import record
+from units.assignment import release_managed_unit
 
 # Read aloud or copied from a note at times, so nothing that looks like something else.
 _ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
@@ -55,7 +56,8 @@ def create_user(request: HttpRequest, *, username: str, full_name: str, role: st
 
 
 def deactivate(request: HttpRequest, user_id) -> User:
-    """Ends the user's sessions too, so reactivating cannot bring an old browser back in."""
+    """Ends the user's sessions too, so reactivating cannot bring an old browser back in, and takes a manager
+    off their unit, which reactivating does not undo."""
     with transaction.atomic():
         user = User.objects.select_for_update().get(pk=user_id)
         if user.is_active:
@@ -64,6 +66,7 @@ def deactivate(request: HttpRequest, user_id) -> User:
             _end_sessions(user)
             record("user.deactivated", actor=request.user, target=user.username, request=request,
                    before={"is_active": True}, after={"is_active": False})
+            release_managed_unit(request, user)
     return user
 
 

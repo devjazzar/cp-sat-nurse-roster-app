@@ -166,7 +166,8 @@ export const ListUsersResponseItem = zod.object({
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "is_active": zod.boolean(),
   "must_change_password": zod.boolean(),
-  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit a unit manager holds.')
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
 
@@ -196,7 +197,8 @@ export const CreateUserResponse = zod.object({
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "is_active": zod.boolean(),
   "must_change_password": zod.boolean(),
-  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit a unit manager holds.')
 }),
   "generated_password": zod.string()
 }).describe('The only answers that ever hold a password. They ask not to be stored.')
@@ -216,7 +218,8 @@ export const DeactivateUserResponse = zod.object({
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "is_active": zod.boolean(),
   "must_change_password": zod.boolean(),
-  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit a unit manager holds.')
 })
 
 
@@ -234,7 +237,8 @@ export const ReactivateUserResponse = zod.object({
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "is_active": zod.boolean(),
   "must_change_password": zod.boolean(),
-  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit a unit manager holds.')
 })
 
 
@@ -253,7 +257,8 @@ export const ResetUserPasswordResponse = zod.object({
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "is_active": zod.boolean(),
   "must_change_password": zod.boolean(),
-  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.')
+  "last_login": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('In the hospital\'s time zone.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit a unit manager holds.')
 }),
   "generated_password": zod.string()
 }).describe('The only answers that ever hold a password. They ask not to be stored.')
@@ -919,4 +924,133 @@ export const UnfixRamadanMonthResponse = zod.object({
   "source": zod.enum(['derived', 'fixed']).describe('Fixed by the CNO, or derived from the calendar.'),
   "dates": zod.array(zod.iso.date()).describe('The month\'s Ramadan days.'),
   "derived_dates": zod.array(zod.iso.date()).describe('What the Umm al-Qura calendar says, whichever is in force.')
+})
+
+
+/**
+ * A manager's list is the unit he holds, or empty. Archived units too, for those who see them all.
+ * @summary List Units
+ */
+export const ListUnitsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "archived": zod.boolean(),
+  "manager": zod.union([zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string()
+}),zod.null()]),
+  "rules_need_review": zod.boolean()
+})
+export const ListUnitsResponse = zod.array(ListUnitsResponseItem)
+
+
+/**
+ * @summary Create Unit
+ */
+export const createUnitBodyNameMax = 100;
+
+
+
+export const CreateUnitBody = zod.object({
+  "name": zod.string().min(1).max(createUnitBodyNameMax),
+  "manager_id": zod.union([zod.uuid(),zod.null()])
+})
+
+export const CreateUnitResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "archived": zod.boolean(),
+  "manager": zod.union([zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string()
+}),zod.null()]),
+  "rules_need_review": zod.boolean()
+})
+
+
+/**
+ * Who the CNO can assign: the active unit managers, with the unit each one holds.
+ * @summary List Unit Managers
+ */
+export const ListUnitManagersResponseItem = zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string(),
+  "unit": zod.union([zod.string(),zod.null()])
+})
+export const ListUnitManagersResponse = zod.array(ListUnitManagersResponseItem)
+
+
+/**
+ * @summary Get Unit
+ */
+export const GetUnitParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const GetUnitResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "archived": zod.boolean(),
+  "manager": zod.union([zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string()
+}),zod.null()]),
+  "rules_need_review": zod.boolean()
+})
+
+
+/**
+ * Renames the unit, assigns its manager, reassigns it or takes the manager off it. Taking off is how two
+ * managers change places, since neither can be given a unit while holding one.
+ * @summary Update Unit
+ */
+export const UpdateUnitParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const updateUnitBodyNameMax = 100;
+
+
+
+export const UpdateUnitBody = zod.object({
+  "name": zod.string().min(1).max(updateUnitBodyNameMax),
+  "manager_id": zod.union([zod.uuid(),zod.null()])
+})
+
+export const UpdateUnitResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "archived": zod.boolean(),
+  "manager": zod.union([zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string()
+}),zod.null()]),
+  "rules_need_review": zod.boolean()
+})
+
+
+/**
+ * The unit lets its manager go, who can then hold another. There is no way back: a hospital that reopens a
+ * unit creates one under the name, which is free again, and the old one stays on record.
+ * @summary Archive Unit
+ */
+export const ArchiveUnitParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const ArchiveUnitResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "archived": zod.boolean(),
+  "manager": zod.union([zod.object({
+  "id": zod.uuid(),
+  "username": zod.string(),
+  "full_name": zod.string()
+}),zod.null()]),
+  "rules_need_review": zod.boolean()
 })

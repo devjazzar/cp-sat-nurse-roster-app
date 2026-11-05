@@ -48,7 +48,7 @@ def label(method, path):
 
 def test_the_walk_found_the_endpoints():
     assert {"GET /api/users", "GET /api/audit/entries", "PUT /api/ops/technical-settings",
-            "PUT /api/hospital/rules"} <= {
+            "PUT /api/hospital/rules", "GET /api/units", "POST /api/units/{unit_id}/archive"} <= {
         label(method, path) for method, path, _ in ENDPOINTS}
 
 

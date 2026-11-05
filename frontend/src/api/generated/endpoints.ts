@@ -40,6 +40,7 @@ import type {
   LoginBody,
   LoginRefusal,
   ManagedUser,
+  ManagerChoice,
   Me,
   NewUserBody,
   NewUserRefusal,
@@ -52,6 +53,8 @@ import type {
   ShiftBody,
   ShiftSchema,
   TechnicalSettingsSchema,
+  UnitBody,
+  UnitSchema,
   UserWithPassword
 } from './model';
 
@@ -2819,4 +2822,564 @@ export const useUnfixRamadanMonth = <TError = unknown,
         TContext
       > => {
       return useMutation(getUnfixRamadanMonthMutationOptions(options), queryClient);
+    }
+
+export const getListUnitsUrl = () => {
+
+
+
+
+  return `/api/units`
+}
+
+/**
+ * A manager's list is the unit he holds, or empty. Archived units too, for those who see them all.
+ * @summary List Units
+ */
+export const listUnits = async ( options?: Parameters<typeof apiFetch>[1]): Promise<UnitSchema[]> => {
+
+  return apiFetch<UnitSchema[]>(getListUnitsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnitsQueryKey = () => {
+    return [
+    `/api/units`
+    ] as const;
+    }
+
+
+export const getListUnitsQueryOptions = <TData = Awaited<ReturnType<typeof listUnits>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnitsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnits>>> = ({ signal }) => listUnits({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUnitsQueryResult = NonNullable<Awaited<ReturnType<typeof listUnits>>>
+export type ListUnitsQueryError = unknown
+
+
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnits>>,
+          TError,
+          Awaited<ReturnType<typeof listUnits>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnits>>,
+          TError,
+          Awaited<ReturnType<typeof listUnits>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Units
+ */
+
+export function useListUnits<TData = Awaited<ReturnType<typeof listUnits>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnits>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUnitsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateUnitUrl = () => {
+
+
+
+
+  return `/api/units`
+}
+
+/**
+ * @summary Create Unit
+ */
+export const createUnit = async (unitBody: UnitBody, options?: Parameters<typeof apiFetch>[1]): Promise<UnitSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<UnitSchema>(getCreateUnitUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(unitBody)
+  }
+);}
+
+
+
+
+
+export const getCreateUnitMutationKey = () => ['createUnit'] as const;
+
+export const getCreateUnitMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createUnit>>, TError,CreateUnitMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createUnit>>, TError,CreateUnitMutationVariables, TContext> => {
+
+const mutationKey = getCreateUnitMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createUnit>>, CreateUnitMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createUnit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateUnitMutationResult = NonNullable<Awaited<ReturnType<typeof createUnit>>>
+    export type CreateUnitMutationBody = UnitBody
+    export type CreateUnitMutationError = unknown
+    export type CreateUnitMutationVariables = {data: UnitBody}
+
+    /**
+ * @summary Create Unit
+ */
+export const useCreateUnit = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createUnit>>, TError,CreateUnitMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createUnit>>,
+        TError,
+        CreateUnitMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateUnitMutationOptions(options), queryClient);
+    }
+
+export const getListUnitManagersUrl = () => {
+
+
+
+
+  return `/api/units/managers`
+}
+
+/**
+ * Who the CNO can assign: the active unit managers, with the unit each one holds.
+ * @summary List Unit Managers
+ */
+export const listUnitManagers = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ManagerChoice[]> => {
+
+  return apiFetch<ManagerChoice[]>(getListUnitManagersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnitManagersQueryKey = () => {
+    return [
+    `/api/units/managers`
+    ] as const;
+    }
+
+
+export const getListUnitManagersQueryOptions = <TData = Awaited<ReturnType<typeof listUnitManagers>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitManagers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnitManagersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnitManagers>>> = ({ signal }) => listUnitManagers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnitManagers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUnitManagersQueryResult = NonNullable<Awaited<ReturnType<typeof listUnitManagers>>>
+export type ListUnitManagersQueryError = unknown
+
+
+export function useListUnitManagers<TData = Awaited<ReturnType<typeof listUnitManagers>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitManagers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitManagers>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitManagers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitManagers<TData = Awaited<ReturnType<typeof listUnitManagers>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitManagers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitManagers>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitManagers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitManagers<TData = Awaited<ReturnType<typeof listUnitManagers>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitManagers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Unit Managers
+ */
+
+export function useListUnitManagers<TData = Awaited<ReturnType<typeof listUnitManagers>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitManagers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUnitManagersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetUnitUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}`
+}
+
+/**
+ * @summary Get Unit
+ */
+export const getUnit = async (unitId: string, options?: Parameters<typeof apiFetch>[1]): Promise<UnitSchema> => {
+
+  return apiFetch<UnitSchema>(getGetUnitUrl(unitId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUnitQueryKey = (unitId: string,) => {
+    return [
+    `/api/units/${unitId}`
+    ] as const;
+    }
+
+
+export const getGetUnitQueryOptions = <TData = Awaited<ReturnType<typeof getUnit>>, TError = unknown>(unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnit>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUnitQueryKey(unitId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUnit>>> = ({ signal }) => getUnit(unitId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUnit>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUnitQueryResult = NonNullable<Awaited<ReturnType<typeof getUnit>>>
+export type GetUnitQueryError = unknown
+
+
+export function useGetUnit<TData = Awaited<ReturnType<typeof getUnit>>, TError = unknown>(
+ unitId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnit>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUnit>>,
+          TError,
+          Awaited<ReturnType<typeof getUnit>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUnit<TData = Awaited<ReturnType<typeof getUnit>>, TError = unknown>(
+ unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnit>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUnit>>,
+          TError,
+          Awaited<ReturnType<typeof getUnit>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUnit<TData = Awaited<ReturnType<typeof getUnit>>, TError = unknown>(
+ unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnit>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Unit
+ */
+
+export function useGetUnit<TData = Awaited<ReturnType<typeof getUnit>>, TError = unknown>(
+ unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnit>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUnitQueryOptions(unitId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateUnitUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}`
+}
+
+/**
+ * Renames the unit, assigns its manager, reassigns it or takes the manager off it. Taking off is how two
+ * managers change places, since neither can be given a unit while holding one.
+ * @summary Update Unit
+ */
+export const updateUnit = async (unitId: string,
+    unitBody: UnitBody, options?: Parameters<typeof apiFetch>[1]): Promise<UnitSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<UnitSchema>(getUpdateUnitUrl(unitId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(unitBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateUnitMutationKey = () => ['updateUnit'] as const;
+
+export const getUpdateUnitMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUnit>>, TError,UpdateUnitMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateUnit>>, TError,UpdateUnitMutationVariables, TContext> => {
+
+const mutationKey = getUpdateUnitMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateUnit>>, UpdateUnitMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  updateUnit(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateUnitMutationResult = NonNullable<Awaited<ReturnType<typeof updateUnit>>>
+    export type UpdateUnitMutationBody = UnitBody
+    export type UpdateUnitMutationError = unknown
+    export type UpdateUnitMutationVariables = {unitId: string;data: UnitBody}
+
+    /**
+ * @summary Update Unit
+ */
+export const useUpdateUnit = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUnit>>, TError,UpdateUnitMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateUnit>>,
+        TError,
+        UpdateUnitMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateUnitMutationOptions(options), queryClient);
+    }
+
+export const getArchiveUnitUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/archive`
+}
+
+/**
+ * The unit lets its manager go, who can then hold another. There is no way back: a hospital that reopens a
+ * unit creates one under the name, which is free again, and the old one stays on record.
+ * @summary Archive Unit
+ */
+export const archiveUnit = async (unitId: string, options?: Parameters<typeof apiFetch>[1]): Promise<UnitSchema> => {
+
+  return apiFetch<UnitSchema>(getArchiveUnitUrl(unitId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveUnitMutationKey = () => ['archiveUnit'] as const;
+
+export const getArchiveUnitMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveUnit>>, TError,ArchiveUnitMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveUnit>>, TError,ArchiveUnitMutationVariables, TContext> => {
+
+const mutationKey = getArchiveUnitMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveUnit>>, ArchiveUnitMutationVariables> = (props) => {
+          const {unitId} = props ?? {};
+
+          return  archiveUnit(unitId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveUnitMutationResult = NonNullable<Awaited<ReturnType<typeof archiveUnit>>>
+
+    export type ArchiveUnitMutationError = unknown
+    export type ArchiveUnitMutationVariables = {unitId: string}
+
+    /**
+ * @summary Archive Unit
+ */
+export const useArchiveUnit = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveUnit>>, TError,ArchiveUnitMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof archiveUnit>>,
+        TError,
+        ArchiveUnitMutationVariables,
+        TContext
+      > => {
+      return useMutation(getArchiveUnitMutationOptions(options), queryClient);
     }

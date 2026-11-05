@@ -7,7 +7,7 @@ import re
 from typing import Annotated, Literal
 from uuid import UUID
 
-from django.db import IntegrityError, models, transaction
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import Path, Query, Router, Schema
@@ -18,7 +18,7 @@ from pydantic import AfterValidator, BeforeValidator, Field, StringConstraints, 
 from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
-from hospital.api import StrictSchema, refuse
+from hospital.api import StrictSchema, differing, refuse, save_unless_taken
 from hospital.catalogue import derived_ramadan_dates
 from hospital.models import FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename
 from hospital.rules import changes
@@ -59,20 +59,6 @@ IsoDate = Annotated[dt.date, BeforeValidator(_iso_date)]
 
 class YearFilter(Schema):
     year: int = Field(ge=FIRST_YEAR, le=LAST_YEAR)
-
-
-def _differing(before: dict, after: dict) -> tuple[dict, dict]:
-    keys = [key for key in before if before[key] != after[key]]
-    return {key: before[key] for key in keys}, {key: after[key] for key in keys}
-
-
-def _save_unless_taken(row: models.Model, field: str, message: str) -> None:
-    """The constraint decides, so two people saving at once cannot both get through."""
-    try:
-        with transaction.atomic():
-            row.save()
-    except IntegrityError:
-        refuse(((field,), message))
 
 
 # ---- shifts ---------------------------------------------------------------------------------------
@@ -177,7 +163,7 @@ def update_shift(request, shift_id: UUID, body: ShiftBody) -> Shift:
         settings = HospitalSettings.load(for_update=True)
         shift = get_object_or_404(Shift, pk=shift_id)
         before, after = _shift_fields(shift), body.model_dump()
-        old, new = _differing(before, after)
+        old, new = differing(before, after)
         if not new:
             return shift
         pairs = settings.rules["forbidden_successions"]
@@ -219,7 +205,7 @@ class LeaveTypeSchema(Schema):
 
 def _write_leave_type(row: LeaveType, body: LeaveTypeBody) -> None:
     row.name, row.active = body.name, body.active
-    _save_unless_taken(row, "name", f"{body.name} is already a leave type")
+    save_unless_taken(row, "name", f"{body.name} is already a leave type")
 
 
 @router.get("/leave-types", response=list[LeaveTypeSchema], operation_id="listLeaveTypes")
@@ -240,7 +226,7 @@ def create_leave_type(request, body: LeaveTypeBody) -> tuple[int, LeaveType]:
 def update_leave_type(request, leave_type_id: UUID, body: LeaveTypeBody) -> LeaveType:
     with transaction.atomic():
         row = get_object_or_404(LeaveType.objects.select_for_update(), pk=leave_type_id)
-        old, new = _differing({"name": row.name, "active": row.active}, body.model_dump())
+        old, new = differing({"name": row.name, "active": row.active}, body.model_dump())
         if new:
             _write_leave_type(row, body)
             record("leave_type.changed", actor=request.user, target=row.name, before=old, after=new, request=request)
@@ -265,7 +251,7 @@ def _holiday_fields(row: PublicHoliday) -> dict:
 
 def _write_holiday(row: PublicHoliday, body: PublicHolidayBody) -> None:
     row.date, row.name = body.date, body.name
-    _save_unless_taken(row, "date", f"{body.date.isoformat()} is already a public holiday")
+    save_unless_taken(row, "date", f"{body.date.isoformat()} is already a public holiday")
 
 
 @router.get("/public-holidays", response=list[PublicHolidaySchema], operation_id="listPublicHolidays")
@@ -288,7 +274,7 @@ def create_public_holiday(request, body: PublicHolidayBody) -> tuple[int, Public
 def update_public_holiday(request, holiday_id: UUID, body: PublicHolidayBody) -> PublicHoliday:
     with transaction.atomic():
         row = get_object_or_404(PublicHoliday.objects.select_for_update(), pk=holiday_id)
-        old, new = _differing(_holiday_fields(row), body.model_dump(mode="json"))
+        old, new = differing(_holiday_fields(row), body.model_dump(mode="json"))
         if new:
             _write_holiday(row, body)
             record("public_holiday.changed", actor=request.user, target=row.date.isoformat(),

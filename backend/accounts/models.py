@@ -35,6 +35,11 @@ class User(AbstractBaseUser):
 
     objects = UserManager()
 
+    @property
+    def managed_unit_name(self) -> str | None:
+        unit = getattr(self, "managed_unit", None)  # The reverse side raises an AttributeError when there is none.
+        return unit.name if unit else None
+
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["role"], condition=models.Q(role=Role.SYSTEM_ADMIN),

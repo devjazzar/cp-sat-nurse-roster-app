@@ -12,4 +12,6 @@
 - [ ] Password reset by the CNO for any nurse and by the unit manager for his unit's nurses only
 - [ ] Staff nurse home shows her unit and 'no roster yet'
 - [ ] Unit manager sees his unit's nurse list; names and shifts only is enforced for nurses from the start
+- [ ] Archiving a unit is refused while a nurse belongs to it: `Unit.nurse_count` counts real nurse profiles (see ticket 06's comments)
+- [ ] A nurse's unit is in `units.scope`, so unit-scoped endpoints resolve it for her (see ticket 06's comments)
 - [ ] API tests cover creation, uniqueness, transfer, deactivation, resets and scoping

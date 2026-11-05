@@ -23,15 +23,17 @@ const CATALOGUE = [
   { to: "/leave-types", label: "Leave types" },
   { to: "/holidays", label: "Holidays and Ramadan" },
 ] as const
+const UNITS = { to: "/units", label: "Units" } as const
 const WITH_CATALOGUE = linkOptions([HOME, ...CATALOGUE])
 const WITH_RULES_AND_CATALOGUE = linkOptions([HOME, RULES, ...CATALOGUE])
+const CNO_PAGES = linkOptions([HOME, UNITS, RULES, ...CATALOGUE])
 
 /** What each role reaches from the header. A role's pages join its list as their tickets land; the
  *  API refuses the rest whatever this says. The catalogue's pages open for the System Admin too, since
  *  every role may read them, but nothing in their work calls for a link. */
 export const NAVIGATION = {
   system_admin: ADMIN_PAGES,
-  cno: WITH_RULES_AND_CATALOGUE,
+  cno: CNO_PAGES,
   deputy_cno: WITH_RULES_AND_CATALOGUE,
   unit_manager: WITH_CATALOGUE,
   staff_nurse: WITH_CATALOGUE,

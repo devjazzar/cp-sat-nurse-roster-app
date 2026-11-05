@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from django.db import transaction
+from django.db import IntegrityError, models, transaction
 from ninja import Router, Schema
 from ninja.errors import ValidationError
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator
@@ -23,6 +23,21 @@ MAX_WEIGHT = 10 ** 6
 def refuse(*errors: tuple[tuple, str]) -> None:
     """A refusal the schema cannot decide alone, in the shape a schema's own refusal has: (where, why)."""
     raise ValidationError([{"type": "value_error", "loc": ("body", "body", *loc), "msg": msg} for loc, msg in errors])
+
+
+def differing(before: dict, after: dict) -> tuple[dict, dict]:
+    """What an audit entry records: only the keys whose values changed."""
+    keys = [key for key in before if before[key] != after[key]]
+    return {key: before[key] for key in keys}, {key: after[key] for key in keys}
+
+
+def save_unless_taken(row: models.Model, field: str, message: str) -> None:
+    """The constraint decides, so two people saving at once cannot both get through."""
+    try:
+        with transaction.atomic():
+            row.save()
+    except IntegrityError:
+        refuse(((field,), message))
 
 
 DailyHours = Annotated[int, Field(ge=0, le=MAX_DAILY_HOURS)]

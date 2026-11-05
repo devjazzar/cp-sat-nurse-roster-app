@@ -1176,6 +1176,229 @@
           }
         ]
       }
+    },
+    "/api/units": {
+      "get": {
+        "operationId": "listUnits",
+        "summary": "List Units",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UnitSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "A manager's list is the unit he holds, or empty. Archived units too, for those who see them all.",
+        "tags": [
+          "units"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createUnit",
+        "summary": "Create Unit",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitSchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "units"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnitBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/managers": {
+      "get": {
+        "operationId": "listUnitManagers",
+        "summary": "List Unit Managers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ManagerChoice"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Who the CNO can assign: the active unit managers, with the unit each one holds.",
+        "tags": [
+          "units"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}": {
+      "get": {
+        "operationId": "getUnit",
+        "summary": "Get Unit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitSchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "units"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateUnit",
+        "summary": "Update Unit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitSchema"
+                }
+              }
+            }
+          }
+        },
+        "description": "Renames the unit, assigns its manager, reassigns it or takes the manager off it. Taking off is how two\nmanagers change places, since neither can be given a unit while holding one.",
+        "tags": [
+          "units"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnitBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/archive": {
+      "post": {
+        "operationId": "archiveUnit",
+        "summary": "Archive Unit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitSchema"
+                }
+              }
+            }
+          }
+        },
+        "description": "The unit lets its manager go, who can then hold another. There is no way back: a hospital that reopens a\nunit creates one under the name, which is free again, and the old one stays on record.",
+        "tags": [
+          "units"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1555,6 +1778,18 @@
             ],
             "description": "In the hospital's time zone.",
             "title": "Last Login"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit a unit manager holds.",
+            "title": "Unit"
           }
         },
         "required": [
@@ -1564,7 +1799,8 @@
           "role",
           "is_active",
           "must_change_password",
-          "last_login"
+          "last_login",
+          "unit"
         ],
         "title": "ManagedUser",
         "type": "object"
@@ -2439,6 +2675,135 @@
           }
         },
         "title": "RamadanFix",
+        "type": "object"
+      },
+      "UnitManagerSchema": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "full_name"
+        ],
+        "title": "UnitManagerSchema",
+        "type": "object"
+      },
+      "UnitSchema": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnitManagerSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rules_need_review": {
+            "title": "Rules Need Review",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "archived",
+          "manager",
+          "rules_need_review"
+        ],
+        "title": "UnitSchema",
+        "type": "object"
+      },
+      "UnitBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "manager_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manager Id"
+          }
+        },
+        "required": [
+          "name",
+          "manager_id"
+        ],
+        "title": "UnitBody",
+        "type": "object"
+      },
+      "ManagerChoice": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "unit"
+        ],
+        "title": "ManagerChoice",
         "type": "object"
       }
     },

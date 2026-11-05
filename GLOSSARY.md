@@ -40,7 +40,7 @@ What a user may see and do. One of: System Admin, CNO, Deputy CNO, Unit Manager,
 _Avoid_: permission level, access level, user type
 
 **System Admin**:
-The hospital IT role. Creates the accounts of the CNO, the Deputy CNO and the unit managers (accounts only: never units, assignments or nurses), sets the technical limits (such as the time limit cap), and sees the audit log, the solve history, the health page and the backups. Sees no roster.
+The hospital IT role. Creates the accounts of the CNO, the Deputy CNO and the unit managers (accounts only: never units, assignments or nurses, though deactivating a unit manager takes them off their unit), sets the technical limits (such as the time limit cap), and sees the audit log, the solve history, the health page and the backups. Sees no roster.
 _Avoid_: admin, superuser, IT
 
 **CNO**:
@@ -52,7 +52,7 @@ Approves or rejects submitted rosters. Exactly one per hospital.
 _Avoid_: assistant CNO
 
 **Unit Manager**:
-Runs the one unit the CNO assigned to the account, exactly one per unit: its unit rules, its nurses' rostering attributes, its request windows, its solves, its drafts, its swaps and every change to its approved roster.
+Runs the one unit the CNO assigned to the account, one per unit, and a unit waits with none until the CNO assigns one: its unit rules, its nurses' rostering attributes, its request windows, its solves, its drafts, its swaps and every change to its approved roster.
 _Avoid_: head nurse, charge nurse, supervisor
 
 **Staff Nurse**:

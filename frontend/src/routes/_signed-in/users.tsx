@@ -244,7 +244,12 @@ function ActionDialog({ asked, onClose, onDone, onPassword }: {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{asked && question?.title(asked.user.username)}</AlertDialogTitle>
-          <AlertDialogDescription>{question?.body}</AlertDialogDescription>
+          <AlertDialogDescription>
+            {question?.body}
+            {asked?.action === "deactivate" && asked.user.unit && (
+              ` ${asked.user.unit} is left with no manager until the CNO assigns one. Reactivating them does not give it back.`
+            )}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         {refusal && <p role="alert" className="text-sm text-destructive">{refusal}</p>}
         <AlertDialogFooter>
@@ -276,7 +281,10 @@ function UsersTable({ users, onAsk }: { users: ManagedUser[]; onAsk: (asked: Ask
           <TableRow key={user.id}>
             <TableCell>{user.full_name}</TableCell>
             <TableCell translate="no">{user.username}</TableCell>
-            <TableCell>{ROLE_NAMES[user.role]}</TableCell>
+            <TableCell>
+              {ROLE_NAMES[user.role]}
+              {user.unit && <span className="block text-muted-foreground">{user.unit}</span>}
+            </TableCell>
             <TableCell>
               <div className="flex flex-wrap gap-1">
                 <Badge variant={user.is_active ? "secondary" : "outline"}>{user.is_active ? "Active" : "Deactivated"}</Badge>

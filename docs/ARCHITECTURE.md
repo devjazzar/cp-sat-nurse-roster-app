@@ -78,6 +78,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read the hospital rules and weights | | yes | yes | | |
 | Read the shift catalogue, leave types, public holidays, Ramadan dates | yes | yes | yes | yes | yes |
 | Create, rename, archive units; assign each unit its manager | | yes | | | |
+| Read units | | yes | yes | own unit | |
 | Add nurses (form or CSV import), transfer, deactivate, export staff list | | yes | | | |
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
@@ -90,9 +91,12 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Make and withdraw requests; propose, accept and reject swaps | | | | | yes |
 
 Cardinalities: exactly one active CNO and one active Deputy CNO per hospital (a deactivated one
-stays on record, so a successor gets a new account); exactly one Unit Manager per
-unit (a manager account with no unit assigned can log in but do nothing). A unit manager
-sees nothing of other units. The System Admin sees no roster and no rostering attribute.
+stays on record, so a successor gets a new account); one Unit Manager per unit and one unit per
+manager (a manager account with no unit assigned can log in but do nothing). A unit is created
+with or without its manager and waits with none until the CNO assigns one. Deactivating a manager
+takes them off their unit at once, because ending an account cannot wait for the CNO, and
+reactivating does not give it back; the CNO's home names every unit with no manager. A unit
+manager sees nothing of other units. The System Admin sees no roster and no rostering attribute.
 
 The CNO stands in for an absent Deputy CNO; the CNO reassigns a unit to another manager
 account when its manager is unavailable. There is no delegation feature.
@@ -117,8 +121,9 @@ retired.
 **Public holiday**: date, name. **Ramadan days**: per month, the CNO's fixed dates or range,
 else derived from the Umm al-Qura calendar.
 
-**Unit**: name, archived flag, manager (a user), the unit rules (every field of the solver's
-`department` block), request cap per nurse per month (default 3), default time limit.
+**Unit**: name (unique among units not archived), archived flag, manager (a user; none once
+archived), the unit rules (every field of the solver's `department` block but its name, which is
+the unit's) with a review flag, request cap per nurse per month (default 3), default time limit.
 
 **User**: username, full name, role, active flag, must-change-password flag.
 
@@ -319,7 +324,10 @@ last backup and queue state. Nothing else is bundled.
 
 - Hospital and unit rules are seeded from the reviewed default set the solver was shaped on
   (12-hour day and night shifts, Friday weekend, the standard forbidden successions, overtime
-  caps, the weights) and flagged "defaults, review before the first solve".
+  caps, the weights) and flagged "defaults, review before the first solve". A unit's defaults
+  follow the catalogue as it stands when the unit is created: a default shift the CNO renamed
+  appears under its new code, and one the CNO retired is left out, which the solver refuses until
+  the unit manager has chosen the unit's shifts.
 - Time limit cap 300 s; unit default time limit 60 s; request cap 3 per nurse per month;
   backup 02:00 kept 30 days; close 00:30 on the first; time zone `Asia/Riyadh`. All editable
   by the role that owns them.

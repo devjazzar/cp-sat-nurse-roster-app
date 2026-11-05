@@ -8,6 +8,7 @@
 
 - [ ] Unit rules form with every field of the solver's unit block, explanations, validation; clears the review flag on save; audited
 - [ ] Shifts used are a subset of the active catalogue; retiring a shift in use by any unit is refused with the unit named
+- [ ] A shift's rename carries through every unit's rules in the same transaction (see ticket 06's comments)
 - [ ] Per-nurse rostering attributes form; allowed shifts restricted to the unit's shifts
 - [ ] Opening values editable (overtime this year, hours balance, two fairness balances), default zero
 - [ ] Only the unit's manager edits; CNO and Deputy CNO read; nurses never see attributes
