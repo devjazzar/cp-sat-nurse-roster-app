@@ -3,14 +3,14 @@
 grid, not the version's, which hand edits and later versions change, and it holds every colleague's leave."""
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 
 from nurse_roster.request import load_request
 
+from hospital.models import Shift
 from solves.input import assemble
 from units.models import Unit
-
-import datetime as dt
 
 
 @dataclass(frozen=True)
@@ -25,15 +25,21 @@ class OwnHours:
 
 def own_hours(unit: Unit, month: dt.date, hospital_id: str, row: dict[str, str]) -> OwnHours | None:
     """None when the month as it stands no longer has this nurse in it, or the solver's code cannot read it. `owed` and
-    `carried` are None with the hospital's hours rule off, which counts nothing owed."""
+    `carried` are None with the hospital's hours rule off, which counts nothing owed.
+
+    Leave wins over a shift, as everywhere: a shift the version still holds on a day of leave recorded since (ticket 16 has the
+    new version that takes it off) is not counted as worked, since the day already counts through the leave credit."""
     try:
         problem = load_request(assemble(unit, month).input).problem
     except ValueError:
         return None
     nurse = next((nurse for nurse in problem.nurses if nurse.id == hospital_id), None)
-    hours = problem.general.shift_hours
-    codes = [code for code in row.values() if code]
-    if nurse is None or any(code not in hours for code in codes):
+    if nurse is None:
+        return None
+    credited = {month.replace(day=day + 1).isoformat() for day in nurse.unavailable}
+    codes = [code for day, code in sorted(row.items()) if code and day not in credited]
+    hours = dict(Shift.objects.filter(code__in=codes).values_list("code", "hours"))
+    if any(code not in hours for code in codes):
         return None
     worked = sum(hours[code] for code in codes)
     counted = problem.general.hours_rule_enabled

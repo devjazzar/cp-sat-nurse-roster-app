@@ -48,7 +48,7 @@ function Row({ note }: { note: NotificationRow }) {
   return (
     <li className={cn("flex flex-col gap-1 border-b py-3 last:border-b-0", note.read && "text-muted-foreground")}>
       <p className={cn(!note.read && "font-medium text-foreground")}>
-        {!note.read && <><Badge className="me-2 align-middle">New</Badge></>}
+        {!note.read && <Badge className="me-2 align-middle">New</Badge>}
         {note.text}
       </p>
       <p className="flex flex-wrap gap-x-3 text-sm">

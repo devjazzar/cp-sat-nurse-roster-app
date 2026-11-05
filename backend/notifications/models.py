@@ -11,8 +11,17 @@ class Event(models.TextChoices):
     SOLVE_ENDED = "solve_ended"
 
 
+class SolveOutcome(models.TextChoices):
+    """How a solve ended, as the manager is told: a solve's payload keeps it, since the solve's row cannot change after."""
+    DRAFT = "draft"
+    STOPPED_DRAFT = "stopped_draft"
+    NO_ROSTER = "no_roster"
+    FROZEN = "frozen"
+    FAILED = "failed"
+
+
 class Notification(models.Model):
-    """One thing one user is told. `payload` holds identifiers only (a unit, a month, a solve, a version number): the words are
+    """One thing one user is told. `payload` holds identifiers only (a unit, a month, a solve, who did it): the words are
     worked out when the notification is read, from what those name then, so a rename or a correction leaves nothing stale and
     nothing about a person is kept here. Never a rejection's comment, a leave or a nurse."""
 

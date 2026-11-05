@@ -19,9 +19,9 @@ from audit.log import record
 from hospital.api import StrictSchema, refuse
 from hospital.catalogue_api import IsoDate
 from hospital.models import HospitalSettings, Shift
+from notifications import sending
 from nurses import membership
 from nurses.api import MonthText
-from notifications import sending
 from nurses.models import NurseProfile
 from rosters import review
 from rosters.drafts import MONTH_OVER, in_current_codes, why_frozen
@@ -461,7 +461,7 @@ def approve_roster(request: HttpRequest, unit_id: UUID, body: MonthBody) -> Rost
         version = review.approve(roster, request.user)
         record("roster.approved", actor=request.user, target=_target(unit, month), request=request,
                after={"version": version.number})
-        sending.roster_approved(unit, month, request.user, version.number)
+        sending.roster_approved(unit, month, request.user)
     return _roster_month(unit, month, request.user)
 
 

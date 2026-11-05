@@ -2,10 +2,12 @@
 of a colleague. The numbers below are worked by hand from `fixtures/sound_rosters.json`: in June 2026, Amal works 6 Day and 11
 Night shifts of 12 hours, and owes 8 hours on each of the 26 days that are not a Friday."""
 import copy
+import datetime as dt
 
 import pytest
 
-from accounts.models import Role
+from accounts.models import Role, User
+from nurses.models import NurseProfile, Placement
 from rosters.models import Roster, RosterVersion, VersionOrigin
 from rosters.tests.test_review import (_scene, approve, carla, ok, record_leave, solved, submit,  # noqa: F401
                                        url)
@@ -24,6 +26,10 @@ def approved_june(mona, er, solver, carla):
     solved(mona, er, solver)
     ok(submit(mona, er))
     ok(approve(carla, er))
+
+
+def shifts_of(hours) -> dict[str, int]:
+    return {row["code"]: row["count"] for row in hours["shifts"]}
 
 
 def shifts(answer) -> list[dict]:
@@ -71,6 +77,26 @@ class TestFromTheVersionInForce:
         assert answer["roster"]["version"] == 2
         assert (answer["roster"]["hours"]["worked"], answer["roster"]["hours"]["overtime"]) == (216, 8)
 
+    def test_leave_on_a_day_the_version_still_works_counts_once(self, mona, er, solver, carla):
+        """Leave wins over a shift. Amal works Night on Tuesday 2 June: as leave it is 8 hours credited and 12 not worked, so
+        192 worked against 200 owed, and 8 owed into July."""
+        approved_june(mona, er, solver, carla)
+        assert record_leave(mona, er, "Amal", 2).status_code == 201
+
+        hours = month(as_user("Amal"))["roster"]["hours"]
+
+        assert (hours["worked"], hours["leave_credit"], hours["owed"], hours["overtime"], hours["carried"]) == (192, 8, 200, 0, 8)
+        assert shifts_of(hours) == {"D": 6, "N": 10}
+
+    def test_a_manager_with_a_nurse_profile_reads_their_own(self, mona, er, solver, carla):
+        """Their profile starts in July, so June's solve has no row of theirs: they read the roster without hours."""
+        nurse = NurseProfile.objects.create(user=User.objects.get(username="mona"), gender="F", start_date=dt.date(2026, 7, 1))
+        Placement.objects.create(nurse=nurse, unit=er, from_month=dt.date(2026, 1, 1))
+        approved_june(mona, er, solver, carla)
+
+        answer = month(mona)
+
+        assert answer["unit"] == "ER" and answer["roster"]["version"] == 1 and answer["roster"]["hours"] is None
 
 class TestNothingOfAColleague:
     def test_a_colleagues_leave_changes_nothing_in_the_answer(self, mona, er, solver, carla):

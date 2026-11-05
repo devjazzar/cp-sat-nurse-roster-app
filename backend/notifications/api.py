@@ -3,6 +3,7 @@ Nothing here takes a user, so nobody reads another's, the System Admin included.
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import asdict
 from typing import Literal
 from uuid import UUID
 
@@ -14,7 +15,7 @@ from ninja import Field, Router, Schema
 from accounts.authz import SignedIn
 from accounts.sessions import not_activity
 from notifications.models import Notification
-from notifications.reading import link_of, names_for, text_of
+from notifications.reading import Names, link_of, text_of
 
 router = Router(tags=["notifications"])
 SHOWN = 50
@@ -66,12 +67,12 @@ def unread(request: HttpRequest) -> Unread:
 @router.get("", response=NotificationList, operation_id="listNotifications")
 def list_notifications(request: HttpRequest) -> NotificationList:
     notes = list(Notification.objects.filter(user=request.user)[:SHOWN])
-    names = names_for(notes)
+    names = Names(notes)
     rows = []
     for note in notes:
         link = link_of(note, request.user, names)
         rows.append(NotificationRow(id=note.pk, event=note.event, text=text_of(note, names),
-                                    link=NotificationLink(page=link.page, month=link.month, unit_id=link.unit_id) if link else None,
+                                    link=NotificationLink(**asdict(link)) if link else None,
                                     created_at=timezone.localtime(note.created_at), read=note.read_at is not None))
     return NotificationList(unread=_unread(request), items=rows)
 

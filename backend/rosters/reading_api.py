@@ -15,7 +15,7 @@ from django.utils import timezone
 from ninja import Field, Query, Router, Schema
 
 from accounts.authz import SignedIn
-from accounts.models import Role
+from accounts.models import Role, User
 from hospital.models import HospitalSettings, PublicHoliday, Shift
 from nurses import membership
 from nurses.api import MonthText
@@ -29,6 +29,8 @@ from units.models import Unit
 
 router = Router(tags=["rosters"])
 approver = SignedIn(Role.CNO, Role.DEPUTY_CNO)
+# A manager with a nurse profile is a nurse too.
+nurse_reader = SignedIn(Role.STAFF_NURSE, Role.UNIT_MANAGER)
 OVERVIEW_MONTHS = 4
 
 State = Literal["none", "draft", "submitted", "approved"]
@@ -171,8 +173,17 @@ class _InForce:
     def grid(self) -> dict[str, dict[str, str]]:
         return in_current_codes(self.version.grid)
 
+    @property
+    def approved_at(self) -> dt.datetime:
+        return timezone.localtime(review.approval(self.roster).decided_at)
 
-def _in_force(user, chosen: str | None) -> _InForce:
+    def heading(self) -> dict:
+        """What both of a nurse's reads begin with."""
+        return {"month": self.month.strftime("%Y-%m"), "first_month": self.first.strftime("%Y-%m"),
+                "unit": self.unit.name if self.unit else None}
+
+
+def _in_force(user: User, chosen: str | None) -> _InForce:
     """The unit is the one the month falls under for them, so across a transfer each month shows its own unit's roster, and a
     nurse due to start sees their unit's with no row of their own. Nothing before this month."""
     month = dt.date.fromisoformat(f"{chosen}-01") if chosen else membership.this_month()
@@ -187,15 +198,11 @@ def _in_force(user, chosen: str | None) -> _InForce:
     return found
 
 
-nurse_reader = SignedIn(Role.STAFF_NURSE, Role.UNIT_MANAGER)
-
-
 @router.get("/mine", response=MyRosterMonth, auth=nurse_reader, operation_id="getMyRoster")
 def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterMonth:
-    """Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too."""
+    """Takes no nurse, so it answers only for the reader."""
     found = _in_force(request.user, filters.month)
-    answer = MyRosterMonth(month=found.month.strftime("%Y-%m"), first_month=found.first.strftime("%Y-%m"),
-                           unit=found.unit.name if found.unit else None, roster=None)
+    answer = MyRosterMonth(**found.heading(), roster=None)
     if found.version is None:
         return answer
     grid = found.grid
@@ -204,7 +211,7 @@ def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterM
     used = {code for row in grid.values() for code in row.values() if code}
     mine = found.nurse.user.username
     answer.roster = NurseRoster(
-        approved_at=timezone.localtime(review.approval(found.roster).decided_at), version=found.version.number, days=days,
+        approved_at=found.approved_at, version=found.version.number, days=days,
         shifts=[NurseShift(code=shift.code, display_name=shift.display_name, colour=shift.colour, hours=shift.hours)
                 for shift in Shift.objects.filter(code__in=used)],
         rows=[ColleagueRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""),
@@ -254,14 +261,13 @@ def my_month(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyMonth:
     since counts, and a new version (ticket 16) is read as it comes. Nothing of a colleague: the arithmetic reads the reader's
     row only. Their leave with its type is `GET /api/nurses/my-leave`, which reads any month."""
     found = _in_force(request.user, filters.month)
-    answer = MyMonth(month=found.month.strftime("%Y-%m"), first_month=found.first.strftime("%Y-%m"),
-                     unit=found.unit.name if found.unit else None, roster=None)
+    answer = MyMonth(**found.heading(), roster=None)
     if found.version is None:
         return answer
     mine = found.nurse.user.username
     grid = found.grid
     hours = own_hours(found.unit, found.month, mine, grid[mine]) if mine in grid else None
-    answer.roster = MyMonthInForce(version=found.version.number, approved_at=timezone.localtime(review.approval(found.roster).decided_at),
+    answer.roster = MyMonthInForce(version=found.version.number, approved_at=found.approved_at,
                                    hours=_my_hours(hours) if hours else None)
     return answer
 

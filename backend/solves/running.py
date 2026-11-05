@@ -12,6 +12,7 @@ from django.utils import timezone
 from audit.log import record
 from hospital.models import HospitalSettings
 from notifications import sending
+from notifications.models import SolveOutcome
 from ops import solver_client
 from ops.queue import still_on_the_queue
 from ops.solver_client import SolverBusy, SolverJobUnknown, SolverRefused, SolverUnreachable
@@ -138,7 +139,7 @@ def _end(solve: Solve, **fields) -> None:
 def _fail(solve: Solve, **fields) -> None:
     with transaction.atomic():
         _end(solve, state=SolveState.FAILED, solver_job_id="", **fields)
-        sending.solve_ended(solve.unit_id, solve.month, solve.pk, "failed")
+        sending.solve_ended(solve.unit_id, solve.month, solve.pk, SolveOutcome.FAILED)
 
 
 def _finish(solve: Solve, job: dict) -> None:
@@ -158,15 +159,15 @@ def _finish(solve: Solve, job: dict) -> None:
         # Submitting refuses while a solve is active, so only a roster frozen behind the API's back meets this. The result stays
         # in the history, and the frozen grid as it was.
         frozen = drafts.frozen_month(solve.unit, solve.month)
-        outcome = "no_roster"
+        outcome = SolveOutcome.NO_ROSTER
         if frozen:
             logger.warning("solve %s: ended on a frozen roster, which keeps its grid", solve.pk)
-            outcome = "frozen"
+            outcome = SolveOutcome.FROZEN
         elif has_a_roster_to_keep(result):
             drafts.replace_grid(solve, result["roster"])
             record("roster.draft_replaced", actor=solve.requested_by, target=solve.audit_target,
                    after={"solve": str(solve.pk), "cost": result["cost"]})
-            outcome = "stopped_draft" if state == SolveState.CANCELLED else "draft"
+            outcome = SolveOutcome.STOPPED_DRAFT if state == SolveState.CANCELLED else SolveOutcome.DRAFT
         sending.solve_ended(solve.unit_id, solve.month, solve.pk, outcome)
 
 

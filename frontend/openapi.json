@@ -2717,7 +2717,7 @@
             }
           }
         },
-        "description": "Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too.",
+        "description": "Takes no nurse, so it answers only for the reader.",
         "tags": [
           "rosters"
         ],

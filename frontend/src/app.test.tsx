@@ -5134,7 +5134,7 @@ describe("a nurse's roster page", () => {
 describe("the notification bell", () => {
   const bell = (unread: number) => ({ [`GET ${BELL}`]: { body: { unread } } })
   const NOTE = {
-    id: "n1", event: "roster_approved", text: "Carla CNO approved the ER roster for December 2026. Version 1 is in force.",
+    id: "n1", event: "roster_approved", text: "Carla CNO approved the ER roster for December 2026.",
     link: { page: "my_roster", month: "2026-12", unit_id: null }, created_at: "2026-11-06T09:00:00+03:00", read: false,
   }
   const OLDER = { ...NOTE, id: "n0", event: "roster_rejected", text: "An older one, already read.", link: null, read: true }
@@ -5176,8 +5176,11 @@ describe("the notification bell", () => {
     const [query] = router.options.context.queryClient.getQueryCache().findAll({ queryKey: [BELL] })
     await waitFor(() => expect(query.state.status).toBe("error"))
     // The query's own answer about its next poll, because waiting to see that none comes could only pass more easily when busy.
-    const next = (query.observers[0].options as { refetchInterval: (of: typeof query) => number | false }).refetchInterval
-    expect(next(query)).toBe(false)
+    const options = query.observers[0].options as {
+      refetchInterval: (of: typeof query) => number | false; refetchOnWindowFocus: (of: typeof query) => boolean
+    }
+    expect(options.refetchInterval(query)).toBe(false)
+    expect(options.refetchOnWindowFocus(query)).toBe(false)
   })
 
   it("sends a session that has ended to the login page", async () => {

@@ -74,7 +74,7 @@ class TestApproved:
         ok(approve(carla, er))
 
         [to_mona] = told(mona, "roster_approved")
-        assert to_mona["text"] == "Carla CNO approved the ER roster for June 2026. Version 1 is in force."
+        assert to_mona["text"] == "Carla CNO approved the ER roster for June 2026."
         assert to_mona["link"] == {"page": "roster", "month": "2026-06", "unit_id": None}
         for nurse in ("Amal", "Badr", "Dana", "Emad", "Faris"):
             [note] = told(as_user(nurse))

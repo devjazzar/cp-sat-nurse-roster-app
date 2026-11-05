@@ -15,7 +15,10 @@ const isRefusal = (error: unknown) => error instanceof ApiError && error.status 
 export function NotificationBell() {
   const unread = useCountUnreadNotifications({
     // A refusal will not change by asking again. A 401 also ends the session, which the query client handles.
-    query: { refetchInterval: (query) => (isRefusal(query.state.error) ? false : BELL_POLL_MS) },
+    query: {
+      refetchInterval: (query) => (isRefusal(query.state.error) ? false : BELL_POLL_MS),
+      refetchOnWindowFocus: (query) => !isRefusal(query.state.error),
+    },
   })
   const count = unread.data?.unread ?? 0
   return (

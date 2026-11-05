@@ -34,10 +34,10 @@ function HoursList({ mine }: { mine: MyHours }) {
   const rows: [string, string][] = [
     ["Hours worked", hours(mine.worked)],
     ["Leave counted as worked", hours(mine.leave_credit)],
-    ...(mine.owed === null ? [] : [["Hours this month asks of you", hours(mine.owed)] as [string, string]]),
-    ...(mine.owed === null ? [] : [["Overtime", hours(mine.overtime)] as [string, string]]),
-    ...(mine.carried === null ? [] : [["Carried into next month", carried(mine.carried)] as [string, string]]),
   ]
+  // With the hours rule off nothing is owed, so nothing is over or carried either.
+  if (mine.owed !== null) rows.push(["Hours this month asks of you", hours(mine.owed)], ["Overtime", hours(mine.overtime)])
+  if (mine.carried !== null) rows.push(["Carried into next month", carried(mine.carried)])
   return (
     <>
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">

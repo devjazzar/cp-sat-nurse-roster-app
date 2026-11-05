@@ -5,21 +5,22 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID
 
 from accounts.models import Role, User
-from notifications.models import Event, Notification
+from notifications.models import Event, Notification, SolveOutcome
 from units.models import Unit
 
 
 @dataclass(frozen=True)
 class Link:
-    page: str
+    page: Literal["roster", "my_roster", "unit_roster"]
     month: str
     unit_id: UUID | None = None
 
 
-class _Names:
+class Names:
     """The units and users a page of notifications names, read in two queries."""
 
     def __init__(self, notes: list[Notification]):
@@ -35,19 +36,20 @@ def _month_name(month: str) -> str:
 
 def _solve_words(payload: dict, roster: str) -> str:
     match payload.get("outcome"):
-        case "draft":
+        case SolveOutcome.DRAFT:
             return f"The solve of the {roster} has finished, and its roster is now the draft."
-        case "stopped_draft":
+        case SolveOutcome.STOPPED_DRAFT:
             return f"The solve of the {roster} was stopped, and the best roster it found is now the draft."
-        case "frozen":
+        case SolveOutcome.FROZEN:
             return f"The solve of the {roster} has ended. The roster had been submitted meanwhile, so it stays as it was."
-        case "failed":
+        case SolveOutcome.FAILED:
             return f"The solve of the {roster} failed. Its result says why."
-        case _:
+        case SolveOutcome.NO_ROSTER:
             return f"The solve of the {roster} has ended with no roster to keep. Its result says why."
+    return f"The solve of the {roster} has ended."
 
 
-def text_of(note: Notification, names: _Names) -> str:
+def text_of(note: Notification, names: Names) -> str:
     payload = note.payload
     unit = names.units.get(payload.get("unit_id"))
     roster = f"{unit.name if unit else 'a unit'} roster for {_month_name(payload['month'])}"
@@ -56,7 +58,7 @@ def text_of(note: Notification, names: _Names) -> str:
         case Event.ROSTER_SUBMITTED:
             return f"{by} submitted the {roster}."
         case Event.ROSTER_APPROVED:
-            return f"{by} approved the {roster}. Version {payload['version']} is in force."
+            return f"{by} approved the {roster}."
         case Event.ROSTER_REJECTED:
             return f"{by} rejected the {roster}. The comment is with the draft."
         case Event.SOLVE_ENDED:
@@ -64,7 +66,7 @@ def text_of(note: Notification, names: _Names) -> str:
     return "Something has changed."
 
 
-def link_of(note: Notification, reader: User, names: _Names) -> Link | None:
+def link_of(note: Notification, reader: User, names: Names) -> Link | None:
     payload = note.payload
     unit = names.units.get(payload.get("unit_id"))
     if unit is None:
@@ -77,7 +79,3 @@ def link_of(note: Notification, reader: User, names: _Names) -> Link | None:
     if note.event == Event.ROSTER_APPROVED and reader.role in (Role.STAFF_NURSE, Role.UNIT_MANAGER):
         return Link("my_roster", month)
     return None  # A manager who has since lost the unit: its pages are no longer theirs.
-
-
-def names_for(notes: list[Notification]) -> _Names:
-    return _Names(notes)

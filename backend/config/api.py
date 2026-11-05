@@ -11,10 +11,10 @@ from accounts.authz import SignedIn
 from audit.api import router as audit_router
 from hospital.api import router as hospital_router
 from hospital.catalogue_api import router as catalogue_router
+from notifications.api import router as notifications_router
 from nurses.api import router as nurses_router
 from nurses.attributes_api import router as nurse_attributes_router
 from nurses.files_api import router as nurse_files_router
-from notifications.api import router as notifications_router
 from nurses.leave_api import my_leave_router, unit_leave_router
 from ops.api import router as ops_router
 from rosters.api import router as rosters_router
