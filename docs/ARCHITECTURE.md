@@ -336,8 +336,9 @@ authentication backend. Generated passwords shown once, forced change at first l
 Minimum length 10 with Django's common-password and similarity checks, lockout for 15
 minutes after 5 failed logins, sessions expire after 12 hours of inactivity, no two-factor
 authentication in v1. Every login, failed login and every change to settings, accounts,
-rosters, requests and swaps goes to the audit log. Nurses see colleagues' names and shifts
-only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
+rosters, requests and swaps goes to the audit log. So does each taking of the staff list, which holds everyone's gender:
+who took it and how many nurses it held, and nothing from the file. Its import template holds no one's data and is not
+logged. Nurses see colleagues' names and shifts only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
 changed and by whom, without its value or even which one, since a change to a two-way flag gives its value away. Unit
 rules are logged with their values, as hospital rules are: they say nothing about a person. Attributes also stay off
 the staff list, a file that leaves the system.

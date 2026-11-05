@@ -137,5 +137,7 @@ def _staff_list_row(nurse: NurseProfile) -> list[str]:
 @router.get("/export", auth=cno, operation_id="exportStaffList", openapi_extra=_A_CSV_FILE)
 def export_staff_list(request: HttpRequest) -> HttpResponse:
     """Every nurse the CNO's list shows, deactivated ones too, by name. Its first columns are the import's."""
-    return csv_response(f"staff-list-{membership.today():%Y-%m-%d}.csv",
-                        [STAFF_LIST_COLUMNS, *map(_staff_list_row, with_units(NurseProfile.objects.all()))])
+    rows = [_staff_list_row(nurse) for nurse in with_units(NurseProfile.objects.all())]
+    # That it was taken and how many it held, and nothing from the file: the System Admin reads the log, not the file.
+    record("nurses.exported", actor=request.user, request=request, after={"count": len(rows)})
+    return csv_response(f"staff-list-{membership.today():%Y-%m-%d}.csv", [STAFF_LIST_COLUMNS, *rows])

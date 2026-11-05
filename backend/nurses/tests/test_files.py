@@ -517,6 +517,58 @@ def test_the_staff_list_holds_no_password_and_no_hash(cno, er):
     assert password not in content and "pbkdf2" not in content and "md5" not in content
 
 
+def test_each_taking_of_the_staff_list_is_audited_with_the_count_and_nothing_from_the_file(cno, er, icu):
+    added(cno, er, hospital_id="h1", full_name="Amal Saleh", gender="F")
+    added(cno, icu, hospital_id="h2", full_name="Badr Omar", gender="M")
+
+    rows = table(cno.get(EXPORT))[1:]
+
+    entry = AuditEntry.objects.get(action="nurses.exported")
+    assert entry.actor.username == "chief"
+    assert entry.ip == "127.0.0.1"
+    assert (entry.target, entry.before, entry.after) == ("", None, {"count": 2})
+    held = str((entry.target, entry.before, entry.after))
+    assert len(rows) == 2
+    for cell in filter(None, (cell for row in rows for cell in row)):
+        assert cell not in held
+
+    cno.get(EXPORT)
+
+    assert AuditEntry.objects.filter(action="nurses.exported").count() == 2
+
+
+def test_a_staff_list_of_nobody_is_still_audited(cno):
+    assert len(table(cno.get(EXPORT))) == 1
+
+    assert AuditEntry.objects.get(action="nurses.exported").after == {"count": 0}
+
+
+@pytest.mark.parametrize("role", [role for role in Role if role != Role.CNO])
+def test_a_caller_refused_the_staff_list_writes_no_audit_entry(client_of, role, er):
+    other = client_of("other", role)
+    before = AuditEntry.objects.count()
+
+    assert other.get(EXPORT).status_code == 403
+
+    assert AuditEntry.objects.count() == before
+
+
+def test_nobody_signed_in_is_refused_the_staff_list_and_writes_no_audit_entry(db):
+    before = AuditEntry.objects.count()
+
+    assert Client().get(EXPORT).status_code == 401
+
+    assert AuditEntry.objects.count() == before
+
+
+def test_the_template_holds_no_one_s_data_and_writes_no_audit_entry(cno):
+    before = AuditEntry.objects.count()
+
+    assert cno.get(TEMPLATE).status_code == 200
+
+    assert AuditEntry.objects.count() == before
+
+
 @pytest.mark.parametrize("name", ["=HYPERLINK(\"http://x\",\"click\")", "+1+1", "@SUM(A1)", "-2+3", "＝1+1"])
 def test_a_formula_in_a_name_reaches_the_spreadsheet_as_text(cno, er, name):
     added(cno, er, full_name=name)

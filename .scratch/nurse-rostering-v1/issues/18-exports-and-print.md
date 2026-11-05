@@ -10,3 +10,7 @@
 - [ ] Print page for a version, styled for paper
 - [ ] Authorization: unit-scoped for managers, hospital-wide for approvers, none for nurses beyond their own unit's print page
 - [ ] API tests cover both exports' content and authorization
+
+## Comments
+
+For this ticket to decide: the staff list writes one audit entry per download (`nurses.exported`, with who, the request and the count, and nothing from the file; see `export_staff_list`).
