@@ -5097,8 +5097,8 @@ export const getSubmitRosterUrl = (unitId: string,) => {
 /**
  * Checked again on the month as it stands, always: a draft out of date or edited by hand goes through with its warning,
  * and is refused only if it breaks a hard rule or cannot be checked. Refused while a solve of the month is active, so a solve
- * never ends on a frozen grid. Under the catalogue's lock and the unit's, as a solve's start and a restore take them. The audit
- * entry names the unit and the month.
+ * never ends on a frozen grid. Under the catalogue's lock, the month's nurses' and the unit's, in that order, as approving takes
+ * them. The audit entry names the unit and the month.
  * @summary Submit Roster
  */
 export const submitRoster = async (unitId: string,

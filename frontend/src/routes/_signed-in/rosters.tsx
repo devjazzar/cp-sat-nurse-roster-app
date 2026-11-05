@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_signed-in/rosters")({
   component: OverviewPage,
 })
 
-export const STATE_WORDS: Record<OverviewUnitStatesItem, string> = {
+const STATE_WORDS: Record<OverviewUnitStatesItem, string> = {
   none: "No roster",
   draft: "Draft",
   submitted: "Submitted",

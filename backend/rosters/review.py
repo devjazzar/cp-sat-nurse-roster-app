@@ -16,6 +16,7 @@ from rosters.editing import Checked
 from rosters.models import Decision, Roster, RosterState, RosterVersion, Submission, VersionOrigin
 from solves.input import assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve
+from units.models import Unit
 
 SOLVE_ACTIVE = ("A solve of this month is queued or running, and would replace the draft when it ends. Stop it or wait for it "
                 "first.")
@@ -56,8 +57,8 @@ def why_not_decide(roster: Roster | None) -> str | None:
     if roster is None or roster.state == RosterState.DRAFT:
         return "This month has no roster waiting for a decision."
     if roster.state == RosterState.APPROVED:
-        approval = roster.submissions.filter(decision=Decision.APPROVED).select_related("decided_by").first()
-        who = f" by {name_of(approval.decided_by)}" if approval else ""
+        approved = approval(roster)
+        who = f" by {name_of(approved.decided_by)}" if approved else ""
         return f"This roster has been approved already{who}."
     return None
 
@@ -88,16 +89,17 @@ def approval(roster: Roster) -> Submission | None:
     return roster.submissions.filter(decision=Decision.APPROVED).select_related("decided_by").first()
 
 
-def lock_the_months_nurses(unit, month: dt.date, roster: Roster | None) -> None:
+def lock_the_months_nurses(unit: Unit, month: dt.date, roster: Roster | None) -> None:
     """Every nurse leave could be recorded for in this month, under the lock a leave write takes (the user and the profile), so
-    that none lands between checking a roster and approving it. Take it after the catalogue's and before the unit's."""
+    that none lands between checking a roster and submitting or approving it. Take it after the catalogue's and before the
+    unit's."""
     in_grid = list(roster.grid) if roster else []
     ids = set(membership.placed_in(unit, month).values_list("pk", flat=True))
     ids |= set(NurseProfile.objects.filter(user__username__in=in_grid).values_list("pk", flat=True))
     list(NurseProfile.objects.select_for_update(of=("self", "user")).select_related("user").filter(pk__in=ids).order_by("pk"))
 
 
-SNAPSHOT = ("id", "gender", "leave", "pinned")
+MONTH_AT_SUBMIT_KEYS = ("id", "gender", "leave", "pinned")
 
 
 def submit(roster: Roster, by: User) -> Submission:
@@ -105,7 +107,7 @@ def submit(roster: Roster, by: User) -> Submission:
     from what the manager was warned of: a second leave of a nurse already warned of is news."""
     roster.state = RosterState.SUBMITTED
     roster.save(update_fields=["state"])  # `updated_at` stays: it is when a solve or a restore last replaced the grid.
-    month = [{key: row[key] for key in SNAPSHOT if key in row} for row in assemble(roster.unit, roster.month).nurses]
+    month = [{key: row[key] for key in MONTH_AT_SUBMIT_KEYS if key in row} for row in assemble(roster.unit, roster.month).nurses]
     return Submission.objects.create(roster=roster, submitted_by=by, month_at_submit=month)
 
 

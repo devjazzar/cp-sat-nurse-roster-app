@@ -6,6 +6,6 @@
  */
 
 export type GetMyRosterParams = {
-  /** YYYY-MM, the first month shown. The hospital's current one when left out. */
+  /** YYYY-MM. The hospital's current one when left out. */
   month?: string | null;
 };

@@ -17,7 +17,7 @@ from ninja import Field, Query, Router, Schema
 from ninja.errors import HttpError
 
 from accounts.authz import SignedIn
-from accounts.models import Role
+from accounts.models import Role, User
 from audit.log import record
 from hospital.models import HospitalSettings
 from nurses.api import MonthText
@@ -113,7 +113,7 @@ def _solves_in_drafts(unit: Unit) -> set[UUID]:
     return set(Roster.objects.filter(unit=unit).values_list("solve_id", flat=True))
 
 
-def _solves_seen_by(user, unit: Unit) -> QuerySet[Solve]:
+def _solves_seen_by(user: User, unit: Unit) -> QuerySet[Solve]:
     solves = Solve.objects.filter(unit=unit)
     if user.role in HOSPITAL_WIDE:
         return solves.filter(month__in=Roster.objects.filter(unit=unit, state__in=SEEN_BY_APPROVERS).values("month"))
@@ -237,7 +237,7 @@ def _accounting(row: dict, hospital_id: str, name: str) -> NurseAccounting:
                            cost=row["cost"])
 
 
-def _result_of(solve: Solve, unit: Unit, user) -> SolveResult:
+def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
     result = solve.result or {}
     accounting = result.get("nurses") or {}
     broken = (result.get("violations") or []) + (result.get("elapsed_violations") or [])

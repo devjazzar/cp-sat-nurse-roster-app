@@ -1,7 +1,8 @@
 """What a solve and the shift catalogue do to rosters."""
 from __future__ import annotations
 
-from typing import Iterable
+import datetime as dt
+from typing import TYPE_CHECKING, Iterable
 
 from django.utils import timezone
 
@@ -11,6 +12,9 @@ from rosters.models import Roster, RosterState
 from rosters.pins import month_pins, on_top
 from solves.models import ACTIVE_STATES, Solve
 from solves.result import has_a_roster_to_keep, shifts_used
+
+if TYPE_CHECKING:
+    from units.models import Unit
 
 
 MONTH_OVER = "This month is over, so its draft cannot change."
@@ -28,7 +32,7 @@ def why_frozen(roster: Roster | None) -> str | None:
     return FROZEN.get(roster.state) if roster is not None else None
 
 
-def frozen_month(unit, month) -> str | None:
+def frozen_month(unit: "Unit", month: dt.date) -> str | None:
     return why_frozen(Roster.objects.filter(unit=unit, month=month).first())
 
 

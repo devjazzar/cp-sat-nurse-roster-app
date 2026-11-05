@@ -14,3 +14,5 @@
 ## Comments
 
 **Decisions from the user (2026-11-05).** Roster exports are audited the same way as the staff list (`export_staff_list`): one entry per download, saying who and which roster, with nothing from the file. Name the new action in `ACTION_NAMES`, and add roster exports to the line in `docs/ARCHITECTURE.md` that says each taking of the staff list goes to the audit log. The print page is not audited, because it makes no file and shows only what that role can already read.
+
+**From ticket 14 (2026-11-05).** Roster versions exist (`rosters.models.RosterVersion`, from the first approval). The CNO and the Deputy CNO read a unit's month only while it is submitted or approved: a draft is its manager's (the glossary's Draft), and the read, the solve history and the results all hold to that (`rosters.review.SEEN_BY_APPROVERS`). An export for them should hold to it too, or say why not. A version's grid keeps its old codes; read it through `rosters.drafts.in_current_codes`.

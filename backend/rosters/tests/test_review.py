@@ -678,6 +678,28 @@ class TestTheNursesView:
 
         assert seen["unit"] == "ER" and seen["roster"]["mine"] is None
 
+    def test_days_before_a_start_date_are_their_own_outside_days_and_a_colleagues_empty_ones(self, mona, carla, er, solver,
+                                                                                              nurses_of_er):
+        """A start date corrected to the 10th after the approval: the roster keeps its cells, the nurse sees those days as outside
+        their dates, and a colleague sees nothing but the cells."""
+        approved(mona, carla, er, solver)
+        amal = nurses_of_er("Amal")
+        before = mine(amal)
+        NurseProfile.objects.filter(user__username="Badr").update(start_date=dt.date(2026, 6, 10))
+
+        assert mine(amal) == before
+        own = mine(nurses_of_er("Badr"))["roster"]["mine"]
+        assert {day["kind"] for day in own[:9] if SOUND[MONTH]["roster"]["Badr"][day["date"]] == ""} == {"outside"}
+        assert own[9]["kind"] in ("shift", "off")
+
+    def test_a_deactivated_colleague_still_reads_as_a_name_and_shifts(self, mona, carla, er, solver, nurses_of_er):
+        approved(mona, carla, er, solver)
+        amal = nurses_of_er("Amal")
+        before = mine(amal)
+        User.objects.filter(username="Badr").update(is_active=False)
+
+        assert mine(amal) == before
+
     def test_a_deactivated_nurse_cannot_sign_in_to_read_it(self, mona, carla, er, solver):
         approved(mona, carla, er, solver)
         User.objects.filter(username="Badr").update(is_active=False)

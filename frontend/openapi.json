@@ -2286,7 +2286,7 @@
             }
           }
         },
-        "description": "Checked again on the month as it stands, always: a draft out of date or edited by hand goes through with its warning,\nand is refused only if it breaks a hard rule or cannot be checked. Refused while a solve of the month is active, so a solve\nnever ends on a frozen grid. Under the catalogue's lock and the unit's, as a solve's start and a restore take them. The audit\nentry names the unit and the month.",
+        "description": "Checked again on the month as it stands, always: a draft out of date or edited by hand goes through with its warning,\nand is refused only if it breaks a hard rule or cannot be checked. Refused while a solve of the month is active, so a solve\nnever ends on a frozen grid. Under the catalogue's lock, the month's nurses' and the unit's, in that order, as approving takes\nthem. The audit entry names the unit and the month.",
         "tags": [
           "rosters"
         ],
@@ -2698,11 +2698,11 @@
                   "type": "null"
                 }
               ],
-              "description": "YYYY-MM, the first month shown. The hospital's current one when left out.",
+              "description": "YYYY-MM. The hospital's current one when left out.",
               "title": "Month"
             },
             "required": false,
-            "description": "YYYY-MM, the first month shown. The hospital's current one when left out."
+            "description": "YYYY-MM. The hospital's current one when left out."
           }
         ],
         "responses": {
@@ -8000,6 +8000,28 @@
           "changed_since"
         ],
         "title": "WaitingRoster",
+        "type": "object"
+      },
+      "MyRosterFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. The hospital's current one when left out.",
+            "title": "Month"
+          }
+        },
+        "title": "MyRosterFilter",
         "type": "object"
       },
       "ColleagueRow": {

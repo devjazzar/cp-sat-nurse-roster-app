@@ -13,7 +13,6 @@ import {
   getPreviewSolveQueryKey,
   useGetRosterMonth,
   useGetSolveProgress,
-  useGetSolveResult,
   usePreviewSolve,
   useSaveDraftPins,
   useStartSolve,
@@ -34,8 +33,7 @@ import { FormField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { LeavePageDialog } from "@/components/password-dialog"
 import { type CellMarks, GridLegend, RosterGrid } from "@/components/roster-grid"
-import { CHANGE_SAYS, longDay, PinNotes, plural, RosterStatus, Violations } from "@/components/roster-notes"
-import { SolveResultPanels } from "@/components/solve-result"
+import { CHANGE_SAYS, longDay, PinNotes, plural, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useChosenUnit } from "@/components/unit-picker"
@@ -273,14 +271,6 @@ function PendingPanel({ unitId, draft, month, pending, onSaved, refused, setRefu
   )
 }
 
-function DraftDetails({ unitId, solveId }: { unitId: string; solveId: string }) {
-  const result = useGetSolveResult(unitId, solveId)
-  if (result.isPending) return <p className="text-sm">Loading the details of this result…</p>
-  if (!result.data) return <p role="alert" className="text-sm">The details of this result could not be read. The grid above is still the draft. Reload the page to try again.</p>
-  return <SolveResultPanels result={result.data} />
-}
-
-const HEADING: Record<RosterMonth["state"], string> = { none: "Draft", draft: "Draft", submitted: "Submitted roster", approved: "Approved roster" }
 
 /** Sends the draft to the CNO and the Deputy CNO. The server checks it again on the month as it stands, and says why if it
  *  cannot go: a refusal it would give is on the month's answer already, so the page says it before the press. */
@@ -360,7 +350,7 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
   return (
     <section aria-labelledby="draft" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h3 id="draft" tabIndex={-1} className="font-medium outline-none">{HEADING[state]}</h3>
+        <h3 id="draft" tabIndex={-1} className="font-medium outline-none">{ROSTER_HEADING[state]}</h3>
         <p className="text-sm text-muted-foreground tabular-nums">
           {draft.restored_at ? `Restored ${hospitalTime(draft.restored_at)} from the solve of ${hospitalTime(draft.solved_at)}.` : `Solved ${hospitalTime(draft.solved_at)}.`}{" "}
           {draft.edited && "Edited by hand since. "}
@@ -394,7 +384,7 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
       {draft.check && <Violations check={draft.check} what="the draft as it stands" />}
       {submit}
       {draft.edited && <p className="text-sm text-muted-foreground">The details below are what its solve answered, before the changes made by hand.</p>}
-      <DraftDetails unitId={unitId} solveId={draft.solve_id} />
+      <ResultDetails unitId={unitId} solveId={draft.solve_id} />
     </section>
   )
 }
@@ -559,7 +549,7 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
           {!active && answer.last_solve && <LastSolve solve={answer.last_solve} />}
           <RosterStatus answer={answer} />
           {answer.draft && <DraftCard unitId={unit.id} month={answer.month} draft={answer.draft} state={answer.state}
-            label={`${HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}`} pending={pending} solving={!!active} onSaved={saved}
+            label={`${ROSTER_HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}`} pending={pending} solving={!!active} onSaved={saved}
             submit={answer.state === "draft" && <SubmitForm unitId={unit.id} answer={answer} unsaved={unsaved} onSubmitted={submitted} />} />}
           {!answer.draft && !active && !answer.last_solve && <p>No draft yet for {monthName(answer.month)}.</p>}
           {!active && !frozen && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} unsaved={unsaved} />}

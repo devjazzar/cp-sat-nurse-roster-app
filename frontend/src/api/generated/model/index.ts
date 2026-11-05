@@ -91,6 +91,7 @@ export * from './myDay';
 export * from './myDayKind';
 export * from './myLeaveMonth';
 export * from './myLeaveRun';
+export * from './myRosterFilter';
 export * from './myRosterMonth';
 export * from './nameCorrectionBody';
 export * from './newLeaveBody';

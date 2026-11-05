@@ -11,15 +11,13 @@ import {
   getListSubmittedRostersQueryKey,
   useApproveRoster,
   useGetRosterMonth,
-  useGetSolveResult,
   useRejectRoster,
 } from "@/api/generated/endpoints"
 import { Role, type Draft, type RosterMonth } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { GridLegend, RosterGrid } from "@/components/roster-grid"
-import { CHANGE_SAYS, PinNotes, RosterStatus, Violations } from "@/components/roster-notes"
-import { SolveResultPanels } from "@/components/solve-result"
+import { CHANGE_SAYS, PinNotes, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
@@ -107,13 +105,6 @@ function Decision({ unitId, answer, onDecided }: { unitId: string; answer: Roste
   )
 }
 
-function Details({ unitId, solveId }: { unitId: string; solveId: string }) {
-  const result = useGetSolveResult(unitId, solveId)
-  if (result.isPending) return <p className="text-sm">Loading the details of its solve…</p>
-  if (!result.data) return <p role="alert" className="text-sm">The details of its solve could not be read. The grid above is still the roster. Reload the page to try again.</p>
-  return <SolveResultPanels result={result.data} />
-}
-
 function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: string; name: string }; unitInAddress: string | undefined; month: string | undefined }) {
   const queryClient = useQueryClient()
   const roster = useGetRosterMonth(unit.id, inAddress ? { month: inAddress } : undefined, { query: { placeholderData: keepPreviousData } })
@@ -135,7 +126,7 @@ function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: str
   }
   const answer = roster.data
   const draft = answer?.draft
-  const label = answer ? `${answer.state === "approved" ? "Approved roster" : "Submitted roster"} of ${unit.name}, ${monthName(answer.month)}` : ""
+  const label = answer ? `${ROSTER_HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}` : ""
   return (
     <>
       {roster.isPending && <p>Loading…</p>}
@@ -151,7 +142,7 @@ function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: str
           <RosterStatus answer={answer} forApprover />
           {draft && (
             <section aria-labelledby="roster" className="flex flex-col gap-4">
-              <h3 id="roster" className="font-medium">{answer.state === "approved" ? "Approved roster" : "Submitted roster"}</h3>
+              <h3 id="roster" className="font-medium">{ROSTER_HEADING[answer.state]}</h3>
               <p className="text-sm text-muted-foreground tabular-nums">
                 {draft.edited ? "Edited by hand after its solve. " : ""}
                 {draft.check ? `Cost ${draft.cost ?? "not known"} on the month as it stands, against ${draft.solved_cost} as solved.` : `Cost ${draft.cost}.`}
@@ -163,7 +154,7 @@ function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: str
               <GridLegend grid={draft} />
               {answer.state === "submitted" && <Decision unitId={unit.id} answer={answer} onDecided={decided} />}
               {draft.edited && <p className="text-sm text-muted-foreground">The details below are what its solve answered, before the changes made by hand.</p>}
-              <Details unitId={unit.id} solveId={draft.solve_id} />
+              <ResultDetails unitId={unit.id} solveId={draft.solve_id} />
             </section>
           )}
         </>

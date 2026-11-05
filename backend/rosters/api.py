@@ -421,11 +421,14 @@ def _locked_roster(unit: Unit, month: dt.date) -> Roster | None:
 def submit_roster(request: HttpRequest, unit_id: UUID, body: MonthBody) -> RosterMonth:
     """Checked again on the month as it stands, always: a draft out of date or edited by hand goes through with its warning,
     and is refused only if it breaks a hard rule or cannot be checked. Refused while a solve of the month is active, so a solve
-    never ends on a frozen grid. Under the catalogue's lock and the unit's, as a solve's start and a restore take them. The audit
-    entry names the unit and the month."""
+    never ends on a frozen grid. Under the catalogue's lock, the month's nurses' and the unit's, in that order, as approving takes
+    them. The audit entry names the unit and the month."""
     month = dt.date.fromisoformat(f"{body.month}-01")
     with transaction.atomic():
         HospitalSettings.load(for_update=True)
+        # The nurses' lock too, so that no leave lands between the check and the month kept for the approver to compare with.
+        review.lock_the_months_nurses(unit_in_scope(request.user, unit_id), month,
+                                      Roster.objects.filter(unit_id=unit_id, month=month).first())
         unit = unit_in_scope(request.user, unit_id, for_update=True)
         roster = _locked_roster(unit, month)
         if roster is None:

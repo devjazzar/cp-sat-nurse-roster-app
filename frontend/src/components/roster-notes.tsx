@@ -1,4 +1,6 @@
+import { useGetSolveResult } from "@/api/generated/endpoints"
 import type { Draft, DraftChange, DraftPin, GridCheck, RosterMonth } from "@/api/generated/model"
+import { SolveResultPanels } from "@/components/solve-result"
 import { asDate, hospitalTime } from "@/lib/utils"
 
 /** What the roster pages say beside a grid: what changed since its solve, what it breaks, and the pins leave ended or that
@@ -89,4 +91,15 @@ export function RosterStatus({ answer, forApprover = false }: { answer: RosterMo
       )}
     </div>
   )
+}
+
+/** What a roster is called on its pages, by its state. */
+export const ROSTER_HEADING: Record<RosterMonth["state"], string> = { none: "Draft", draft: "Draft", submitted: "Submitted roster", approved: "Approved roster" }
+
+/** Its solve's panels beside a grid, which stays the roster if they cannot be read. */
+export function ResultDetails({ unitId, solveId }: { unitId: string; solveId: string }) {
+  const result = useGetSolveResult(unitId, solveId)
+  if (result.isPending) return <p className="text-sm">Loading the details of this result…</p>
+  if (!result.data) return <p role="alert" className="text-sm">The details of this result could not be read. The grid above is still the roster. Reload the page to try again.</p>
+  return <SolveResultPanels result={result.data} />
 }

@@ -23,7 +23,6 @@ from rosters import review
 from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names
 from rosters.models import Roster, RosterState
-from solves.api import chosen_month
 from units.models import Unit
 
 router = Router(tags=["rosters"])
@@ -152,12 +151,16 @@ def _mine(nurse: NurseProfile, row: dict[str, str], days: list[GridDay]) -> list
     return [MyDay(date=day.date, kind=kind(day.date)) for day in days]
 
 
+class MyRosterFilter(Schema):
+    month: MonthText | None = Field(None, description="YYYY-MM. The hospital's current one when left out.")
+
+
 @router.get("/mine", response=MyRosterMonth, auth=SignedIn(Role.STAFF_NURSE, Role.UNIT_MANAGER), operation_id="getMyRoster")
-def my_roster(request: HttpRequest, filters: Query[OverviewFilter]) -> MyRosterMonth:
+def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterMonth:
     """Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too. The unit is the one
     the month falls under for them, so across a transfer each month shows its own unit's roster, and a nurse due to start sees
     their unit's with no row of their own."""
-    month = chosen_month(filters.month) if filters.month else membership.this_month()
+    month = dt.date.fromisoformat(f"{filters.month}-01") if filters.month else membership.this_month()
     first = membership.this_month()
     nurse = NurseProfile.objects.filter(user=request.user).first()
     placement = membership.placement_in(nurse, month) if nurse else None
