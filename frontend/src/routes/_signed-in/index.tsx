@@ -87,7 +87,10 @@ function NurseHome() {
       <p>Your unit is {unit.data.name}.</p>
       {roster.data && (roster.data.roster
         ? <p>The roster of {monthName(roster.data.month)} is approved. <Link to="/my-roster" className="underline underline-offset-3">See it under My roster</Link></p>
-        : <p>No roster yet for {monthName(roster.data.month)}.</p>)}
+        : <>
+          <p>No roster yet for {monthName(roster.data.month)}.</p>
+          <p><Link to="/my-roster" className="underline underline-offset-3">My roster</Link> has each coming month once it is approved.</p>
+        </>)}
       {roster.isError && <p role="alert">Whether this month's roster is approved could not be read. My roster tries again.</p>}
       <p>Any leave recorded for you is under <Link to="/my-leave" className="underline underline-offset-3">My leave</Link>.</p>
     </>
