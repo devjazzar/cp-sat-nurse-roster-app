@@ -371,6 +371,27 @@ class TestApproving:
 
         assert ok(approve(carla, er))["state"] == "approved"
 
+    def test_more_leave_for_a_nurse_the_manager_was_warned_of_is_still_news(self, mona, carla, er, solver):
+        """Found driving the page: comparing only whose and what kind of change hid a second leave of the same nurse."""
+        solved(mona, er, solver)
+        assert record_leave(mona, er, "Badr", BADR_OFF).status_code == 201
+        ok(submit(mona, er))
+        assert month_of(carla, er)["submitted"]["new_since"] == []
+
+        assert record_leave(mona, er, "Badr", BADR_WORKS).status_code == 201
+
+        assert [(c["hospital_id"], c["what"]) for c in month_of(carla, er)["submitted"]["new_since"]] == [("Badr", "leave")]
+        assert ok(carla.get("/api/rosters/submitted"))[0]["changed_since"] is True
+
+    def test_the_month_kept_at_the_submit_holds_no_leave_type(self, mona, er, solver):
+        solved(mona, er, solver)
+        assert record_leave(mona, er, "Badr", BADR_OFF).status_code == 201
+        ok(submit(mona, er))
+
+        kept = Submission.objects.get().month_at_submit
+        assert {key for row in kept for key in row} <= {"id", "gender", "leave", "pinned"}
+        assert "Sick" not in json.dumps(kept)
+
     def test_leave_on_a_worked_day_while_it_waits_stops_it_until_rejected_and_put_right(self, mona, carla, er, solver):
         submitted(mona, er, solver)
         assert record_leave(mona, er, "Badr", BADR_WORKS).status_code == 201

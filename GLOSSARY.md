@@ -86,7 +86,7 @@ A roster the unit manager is still shaping. It may be regenerated or edited free
 _Avoid_: working copy, proposal
 
 **Submitted**:
-A draft sent to the Deputy CNO for a decision.
+A draft sent to the Deputy CNO, or the CNO, for a decision. Nothing changes it until they decide.
 _Avoid_: pending, under review
 
 **Approved**:
@@ -94,7 +94,7 @@ The roster in force for its unit and month: the one staff nurses see. Changes to
 _Avoid_: published, final, live, released
 
 **Rejected**:
-A submitted roster the Deputy CNO sent back, with a comment. It returns to draft.
+A submitted roster the Deputy CNO or the CNO sent back, with a comment for the unit manager. It returns to draft.
 _Avoid_: declined, returned
 
 **Roster version**:

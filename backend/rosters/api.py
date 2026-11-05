@@ -231,13 +231,12 @@ def _not_the_draft(ended: Solve | None, roster: Roster | None) -> Solve | None:
     return ended if ended.pk != roster.solve_id and ended.finished_at > roster.updated_at else None
 
 
-def _waiting(roster: Roster, changes: list[dict]) -> Waiting | None:
+def _waiting(roster: Roster) -> Waiting | None:
     submission = review.waiting(roster)
     if submission is None:
         return None
-    seen = {(change["hospital_id"], change["what"]) for change in submission.changes_at_submit}
     return Waiting(submitted_by=review.name_of(submission.submitted_by), submitted_at=timezone.localtime(submission.submitted_at),
-                   new_since=_changes([change for change in changes if (change["hospital_id"], change["what"]) not in seen]))
+                   new_since=_changes(review.new_since(submission)))
 
 
 def _rejection(roster: Roster) -> Rejection | None:
@@ -268,7 +267,7 @@ def _roster_month(unit: Unit, month: dt.date, user: User) -> RosterMonth:
     changes = changes_since(roster.solve.input, unit, month)
     checked = _checked(roster, changes)
     return RosterMonth(
-        month=label, state=roster.state, submitted=_waiting(roster, changes), last_rejection=_rejection(roster),
+        month=label, state=roster.state, submitted=_waiting(roster), last_rejection=_rejection(roster),
         approved=_approval(roster), active_solve=None if approving else _active(solves),
         last_solve=None if approving else _last(solves, roster), draft=_draft(roster, changes, checked, user),
         submit_refusal=ONLY_THE_MANAGER if approving else review.why_not_submit(roster, checked),
@@ -431,11 +430,10 @@ def submit_roster(request: HttpRequest, unit_id: UUID, body: MonthBody) -> Roste
         roster = _locked_roster(unit, month)
         if roster is None:
             raise HttpError(409, "This month has no draft yet. Solve it first.")
-        changes = changes_since(roster.solve.input, unit, month)
         refusal = review.why_not_submit(roster, check_saved(roster))
         if refusal:
             raise HttpError(409, refusal)
-        review.submit(roster, changes, request.user)
+        review.submit(roster, request.user)
         record("roster.submitted", actor=request.user, target=_target(unit, month), request=request)
     return _roster_month(unit, month, request.user)
 

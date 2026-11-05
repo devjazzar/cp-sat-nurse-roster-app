@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, useBlocker, useMatch, useRouteContext } from "@tanstack/react-router"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -302,11 +302,13 @@ function SubmitForm({ unitId, answer, unsaved, onSubmitted }: { unitId: string; 
   )
 }
 
-function DraftCard({ unitId, month, draft, state, label, pending, solving, onSaved }: {
+function DraftCard({ unitId, month, draft, state, label, pending, solving, onSaved, submit }: {
   unitId: string
   month: string
   draft: Draft
   state: RosterMonth["state"]
+  /** Between what the grid breaks and its solve's details, which are long, so it is found where the draft is read. */
+  submit?: ReactNode
   label: string
   pending: Pending
   solving: boolean
@@ -390,6 +392,7 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
         <PendingPanel unitId={unitId} draft={draft} month={month} pending={pending} onSaved={onSaved} refused={refused} setRefused={setRefused} />
       )}
       {draft.check && <Violations check={draft.check} what="the draft as it stands" />}
+      {submit}
       {draft.edited && <p className="text-sm text-muted-foreground">The details below are what its solve answered, before the changes made by hand.</p>}
       <DraftDetails unitId={unitId} solveId={draft.solve_id} />
     </section>
@@ -556,8 +559,8 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
           {!active && answer.last_solve && <LastSolve solve={answer.last_solve} />}
           <RosterStatus answer={answer} />
           {answer.draft && <DraftCard unitId={unit.id} month={answer.month} draft={answer.draft} state={answer.state}
-            label={`${HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}`} pending={pending} solving={!!active} onSaved={saved} />}
-          {answer.draft && answer.state === "draft" && <SubmitForm unitId={unit.id} answer={answer} unsaved={unsaved} onSubmitted={submitted} />}
+            label={`${HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}`} pending={pending} solving={!!active} onSaved={saved}
+            submit={answer.state === "draft" && <SubmitForm unitId={unit.id} answer={answer} unsaved={unsaved} onSubmitted={submitted} />} />}
           {!answer.draft && !active && !answer.last_solve && <p>No draft yet for {monthName(answer.month)}.</p>}
           {!active && !frozen && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} unsaved={unsaved} />}
         </>

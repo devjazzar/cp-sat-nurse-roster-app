@@ -24,7 +24,6 @@ from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names
 from rosters.models import Roster, RosterState
 from solves.api import chosen_month
-from solves.input import changes_since
 from units.models import Unit
 
 router = Router(tags=["rosters"])
@@ -87,11 +86,10 @@ def submitted(request: HttpRequest) -> list[WaitingRoster]:
     rows = []
     for roster in rosters:
         waiting = review.waiting(roster)
-        seen = {(change["hospital_id"], change["what"]) for change in waiting.changes_at_submit}
-        now = {(change["hospital_id"], change["what"]) for change in changes_since(roster.solve.input, roster.unit, roster.month)}
         rows.append(WaitingRoster(unit_id=roster.unit_id, unit=roster.unit.name, month=roster.month.strftime("%Y-%m"),
                                   submitted_by=review.name_of(waiting.submitted_by),
-                                  submitted_at=timezone.localtime(waiting.submitted_at), changed_since=bool(now - seen)))
+                                  submitted_at=timezone.localtime(waiting.submitted_at),
+                                  changed_since=bool(review.new_since(waiting))))
     return sorted(rows, key=lambda row: row.submitted_at)
 
 

@@ -14,6 +14,7 @@ from nurses.models import NurseProfile
 from rosters.drafts import FROZEN
 from rosters.editing import Checked
 from rosters.models import Decision, Roster, RosterState, RosterVersion, Submission, VersionOrigin
+from solves.input import assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve
 
 SOLVE_ACTIVE = ("A solve of this month is queued or running, and would replace the draft when it ends. Stop it or wait for it "
@@ -96,10 +97,22 @@ def lock_the_months_nurses(unit, month: dt.date, roster: Roster | None) -> None:
     list(NurseProfile.objects.select_for_update(of=("self", "user")).select_related("user").filter(pk__in=ids).order_by("pk"))
 
 
-def submit(roster: Roster, changes: list[dict], by: User) -> Submission:
+SNAPSHOT = ("id", "gender", "leave", "pinned")
+
+
+def submit(roster: Roster, by: User) -> Submission:
+    """Keeps the month as it stood, in the words of a solve input and no more, so that what changes while it waits can be told
+    from what the manager was warned of: a second leave of a nurse already warned of is news."""
     roster.state = RosterState.SUBMITTED
     roster.save(update_fields=["state"])  # `updated_at` stays: it is when a solve or a restore last replaced the grid.
-    return Submission.objects.create(roster=roster, submitted_by=by, changes_at_submit=changes)
+    month = [{key: row[key] for key in SNAPSHOT if key in row} for row in assemble(roster.unit, roster.month).nurses]
+    return Submission.objects.create(roster=roster, submitted_by=by, month_at_submit=month)
+
+
+def new_since(submission: Submission) -> list[dict]:
+    """`changes_since` against the month as it stood at the submit."""
+    roster = submission.roster
+    return changes_since({"nurses": submission.month_at_submit}, roster.unit, roster.month)
 
 
 def _decide(roster: Roster, decision: Decision, by: User, comment: str = "") -> Submission:

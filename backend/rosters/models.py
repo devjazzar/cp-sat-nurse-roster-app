@@ -68,9 +68,10 @@ class Submission(models.Model):
     roster = models.ForeignKey(Roster, on_delete=models.PROTECT, related_name="submissions")
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     submitted_at = models.DateTimeField(auto_now_add=True)
-    changes_at_submit = models.JSONField(default=list, help_text="`solves.input.changes_since` as the manager submitted it: what "
-                                                                 "the draft was warned of then, so the approver can be shown "
-                                                                 "what is new since.")
+    month_at_submit = models.JSONField(default=list, help_text="The month's nurses as a solve input would hold them at the submit: "
+                                                               "each one's hospital ID, gender, credited days and the pins that "
+                                                               "count, and no leave type. What has changed since, which the manager "
+                                                               "was not warned of, is compared with this.")
     decision = models.CharField(max_length=8, choices=Decision, blank=True)
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)
