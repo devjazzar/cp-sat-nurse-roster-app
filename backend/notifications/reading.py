@@ -59,6 +59,8 @@ def text_of(note: Notification, names: Names) -> str:
             return f"{by} submitted the {roster}."
         case Event.ROSTER_APPROVED:
             return f"{by} approved the {roster}."
+        case Event.ROSTER_CHANGED:
+            return f"{by} changed the {roster}."
         case Event.ROSTER_REJECTED:
             return f"{by} rejected the {roster}. The comment is with the draft."
         case Event.SOLVE_ENDED:
@@ -76,6 +78,6 @@ def link_of(note: Notification, reader: User, names: Names) -> Link | None:
         return Link("unit_roster", month, unit.pk)
     if reader.role == Role.UNIT_MANAGER and unit.manager_id == reader.pk:
         return Link("roster", month)
-    if note.event == Event.ROSTER_APPROVED and reader.role in (Role.STAFF_NURSE, Role.UNIT_MANAGER):
+    if note.event in (Event.ROSTER_APPROVED, Event.ROSTER_CHANGED) and reader.role in (Role.STAFF_NURSE, Role.UNIT_MANAGER):
         return Link("my_roster", month)
     return None  # A manager who has since lost the unit: its pages are no longer theirs.

@@ -182,7 +182,7 @@ def new_profile(request: HttpRequest, user: User, unit: Unit, gender: str, start
 
 def _locked_nurse(nurse_id: UUID) -> NurseProfile:
     """Locks the account with the profile: user's row before the unit's, as everywhere (see ticket 06)."""
-    return get_object_or_404(NurseProfile.objects.select_for_update(of=("self", "user")).select_related("user"),
+    return get_object_or_404(NurseProfile.objects.select_for_update(of=("self", "user"), no_key=True).select_related("user"),
                              pk=nurse_id)
 
 

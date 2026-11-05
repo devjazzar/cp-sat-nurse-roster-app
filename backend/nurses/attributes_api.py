@@ -94,7 +94,7 @@ def _nurse_to_change(user: User, unit_id: UUID, nurse_id: UUID) -> tuple[Unit, N
     """The same 403 whether another unit's nurse exists or not. The nurse's lock comes before the check, because a transfer
     and an end date change who is on this list under it, and the account's with it, as they take them."""
     unit = unit_in_scope(user, unit_id)
-    NurseProfile.objects.select_for_update(of=("self", "user")).select_related("user").filter(pk=nurse_id).first()
+    NurseProfile.objects.select_for_update(of=("self", "user"), no_key=True).select_related("user").filter(pk=nurse_id).first()
     if not membership.on_the_list_of(unit).filter(pk=nurse_id).exists():
         raise HttpError(403, "This nurse is not in your unit.")
     return unit, with_units(NurseProfile.objects).get(pk=nurse_id)

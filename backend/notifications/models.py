@@ -8,6 +8,7 @@ class Event(models.TextChoices):
     ROSTER_SUBMITTED = "roster_submitted"
     ROSTER_APPROVED = "roster_approved"
     ROSTER_REJECTED = "roster_rejected"
+    ROSTER_CHANGED = "roster_changed"
     SOLVE_ENDED = "solve_ended"
 
 

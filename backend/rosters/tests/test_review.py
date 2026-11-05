@@ -268,8 +268,9 @@ class TestAFrozenRoster:
         assert refused(post(mona, url(er, f"/solve-history/{first}/restore"), {})) == FROZEN[state]
         assert ok(mona.get(url(er, f"/solve-history/{first}")))["restore_refusal"] == FROZEN[state]
 
-    @pytest.mark.parametrize("state", FROZEN_STATES)
+    @pytest.mark.parametrize("state", [RosterState.SUBMITTED])
     def test_no_pin_can_be_saved_or_checked(self, state, mona, carla, er, solver):
+        """An approved roster is edited through versions: `test_versions.py`."""
         self.freeze(mona, carla, er, solver, state)
         grid = roster(er).grid
 

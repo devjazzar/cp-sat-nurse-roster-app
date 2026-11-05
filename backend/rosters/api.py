@@ -24,11 +24,12 @@ from nurses import membership
 from nurses.api import MonthText
 from nurses.models import NurseProfile
 from rosters import review
-from rosters.drafts import MONTH_OVER, in_current_codes, why_frozen
+from rosters.drafts import FROZEN, MONTH_OVER, in_current_codes
 from rosters.editing import Checked, DraftEdits, Edit, check_saved, scored, with_edits
 from rosters.grids import GridView, full_names, grid_view
-from rosters.models import Roster, RosterState
+from rosters.models import Roster, RosterState, RosterVersion, VersionOrigin
 from rosters.pins import AsideWhy, lost_to_leave, month_pins
+from rosters.versions import cells_changed, differences, make_version
 from solves.api import MonthFilter, SolveProgress, chosen_month, manager, progress_of
 from solves.input import assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve, SolveState
@@ -41,6 +42,9 @@ approver = SignedIn(Role.CNO, Role.DEPUTY_CNO)
 reader = SignedIn(Role.UNIT_MANAGER, Role.CNO, Role.DEPUTY_CNO)
 ONLY_THE_MANAGER = "Only the unit's manager changes its roster or submits it."
 ONLY_APPROVERS = "Only the CNO or the Deputy CNO approve or reject a roster."
+IN_FORCE_OVER = "This month is over, so its roster in force cannot change."
+SAVED_AS_A_VERSION = "This roster is approved, so a change to it is saved as a new version in force at once, with a reason."
+NOT_APPROVED = "This roster is not approved yet, so its changes are saved as pins on the draft, with no version or reason."
 
 
 class DraftChange(Schema):
@@ -98,10 +102,13 @@ class EditorNurse(Schema):
 
 
 class DraftEditor(Schema):
-    refusal: str | None = Field(description="Why this draft cannot be edited now: the month is over, the roster is submitted or "
-                                            "approved, or the reader is not its manager.")
+    refusal: str | None = Field(description="Why this roster cannot be edited now: the month is over, the roster is submitted, "
+                                            "or the reader is not its manager. An approved one is edited too, each save a new "
+                                            "version (`saveRosterVersion`).")
     shifts: list[EditorShift] = Field(description="What a cell can be pinned to: the unit's shifts.")
     nurses: list[EditorNurse]
+    gone: list[str] = Field(description="Hospital IDs on the grid no longer in the unit's month, such as a nurse transferred "
+                                        "out: nothing can be pinned for them, and clearing a cell takes its shift off.")
 
 
 class Draft(GridView):
@@ -140,7 +147,7 @@ class Rejection(Schema):
 class Approval(Schema):
     approved_by: str
     approved_at: dt.datetime
-    version: int = Field(description="The roster version in force.")
+    version: int = Field(description="The roster version in force: the latest.")
 
 
 class RosterMonth(Schema):
@@ -162,10 +169,16 @@ class RosterMonth(Schema):
 
 
 def _why_not_edit(roster: Roster, user: User) -> str | None:
-    """One place for the page and the save: a frozen roster (`why_frozen`) and a month that is over refuse a pin."""
+    """One place for the page and both saves: a submitted roster and a month that is over refuse an edit. An approved roster is
+    edited, each save a new version (`save_version`), though `rosters.drafts.why_frozen` still refuses it a solve and a restore:
+    a re-plan is ticket 17's."""
     if user.role != Role.UNIT_MANAGER:
         return ONLY_THE_MANAGER
-    return why_frozen(roster) or (MONTH_OVER if roster.month < membership.this_month() else None)
+    if roster.state == RosterState.SUBMITTED:
+        return FROZEN[RosterState.SUBMITTED]
+    if roster.month < membership.this_month():
+        return IN_FORCE_OVER if roster.state == RosterState.APPROVED else MONTH_OVER
+    return None
 
 
 def _grid_check(checked: Checked, month: dt.date) -> GridCheck:
@@ -180,7 +193,9 @@ def _grid_check(checked: Checked, month: dt.date) -> GridCheck:
 
 def _editor(roster: Roster, solve_input: dict, user: User) -> DraftEditor:
     codes = roster.unit.rules.get("shifts", [])
+    present = {row["id"] for row in solve_input["nurses"]}
     return DraftEditor(
+        gone=sorted(set(roster.grid) - present),
         refusal=_why_not_edit(roster, user),
         shifts=[EditorShift(code=shift.code, display_name=shift.display_name, colour=shift.colour, hours=shift.hours)
                 for shift in Shift.objects.filter(code__in=codes, active=True)],
@@ -249,7 +264,7 @@ def _rejection(roster: Roster) -> Rejection | None:
 def _approval(roster: Roster) -> Approval | None:
     approved = review.approval(roster)
     return approved and Approval(approved_by=review.name_of(approved.decided_by), approved_at=timezone.localtime(approved.decided_at),
-                                 version=roster.versions.count())
+                                 version=roster.versions.first().number)
 
 
 def _roster_month(unit: Unit, month: dt.date, user: User) -> RosterMonth:
@@ -372,34 +387,137 @@ def check_edits(request: HttpRequest, unit_id: UUID, body: EditsBody) -> DraftCh
     return DraftCheck(**_grid_check(after, month).dict(), cost_before=before.cost, delta=delta, refusals=refusals)
 
 
+def _locked_for_edits(request: HttpRequest, unit_id: UUID, month: dt.date, edits: list[Edit], state: RosterState) -> DraftEdits:
+    """Inside the save's transaction: the catalogue's lock, which a solve's start and end, a restore and a rename hold, then each
+    nurse's, which a leave write holds and which comes before a unit's in a transfer, then the unit's and the roster's, as a
+    submit and an approval take them. Then every refusal, before anything is written. The nurses' locks are `FOR NO KEY
+    UPDATE`, which serialise these writes as `FOR UPDATE` would but let a colleague's leave commit its notifications, whose
+    foreign keys to users are checked then, while this waits on the roster it holds (`test_two_at_once.py`)."""
+    HospitalSettings.load(for_update=True)
+    wanted = [edit.hospital_id for edit in edits]
+    list(NurseProfile.objects.select_for_update(of=("self", "user"), no_key=True).select_related("user")
+         .filter(user__username__in=wanted).order_by("pk"))
+    unit = unit_in_scope(request.user, unit_id, for_update=True)
+    roster = _draft_of(unit, month, for_update=True)
+    refused = _why_not_edit(roster, request.user)
+    if refused:
+        raise HttpError(409, refused)
+    if roster.state != state:
+        raise HttpError(409, SAVED_AS_A_VERSION if roster.state == RosterState.APPROVED else NOT_APPROVED)
+    editing = DraftEdits(roster)
+    refusals = [(("edits", index), reason) for index, edit in enumerate(edits) if (reason := editing.refusal(edit))]
+    if refusals:
+        refuse(*refusals)
+    return editing
+
+
 @router.post("/{unit_id}/roster/pins", response=RosterMonth, auth=manager, operation_id="saveDraftPins")
 def save_pins(request: HttpRequest, unit_id: UUID, body: EditsBody) -> RosterMonth:
-    """All of it or none of it. Under the catalogue's lock, which a solve's start and end, a restore and a rename hold, then each
-    nurse's, which a leave write holds and which comes before a unit's in a transfer. A solve already under way was given the
-    month without these: it may run on, its roster takes them on top when it ends, and the draft says so through `changes`. The
-    audit entry names the unit and the month and how many pins and cells changed, and no nurse, date or shift: the System Admin
-    sees no roster."""
+    """A draft's, all of it or none of it, under the locks `_locked_for_edits` names; an approved roster's changes are versions
+    (`saveRosterVersion`). A solve already under way was given the month without these: it may run on, its roster takes them on
+    top when it ends, and the draft says so through `changes`. The audit entry names the unit and the month and how many pins and
+    cells changed, and no nurse, date or shift: the System Admin sees no roster."""
     month = dt.date.fromisoformat(f"{body.month}-01")
     edits = _refuse_nonsense(body)
     with transaction.atomic():
-        HospitalSettings.load(for_update=True)
-        wanted = [edit.hospital_id for edit in edits]
-        list(NurseProfile.objects.select_for_update(of=("self", "user")).select_related("user")
-             .filter(user__username__in=wanted).order_by("pk"))
-        unit = unit_in_scope(request.user, unit_id, for_update=True)
-        roster = _draft_of(unit, month, for_update=True)
-        refused = _why_not_edit(roster, request.user)
-        if refused:
-            raise HttpError(409, refused)
-        editing = DraftEdits(roster)
-        refusals = [(("edits", index), reason) for index, edit in enumerate(edits) if (reason := editing.refusal(edit))]
-        if refusals:
-            refuse(*refusals)
+        editing = _locked_for_edits(request, unit_id, month, edits, RosterState.DRAFT)
+        unit = editing.roster.unit
         pins, cells = editing.save(edits, request.user)
         if pins or cells:
             record("roster.draft_edited", actor=request.user, target=f"{unit.name}, {body.month}", request=request,
                    after={"pins": pins, "cells": cells})
     return _roster_month(unit, month, request.user)
+
+
+class VersionBody(EditsBody):
+    reason: str = Field(min_length=1, max_length=2000,
+                        description="Why, for the unit's manager and the approvers, who read it in the version list. Never a "
+                                    "nurse, a notification or the audit log.")
+
+
+@router.post("/{unit_id}/roster/versions", response=RosterMonth, auth=manager, operation_id="saveRosterVersion")
+def save_version(request: HttpRequest, unit_id: UUID, body: VersionBody) -> RosterMonth:
+    """An approved roster's direct edits, all of it or none of it, under the locks `_locked_for_edits` names: a new version with
+    origin `edit` and the reason, in force at once, each edited cell a manager's pin as on the draft. A save that changes nothing
+    makes none. One that breaks a hard rule saves, and the answer's `draft.check` says what it breaks: the roster in force has to
+    say what is so, such as a shift left short by a nurse taken off sick. The audit entry says a version was made, and never why.
+    The unit's nurses of the month are told, with no reason, cell or name."""
+    month = dt.date.fromisoformat(f"{body.month}-01")
+    edits = _refuse_nonsense(body)
+    reason = body.reason.strip()
+    if not reason:
+        refuse((("reason",), "Say why, for the version list."))
+    with transaction.atomic():
+        editing = _locked_for_edits(request, unit_id, month, edits, RosterState.APPROVED)
+        roster, unit = editing.roster, editing.roster.unit
+        pins, cells = editing.save(edits, request.user)
+        if pins or cells:
+            version = make_version(roster, roster.grid, VersionOrigin.EDIT, request.user, reason)
+            record("roster.changed", actor=request.user, target=_target(unit, month), request=request,
+                   after={"version": version.number, "pins": pins, "cells": cells})
+            sending.roster_changed(unit, month, request.user)
+    return _roster_month(unit, month, request.user)
+
+
+class VersionRow(Schema):
+    number: int
+    origin: Literal["solve", "edit", "replan", "swap", "request"]
+    created_by: str
+    created_at: dt.datetime
+    reason: str = Field(description="Empty for version 1, which the approval made. It can say a cell was leave, so only the "
+                                    "unit's manager and the approvers read it.")
+    cells_changed: int | None = Field(description="Cells that differ from the version before. Null for version 1.")
+
+
+@router.get("/{unit_id}/roster/versions", response=list[VersionRow], auth=reader,
+            operation_id="listRosterVersions")
+def roster_versions(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) -> list[VersionRow]:
+    """Newest first. Only an approved roster has versions, so the CNO and the Deputy CNO read them as they read the roster."""
+    unit = unit_in_scope(request.user, unit_id)
+    month = chosen_month(filters.month)
+    rows = list(RosterVersion.objects.filter(roster__unit=unit, roster__month=month).select_related("created_by"))
+    return [VersionRow(number=version.number, origin=version.origin, created_by=review.name_of(version.created_by),
+                       created_at=timezone.localtime(version.created_at), reason=version.reason,
+                       cells_changed=cells_changed(version, rows[index + 1] if index + 1 < len(rows) else None))
+            for index, version in enumerate(rows)]
+
+
+class CompareFilter(MonthFilter):
+    from_version: int = Field(ge=1)
+    to_version: int = Field(ge=1)
+
+
+class CellChangeRow(Schema):
+    hospital_id: str
+    full_name: str
+    date: dt.date
+    before: str = Field(description="The shift's code in `from_version`, today's code. Empty for a day not worked.")
+    after: str = Field(description="The same in `to_version`.")
+
+
+class VersionComparison(Schema):
+    from_version: int
+    to_version: int
+    changes: list[CellChangeRow] = Field(description="Each cell that differs, by nurse then date. A rename is not a change.")
+
+
+@router.get("/{unit_id}/roster/versions/compare", response=VersionComparison, auth=reader,
+            operation_id="compareRosterVersions")
+def compare_versions(request: HttpRequest, unit_id: UUID, filters: Query[CompareFilter]) -> VersionComparison:
+    """Any two versions of the month, in either order, cell by cell under today's codes. For the unit's manager and the approvers:
+    a nurse reads the roster in force on My roster, and nothing of what changed in a colleague's row."""
+    unit = unit_in_scope(request.user, unit_id)
+    month = chosen_month(filters.month)
+    found = {version.number: version for version in RosterVersion.objects.filter(
+        roster__unit=unit, roster__month=month, number__in=[filters.from_version, filters.to_version])}
+    for number in (filters.from_version, filters.to_version):
+        if number not in found:
+            raise HttpError(404, f"This month's roster has no version {number}.")
+    changes = differences(found[filters.from_version].grid, found[filters.to_version].grid)
+    names = full_names(change.hospital_id for change in changes)
+    return VersionComparison(from_version=filters.from_version, to_version=filters.to_version, changes=[
+        CellChangeRow(hospital_id=change.hospital_id, full_name=names.get(change.hospital_id, ""), date=change.date,
+                      before=change.before, after=change.after) for change in changes])
 
 
 class MonthBody(StrictSchema):

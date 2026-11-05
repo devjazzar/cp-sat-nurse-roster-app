@@ -72,13 +72,14 @@ class DraftEdits:
 
     def cell_after(self, edit: Edit) -> str:
         """Clearing gives the cell back to its solve. On a credited day, leave wins, which is also how a manager takes a shift off
-        a day that became leave after the solve."""
+        a day that became leave after the solve; and a nurse no longer in the unit's month, such as one transferred out, works
+        nothing here, so clearing takes their shift off."""
         if edit.action == "shift":
             return self.shift_of(edit).code
         if edit.action == "off":
             return ""
         nurse = self.nurses.get(edit.hospital_id)
-        if nurse is not None and self.judge.day_why(nurse.pk, edit.date) in ("leave", "outside_dates"):
+        if nurse is None or self.judge.day_why(nurse.pk, edit.date) in ("leave", "outside_dates"):
             return ""
         solved = in_current_codes(self.roster.solve.result["roster"])
         return solved.get(edit.hospital_id, {}).get(edit.day, "")

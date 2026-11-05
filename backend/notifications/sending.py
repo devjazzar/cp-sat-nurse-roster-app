@@ -42,6 +42,14 @@ def roster_approved(unit: Unit, month: dt.date, by: User) -> None:
     notify([unit.manager, *nurses], Event.ROSTER_APPROVED, **_about(unit, month), by=str(by.pk))
 
 
+def roster_changed(unit: Unit, month: dt.date, by: User) -> None:
+    """To every nurse of the unit's month, as an approval is, but not to whoever made the change, who knows. Never the reason,
+    the cells or whose they are, since a cell taken off can be leave and a colleague must not learn that: each nurse reads their
+    own row on My roster. No version number, which a later version would make untrue."""
+    nurses = User.objects.filter(nurse_profile__in=membership.placed_in(unit, month)).exclude(pk=by.pk)
+    notify(nurses, Event.ROSTER_CHANGED, **_about(unit, month), by=str(by.pk))
+
+
 def roster_rejected(unit: Unit, month: dt.date, by: User) -> None:
     """To the unit's manager only. The comment stays on the roster: it can name a nurse and their leave."""
     notify([unit.manager], Event.ROSTER_REJECTED, **_about(unit, month), by=str(by.pk))

@@ -14,6 +14,7 @@ from nurses.models import NurseProfile
 from rosters.drafts import FROZEN
 from rosters.editing import Checked
 from rosters.models import Decision, Roster, RosterState, RosterVersion, Submission, VersionOrigin
+from rosters.versions import make_version
 from solves.input import assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve
 from units.models import Unit
@@ -96,7 +97,8 @@ def lock_the_months_nurses(unit: Unit, month: dt.date, roster: Roster | None) ->
     in_grid = list(roster.grid) if roster else []
     ids = set(membership.placed_in(unit, month).values_list("pk", flat=True))
     ids |= set(NurseProfile.objects.filter(user__username__in=in_grid).values_list("pk", flat=True))
-    list(NurseProfile.objects.select_for_update(of=("self", "user")).select_related("user").filter(pk__in=ids).order_by("pk"))
+    list(NurseProfile.objects.select_for_update(of=("self", "user"), no_key=True).select_related("user")
+         .filter(pk__in=ids).order_by("pk"))
 
 
 MONTH_AT_SUBMIT_KEYS = ("id", "gender", "leave", "pinned")
@@ -130,9 +132,7 @@ def approve(roster: Roster, by: User) -> RosterVersion:
     _decide(roster, Decision.APPROVED, by)
     roster.state = RosterState.APPROVED
     roster.save(update_fields=["state"])
-    number = roster.versions.count() + 1
-    return RosterVersion.objects.create(roster=roster, number=number, grid=roster.grid, origin=VersionOrigin.SOLVE,
-                                        solve=roster.solve, created_by=by)
+    return make_version(roster, roster.grid, VersionOrigin.SOLVE, by, solve=roster.solve)
 
 
 def reject(roster: Roster, by: User, comment: str) -> Submission:

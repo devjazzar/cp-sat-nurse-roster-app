@@ -98,7 +98,8 @@ def test_a_write_without_the_csrf_token_gets_403_even_with_the_right_role(make_u
 
 
 MANAGER, APPROVERS = {Role.UNIT_MANAGER}, {Role.CNO, Role.DEPUTY_CNO}
-# Who may call each transition and read of a roster (ticket 14). A unit's own scope is `units.scope`, held by the rosters' tests.
+# Who may call each transition and read of a roster (tickets 14 and 16).
+# A unit's own scope is `units.scope`, held by the rosters' tests.
 ROSTER_ROLES = {
     "GET /api/units/{unit_id}/roster": MANAGER | APPROVERS,
     "POST /api/units/{unit_id}/roster/submit": MANAGER,
@@ -106,6 +107,9 @@ ROSTER_ROLES = {
     "POST /api/units/{unit_id}/roster/reject": APPROVERS,
     "POST /api/units/{unit_id}/roster/pins": MANAGER,
     "POST /api/units/{unit_id}/roster/check": MANAGER,
+    "POST /api/units/{unit_id}/roster/versions": MANAGER,
+    "GET /api/units/{unit_id}/roster/versions": MANAGER | APPROVERS,
+    "GET /api/units/{unit_id}/roster/versions/compare": MANAGER | APPROVERS,
     "POST /api/units/{unit_id}/solves": MANAGER,
     "GET /api/units/{unit_id}/solves/preview": MANAGER,
     "GET /api/units/{unit_id}/solve-history": MANAGER | APPROVERS,

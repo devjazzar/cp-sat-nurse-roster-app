@@ -7,8 +7,10 @@ from django.db import transaction
 
 from nurses.tests.test_two_at_once import alongside
 from rosters.models import RosterState, RosterVersion, Submission
-from rosters.tests.test_review import (BADR_OFF, BADR_WORKS, approve, carla, dina, record_leave, reject, roster, solved,  # noqa: F401
-                                       submit, submitted)
+from rosters.tests.test_pins import off, pin
+from rosters.tests.test_review import (BADR_OFF, BADR_WORKS, approve, approved, carla, dina, record_leave,  # noqa: F401
+                                       reject, roster, solved, submit, submitted)
+from rosters.tests.test_versions import change
 from solves.tests.conftest import empty_queue, start_solve  # noqa: F401
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -86,3 +88,52 @@ def test_a_submit_waiting_on_a_solve_starting_is_refused(mona, er, solver, pool)
 
     assert second.result().json()["detail"].startswith("A solve of this month is queued or running")
     assert not Submission.objects.exists()
+
+
+def test_of_two_changes_to_an_approved_roster_the_second_waits_and_is_the_next_version(mona, carla, er, solver, pool):
+    approved(mona, carla, er, solver)
+
+    with transaction.atomic():
+        assert change(mona, er, pin("Amal", 9, "N")).status_code == 200
+        second = alongside(pool, lambda: change(mona, er, off("Badr", 2), reason="Badr asked."))
+        assert not second.done()
+
+    assert second.result().status_code == 200
+    versions = list(roster(er).versions.order_by("number").values_list("number", "reason"))
+    assert [number for number, _ in versions] == [1, 2, 3] and versions[2][1] == "Badr asked."
+    latest = roster(er).versions.first().grid
+    assert latest["Amal"]["2026-06-09"] == "N" and latest["Badr"]["2026-06-02"] == "", "the second built on the first"
+    assert roster(er).grid == latest
+
+
+def test_leave_taking_a_shift_off_waits_for_a_change_to_the_same_nurse_and_comes_after_it(mona, carla, er, solver, pool):
+    """The change holds the nurse's lock, which a leave write takes first; the leave then takes the roster's after it."""
+    approved(mona, carla, er, solver)
+
+    with transaction.atomic():
+        assert change(mona, er, pin("Badr", BADR_OFF, "D")).status_code == 200
+        leave = alongside(pool, lambda: record_leave(mona, er, "Badr", BADR_WORKS))
+        assert not leave.done()
+
+    answer = leave.result()
+    assert answer.status_code == 201, answer.content
+    assert [row["version"] for row in answer.json()["shifts_taken_off"]] == [3]
+    latest = roster(er).versions.first()
+    assert latest.number == 3 and latest.grid["Badr"][f"2026-06-{BADR_OFF:02d}"] == "D"
+    assert latest.grid["Badr"][f"2026-06-{BADR_WORKS:02d}"] == ""
+    assert roster(er).grid == latest.grid
+
+
+def test_a_change_waits_for_leave_on_another_nurse_and_keeps_the_shift_it_took_off(mona, carla, er, solver, pool):
+    """Different nurses' locks do not meet, so the roster's row lock is what orders them."""
+    approved(mona, carla, er, solver)
+
+    with transaction.atomic():
+        assert record_leave(mona, er, "Badr", BADR_WORKS).status_code == 201
+        edit = alongside(pool, lambda: change(mona, er, pin("Amal", 9, "N")))
+        assert not edit.done()
+
+    assert edit.result().status_code == 200
+    latest = roster(er).versions.first()
+    assert latest.number == 3
+    assert latest.grid["Badr"][f"2026-06-{BADR_WORKS:02d}"] == "" and latest.grid["Amal"]["2026-06-09"] == "N"
