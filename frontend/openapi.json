@@ -1796,6 +1796,174 @@
           }
         ]
       }
+    },
+    "/api/nurses/import/template": {
+      "get": {
+        "operationId": "downloadNurseImportTemplate",
+        "summary": "Import Template",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A CSV file.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/import/preview": {
+      "post": {
+        "operationId": "previewNurseImport",
+        "summary": "Preview Import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          }
+        },
+        "description": "Every row's problems. It saves nothing and keeps nothing: confirming sends the file again.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "title": "File",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "title": "FileParams",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/import/confirm": {
+      "post": {
+        "operationId": "confirmNurseImport",
+        "summary": "Confirm Import",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordSheet"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          }
+        },
+        "description": "`token` is the preview's. The file is judged again from the start: with any problem, or when it no longer means\nwhat was previewed, nothing is saved and the answer is 409 with the preview as it now stands.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "title": "File",
+                    "type": "string"
+                  },
+                  "token": {
+                    "title": "Token",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file",
+                  "token"
+                ],
+                "title": "MultiPartBodyParams",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/export": {
+      "get": {
+        "operationId": "exportStaffList",
+        "summary": "Export Staff List",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A CSV file.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "description": "Every nurse the CNO's list shows, deactivated ones too, by name. Its first columns are the import's.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -3611,6 +3779,150 @@
           "start_date"
         ],
         "title": "CorrectionBody",
+        "type": "object"
+      },
+      "ImportPreview": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          }
+        },
+        "required": [
+          "rows",
+          "token"
+        ],
+        "title": "ImportPreview",
+        "type": "object"
+      },
+      "ImportProblem": {
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "message"
+        ],
+        "title": "ImportProblem",
+        "type": "object"
+      },
+      "ImportRow": {
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "gender": {
+            "title": "Gender",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "start_date": {
+            "title": "Start Date",
+            "type": "string"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/ImportProblem"
+            },
+            "title": "Problems",
+            "type": "array"
+          }
+        },
+        "required": [
+          "line",
+          "hospital_id",
+          "full_name",
+          "gender",
+          "unit",
+          "start_date",
+          "problems"
+        ],
+        "title": "ImportRow",
+        "type": "object"
+      },
+      "PasswordSheet": {
+        "description": "Holds passwords, so it asks not to be stored.",
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SheetRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "PasswordSheet",
+        "type": "object"
+      },
+      "SheetRow": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "generated_password": {
+            "title": "Generated Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "unit",
+          "generated_password"
+        ],
+        "title": "SheetRow",
         "type": "object"
       }
     },

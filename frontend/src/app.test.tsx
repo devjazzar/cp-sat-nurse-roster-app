@@ -29,7 +29,7 @@ function start(path: string, handlers: Record<string, Handler | Answer>) {
     "fetch",
     vi.fn(async (url: string, init: RequestInit = {}) => {
       const method = init.method ?? "GET"
-      const body = init.body ? JSON.parse(init.body as string) : undefined
+      const body = init.body instanceof FormData ? init.body : init.body ? JSON.parse(init.body as string) : undefined
       calls.push({ url, method, body, headers: new Headers(init.headers) })
       // An exact match first, then one that ignores the query string.
       const handler = handlers[`${method} ${url}`] ?? handlers[`${method} ${url.split("?")[0]}`]
@@ -2246,5 +2246,268 @@ describe("the nurses page", () => {
     start("/nurses", asManagerHere([]))
 
     expect(await screen.findByText(/ER has no nurses yet/)).toBeInTheDocument()
+  })
+})
+
+describe("importing nurses", () => {
+  const CHIEF = { ...ME, username: "chief", full_name: "The Chief", role: "cno" }
+  const here = (extra = {}) => ({ ...session(CHIEF), ...extra })
+  const ROW = { line: 2, hospital_id: "h1", full_name: "Amal Saleh", gender: "F", unit: "ER", start_date: "2026-01-10", problems: [] }
+  const ROW_2 = { ...ROW, line: 3, hospital_id: "h2", full_name: "Badr Omar", gender: "M" }
+  const BAD = { ...ROW_2, gender: "X", problems: [{ column: "gender", message: "Use F or M." }, { column: null, message: "Something about the line." }] }
+  const GOOD = { rows: [ROW, ROW_2], token: "the-token" }
+  const SHEET = { rows: [
+    { hospital_id: "h1", full_name: "Amal Saleh", unit: "ER", generated_password: "aaaa-bbbb-cccc-dddd" },
+    { hospital_id: "h2", full_name: "=Badr\t=1+1", unit: "ER", generated_password: "eeee-ffff-gggg-hhhh" },
+  ] }
+  const csv = (content = "a file", name = "nurses.csv") => new File([content], name, { type: "text/csv" })
+
+  async function check(user: ReturnType<typeof userEvent.setup>, file = csv()) {
+    await user.upload(await screen.findByLabelText("CSV file"), file)
+    await user.click(screen.getByRole("button", { name: "Check file" }))
+  }
+
+  it("offers the CNO the template", async () => {
+    const { router } = start("/nurses/import", here())
+
+    const link = await screen.findByRole("link", { name: "Download the template" })
+    expect(link).toHaveAttribute("href", "/api/nurses/import/template")
+    expect(link).toHaveAttribute("download")
+    expect(document.title).toBe("Import nurses · Nurse roster")
+    expect(router.state.location.pathname).toBe("/nurses/import")
+  })
+
+  it("sends a unit manager home", async () => {
+    const { router } = start("/nurses/import", {
+      ...session({ ...ME, username: "mona", role: "unit_manager" }),
+      "GET /api/units": { body: [] },
+    })
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+  })
+
+  it("asks for a file, and refuses a large one before sending it", async () => {
+    const { user, calls } = start("/nurses/import", here())
+    await screen.findByLabelText("CSV file")
+
+    await user.click(screen.getByRole("button", { name: "Check file" }))
+    expect(await screen.findByText("Choose a CSV file.")).toBeInTheDocument()
+
+    await check(user, csv("x".repeat(1024 * 1024 + 1)))
+    expect(await screen.findByText(/larger than 1 MB/)).toBeInTheDocument()
+    expect(screen.getByLabelText("CSV file")).toHaveFocus()
+    expect(calls.filter((call) => call.method === "POST")).toEqual([])
+  })
+
+  it("shows a refusal of the whole file beside the field", async () => {
+    const { user } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { status: 422, body: { detail: [{ type: "value_error", loc: ["body", "body", "file"], msg: "This is not a CSV file in UTF-8." }] } },
+    }))
+
+    await check(user)
+
+    expect(await screen.findByText("This is not a CSV file in UTF-8.")).toBeInTheDocument()
+    expect(screen.getByLabelText("CSV file")).toHaveFocus()
+  })
+
+  it("says so when the check itself fails", async () => {
+    const { user } = start("/nurses/import", here({ "POST /api/nurses/import/preview": { status: 500 } }))
+
+    await check(user)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("That did not work")
+  })
+
+  it("shows only the lines with problems, each named, and offers nothing to confirm", async () => {
+    const { user, calls } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: { rows: [ROW, BAD], token: null } },
+    }))
+
+    await check(user)
+
+    const heading = await screen.findByRole("heading", { name: "1 of 2 lines has a problem" })
+    expect(heading).toHaveFocus()
+    expect(screen.getByText("Gender: Use F or M.")).toBeInTheDocument()
+    expect(screen.getByText("Something about the line.")).toBeInTheDocument()
+    expect(screen.getByText("Badr Omar")).toBeInTheDocument()
+    expect(screen.queryByText("Amal Saleh")).not.toBeInTheDocument()
+    expect(screen.getByText(/The other line has no problem/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Add/ })).not.toBeInTheDocument()
+    const sent = calls.find((call) => call.method === "POST")
+    expect((sent?.body as FormData).get("file")).toBeInstanceOf(Blob)
+    expect(sent?.headers.has("Content-Type")).toBe(false)
+  })
+
+  it("confirms the very bytes it checked, with the preview's token, and shows the sheet with no way back to it", async () => {
+    let confirmed: FormData | undefined
+    const { user, calls } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": ({ body }: { body: unknown }) => { confirmed = body as FormData; return { status: 201, body: SHEET } },
+    }))
+
+    await check(user, csv("the bytes"))
+    expect(await screen.findByRole("heading", { name: "2 nurses ready to add" })).toHaveFocus()
+    expect(calls.filter((call) => call.url.includes("confirm"))).toEqual([])
+    await user.click(screen.getByRole("button", { name: "Add 2 nurses" }))
+
+    expect(await screen.findByRole("heading", { name: "Passwords for 2 nurses" })).toHaveFocus()
+    expect(screen.getByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
+    expect(confirmed?.get("token")).toBe("the-token")
+    expect(await (confirmed?.get("file") as Blob).text()).toBe("the bytes")
+
+    await user.click(screen.getByRole("button", { name: "Done" }))
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Stay" }))
+    expect(screen.getByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Done" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Close passwords" }))
+
+    await waitFor(() => expect(screen.queryByText("aaaa-bbbb-cccc-dddd")).not.toBeInTheDocument())
+    expect(screen.getByText("2 nurses added.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Import nurses" })).toHaveFocus()
+  })
+
+  it("asks before leaving a sheet, and leaves only when told to", async () => {
+    const { user, router } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": { status: 201, body: SHEET },
+      "GET /api/nurses": { body: [] },
+      "GET /api/units": { body: [] },
+    }))
+    await check(user)
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+    await screen.findByText("aaaa-bbbb-cccc-dddd")
+
+    await user.click(screen.getByRole("link", { name: "Home" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByText("Leave without the passwords?")).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Stay" }))
+    expect(router.state.location.pathname).toBe("/nurses/import")
+    expect(screen.getByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("link", { name: "Home" }))
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Leave" }))
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+  })
+
+  it("copies the sheet with any cell that looks like a formula made safe", async () => {
+    const { user } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": { status: 201, body: SHEET },
+    }))
+    await check(user)
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+    await screen.findByText("aaaa-bbbb-cccc-dddd")
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+
+    await user.click(screen.getByRole("button", { name: "Copy all" }))
+
+    expect(await screen.findByText("Copied.")).toBeInTheDocument()
+    expect(writeText).toHaveBeenCalledWith(
+      "Hospital ID\tFull name\tUnit\tPassword\nh1\tAmal Saleh\tER\taaaa-bbbb-cccc-dddd\nh2\t'=Badr =1+1\tER\teeee-ffff-gggg-hhhh")
+  })
+
+  it("prints the sheet", async () => {
+    const print = vi.fn()
+    vi.stubGlobal("print", print)
+    const { user } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": { status: 201, body: SHEET },
+    }))
+    await check(user)
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+
+    await user.click(await screen.findByRole("button", { name: "Print" }))
+
+    expect(print).toHaveBeenCalled()
+  })
+
+  it("shows what changed when the file no longer means what was previewed, and saves nothing", async () => {
+    const { user } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": { status: 409, body: { rows: [ROW, BAD], token: null } },
+    }))
+    await check(user)
+
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something changed since the last check, so nothing was saved.")
+    expect(await screen.findByRole("heading", { name: "1 of 2 lines has a problem" })).toHaveFocus()
+    expect(screen.queryByRole("button", { name: /^Add/ })).not.toBeInTheDocument()
+  })
+
+  it("lets a changed file that is still good be confirmed with its new token", async () => {
+    const tokens: unknown[] = []
+    const { user } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": ({ body }: { body: unknown }) => {
+        tokens.push((body as FormData).get("token"))
+        return tokens.length === 1 ? { status: 409, body: { ...GOOD, token: "new-token" } } : { status: 201, body: SHEET }
+      },
+    }))
+    await check(user)
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+    await screen.findByRole("alert")
+
+    await user.click(screen.getByRole("button", { name: "Add 2 nurses" }))
+
+    await screen.findByText("aaaa-bbbb-cccc-dddd")
+    expect(tokens).toEqual(["the-token", "new-token"])
+  })
+
+  it("says plainly when it cannot tell whether the nurses were added", async () => {
+    const { user } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+      "POST /api/nurses/import/confirm": { status: 502 },
+    }))
+    await check(user)
+
+    await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("It is not known whether these nurses were added.")
+  })
+
+  it("asks before leaving while the nurses are being added", async () => {
+    let finish: (answer: Answer) => void = () => {}
+    const { user, calls, router } = start("/nurses/import", here({
+      "POST /api/nurses/import/preview": { body: GOOD },
+    }))
+    await check(user)
+    await screen.findByRole("button", { name: "Add 2 nurses" })
+    vi.stubGlobal("fetch", vi.fn(() => new Promise((resolve) => {
+      finish = (answer) => resolve(new Response(JSON.stringify(answer.body), { status: answer.status }))
+    })))
+
+    await user.click(screen.getByRole("button", { name: "Add 2 nurses" }))
+    expect(await screen.findByText(/can take a few minutes/)).toBeInTheDocument()
+    await user.click(screen.getByRole("link", { name: "Home" }))
+
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/nurses/import")
+    expect(calls.length).toBeGreaterThan(0)
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Stay" }))
+    await act(async () => finish({ status: 201, body: SHEET }))
+    expect(await screen.findByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
+  })
+
+  it("links the CNO to the import and the staff list from the nurses page, and not a manager", async () => {
+    start("/nurses", here({ "GET /api/nurses": { body: [] }, "GET /api/units": { body: [] } }))
+
+    expect(await screen.findByRole("link", { name: "Import from a file" })).toHaveAttribute("href", "/nurses/import")
+    expect(screen.getByRole("link", { name: "Export staff list" })).toHaveAttribute("href", "/api/nurses/export")
+  })
+
+  it("has neither for a unit manager", async () => {
+    start("/nurses", {
+      ...session({ ...ME, username: "mona", role: "unit_manager" }),
+      "GET /api/nurses": { body: [] },
+      "GET /api/units": { body: [] },
+    })
+
+    await screen.findByRole("heading", { name: "Nurses" })
+    expect(screen.queryByRole("link", { name: "Import from a file" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Export staff list" })).not.toBeInTheDocument()
   })
 })

@@ -23,7 +23,7 @@ function SignedInLayout() {
 
   return (
     <div className="min-h-svh">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3 print:hidden">
         <span className="font-medium">Nurse roster</span>
         <nav aria-label="Main" className="flex flex-wrap items-center gap-4">
           {NAVIGATION[user.role].map(({ label, ...link }) => (

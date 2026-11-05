@@ -142,12 +142,12 @@ def _row(nurse: NurseProfile, only_unit: UUID | None = None) -> NurseRow:
                                for placement in coming])
 
 
-def _with_units(nurses):
+def with_units(nurses):
     return nurses.select_related("user").prefetch_related("placements__unit").order_by(Lower("user__full_name"), "pk")
 
 
 def _row_as_saved(nurse_id: UUID) -> NurseRow:
-    return _row(_with_units(NurseProfile.objects).get(pk=nurse_id))
+    return _row(with_units(NurseProfile.objects).get(pk=nurse_id))
 
 
 def _unit_to_join(unit_id: UUID) -> Unit:
@@ -168,11 +168,11 @@ def _keep_in_held_unit(user: User, unit: Unit) -> None:
                               f"Give {held.name} another manager, or none, first."))
 
 
-def _new_profile(request: HttpRequest, user: User, unit: Unit, body: ProfileFields) -> NurseProfile:
-    nurse = NurseProfile.objects.create(user=user, gender=body.gender, start_date=body.start_date)
+def new_profile(request: HttpRequest, user: User, unit: Unit, gender: str, start_date: dt.date) -> NurseProfile:
+    nurse = NurseProfile.objects.create(user=user, gender=gender, start_date=start_date)
     membership.place_new_nurse(nurse, unit)
     record("nurse.added", actor=request.user, target=user.username, request=request,
-           after={"unit": unit.name, "start_date": body.start_date.isoformat()})
+           after={"unit": unit.name, "start_date": start_date.isoformat()})
     return nurse
 
 
@@ -186,11 +186,11 @@ def _locked_nurse(nurse_id: UUID) -> NurseProfile:
 def list_nurses(request: HttpRequest) -> list[NurseRow]:
     """Everyone for the CNO. For a manager, the nurses of their unit and those due to join, naming no other unit."""
     if request.user.role == Role.CNO:
-        return [_row(nurse) for nurse in _with_units(NurseProfile.objects.all())]
+        return [_row(nurse) for nurse in with_units(NurseProfile.objects.all())]
     unit = units_in_scope(request.user).first()
     if unit is None:
         return []
-    return [_row(nurse, only_unit=unit.pk) for nurse in _with_units(membership.on_the_list_of(unit))]
+    return [_row(nurse, only_unit=unit.pk) for nurse in with_units(membership.on_the_list_of(unit))]
 
 
 @router.post("", response={201: NurseWithPassword}, auth=cno, operation_id="createNurse")
@@ -202,7 +202,7 @@ def add_nurse(request: HttpRequest, response: HttpResponse, body: NewNurseBody) 
                                          role=Role.STAFF_NURSE)
         except UsernameTaken:
             refuse((("hospital_id",), f"{body.hospital_id} is already in use."))
-        nurse = _new_profile(request, user, _unit_to_join(body.unit_id), body)
+        nurse = new_profile(request, user, _unit_to_join(body.unit_id), body.gender, body.start_date)
     response["Cache-Control"] = "no-store"
     return Status(201, NurseWithPassword(nurse=_row_as_saved(nurse.pk), generated_password=password))
 
@@ -237,7 +237,7 @@ def give_manager_a_profile(request: HttpRequest, body: ManagerProfileBody) -> St
             refuse((("user_id",), f"{manager.username} already has a nurse profile."))
         unit = _unit_to_join(body.unit_id)
         _keep_in_held_unit(manager, unit)
-        nurse = _new_profile(request, manager, unit, body)
+        nurse = new_profile(request, manager, unit, body.gender, body.start_date)
     return Status(201, _row_as_saved(nurse.pk))
 
 
@@ -348,7 +348,7 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
 def reset_nurse_password(request: HttpRequest, response: HttpResponse, nurse_id: UUID) -> NurseWithPassword:
     """A staff nurse's only: a manager's account is the System Admin's, and this would let one bypass their own
     current password. A manager reaches the nurses of their unit this month, and the same 403 otherwise."""
-    nurse = _with_units(NurseProfile.objects).filter(pk=nurse_id).first()
+    nurse = with_units(NurseProfile.objects).filter(pk=nurse_id).first()
     if nurse is None:
         if request.user.role == Role.CNO:
             raise Http404("There is no such nurse.")

@@ -36,11 +36,13 @@ services:
 
   web:
     <<: *app
+    # The timeout has to outlast confirming the largest nurse import on one core: 500 password hashes at about half a
+    # second each. See nurses/importing.py. Gunicorn's default of 30 s would kill that request.
     command: >-
       sh -c "python manage.py migrate --noinput
       && python manage.py bootstrap
       && unset INITIAL_ADMIN_PASSWORD
-      && exec gunicorn config.wsgi --bind 0.0.0.0:8000 --workers 3 --access-logfile - --error-logfile -"
+      && exec gunicorn config.wsgi --bind 0.0.0.0:8000 --workers 3 --timeout 300 --access-logfile - --error-logfile -"
     environment:
       <<: *django-env
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?set INITIAL_ADMIN_PASSWORD in .env, see .env.example}

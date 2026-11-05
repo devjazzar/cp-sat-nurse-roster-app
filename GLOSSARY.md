@@ -67,6 +67,14 @@ _Avoid_: head nurse, charge nurse, supervisor
 A nurse's role. Sees her unit's approved roster, makes requests during a request window and proposes swaps.
 _Avoid_: nurse user, regular nurse
 
+**Password sheet**:
+The generated passwords of the nurses a confirmed import just added, shown once, for the CNO to print or copy.
+_Avoid_: credentials file, password list
+
+**Staff list**:
+The CSV the CNO exports of every nurse: their hospital ID, full name, gender, unit, dates, role and status, and any transfer to come.
+_Avoid_: nurse export, roster, employee list
+
 ### Rosters
 
 **Roster**:

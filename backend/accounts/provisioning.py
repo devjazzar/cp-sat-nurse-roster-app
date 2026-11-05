@@ -3,9 +3,13 @@ roles: every change is audited here, in one transaction with the change itself. 
 caller's business (accounts.api for the management roles; ticket 07 for nurses, whose names nurses.api corrects)."""
 from __future__ import annotations
 
+import os
 import secrets
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 
 from django.contrib.auth import SESSION_KEY
+from django.contrib.auth.hashers import make_password
 from django.contrib.sessions.models import Session
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
@@ -25,6 +29,24 @@ _ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
 def generate_password() -> str:
     """Four groups of four: about 79 bits, and it passes the password policy."""
     return "-".join("".join(secrets.choice(_ALPHABET) for _ in range(4)) for _ in range(4))
+
+
+@dataclass(frozen=True)
+class NewPassword:
+    plain: str = field(repr=False)
+    hashed: str = field(repr=False)
+
+
+def new_password() -> NewPassword:
+    plain = generate_password()
+    return NewPassword(plain, make_password(plain))
+
+
+def new_passwords(count: int) -> list[NewPassword]:
+    """Hashing is slow on purpose, so many of them are made side by side, as PBKDF2 lets go of the GIL, and before a
+    transaction takes any lock. At most four at once, because the solver shares the server."""
+    with ThreadPoolExecutor(max_workers=min(os.process_cpu_count() or 1, 4)) as pool:
+        return list(pool.map(lambda _: new_password(), range(count)))
 
 
 class UsernameTaken(Exception):
@@ -52,18 +74,22 @@ def _refusal(error: IntegrityError, role: str) -> Exception:
     return RoleTaken(role) if constraint in ONE_OF_A_KIND_CONSTRAINTS else UsernameTaken()
 
 
-def create_user(request: HttpRequest, *, username: str, full_name: str, role: str) -> tuple[User, str]:
+def create_user(request: HttpRequest, *, username: str, full_name: str, role: str,
+                password: NewPassword | None = None) -> tuple[User, str]:
     """The user and their generated password, which is shown once and kept nowhere. The database's
-    constraints decide refusals, so two people creating a CNO at the same moment get one CNO."""
-    password = generate_password()
+    constraints decide refusals, so two people creating a CNO at the same moment get one CNO. `password` is
+    for a caller that hashed it already, so as not to hash inside its own transaction."""
+    password = password or new_password()
     try:
         with transaction.atomic():
-            user = User.objects.create_user(username, password, role, full_name=full_name, must_change_password=True)
+            user = User(username=username, password=password.hashed, role=role, full_name=full_name,
+                        must_change_password=True)
+            user.save()
             record("user.created", actor=request.user, target=username, request=request,
                    after={"username": username, "full_name": full_name, "role": role, "must_change_password": True})
     except IntegrityError as error:
         raise _refusal(error, role) from error
-    return user, password
+    return user, password.plain
 
 
 def correct_name(request: HttpRequest, user_id, full_name: str) -> User:

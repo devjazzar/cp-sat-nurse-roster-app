@@ -23,6 +23,7 @@ import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settin
 import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
 import { Route as SignedInUnitsRouteImport } from './routes/_signed-in/units'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
+import { Route as SignedInNursesImportRouteImport } from './routes/_signed-in/nurses_.import'
 
 const SignedInRoute = SignedInRouteImport.update({
   id: '/_signed-in',
@@ -93,6 +94,11 @@ const SignedInUsersRoute = SignedInUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInNursesImportRoute = SignedInNursesImportRouteImport.update({
+  id: '/nurses_/import',
+  path: '/nurses/import',
+  getParentRoute: () => SignedInRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/shifts': typeof SignedInShiftsRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
+  '/nurses/import': typeof SignedInNursesImportRoute
 }
 export interface FileRoutesByTo {
   '/change-password': typeof ChangePasswordRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
+  '/nurses/import': typeof SignedInNursesImportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/_signed-in/units': typeof SignedInUnitsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
+  '/_signed-in/nurses_/import': typeof SignedInNursesImportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/units'
     | '/users'
+    | '/nurses/import'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/change-password'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/units'
     | '/users'
     | '/'
+    | '/nurses/import'
   id:
     | '__root__'
     | '/_signed-in'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/_signed-in/units'
     | '/_signed-in/users'
     | '/_signed-in/'
+    | '/_signed-in/nurses_/import'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -296,6 +308,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInUsersRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/nurses_/import': {
+      id: '/_signed-in/nurses_/import'
+      path: '/nurses/import'
+      fullPath: '/nurses/import'
+      preLoaderRoute: typeof SignedInNursesImportRouteImport
+      parentRoute: typeof SignedInRoute
+    }
   }
 }
 
@@ -311,6 +330,7 @@ interface SignedInRouteChildren {
   SignedInUnitsRoute: typeof SignedInUnitsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
+  SignedInNursesImportRoute: typeof SignedInNursesImportRoute
 }
 
 const SignedInRouteChildren: SignedInRouteChildren = {
@@ -325,6 +345,7 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInUnitsRoute: SignedInUnitsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,
+  SignedInNursesImportRoute: SignedInNursesImportRoute,
 }
 
 const SignedInRouteWithChildren = SignedInRoute._addFileChildren(

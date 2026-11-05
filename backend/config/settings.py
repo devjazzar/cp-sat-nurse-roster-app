@@ -90,6 +90,10 @@ LANGUAGE_CODE = "en"
 SOLVER_URL = os.environ.get("SOLVER_URL", "http://solver:8080")
 SOLVER_TOKEN = required("SOLVER_TOKEN")
 
+# Uploads stay in memory and never reach a temporary file: the nurse import's CSV holds names and genders. One
+# over FILE_UPLOAD_MAX_MEMORY_SIZE is dropped, so it arrives as no file at all. Nothing else here takes an upload.
+FILE_UPLOAD_HANDLERS = ["django.core.files.uploadhandler.MemoryFileUploadHandler"]
+
 BACKUPS_DIR = Path(os.environ.get("BACKUPS_DIR", "/backups"))
 
 # The compiled SPA, copied into the image at build time. Absent in development, where Vite

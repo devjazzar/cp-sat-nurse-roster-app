@@ -12,6 +12,7 @@ from audit.api import router as audit_router
 from hospital.api import router as hospital_router
 from hospital.catalogue_api import router as catalogue_router
 from nurses.api import router as nurses_router
+from nurses.files_api import router as nurse_files_router
 from ops.api import router as ops_router
 from units.api import router as units_router
 
@@ -24,3 +25,4 @@ api.add_router("/hospital", hospital_router)
 api.add_router("/hospital", catalogue_router)
 api.add_router("/units", units_router)
 api.add_router("/nurses", nurses_router)
+api.add_router("/nurses", nurse_files_router)

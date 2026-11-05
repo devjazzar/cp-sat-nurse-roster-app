@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, useNavigate, useRouteContext } from "@tanstack/react-router"
+import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/react-router"
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import {
+  getExportStaffListUrl,
   getListManagersToPlaceQueryKey,
   getListNursesQueryKey,
   useCorrectNurseDetails,
@@ -36,14 +37,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
-import { asDate, monthName, scrollableRegion } from "@/lib/utils"
+import { asDate, cn, monthName, scrollableRegion } from "@/lib/utils"
 import { ROLE_NAMES } from "@/roles"
 import { onlyFor } from "@/session"
 
@@ -481,6 +482,8 @@ function NursesPage() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={(event) => open({ kind: "add" }, event.currentTarget)}>Add a nurse</Button>
           <Button variant="outline" onClick={(event) => open({ kind: "manager" }, event.currentTarget)}>Give a unit manager a nurse profile</Button>
+          <Link to="/nurses/import" className={cn(buttonVariants({ variant: "outline" }))}>Import from a file</Link>
+          <a href={getExportStaffListUrl()} download className={cn(buttonVariants({ variant: "outline" }))}>Export staff list</a>
         </div>
       )}
       {panel && (

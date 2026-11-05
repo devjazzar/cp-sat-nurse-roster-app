@@ -28,12 +28,14 @@ import type {
   AuditPage,
   ChangePasswordBody,
   ChangePasswordRefusal,
+  ConfirmNurseImportBody,
   CorrectedNurse,
   CorrectionBody,
   EndDateBody,
   Health,
   HospitalRules,
   HospitalRulesState,
+  ImportPreview,
   InstallationHealth,
   LeaveTypeBody,
   LeaveTypeSchema,
@@ -53,6 +55,8 @@ import type {
   NewUserRefusal,
   NurseRow,
   NurseWithPassword,
+  PasswordSheet,
+  PreviewNurseImportBody,
   PublicHolidayBody,
   PublicHolidaySchema,
   RamadanFix,
@@ -4315,3 +4319,356 @@ export const useResetNursePassword = <TError = unknown,
       > => {
       return useMutation(getResetNursePasswordMutationOptions(options), queryClient);
     }
+
+export const getDownloadNurseImportTemplateUrl = () => {
+
+
+
+
+  return `/api/nurses/import/template`
+}
+
+/**
+ * @summary Import Template
+ */
+export const downloadNurseImportTemplate = async ( options?: Parameters<typeof apiFetch>[1]): Promise<string> => {
+
+  return apiFetch<string>(getDownloadNurseImportTemplateUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadNurseImportTemplateQueryKey = () => {
+    return [
+    `/api/nurses/import/template`
+    ] as const;
+    }
+
+
+export const getDownloadNurseImportTemplateQueryOptions = <TData = Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadNurseImportTemplateQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadNurseImportTemplate>>> = ({ signal }) => downloadNurseImportTemplate({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadNurseImportTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof downloadNurseImportTemplate>>>
+export type DownloadNurseImportTemplateQueryError = unknown
+
+
+export function useDownloadNurseImportTemplate<TData = Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadNurseImportTemplate>>,
+          TError,
+          Awaited<ReturnType<typeof downloadNurseImportTemplate>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadNurseImportTemplate<TData = Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadNurseImportTemplate>>,
+          TError,
+          Awaited<ReturnType<typeof downloadNurseImportTemplate>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadNurseImportTemplate<TData = Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Import Template
+ */
+
+export function useDownloadNurseImportTemplate<TData = Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadNurseImportTemplate>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadNurseImportTemplateQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPreviewNurseImportUrl = () => {
+
+
+
+
+  return `/api/nurses/import/preview`
+}
+
+/**
+ * Every row's problems. It saves nothing and keeps nothing: confirming sends the file again.
+ * @summary Preview Import
+ */
+export const previewNurseImport = async (previewNurseImportBody: PreviewNurseImportBody, options?: Parameters<typeof apiFetch>[1]): Promise<ImportPreview> => {
+    const formData = new FormData();
+formData.append(`file`, previewNurseImportBody.file);
+
+  return apiFetch<ImportPreview>(getPreviewNurseImportUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getPreviewNurseImportMutationKey = () => ['previewNurseImport'] as const;
+
+export const getPreviewNurseImportMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewNurseImport>>, TError,PreviewNurseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewNurseImport>>, TError,PreviewNurseImportMutationVariables, TContext> => {
+
+const mutationKey = getPreviewNurseImportMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewNurseImport>>, PreviewNurseImportMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewNurseImport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewNurseImportMutationResult = NonNullable<Awaited<ReturnType<typeof previewNurseImport>>>
+    export type PreviewNurseImportMutationBody = PreviewNurseImportBody
+    export type PreviewNurseImportMutationError = unknown
+    export type PreviewNurseImportMutationVariables = {data: PreviewNurseImportBody}
+
+    /**
+ * @summary Preview Import
+ */
+export const usePreviewNurseImport = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewNurseImport>>, TError,PreviewNurseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewNurseImport>>,
+        TError,
+        PreviewNurseImportMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPreviewNurseImportMutationOptions(options), queryClient);
+    }
+
+export const getConfirmNurseImportUrl = () => {
+
+
+
+
+  return `/api/nurses/import/confirm`
+}
+
+/**
+ * `token` is the preview's. The file is judged again from the start: with any problem, or when it no longer means
+ * what was previewed, nothing is saved and the answer is 409 with the preview as it now stands.
+ * @summary Confirm Import
+ */
+export const confirmNurseImport = async (confirmNurseImportBody: ConfirmNurseImportBody, options?: Parameters<typeof apiFetch>[1]): Promise<PasswordSheet> => {
+    const formData = new FormData();
+formData.append(`file`, confirmNurseImportBody.file);
+formData.append(`token`, confirmNurseImportBody.token);
+
+  return apiFetch<PasswordSheet>(getConfirmNurseImportUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getConfirmNurseImportMutationKey = () => ['confirmNurseImport'] as const;
+
+export const getConfirmNurseImportMutationOptions = <TError = ImportPreview,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmNurseImport>>, TError,ConfirmNurseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmNurseImport>>, TError,ConfirmNurseImportMutationVariables, TContext> => {
+
+const mutationKey = getConfirmNurseImportMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmNurseImport>>, ConfirmNurseImportMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmNurseImport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmNurseImportMutationResult = NonNullable<Awaited<ReturnType<typeof confirmNurseImport>>>
+    export type ConfirmNurseImportMutationBody = ConfirmNurseImportBody
+    export type ConfirmNurseImportMutationError = ImportPreview
+    export type ConfirmNurseImportMutationVariables = {data: ConfirmNurseImportBody}
+
+    /**
+ * @summary Confirm Import
+ */
+export const useConfirmNurseImport = <TError = ImportPreview,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmNurseImport>>, TError,ConfirmNurseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmNurseImport>>,
+        TError,
+        ConfirmNurseImportMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmNurseImportMutationOptions(options), queryClient);
+    }
+
+export const getExportStaffListUrl = () => {
+
+
+
+
+  return `/api/nurses/export`
+}
+
+/**
+ * Every nurse the CNO's list shows, deactivated ones too, by name. Its first columns are the import's.
+ * @summary Export Staff List
+ */
+export const exportStaffList = async ( options?: Parameters<typeof apiFetch>[1]): Promise<string> => {
+
+  return apiFetch<string>(getExportStaffListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportStaffListQueryKey = () => {
+    return [
+    `/api/nurses/export`
+    ] as const;
+    }
+
+
+export const getExportStaffListQueryOptions = <TData = Awaited<ReturnType<typeof exportStaffList>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportStaffList>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportStaffListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportStaffList>>> = ({ signal }) => exportStaffList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportStaffList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ExportStaffListQueryResult = NonNullable<Awaited<ReturnType<typeof exportStaffList>>>
+export type ExportStaffListQueryError = unknown
+
+
+export function useExportStaffList<TData = Awaited<ReturnType<typeof exportStaffList>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportStaffList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportStaffList>>,
+          TError,
+          Awaited<ReturnType<typeof exportStaffList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportStaffList<TData = Awaited<ReturnType<typeof exportStaffList>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportStaffList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportStaffList>>,
+          TError,
+          Awaited<ReturnType<typeof exportStaffList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportStaffList<TData = Awaited<ReturnType<typeof exportStaffList>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportStaffList>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Export Staff List
+ */
+
+export function useExportStaffList<TData = Awaited<ReturnType<typeof exportStaffList>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportStaffList>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getExportStaffListQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

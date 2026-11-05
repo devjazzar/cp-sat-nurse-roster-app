@@ -328,6 +328,19 @@ authentication in v1. Every login, failed login and every change to settings, ac
 rosters, requests and swaps goes to the audit log. Nurses see colleagues' names and shifts
 only.
 
+### Nurse import and the staff list
+
+A CSV of hospital ID, full name, gender, unit and start date, in UTF-8 or UTF-16 with a byte order mark, at most 500
+nurses and 1 MB. Any other encoding is refused rather than guessed. Previewing saves nothing and keeps nothing, so
+confirming sends the file again: it is judged again from the start, and with any problem, or when it no longer means what
+was previewed, nothing is saved and the answer is the preview as it now stands. One password hash takes about half a second
+on purpose, and the passwords may be kept nowhere, so the worker cannot make them and hand them back later. Confirming is
+one long request instead: the hashes first, four at a time and holding no lock, then one transaction. The row limit keeps
+it inside gunicorn's 300-second timeout (the default of 30 would kill it) even on one core. The password sheet is the
+answer to that request and lives only in the page's memory: if the answer is lost after the transaction, the nurses stay and
+their passwords are reset one at a time. Uploads stay in memory and never reach a temporary file. In a
+staff list every cell is quoted, and one a spreadsheet would run as a formula starts with an apostrophe.
+
 ### Observability
 
 JSON logs on stdout for every container; a Prometheus `/metrics` endpoint reachable on the

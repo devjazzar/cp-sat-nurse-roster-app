@@ -1383,3 +1383,61 @@ export const ResetNursePasswordResponse = zod.object({
 }),
   "generated_password": zod.string()
 }).describe('Holds a password, so it asks not to be stored.')
+
+
+/**
+ * @summary Import Template
+ */
+export const DownloadNurseImportTemplateResponse = zod.unknown()
+
+
+/**
+ * Every row's problems. It saves nothing and keeps nothing: confirming sends the file again.
+ * @summary Preview Import
+ */
+export const PreviewNurseImportBody = zod.object({
+  "file": zod.instanceof(Blob)
+})
+
+export const PreviewNurseImportResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "line": zod.int(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "gender": zod.string(),
+  "unit": zod.string(),
+  "start_date": zod.string(),
+  "problems": zod.array(zod.object({
+  "column": zod.union([zod.string(),zod.null()]),
+  "message": zod.string()
+}))
+})),
+  "token": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
+ * `token` is the preview's. The file is judged again from the start: with any problem, or when it no longer means
+ * what was previewed, nothing is saved and the answer is 409 with the preview as it now stands.
+ * @summary Confirm Import
+ */
+export const ConfirmNurseImportBody = zod.object({
+  "file": zod.instanceof(Blob),
+  "token": zod.string()
+})
+
+export const ConfirmNurseImportResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "unit": zod.string(),
+  "generated_password": zod.string()
+}))
+}).describe('Holds passwords, so it asks not to be stored.')
+
+
+/**
+ * Every nurse the CNO's list shows, deactivated ones too, by name. Its first columns are the import's.
+ * @summary Export Staff List
+ */
+export const ExportStaffListResponse = zod.unknown()
