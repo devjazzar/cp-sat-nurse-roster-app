@@ -5202,7 +5202,7 @@ describe("the notification bell", () => {
 
     const items = within(await screen.findByRole("list", { name: "Notifications, newest first" })).getAllByRole("listitem")
     expect(items.map((item) => item.textContent)).toEqual([
-      expect.stringContaining("New" + NOTE.text), expect.stringContaining(OLDER.text)])
+      expect.stringContaining("New " + NOTE.text), expect.stringContaining(OLDER.text)])
     expect(document.title).toBe("Notifications · Nurse roster")
     expect(screen.getByRole("status")).toHaveTextContent("1 unread.")
 
@@ -5240,6 +5240,7 @@ describe("the notification bell", () => {
     await user.click(await screen.findByRole("button", { name: "Mark all as read" }))
 
     expect(await screen.findByText("All read.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus())
     expect(await screen.findByRole("link", { name: "Notifications" })).toBeInTheDocument()
   })
 
@@ -5254,6 +5255,7 @@ describe("the notification bell", () => {
     await user.click(await screen.findByRole("button", { name: "Mark as read" }))
 
     expect(await screen.findByText("All read.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus())
   })
 
   it("says when there are none", async () => {

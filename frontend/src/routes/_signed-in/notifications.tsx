@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { useRef, type RefObject } from "react"
 
 import {
   getCountUnreadNotificationsQueryKey, getListNotificationsQueryKey, useListNotifications, useMarkAllNotificationsRead,
@@ -29,33 +30,39 @@ function Open({ link, onOpen }: { link: NotificationLink; onOpen: () => void }) 
   }
 }
 
-function useRefreshed() {
+/** `told` is the status line, which takes focus from a button that goes once it has done its work. */
+function useRefreshed(told?: RefObject<HTMLParagraphElement | null>) {
   const queryClient = useQueryClient()
   // On the hook, not on `mutate`, so it still runs once the page has been left by the link that marked one read.
   return {
     mutation: {
-      onSettled: () => Promise.all([
-        queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() }),
-        queryClient.invalidateQueries({ queryKey: getCountUnreadNotificationsQueryKey() }),
-      ]),
+      onSettled: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getCountUnreadNotificationsQueryKey() }),
+        ])
+        told?.current?.focus()
+      },
     },
   }
 }
 
-function Row({ note }: { note: NotificationRow }) {
+function Row({ note, told }: { note: NotificationRow; told: RefObject<HTMLParagraphElement | null> }) {
   const markRead = useMarkNotificationRead(useRefreshed())
+  const markThis = useMarkNotificationRead(useRefreshed(told))
   const onOpen = () => { if (!note.read) markRead.mutate({ notificationId: note.id }) }
   return (
     <li className={cn("flex flex-col gap-1 border-b py-3 last:border-b-0", note.read && "text-muted-foreground")}>
       <p className={cn(!note.read && "font-medium text-foreground")}>
-        {!note.read && <Badge className="me-2 align-middle">New</Badge>}
+        {!note.read && <><Badge className="me-2 align-middle">New</Badge>{" "}</>}
         {note.text}
       </p>
       <p className="flex flex-wrap gap-x-3 text-sm">
         <span className="text-muted-foreground">{hospitalTime(note.created_at)}</span>
         {note.link && <Open link={note.link} onOpen={onOpen} />}
         {!note.read && !note.link && (
-          <Button variant="link" size="sm" className="h-auto p-0" onClick={onOpen} disabled={markRead.isPending}>Mark as read</Button>
+          <Button variant="link" size="sm" className="h-auto p-0" onClick={() => markThis.mutate({ notificationId: note.id })}
+            disabled={markThis.isPending}>Mark as read</Button>
         )}
       </p>
     </li>
@@ -64,7 +71,8 @@ function Row({ note }: { note: NotificationRow }) {
 
 function NotificationsPage() {
   const list = useListNotifications()
-  const markAll = useMarkAllNotificationsRead(useRefreshed())
+  const told = useRef<HTMLParagraphElement>(null)
+  const markAll = useMarkAllNotificationsRead(useRefreshed(told))
   const answer = list.data
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -75,13 +83,13 @@ function NotificationsPage() {
       {answer && answer.items.length > 0 && (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <p role="status">{answer.unread === 0 ? "All read." : `${answer.unread} unread.`}</p>
+            <p role="status" ref={told} tabIndex={-1} className="outline-none">{answer.unread === 0 ? "All read." : `${answer.unread} unread.`}</p>
             {answer.unread > 0 && (
               <Button variant="outline" size="sm" onClick={() => markAll.mutate()} disabled={markAll.isPending}>Mark all as read</Button>
             )}
           </div>
           <ul aria-label="Notifications, newest first">
-            {answer.items.map((note) => <Row key={note.id} note={note} />)}
+            {answer.items.map((note) => <Row key={note.id} note={note} told={told} />)}
           </ul>
         </>
       )}
