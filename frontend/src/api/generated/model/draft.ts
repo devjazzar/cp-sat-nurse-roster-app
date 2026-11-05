@@ -33,6 +33,6 @@ export interface Draft {
   pins_lost_to_leave: PinLostToLeave[];
   editor: DraftEditor;
   stopped_early: boolean;
-  /** What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14). */
+  /** What has changed since this draft was solved. Warned of here, and checked again at submit and at approval. */
   changes: DraftChange[];
 }

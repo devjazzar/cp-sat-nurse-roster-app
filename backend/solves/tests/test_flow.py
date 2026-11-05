@@ -544,7 +544,11 @@ class TestTheGrid:
         assert month_of(mona, er)["draft"]["solved_at"].endswith("+03:00")
 
     def test_no_roster_yet(self, mona, er):
-        assert month_of(mona, er) == {"month": MONTH, "active_solve": None, "last_solve": None, "draft": None}
+        assert month_of(mona, er) == {
+            "month": MONTH, "state": "none", "submitted": None, "last_rejection": None, "approved": None,
+            "submit_refusal": "This month has no roster yet.", "approve_refusal": "Only the CNO or the Deputy CNO approve or reject a roster.",
+            "reject_refusal": "Only the CNO or the Deputy CNO approve or reject a roster.",
+            "active_solve": None, "last_solve": None, "draft": None}
 
     def test_a_solve_under_way_is_on_the_month(self, mona, er):
         solve = started(mona, er)

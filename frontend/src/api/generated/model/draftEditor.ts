@@ -8,7 +8,7 @@ import type { EditorNurse } from './editorNurse';
 import type { EditorShift } from './editorShift';
 
 export interface DraftEditor {
-  /** Why this draft cannot be edited now. Ticket 14 adds a frozen roster here. */
+  /** Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager. */
   refusal: string | null;
   /** What a cell can be pinned to: the unit's shifts. */
   shifts: EditorShift[];

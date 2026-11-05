@@ -136,7 +136,8 @@ def _end(solve: Solve, **fields) -> None:
 
 def _finish(solve: Solve, job: dict) -> None:
     """A stopped solve keeps the best roster found. A search that ended with no roster, or one breaking a hard rule, which the
-    solver reports with `ok` false, leaves the draft as it was: the result says why."""
+    solver reports with `ok` false, leaves the draft as it was: the result says why. So does a roster submitted or approved
+    meanwhile, though submitting refuses while a solve is active."""
     result = job["result"]
     state = SolveState.CANCELLED if job["state"] == "cancelled" else SolveState.SUCCEEDED
     # The catalogue's lock first, as everywhere, so a rename cannot pass between reading a code and writing it.
@@ -147,7 +148,12 @@ def _finish(solve: Solve, job: dict) -> None:
         if result is not None:
             fields |= {"best_cost": result["cost"], "improvements": result["solver"]["improvements"]}
         _end(solve, **fields)
-        if has_a_roster_to_keep(result):
+        # Submitting refuses while a solve is active, so only a roster frozen behind the API's back meets this. The result stays
+        # in the history, and the frozen grid as it was.
+        frozen = drafts.frozen_month(solve.unit, solve.month)
+        if frozen:
+            logger.warning("solve %s: ended on a frozen roster, which keeps its grid", solve.pk)
+        elif has_a_roster_to_keep(result):
             drafts.replace_grid(solve, result["roster"])
             record("roster.draft_replaced", actor=solve.requested_by, target=solve.audit_target,
                    after={"solve": str(solve.pk), "cost": result["cost"]})

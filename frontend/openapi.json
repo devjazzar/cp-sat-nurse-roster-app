@@ -2149,6 +2149,7 @@
             }
           }
         },
+        "description": "The CNO and the Deputy CNO read any unit's, and see a draft only as one that exists, with no solve of it.",
         "tags": [
           "rosters"
         ],
@@ -2257,6 +2258,153 @@
         ]
       }
     },
+    "/api/units/{unit_id}/roster/submit": {
+      "post": {
+        "operationId": "submitRoster",
+        "summary": "Submit Roster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "Checked again on the month as it stands, always: a draft out of date or edited by hand goes through with its warning,\nand is refused only if it breaks a hard rule or cannot be checked. Refused while a solve of the month is active, so a solve\nnever ends on a frozen grid. Under the catalogue's lock and the unit's, as a solve's start and a restore take them. The audit\nentry names the unit and the month.",
+        "tags": [
+          "rosters"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonthBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/roster/approve": {
+      "post": {
+        "operationId": "approveRoster",
+        "summary": "Approve Roster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "Checked again on the month as it stands, since leave may be recorded while it waits, and refused only if that fails. Under\nthe catalogue's lock, then the month's nurses', which a leave write takes, then the unit's: no leave lands between the check\nand the approval, and of two approvers the second is told the first decided. The first approval makes version 1.",
+        "tags": [
+          "rosters"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonthBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/roster/reject": {
+      "post": {
+        "operationId": "rejectRoster",
+        "summary": "Reject Roster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "Back to draft, with the comment kept for the manager. The audit entry holds no comment, since it may name a nurse or\ntheir leave and the System Admin reads the log.",
+        "tags": [
+          "rosters"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units/{unit_id}/solve-history": {
       "get": {
         "operationId": "listUnitSolveHistory",
@@ -2338,6 +2486,7 @@
             }
           }
         },
+        "description": "For the CNO and the Deputy CNO, only the months whose roster is submitted or approved.",
         "tags": [
           "solve history"
         ],
@@ -2386,6 +2535,7 @@
             }
           }
         },
+        "description": "A solve of a month the CNO or the Deputy CNO may not see is the same 404 as one that does not exist.",
         "tags": [
           "solve history"
         ],
@@ -2437,6 +2587,139 @@
         "description": "Under the locks a solve's start and end take, so none of them passes between deciding and writing. The audit entry says\nwhich solve and its cost, as `roster.draft_replaced` does, and nothing of a nurse.",
         "tags": [
           "solve history"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/rosters/overview": {
+      "get": {
+        "operationId": "getRosterOverview",
+        "summary": "Overview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM, the first month shown. The hospital's current one when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM, the first month shown. The hospital's current one when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "rosters"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/rosters/submitted": {
+      "get": {
+        "operationId": "listSubmittedRosters",
+        "summary": "Submitted",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WaitingRoster"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Oldest first, as they have waited longest.",
+        "tags": [
+          "rosters"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/rosters/mine": {
+      "get": {
+        "operationId": "getMyRoster",
+        "summary": "My Roster",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM, the first month shown. The hospital's current one when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM, the first month shown. The hospital's current one when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyRosterMonth"
+                }
+              }
+            }
+          }
+        },
+        "description": "Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too. The unit is the one\nthe month falls under for them, so across a transfer each month shows its own unit's roster, and a nurse due to start sees\ntheir unit's with no row of their own.",
+        "tags": [
+          "rosters"
         ],
         "security": [
           {
@@ -5868,6 +6151,31 @@
         "title": "StartSolveBody",
         "type": "object"
       },
+      "Approval": {
+        "properties": {
+          "approved_by": {
+            "title": "Approved By",
+            "type": "string"
+          },
+          "approved_at": {
+            "format": "date-time",
+            "title": "Approved At",
+            "type": "string"
+          },
+          "version": {
+            "description": "The roster version in force.",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "approved_by",
+          "approved_at",
+          "version"
+        ],
+        "title": "Approval",
+        "type": "object"
+      },
       "Draft": {
         "properties": {
           "days": {
@@ -5969,7 +6277,7 @@
             "type": "boolean"
           },
           "changes": {
-            "description": "What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14).",
+            "description": "What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.",
             "items": {
               "$ref": "#/components/schemas/DraftChange"
             },
@@ -6038,7 +6346,7 @@
                 "type": "null"
               }
             ],
-            "description": "Why this draft cannot be edited now. Ticket 14 adds a frozen roster here.",
+            "description": "Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager.",
             "title": "Refusal"
           },
           "shifts": {
@@ -6435,11 +6743,113 @@
         "title": "PinLostToLeave",
         "type": "object"
       },
+      "Rejection": {
+        "properties": {
+          "rejected_by": {
+            "title": "Rejected By",
+            "type": "string"
+          },
+          "rejected_at": {
+            "format": "date-time",
+            "title": "Rejected At",
+            "type": "string"
+          },
+          "comment": {
+            "title": "Comment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rejected_by",
+          "rejected_at",
+          "comment"
+        ],
+        "title": "Rejection",
+        "type": "object"
+      },
       "RosterMonth": {
         "properties": {
           "month": {
             "title": "Month",
             "type": "string"
+          },
+          "state": {
+            "description": "`none` until a solve keeps a roster.",
+            "enum": [
+              "none",
+              "draft",
+              "submitted",
+              "approved"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "submitted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Waiting"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While it waits for a decision."
+          },
+          "last_rejection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Rejection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest rejection, kept through the submits after it."
+          },
+          "approved": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Approval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submit_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the manager cannot submit it now: also a hard rule it breaks on the month as it stands, which `draft.check` lists.",
+            "title": "Submit Refusal"
+          },
+          "approve_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot be approved now, the same check included.",
+            "title": "Approve Refusal"
+          },
+          "reject_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Refusal"
           },
           "active_solve": {
             "anyOf": [
@@ -6470,16 +6880,52 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The roster's grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft."
           }
         },
         "required": [
           "month",
+          "state",
+          "submitted",
+          "last_rejection",
+          "approved",
+          "submit_refusal",
+          "approve_refusal",
+          "reject_refusal",
           "active_solve",
           "last_solve",
           "draft"
         ],
         "title": "RosterMonth",
+        "type": "object"
+      },
+      "Waiting": {
+        "properties": {
+          "submitted_by": {
+            "title": "Submitted By",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "new_since": {
+            "description": "Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.",
+            "items": {
+              "$ref": "#/components/schemas/DraftChange"
+            },
+            "title": "New Since",
+            "type": "array"
+          }
+        },
+        "required": [
+          "submitted_by",
+          "submitted_at",
+          "new_since"
+        ],
+        "title": "Waiting",
         "type": "object"
       },
       "DraftCheck": {
@@ -6666,6 +7112,50 @@
           "edits"
         ],
         "title": "EditsBody",
+        "type": "object"
+      },
+      "MonthBody": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "title": "MonthBody",
+        "type": "object"
+      },
+      "RejectBody": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          },
+          "comment": {
+            "description": "Why, for the unit's manager, who sees it with the draft.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Comment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "comment"
+        ],
+        "title": "RejectBody",
         "type": "object"
       },
       "UnitHistoryFilter": {
@@ -7383,6 +7873,314 @@
           "text"
         ],
         "title": "Violation",
+        "type": "object"
+      },
+      "OverviewFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM, the first month shown. The hospital's current one when left out.",
+            "title": "Month"
+          }
+        },
+        "title": "OverviewFilter",
+        "type": "object"
+      },
+      "Overview": {
+        "properties": {
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "units": {
+            "description": "Every unit not archived, and an archived one with a roster in these months.",
+            "items": {
+              "$ref": "#/components/schemas/OverviewUnit"
+            },
+            "title": "Units",
+            "type": "array"
+          }
+        },
+        "required": [
+          "months",
+          "units"
+        ],
+        "title": "Overview",
+        "type": "object"
+      },
+      "OverviewUnit": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "states": {
+            "description": "One for each of `months`, in order.",
+            "items": {
+              "enum": [
+                "none",
+                "draft",
+                "submitted",
+                "approved"
+              ],
+              "type": "string"
+            },
+            "title": "States",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "archived",
+          "states"
+        ],
+        "title": "OverviewUnit",
+        "type": "object"
+      },
+      "WaitingRoster": {
+        "properties": {
+          "unit_id": {
+            "format": "uuid",
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "submitted_by": {
+            "title": "Submitted By",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "changed_since": {
+            "description": "Whether something has changed since it was submitted that its manager was not warned of, such as leave recorded while it waits.",
+            "title": "Changed Since",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "unit_id",
+          "unit",
+          "month",
+          "submitted_by",
+          "submitted_at",
+          "changed_since"
+        ],
+        "title": "WaitingRoster",
+        "type": "object"
+      },
+      "ColleagueRow": {
+        "description": "A name and a shift a day, and nothing else: a day of leave and a day off are both `\"\"`.",
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "shifts": {
+            "description": "One for each of `days`: the shift's code, or empty for a day not worked.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Shifts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "shifts"
+        ],
+        "title": "ColleagueRow",
+        "type": "object"
+      },
+      "MyDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "kind": {
+            "description": "The reader's own day. `outside` is before their start date or after their end date.",
+            "enum": [
+              "shift",
+              "off",
+              "leave",
+              "outside"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "kind"
+        ],
+        "title": "MyDay",
+        "type": "object"
+      },
+      "MyRosterMonth": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "first_month": {
+            "description": "The earliest month shown here: this one. Earlier months are not.",
+            "title": "First Month",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.",
+            "title": "Unit"
+          },
+          "roster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NurseRoster"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until that unit's roster of the month is approved, and for a month before `first_month`."
+          }
+        },
+        "required": [
+          "month",
+          "first_month",
+          "unit",
+          "roster"
+        ],
+        "title": "MyRosterMonth",
+        "type": "object"
+      },
+      "NurseRoster": {
+        "properties": {
+          "approved_at": {
+            "format": "date-time",
+            "title": "Approved At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/GridDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "shifts": {
+            "items": {
+              "$ref": "#/components/schemas/NurseShift"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "rows": {
+            "description": "Everyone on the roster, the reader too, by name.",
+            "items": {
+              "$ref": "#/components/schemas/ColleagueRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "mine": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MyDay"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reader's own row, one for each of `days`. Null when they are not on it.",
+            "title": "Mine"
+          }
+        },
+        "required": [
+          "approved_at",
+          "version",
+          "days",
+          "shifts",
+          "rows",
+          "mine"
+        ],
+        "title": "NurseRoster",
+        "type": "object"
+      },
+      "NurseShift": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "colour"
+        ],
+        "title": "NurseShift",
         "type": "object"
       },
       "PageFilter": {

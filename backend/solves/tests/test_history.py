@@ -137,13 +137,32 @@ class TestTheUnitsHistory:
         assert other.get(url(icu, f"/solve-history/{solve}")).status_code == 404
         assert restore(other, icu, solve).status_code == 404
 
-    @pytest.mark.parametrize("role", [Role.CNO, Role.DEPUTY_CNO, Role.STAFF_NURSE, Role.SYSTEM_ADMIN])
-    def test_no_other_role_reads_a_units_results_for_now(self, role, mona, er, solver, client_of):
+    @pytest.mark.parametrize("role", [Role.STAFF_NURSE, Role.SYSTEM_ADMIN])
+    def test_no_other_role_reads_a_units_results(self, role, mona, er, solver, client_of):
         solve = solved(mona, er, solver)
         someone = client_of("someone", role)
 
         assert someone.get(url(er, "/solve-history")).status_code == 403
         assert someone.get(url(er, f"/solve-history/{solve}")).status_code == 403
+        assert restore(someone, er, solve).status_code == 403
+
+    @pytest.mark.parametrize("role", [Role.CNO, Role.DEPUTY_CNO])
+    def test_the_cno_and_the_deputy_read_a_submitted_months_and_see_no_draft_month(self, role, mona, er, solver, client_of):
+        """A draft is the unit management's alone, so a month still in draft shows nothing of its solves to them."""
+        from rosters.tests.test_review import sound
+        solver.script([sound()])
+        solve = started(mona, er)["id"]
+        running.run(solve)
+        someone = client_of("someone", role)
+
+        assert someone.get(url(er, "/solve-history")).json()["solves"] == []
+        assert someone.get(url(er, f"/solve-history/{solve}")).status_code == 404
+
+        assert post(mona, url(er, "/roster/submit"), {"month": MONTH}).status_code == 200
+        assert [row["id"] for row in someone.get(url(er, "/solve-history")).json()["solves"]] == [solve]
+        result = someone.get(url(er, f"/solve-history/{solve}")).json()
+        assert result["grid"] is not None
+        assert result["restore_refusal"] == "Only the unit's manager can restore a result."
         assert restore(someone, er, solve).status_code == 403
 
 

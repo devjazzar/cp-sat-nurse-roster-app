@@ -17,6 +17,7 @@ from nurses.files_api import router as nurse_files_router
 from nurses.leave_api import my_leave_router, unit_leave_router
 from ops.api import router as ops_router
 from rosters.api import router as rosters_router
+from rosters.reading_api import router as rosters_reading_router
 from solves.api import router as solves_router
 from solves.history_api import hospital_router as hospital_solves_router
 from solves.history_api import router as solve_history_router
@@ -37,6 +38,7 @@ api.add_router("/units", unit_leave_router)
 api.add_router("/units", solves_router)
 api.add_router("/units", rosters_router)
 api.add_router("/units", solve_history_router)
+api.add_router("/rosters", rosters_reading_router)
 api.add_router("/solve-history", hospital_solves_router)
 api.add_router("/nurses", nurses_router)
 api.add_router("/nurses", nurse_files_router)

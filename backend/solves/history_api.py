@@ -1,5 +1,5 @@
-"""What solves have been run and what each answered. A unit's history and its results are its manager's, for now: ticket 14
-opens them to the approvers. The System Admin's history across units is `hospital_router`, and may say nothing a nurse could be
+"""What solves have been run and what each answered. A unit's history and its results are its manager's, and the CNO's and the
+Deputy CNO's for a month whose roster is submitted or approved: a draft is the unit management's alone. The System Admin's history across units is `hospital_router`, and may say nothing a nurse could be
 read from, so its row is a list of named fields and never takes free text: `Solve.error`, a result's `message` and `precheck`
 and every explanation can name a nurse and a date, as they come from the solver's words."""
 from __future__ import annotations
@@ -24,14 +24,17 @@ from nurses.api import MonthText
 from rosters import drafts
 from rosters.grids import GridView, by_name, full_names, grid_view
 from rosters.models import Roster
+from rosters.review import SEEN_BY_APPROVERS
 from solves.api import chosen_month, manager
 from solves.models import Solve, SolveFailure, SolveState
 from solves.result import LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, precheck_of, statistics_of
 from units.models import Unit
-from units.scope import unit_in_scope
+from units.scope import HOSPITAL_WIDE, unit_in_scope
 
 router = Router(tags=["solve history"])
 hospital_router = Router(tags=["solve history"], auth=SignedIn(Role.SYSTEM_ADMIN))
+reader = SignedIn(Role.UNIT_MANAGER, Role.CNO, Role.DEPUTY_CNO)
+ONLY_THE_MANAGER_RESTORES = "Only the unit's manager can restore a result."
 
 
 class PageFilter(Schema):
@@ -110,10 +113,18 @@ def _solves_in_drafts(unit: Unit) -> set[UUID]:
     return set(Roster.objects.filter(unit=unit).values_list("solve_id", flat=True))
 
 
-@router.get("/{unit_id}/solve-history", response=UnitHistory, auth=manager, operation_id="listUnitSolveHistory")
-def unit_history(request: HttpRequest, unit_id: UUID, filters: Query[UnitHistoryFilter]) -> UnitHistory:
-    unit = unit_in_scope(request.user, unit_id)
+def _solves_seen_by(user, unit: Unit) -> QuerySet[Solve]:
     solves = Solve.objects.filter(unit=unit)
+    if user.role in HOSPITAL_WIDE:
+        return solves.filter(month__in=Roster.objects.filter(unit=unit, state__in=SEEN_BY_APPROVERS).values("month"))
+    return solves
+
+
+@router.get("/{unit_id}/solve-history", response=UnitHistory, auth=reader, operation_id="listUnitSolveHistory")
+def unit_history(request: HttpRequest, unit_id: UUID, filters: Query[UnitHistoryFilter]) -> UnitHistory:
+    """For the CNO and the Deputy CNO, only the months whose roster is submitted or approved."""
+    unit = unit_in_scope(request.user, unit_id)
+    solves = _solves_seen_by(request.user, unit)
     if filters.month:
         solves = solves.filter(month=chosen_month(filters.month))
     page, older_than = _page(solves, filters)
@@ -226,7 +237,7 @@ def _accounting(row: dict, hospital_id: str, name: str) -> NurseAccounting:
                            cost=row["cost"])
 
 
-def _result_of(solve: Solve, unit: Unit) -> SolveResult:
+def _result_of(solve: Solve, unit: Unit, user) -> SolveResult:
     result = solve.result or {}
     accounting = result.get("nurses") or {}
     broken = (result.get("violations") or []) + (result.get("elapsed_violations") or [])
@@ -247,13 +258,15 @@ def _result_of(solve: Solve, unit: Unit) -> SolveResult:
                 for hospital_id in by_name(accounting, names)],
         statistics=SolverStatistics(**statistics_of(result)) if result else None,
         grid=grid_view(drafts.in_current_codes(roster), solve) if roster else None,
-        restore_refusal=drafts.why_not_restore(solve))
+        restore_refusal=ONLY_THE_MANAGER_RESTORES if user.role in HOSPITAL_WIDE else drafts.why_not_restore(solve))
 
 
-@router.get("/{unit_id}/solve-history/{solve_id}", response=SolveResult, auth=manager, operation_id="getSolveResult")
+@router.get("/{unit_id}/solve-history/{solve_id}", response=SolveResult, auth=reader, operation_id="getSolveResult")
 def solve_result(request: HttpRequest, unit_id: UUID, solve_id: UUID) -> SolveResult:
+    """A solve of a month the CNO or the Deputy CNO may not see is the same 404 as one that does not exist."""
     unit = unit_in_scope(request.user, unit_id)
-    return _result_of(get_object_or_404(Solve.objects.select_related("requested_by", "unit"), pk=solve_id, unit=unit), unit)
+    solves = _solves_seen_by(request.user, unit).select_related("requested_by", "unit")
+    return _result_of(get_object_or_404(solves, pk=solve_id), unit, request.user)
 
 
 @router.post("/{unit_id}/solve-history/{solve_id}/restore", response=SolveResult, auth=manager, operation_id="restoreSolveResult")
@@ -270,4 +283,4 @@ def restore_result(request: HttpRequest, unit_id: UUID, solve_id: UUID) -> Solve
         drafts.replace_grid(solve, solve.result["roster"], restoring=True)
         record("roster.draft_restored", actor=request.user, target=solve.audit_target, request=request,
                after={"solve": str(solve.pk), "cost": solve.result["cost"]})
-    return _result_of(solve, unit)
+    return _result_of(solve, unit, request.user)

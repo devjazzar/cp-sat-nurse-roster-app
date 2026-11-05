@@ -25,6 +25,7 @@ from ops import solver_client
 from ops.models import TechnicalSettings
 from ops.queue import enqueue
 from ops.solver_client import SolverRefused, SolverUnreachable
+from rosters.drafts import frozen_month
 from solves.input import Assembled, assemble, solver_refusal
 from solves.models import ACTIVE_STATES, Solve, SolveFailure, SolveState
 from solves.result import has_a_roster_to_keep, in_dates, precheck_of
@@ -61,6 +62,9 @@ def _names(nurses: list[NurseProfile]) -> list[str]:
 def _what_stops_it(unit: Unit, month: dt.date, assembled: Assembled) -> str | None:
     if month < membership.this_month():
         return "This month is over, so it cannot be solved."
+    frozen = frozen_month(unit, month)
+    if frozen:
+        return frozen
     if Solve.objects.filter(unit=unit, month=month, state__in=ACTIVE_STATES).exists():
         return "A solve of this month is already queued or running."
     if not assembled.nurses:

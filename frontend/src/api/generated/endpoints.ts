@@ -37,7 +37,9 @@ import type {
   EditsBody,
   EndDateBody,
   GetMyLeaveParams,
+  GetMyRosterParams,
   GetRosterMonthParams,
+  GetRosterOverviewParams,
   Health,
   HospitalHistory,
   HospitalRules,
@@ -61,7 +63,9 @@ import type {
   ManagerProfileBody,
   ManagerToPlace,
   Me,
+  MonthBody,
   MyLeaveMonth,
+  MyRosterMonth,
   NameCorrectionBody,
   NewLeaveBody,
   NewNurseBody,
@@ -70,6 +74,7 @@ import type {
   NurseAttributesRow,
   NurseRow,
   NurseWithPassword,
+  Overview,
   PasswordSheet,
   PreviewNurseImportBody,
   PreviewSolveParams,
@@ -78,6 +83,7 @@ import type {
   RamadanFix,
   RamadanMonth,
   ReactivateRefusal,
+  RejectBody,
   RosterMonth,
   SavedLeave,
   SessionState,
@@ -96,7 +102,8 @@ import type {
   UnitRulesBody,
   UnitRulesState,
   UnitSchema,
-  UserWithPassword
+  UserWithPassword,
+  WaitingRoster
 } from './model';
 
 import { apiFetch } from '../fetcher';
@@ -4794,6 +4801,7 @@ export const getGetRosterMonthUrl = (unitId: string,
 }
 
 /**
+ * The CNO and the Deputy CNO read any unit's, and see a draft only as one that exists, with no solve of it.
  * @summary Roster Month
  */
 export const getRosterMonth = async (unitId: string,
@@ -5078,6 +5086,282 @@ export const useSaveDraftPins = <TError = unknown,
       return useMutation(getSaveDraftPinsMutationOptions(options), queryClient);
     }
 
+export const getSubmitRosterUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/roster/submit`
+}
+
+/**
+ * Checked again on the month as it stands, always: a draft out of date or edited by hand goes through with its warning,
+ * and is refused only if it breaks a hard rule or cannot be checked. Refused while a solve of the month is active, so a solve
+ * never ends on a frozen grid. Under the catalogue's lock and the unit's, as a solve's start and a restore take them. The audit
+ * entry names the unit and the month.
+ * @summary Submit Roster
+ */
+export const submitRoster = async (unitId: string,
+    monthBody: MonthBody, options?: Parameters<typeof apiFetch>[1]): Promise<RosterMonth> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RosterMonth>(getSubmitRosterUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(monthBody)
+  }
+);}
+
+
+
+
+
+export const getSubmitRosterMutationKey = () => ['submitRoster'] as const;
+
+export const getSubmitRosterMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitRoster>>, TError,SubmitRosterMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitRoster>>, TError,SubmitRosterMutationVariables, TContext> => {
+
+const mutationKey = getSubmitRosterMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitRoster>>, SubmitRosterMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  submitRoster(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitRosterMutationResult = NonNullable<Awaited<ReturnType<typeof submitRoster>>>
+    export type SubmitRosterMutationBody = MonthBody
+    export type SubmitRosterMutationError = unknown
+    export type SubmitRosterMutationVariables = {unitId: string;data: MonthBody}
+
+    /**
+ * @summary Submit Roster
+ */
+export const useSubmitRoster = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitRoster>>, TError,SubmitRosterMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof submitRoster>>,
+        TError,
+        SubmitRosterMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubmitRosterMutationOptions(options), queryClient);
+    }
+
+export const getApproveRosterUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/roster/approve`
+}
+
+/**
+ * Checked again on the month as it stands, since leave may be recorded while it waits, and refused only if that fails. Under
+ * the catalogue's lock, then the month's nurses', which a leave write takes, then the unit's: no leave lands between the check
+ * and the approval, and of two approvers the second is told the first decided. The first approval makes version 1.
+ * @summary Approve Roster
+ */
+export const approveRoster = async (unitId: string,
+    monthBody: MonthBody, options?: Parameters<typeof apiFetch>[1]): Promise<RosterMonth> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RosterMonth>(getApproveRosterUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(monthBody)
+  }
+);}
+
+
+
+
+
+export const getApproveRosterMutationKey = () => ['approveRoster'] as const;
+
+export const getApproveRosterMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveRoster>>, TError,ApproveRosterMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveRoster>>, TError,ApproveRosterMutationVariables, TContext> => {
+
+const mutationKey = getApproveRosterMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveRoster>>, ApproveRosterMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  approveRoster(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveRosterMutationResult = NonNullable<Awaited<ReturnType<typeof approveRoster>>>
+    export type ApproveRosterMutationBody = MonthBody
+    export type ApproveRosterMutationError = unknown
+    export type ApproveRosterMutationVariables = {unitId: string;data: MonthBody}
+
+    /**
+ * @summary Approve Roster
+ */
+export const useApproveRoster = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveRoster>>, TError,ApproveRosterMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof approveRoster>>,
+        TError,
+        ApproveRosterMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApproveRosterMutationOptions(options), queryClient);
+    }
+
+export const getRejectRosterUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/roster/reject`
+}
+
+/**
+ * Back to draft, with the comment kept for the manager. The audit entry holds no comment, since it may name a nurse or
+ * their leave and the System Admin reads the log.
+ * @summary Reject Roster
+ */
+export const rejectRoster = async (unitId: string,
+    rejectBody: RejectBody, options?: Parameters<typeof apiFetch>[1]): Promise<RosterMonth> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RosterMonth>(getRejectRosterUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(rejectBody)
+  }
+);}
+
+
+
+
+
+export const getRejectRosterMutationKey = () => ['rejectRoster'] as const;
+
+export const getRejectRosterMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectRoster>>, TError,RejectRosterMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectRoster>>, TError,RejectRosterMutationVariables, TContext> => {
+
+const mutationKey = getRejectRosterMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectRoster>>, RejectRosterMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  rejectRoster(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectRosterMutationResult = NonNullable<Awaited<ReturnType<typeof rejectRoster>>>
+    export type RejectRosterMutationBody = RejectBody
+    export type RejectRosterMutationError = unknown
+    export type RejectRosterMutationVariables = {unitId: string;data: RejectBody}
+
+    /**
+ * @summary Reject Roster
+ */
+export const useRejectRoster = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectRoster>>, TError,RejectRosterMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rejectRoster>>,
+        TError,
+        RejectRosterMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRejectRosterMutationOptions(options), queryClient);
+    }
+
 export const getListUnitSolveHistoryUrl = (unitId: string,
     params?: ListUnitSolveHistoryParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -5095,6 +5379,7 @@ export const getListUnitSolveHistoryUrl = (unitId: string,
 }
 
 /**
+ * For the CNO and the Deputy CNO, only the months whose roster is submitted or approved.
  * @summary Unit History
  */
 export const listUnitSolveHistory = async (unitId: string,
@@ -5204,6 +5489,7 @@ export const getGetSolveResultUrl = (unitId: string,
 }
 
 /**
+ * A solve of a month the CNO or the Deputy CNO may not see is the same 404 as one that does not exist.
  * @summary Solve Result
  */
 export const getSolveResult = async (unitId: string,
@@ -5380,6 +5666,327 @@ export const useRestoreSolveResult = <TError = unknown,
       > => {
       return useMutation(getRestoreSolveResultMutationOptions(options), queryClient);
     }
+
+export const getGetRosterOverviewUrl = (params?: GetRosterOverviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rosters/overview?${stringifiedParams}` : `/api/rosters/overview`
+}
+
+/**
+ * @summary Overview
+ */
+export const getRosterOverview = async (params?: GetRosterOverviewParams, options?: Parameters<typeof apiFetch>[1]): Promise<Overview> => {
+
+  return apiFetch<Overview>(getGetRosterOverviewUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRosterOverviewQueryKey = (params?: GetRosterOverviewParams,) => {
+    return [
+    `/api/rosters/overview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRosterOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getRosterOverview>>, TError = unknown>(params?: GetRosterOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterOverview>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRosterOverviewQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRosterOverview>>> = ({ signal }) => getRosterOverview(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRosterOverview>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRosterOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getRosterOverview>>>
+export type GetRosterOverviewQueryError = unknown
+
+
+export function useGetRosterOverview<TData = Awaited<ReturnType<typeof getRosterOverview>>, TError = unknown>(
+ params: undefined |  GetRosterOverviewParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterOverview>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRosterOverview>>,
+          TError,
+          Awaited<ReturnType<typeof getRosterOverview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRosterOverview<TData = Awaited<ReturnType<typeof getRosterOverview>>, TError = unknown>(
+ params?: GetRosterOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterOverview>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRosterOverview>>,
+          TError,
+          Awaited<ReturnType<typeof getRosterOverview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRosterOverview<TData = Awaited<ReturnType<typeof getRosterOverview>>, TError = unknown>(
+ params?: GetRosterOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterOverview>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Overview
+ */
+
+export function useGetRosterOverview<TData = Awaited<ReturnType<typeof getRosterOverview>>, TError = unknown>(
+ params?: GetRosterOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterOverview>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetRosterOverviewQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListSubmittedRostersUrl = () => {
+
+
+
+
+  return `/api/rosters/submitted`
+}
+
+/**
+ * Oldest first, as they have waited longest.
+ * @summary Submitted
+ */
+export const listSubmittedRosters = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WaitingRoster[]> => {
+
+  return apiFetch<WaitingRoster[]>(getListSubmittedRostersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSubmittedRostersQueryKey = () => {
+    return [
+    `/api/rosters/submitted`
+    ] as const;
+    }
+
+
+export const getListSubmittedRostersQueryOptions = <TData = Awaited<ReturnType<typeof listSubmittedRosters>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubmittedRosters>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSubmittedRostersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSubmittedRosters>>> = ({ signal }) => listSubmittedRosters({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSubmittedRosters>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSubmittedRostersQueryResult = NonNullable<Awaited<ReturnType<typeof listSubmittedRosters>>>
+export type ListSubmittedRostersQueryError = unknown
+
+
+export function useListSubmittedRosters<TData = Awaited<ReturnType<typeof listSubmittedRosters>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubmittedRosters>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSubmittedRosters>>,
+          TError,
+          Awaited<ReturnType<typeof listSubmittedRosters>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSubmittedRosters<TData = Awaited<ReturnType<typeof listSubmittedRosters>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubmittedRosters>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSubmittedRosters>>,
+          TError,
+          Awaited<ReturnType<typeof listSubmittedRosters>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSubmittedRosters<TData = Awaited<ReturnType<typeof listSubmittedRosters>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubmittedRosters>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Submitted
+ */
+
+export function useListSubmittedRosters<TData = Awaited<ReturnType<typeof listSubmittedRosters>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubmittedRosters>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSubmittedRostersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyRosterUrl = (params?: GetMyRosterParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rosters/mine?${stringifiedParams}` : `/api/rosters/mine`
+}
+
+/**
+ * Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too. The unit is the one
+ * the month falls under for them, so across a transfer each month shows its own unit's roster, and a nurse due to start sees
+ * their unit's with no row of their own.
+ * @summary My Roster
+ */
+export const getMyRoster = async (params?: GetMyRosterParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyRosterMonth> => {
+
+  return apiFetch<MyRosterMonth>(getGetMyRosterUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyRosterQueryKey = (params?: GetMyRosterParams,) => {
+    return [
+    `/api/rosters/mine`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMyRosterQueryOptions = <TData = Awaited<ReturnType<typeof getMyRoster>>, TError = unknown>(params?: GetMyRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRoster>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyRosterQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyRoster>>> = ({ signal }) => getMyRoster(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyRoster>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyRosterQueryResult = NonNullable<Awaited<ReturnType<typeof getMyRoster>>>
+export type GetMyRosterQueryError = unknown
+
+
+export function useGetMyRoster<TData = Awaited<ReturnType<typeof getMyRoster>>, TError = unknown>(
+ params: undefined |  GetMyRosterParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRoster>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyRoster>>,
+          TError,
+          Awaited<ReturnType<typeof getMyRoster>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyRoster<TData = Awaited<ReturnType<typeof getMyRoster>>, TError = unknown>(
+ params?: GetMyRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRoster>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyRoster>>,
+          TError,
+          Awaited<ReturnType<typeof getMyRoster>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyRoster<TData = Awaited<ReturnType<typeof getMyRoster>>, TError = unknown>(
+ params?: GetMyRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRoster>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Roster
+ */
+
+export function useGetMyRoster<TData = Awaited<ReturnType<typeof getMyRoster>>, TError = unknown>(
+ params?: GetMyRosterParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRoster>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyRosterQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListHospitalSolveHistoryUrl = (params?: ListHospitalSolveHistoryParams,) => {
   const normalizedParams = new URLSearchParams();

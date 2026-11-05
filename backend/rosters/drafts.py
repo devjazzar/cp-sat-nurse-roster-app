@@ -7,13 +7,29 @@ from django.utils import timezone
 
 from hospital.models import Shift, ShiftRename
 from nurses import membership
-from rosters.models import Roster
+from rosters.models import Roster, RosterState
 from rosters.pins import month_pins, on_top
 from solves.models import ACTIVE_STATES, Solve
 from solves.result import has_a_roster_to_keep, shifts_used
 
 
 MONTH_OVER = "This month is over, so its draft cannot change."
+FROZEN = {
+    RosterState.SUBMITTED: "This roster is submitted and waits for the CNO or the Deputy CNO, so nothing can change it until "
+                           "they decide. A rejection returns it to draft.",
+    RosterState.APPROVED: "This roster is approved and in force, so it cannot change here.",
+}
+
+
+def why_frozen(roster: Roster | None) -> str | None:
+    """The one place a submitted or an approved roster refuses what would change its grid or its pins: a solve's start and end,
+    a restore, and a save of pins. A rename is not such a change: the grid follows it whatever the state. Hold the unit's lock,
+    which a submit and a decision take, when this decides a write."""
+    return FROZEN.get(roster.state) if roster is not None else None
+
+
+def frozen_month(unit, month) -> str | None:
+    return why_frozen(Roster.objects.filter(unit=unit, month=month).first())
 
 
 def current_code(code: str) -> str:
@@ -39,7 +55,10 @@ def as_a_draft_would_hold(solve: Solve, grid: dict[str, dict[str, str]]) -> dict
 
 def replace_grid(solve: Solve, grid: dict[str, dict[str, str]], *, restoring: bool = False) -> Roster:
     """The draft of the solve's month, created or with its grid replaced. A shift renamed while the solve ran is carried
-    here, so hold the catalogue's lock (`HospitalSettings.load(for_update=True)`) so that a rename cannot slip past."""
+    here, so hold the catalogue's lock (`HospitalSettings.load(for_update=True)`) so that a rename cannot slip past. A caller
+    has asked `why_frozen` first: this refuses all the same, rather than overwrite a frozen grid."""
+    if frozen_month(solve.unit, solve.month):
+        raise ValueError(f"The roster of {solve.audit_target} is frozen.")
     roster, _ = Roster.objects.update_or_create(unit=solve.unit, month=solve.month, defaults={
         "grid": as_a_draft_would_hold(solve, grid), "solve": solve, "restored_at": timezone.now() if restoring else None})
     return roster
@@ -56,6 +75,9 @@ def why_not_restore(solve: Solve) -> str | None:
         return "This solve left no roster to restore."
     if solve.month < membership.this_month():
         return MONTH_OVER
+    frozen = frozen_month(solve.unit, solve.month)
+    if frozen:
+        return frozen
     if Solve.objects.filter(unit=solve.unit, month=solve.month, state__in=ACTIVE_STATES).exists():
         return "A solve of this month is queued or running, and would replace this when it ends. Stop it or wait for it first."
     draft = Roster.objects.filter(unit=solve.unit, month=solve.month, solve=solve).first()
@@ -80,7 +102,8 @@ def _shift_changed_since(solve: Solve) -> str | None:
 
 
 def carry_rename_through_grids(old_code: str, new_code: str) -> None:
-    """Call it under the catalogue's lock. A stored input and result stay what they were."""
+    """Call it under the catalogue's lock. A stored input and result stay what they were, as does a roster version. A submitted or
+    approved grid follows too: a rename is the same shift, so nothing the approver decides on changes."""
     rosters = [roster for roster in Roster.objects.select_for_update() if _uses(roster, old_code)]
     for roster in rosters:
         roster.grid = {nurse: {day: new_code if code == old_code else code for day, code in row.items()}

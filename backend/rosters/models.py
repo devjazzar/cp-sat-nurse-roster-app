@@ -23,10 +23,23 @@ class PinEnded(models.TextChoices):
     LEAVE = "leave", "Leave recorded on its date, which wins over a pin."
 
 
+class VersionOrigin(models.TextChoices):
+    SOLVE = "solve"
+    EDIT = "edit"
+    REPLAN = "replan"
+    SWAP = "swap"
+    REQUEST = "request"
+
+
+class Decision(models.TextChoices):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class Roster(models.Model):
     """A unit's plan for one month. `grid` is the one in use and follows a shift's rename, unlike the stored result it came from.
-    Roster versions begin at the first approval (ticket 14): until then each solve replaces the grid, and the solve history
-    keeps what it replaced."""
+    Until the first approval each solve replaces the grid, and the solve history keeps what it replaced. Once approved, `grid` is
+    the latest version's (`RosterVersion`), under the codes in use now. Submitting freezes it (`rosters.drafts.why_frozen`)."""
 
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     unit = models.ForeignKey("units.Unit", on_delete=models.PROTECT, related_name="rosters")
@@ -45,6 +58,53 @@ class Roster(models.Model):
             models.UniqueConstraint(fields=["unit", "month"], name="rosters_one_roster_a_unit_month"),
             models.CheckConstraint(condition=models.Q(month__day=1), name="rosters_roster_month_starts_a_month"),
         ]
+
+
+class Submission(models.Model):
+    """One sending of a draft for a decision, and the decision. Nothing is deleted, so every rejection's comment is kept, which
+    the audit log cannot hold: a comment may name a nurse or a leave."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    roster = models.ForeignKey(Roster, on_delete=models.PROTECT, related_name="submissions")
+    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    changes_at_submit = models.JSONField(default=list, help_text="`solves.input.changes_since` as the manager submitted it: what "
+                                                                 "the draft was warned of then, so the approver can be shown "
+                                                                 "what is new since.")
+    decision = models.CharField(max_length=8, choices=Decision, blank=True)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    comment = models.TextField(blank=True, help_text="Why it was rejected. Required then, and seen by the unit's manager.")
+
+    class Meta:
+        ordering = ["-submitted_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["roster"], condition=models.Q(decision=""),
+                                    name="rosters_one_undecided_submission_a_roster"),
+            models.CheckConstraint(condition=~models.Q(decision="rejected") | ~models.Q(comment=""),
+                                   name="rosters_a_rejection_has_a_comment"),
+        ]
+
+
+class RosterVersion(models.Model):
+    """One saved state of an approved roster. The first approval makes number 1, with origin `solve`; its grid is the roster's as
+    approved, so it can hold hand edits: the pins, and the solve history, say where each cell came from. The latest is in force.
+    A version keeps the codes it was saved with, as a stored result does, and is read through `rosters.drafts.in_current_codes`."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    roster = models.ForeignKey(Roster, on_delete=models.PROTECT, related_name="versions")
+    number = models.PositiveIntegerField()
+    grid = models.JSONField(help_text='{hospital ID: {date: shift code or ""}}.')
+    origin = models.CharField(max_length=7, choices=VersionOrigin)
+    solve = models.ForeignKey("solves.Solve", on_delete=models.PROTECT, null=True, blank=True, related_name="+",
+                              help_text="The solve behind the grid, when one produced it.")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["roster", "-number"]
+        constraints = [models.UniqueConstraint(fields=["roster", "number"], name="rosters_one_version_number_a_roster")]
 
 
 class PinnedCellQuerySet(models.QuerySet):

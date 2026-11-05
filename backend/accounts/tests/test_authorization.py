@@ -92,3 +92,36 @@ def test_a_write_without_the_csrf_token_gets_403_even_with_the_right_role(make_u
                        content_type="application/json", headers={"X-CSRFToken": token}).status_code == 200
 
     assert call(client, method, path).status_code == 403
+
+
+MANAGER, APPROVERS = {Role.UNIT_MANAGER}, {Role.CNO, Role.DEPUTY_CNO}
+# Who may call each transition and read of a roster (ticket 14). A unit's own scope is `units.scope`, held by the rosters' tests.
+ROSTER_ROLES = {
+    "GET /api/units/{unit_id}/roster": MANAGER | APPROVERS,
+    "POST /api/units/{unit_id}/roster/submit": MANAGER,
+    "POST /api/units/{unit_id}/roster/approve": APPROVERS,
+    "POST /api/units/{unit_id}/roster/reject": APPROVERS,
+    "POST /api/units/{unit_id}/roster/pins": MANAGER,
+    "POST /api/units/{unit_id}/roster/check": MANAGER,
+    "POST /api/units/{unit_id}/solves": MANAGER,
+    "GET /api/units/{unit_id}/solves/preview": MANAGER,
+    "GET /api/units/{unit_id}/solve-history": MANAGER | APPROVERS,
+    "GET /api/units/{unit_id}/solve-history/{solve_id}": MANAGER | APPROVERS,
+    "POST /api/units/{unit_id}/solve-history/{solve_id}/restore": MANAGER,
+    "GET /api/rosters/overview": APPROVERS,
+    "GET /api/rosters/submitted": APPROVERS,
+    "GET /api/rosters/mine": {Role.STAFF_NURSE, Role.UNIT_MANAGER},
+}
+
+
+def test_each_roster_transition_and_read_is_for_these_roles_only():
+    guarded = {label(method, path): set(guard.roles) for method, path, guard in RESTRICTED}
+    assert {name: guarded.get(name) for name in ROSTER_ROLES} == ROSTER_ROLES
+
+
+def test_the_system_admin_reaches_no_roster_content():
+    """Their solve history across units is a closed list of fields (`solves.history_api.hospital_router`)."""
+    roster_roles = {label(method, path): guard.roles for method, path, guard in RESTRICTED
+                    if re.search(r"/roster|/solves|/units/\{unit_id\}/solve-history", path)}
+    assert set(ROSTER_ROLES) <= set(roster_roles)
+    assert [name for name, roles in roster_roles.items() if Role.SYSTEM_ADMIN in roles] == []
