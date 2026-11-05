@@ -29,7 +29,7 @@
 
 **Implemented on 2026-11-06,** on branch `claude/ticket-15-notifications-df5fcc`. The backend ran under pytest on a throwaway PostgreSQL 18 container of my own, and the frontend under Vitest with the real routes and generated client over a stubbed `fetch`.
 
-- Results: backend 1711 passed before the last review fixes, and frontend 449 of 449 with `npm run build` clean. The final numbers are in the session's report.
+- Results on the final code: backend 1713 passed, frontend 449 of 449, and `npm run build` clean.
 - `makemigrations --check` is clean, and `frontend/openapi.json` is the same as a fresh export.
 - The frontend suite also ran in **6 clean exports at once**: 449 of 449 in each.
 - The solver's suite was not run: nothing under `solver/` changed.
