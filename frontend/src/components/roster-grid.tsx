@@ -2,7 +2,7 @@ import { tableFeatures, useTable, type ColumnDef } from "@tanstack/react-table"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useMemo, useRef } from "react"
 
-import type { Draft, GridCell, GridRow, GridShift } from "@/api/generated/model"
+import type { GridCell, GridRow, GridShift, GridView } from "@/api/generated/model"
 import { asDate, cn, readableOn, scrollableRegion } from "@/lib/utils"
 
 const features = tableFeatures({})
@@ -40,8 +40,8 @@ function Cell({ cell, shifts, title }: { cell: GridCell; shifts: Map<string, Gri
   )
 }
 
-/** The draft's nurses across its dates. Nurse names stay in view while it scrolls, and on a phone it scrolls sideways. */
-export function RosterGrid({ draft, label }: { draft: Draft; label: string }) {
+/** A grid's nurses across its dates. Nurse names stay in view while it scrolls, and on a phone it scrolls sideways. */
+export function RosterGrid({ draft, label }: { draft: GridView; label: string }) {
   const scroller = useRef<HTMLDivElement>(null)
   const shifts = useMemo(() => new Map(draft.shifts.map((shift) => [shift.code, shift])), [draft.shifts])
   const columns = useMemo<ColumnDef<typeof features, GridRow>[]>(() => [
@@ -113,7 +113,7 @@ export function RosterGrid({ draft, label }: { draft: Draft; label: string }) {
   )
 }
 
-export function GridLegend({ draft }: { draft: Draft }) {
+export function GridLegend({ draft }: { draft: GridView }) {
   return (
     <ul aria-label="What the cells mean" className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
       {draft.shifts.map((shift) => (

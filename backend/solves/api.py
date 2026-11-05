@@ -1,4 +1,4 @@
-"""Solving a unit's month: only its manager, for now. Ticket 12 opens reading to the System Admin."""
+"""Solving a unit's month: only its manager."""
 from __future__ import annotations
 
 import datetime as dt
@@ -27,7 +27,7 @@ from ops.queue import enqueue
 from ops.solver_client import SolverRefused, SolverUnreachable
 from solves.input import Assembled, assemble, solver_refusal
 from solves.models import ACTIVE_STATES, Solve, SolveFailure, SolveState
-from solves.result import has_a_roster_to_keep
+from solves.result import has_a_roster_to_keep, in_dates
 from solves.tasks import run_solve
 from units.models import Unit
 from units.scope import unit_in_scope
@@ -110,7 +110,7 @@ def preview(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) ->
     issues = None
     if refusal is None and assembled.nurses:
         try:
-            issues = solver_client.precheck(assembled.input)
+            issues = [in_dates(issue, month) for issue in solver_client.precheck(assembled.input)]
         except SolverRefused as e:
             refusal = str(e)
         except SolverUnreachable:
@@ -146,7 +146,8 @@ class SolveProgress(Schema):
     failure: Literal[SolveFailure.SOLVER, SolveFailure.REFUSED] | None = Field(
         description="`refused` is a matter of the rules, to be shown as such and not as a failed solve.")
     error: str
-    found_roster: bool = Field(description="Whether this solve ended with a roster that became the draft.")
+    found_roster: bool = Field(description="Whether this solve ended with a roster it could keep, which became the draft "
+                                            "then. A later solve or a restore may have replaced it since.")
     message: str = Field(description="Why the solver found no roster, in its words.")
     precheck: list[str] = Field(description="What the solver's own precheck said, once it has ended.")
 
@@ -160,7 +161,8 @@ def progress_of(solve: Solve) -> SolveProgress:
                          finished_at=timezone.localtime(solve.finished_at) if solve.finished_at else None,
                          failure=solve.failure or None, error=solve.error,
                          found_roster=has_a_roster_to_keep(result),
-                         message=result.get("message") or "", precheck=result.get("precheck") or [])
+                         message=result.get("message") or "",
+                         precheck=[in_dates(issue, solve.month) for issue in result.get("precheck") or []])
 
 
 @router.post("/{unit_id}/solves", response={201: SolveProgress}, auth=manager, operation_id="startSolve")

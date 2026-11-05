@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router"
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -103,14 +103,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/leave", "/my-leave", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/leave", "/my-leave"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -771,14 +771,14 @@ describe("each role's navigation and home", () => {
     start("/", admin())
 
     await screen.findByRole("heading", { name: "Health" })
-    expect(navLinks()).toEqual(["Health", "Technical settings", "Users", "Audit log", "Change password"])
+    expect(navLinks()).toEqual(["Health", "Technical settings", "Users", "Audit log", "Solve history", "Change password"])
     expect(screen.getByText("admin · System Admin")).toBeInTheDocument()
   })
 
   it.each([
     ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
-    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Solve history", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["staff_nurse", "Staff Nurse", "No roster yet.", ["Home", "My leave", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
     const { router, calls } = start("/", {
@@ -3843,12 +3843,33 @@ describe("the roster page", () => {
     { date: "2026-06-07", weekend: false, holiday: false },
   ]
   const DRAFT = {
-    solve_id: SOLVE_ID, updated_at: "2026-05-15T10:01:00+03:00", cost: 12, stopped_early: false, days: DAYS, shifts: SHIFTS, changes: [],
+    solve_id: SOLVE_ID, solved_at: "2026-05-15T10:01:00+03:00", restored_at: null, cost: 12, stopped_early: false, days: DAYS, shifts: SHIFTS, changes: [],
     rows: [{
       hospital_id: "h1", full_name: "Amal Saleh",
       cells: [{ shift: "D", kind: "shift" }, { shift: "", kind: "off" }, { shift: "", kind: "leave" }, { shift: "", kind: "outside" }],
     }, { hospital_id: "h2", full_name: "Badr Noor", cells: DAYS.map(() => ({ shift: "N", kind: "shift" })) }],
-    penalties: [{ rule: "change", penalty: 0 }, { rule: "fair_day", penalty: 5 }, { rule: "night_rest", penalty: 9 }],
+  }
+  const ROW = {
+    id: SOLVE_ID, month: "2026-06", state: "succeeded", failure: null, requested_by: "Mona Ali", requested_at: "2026-05-15T10:00:00+03:00",
+    finished_at: "2026-05-15T10:01:03+03:00", elapsed_seconds: 62.5, time_limit_seconds: 60, attempts: 1, cost: 12,
+    found_roster: true, in_draft: true,
+  }
+  const STATISTICS = {
+    status: "FEASIBLE", stopped_by: "time_limit", objective: 12, best_bound: 3, solve_seconds: 60.1, build_seconds: 0.07, deterministic_time: 11.3,
+    improvements: 4, workers: 8, time_limit_seconds: 60, variables: 5169, constraints: 10218, objective_terms: 300,
+  }
+  const RESULT = {
+    solve: ROW, stop_requested: false, error: "", message: "", precheck: [], violations: [], elapsed_violations: [], department_cost: 2,
+    rules: [
+      {
+        rule: "night_rest", penalty: 9, weight: 3, amount: 3, unit: "day shift too soon after a night",
+        largest: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-05", amount: 2, text: "night rest: h1 has too little rest" }], others: 4,
+      },
+      { rule: "fair_day", penalty: 5, weight: null, amount: null, unit: null, largest: [], others: 0 },
+    ],
+    explained: true,
+    nurses: [{ hospital_id: "h1", full_name: "Amal Saleh", contract: 192, leave_credit: 24, required: 168, hours_worked: 180, overtime: 12, shortfall: 0, shifts: { D: 15, N: 0 }, cost: 3 }],
+    statistics: STATISTICS, grid: { days: DAYS, rows: DRAFT.rows, shifts: SHIFTS }, restore_refusal: "This result is the draft already.",
   }
   const EMPTY = { month: "2026-06", active_solve: null, last_solve: null, draft: null }
 
@@ -3857,6 +3878,7 @@ describe("the roster page", () => {
     "GET /api/units": { body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] },
     [`GET ${UNIT}/roster`]: { body: EMPTY },
     [`GET ${UNIT}/solves/preview`]: { body: PREVIEW },
+    [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: RESULT },
     ...extra,
   })
 
@@ -4137,13 +4159,91 @@ describe("the roster page", () => {
     expect(screen.getByRole("list", { name: "What the cells mean" })).toHaveTextContent(/Night, 12 hours/)
   })
 
-  it("lists the penalties per rule, largest first, under the names the hospital rules give them", async () => {
+  it("beside the draft, lists the penalties per rule, largest first, under the names the hospital rules give them", async () => {
     start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
 
-    await screen.findByRole("heading", { name: "Penalties per rule" })
-    const rows = screen.getByRole("columnheader", { name: "Soft rule" }).closest("table") as HTMLElement
-    expect(within(rows).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual(["Night rest9", "Fair share of day shifts5"])
-    expect(screen.getByText("Every other soft rule costs nothing.")).toBeInTheDocument()
+    const rules = await screen.findByRole("region", { name: "Penalties per rule" })
+    expect(within(rules).getAllByRole("listitem")[0]).toHaveTextContent(/^Night rest.*9/)
+    expect(within(rules).getByText("Fair share of day shifts").parentElement).toHaveTextContent("5")
+    expect(within(rules).getByText(/3 × 3/)).toHaveTextContent("day shift too soon after a night")
+    expect(within(rules).getByText(/Amal Saleh, 5 Jun 2026/)).toHaveTextContent("night rest: h1 has too little rest")
+    expect(within(rules).getByText("and 4 more like these")).toBeInTheDocument()
+    expect(within(rules).getByText("Every other soft rule costs nothing.")).toBeInTheDocument()
+  })
+
+  it("beside the draft, gives each nurse's hours and cost, and what the unit costs apart from them", async () => {
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+
+    const hours = await screen.findByRole("region", { name: "Hours and cost per nurse" })
+    const cells = within(within(hours).getByRole("row", { name: /Amal Saleh/ })).getAllByRole("cell").map((cell) => cell.textContent)
+    expect(cells).toEqual(["192", "24", "168", "180", "12", "0", "D 15", "3"])
+    expect(within(hours).getByText(/The unit as a whole costs 2 more/)).toBeInTheDocument()
+  })
+
+  it("beside the draft, gives the solver's statistics and what stopped it", async () => {
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+
+    const statistics = await screen.findByRole("region", { name: "Solver statistics" })
+    expect(within(statistics).getByText("What stopped it").nextElementSibling).toHaveTextContent("The time limit")
+    expect(within(statistics).getByText("Improving rosters").nextElementSibling).toHaveTextContent("4")
+    expect(within(statistics).getByText("Variables").nextElementSibling).toHaveTextContent("5169")
+  })
+
+  it("says what the precheck warned of, and that it warned of nothing", async () => {
+    const warned = { ...RESULT, precheck: ["capacity: too few"] }
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: warned } }))
+
+    expect(within(await screen.findByRole("region", { name: "The solver's check" })).getByText("capacity: too few")).toBeInTheDocument()
+    cleanup()
+
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } } }))
+    expect(within(await screen.findByRole("region", { name: "The solver's check" })).getByText(/warned of nothing/)).toBeInTheDocument()
+  })
+
+  it("shows recorded facts that broke rules, and only when there are some", async () => {
+    const fact = { rule: "consecutive", hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-05", text: "consecutive: 6 shifts in a row" }
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, elapsed_violations: [fact] } } }))
+
+    const facts = await screen.findByRole("region", { name: "Recorded facts that broke rules" })
+    expect(within(facts).getByText(/Amal Saleh, 5 Jun 2026/)).toHaveTextContent("6 shifts in a row")
+    expect(screen.queryByRole("region", { name: "Hard rules this roster breaks" })).not.toBeInTheDocument()
+  })
+
+  it("does not repeat a date the solver's words already hold", async () => {
+    const rules = [{ ...RESULT.rules[0], largest: [{ hospital_id: null, full_name: "", date: "2026-06-05", amount: 2, text: "2026-06-05 D: avg 0.80 above band 0.78" }] }]
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules } } }))
+
+    expect(await screen.findByText("The unit: 2026-06-05 D: avg 0.80 above band 0.78")).toBeInTheDocument()
+  })
+
+  it("says so when the explanation cannot be worked out, and still shows the penalties", async () => {
+    const rules = RESULT.rules.map((rule) => ({ ...rule, weight: null, amount: null, unit: null, largest: [], others: 0 }))
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules, explained: false } } }))
+
+    const region = await screen.findByRole("region", { name: "Penalties per rule" })
+    expect(within(region).getByText(/could not be explained/)).toBeInTheDocument()
+    expect(within(region).getByText("Night rest")).toBeInTheDocument()
+  })
+
+  it("keeps the grid when the result's details cannot be read", async () => {
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { status: 500 } }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The details of this result could not be read")
+    expect(screen.getByRole("region", { name: "Draft of ER, June 2026" })).toBeInTheDocument()
+  })
+
+  it("says when the draft is a restored result, and when it was solved", async () => {
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: { ...DRAFT, restored_at: "2026-05-16T09:00:00+03:00" } } } }))
+
+    expect(await screen.findByText(/Restored 2026-05-16 09:00:00 from the solve of 2026-05-15 10:01:00\./)).toBeInTheDocument()
+  })
+
+  it("links to the month's history and to a result with no draft of its own", async () => {
+    const nothing = { ...DONE, found_roster: false, best_cost: null, message: "no roster found within the time limit" }
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, last_solve: nothing } } }))
+
+    expect(await screen.findByRole("link", { name: "Solve history of June 2026" })).toHaveAttribute("href", "/solve-history?month=2026-06")
+    expect(screen.getByRole("link", { name: "Open this result" })).toHaveAttribute("href", `/solve-history/${SOLVE_ID}`)
   })
 
   it("warns of what has changed since the draft was solved", async () => {
@@ -4184,5 +4284,241 @@ describe("the roster page", () => {
 
     expect(await screen.findByRole("button", { name: "Solve again" })).toBeInTheDocument()
     expect(screen.getByText(/Solving again replaces the draft's grid/)).toBeInTheDocument()
+  })
+  describe("its history", () => {
+    const OLDER = "019a0000-0000-7000-8000-000000000001"
+    const FAILED = { ...ROW, id: "f1", state: "failed", failure: "solver", cost: null, found_roster: false, in_draft: false }
+    const REFUSED = { ...FAILED, id: "f2", failure: "refused" }
+    const NOTHING = { ...FAILED, id: "f3", state: "succeeded", failure: null }
+    const STOPPED = { ...ROW, id: "f4", state: "cancelled", in_draft: false, elapsed_seconds: 8 }
+    const STOPPED_EMPTY = { ...FAILED, id: "f5", state: "cancelled", failure: null, attempts: 0, elapsed_seconds: 0 }
+    const QUEUED_ROW = { ...FAILED, id: "f6", state: "queued", failure: null, finished_at: null, attempts: 0, elapsed_seconds: 0 }
+    const withHistory = (solves: unknown[], extra = {}) => manager({ [`GET ${UNIT}/solve-history`]: { body: { solves, older_than: null } }, ...extra })
+    const statusOf = (solve: string) => within(screen.getByRole("row", { name: new RegExp(solve) })).getAllByRole("cell")[1].textContent
+
+    it("lists each solve with its status, who asked, how long and its cost", async () => {
+      start("/solve-history", withHistory([{ ...ROW, id: "a1" }]))
+
+      await screen.findByRole("heading", { level: 1, name: "Solve history of ER" })
+      const row = await screen.findByRole("row", { name: /June 2026/ })
+      expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+        "June 2026", "Finished, the draft", "Mona Ali", "2026-05-15 10:00:00", "1 min 3 s", "12", expect.stringContaining("Open"),
+      ])
+      expect(within(row).getByRole("link", { name: /Open/ })).toHaveAttribute("href", "/solve-history/a1")
+    })
+
+    it("words every way a solve can end", async () => {
+      const months = ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]
+      const solves = [FAILED, REFUSED, NOTHING, STOPPED, STOPPED_EMPTY, QUEUED_ROW].map((row, index) => ({ ...row, month: months[index] }))
+      start("/solve-history", withHistory(solves))
+
+      await screen.findByRole("row", { name: /January 2026/ })
+      expect(statusOf("January 2026")).toBe("Failed")
+      expect(statusOf("February 2026")).toBe("Rules to review")
+      expect(statusOf("March 2026")).toBe("No roster to keep")
+      expect(statusOf("April 2026")).toBe("Stopped, roster kept")
+      expect(statusOf("May 2026")).toBe("Stopped, no roster")
+      expect(statusOf("June 2026")).toBe("In the queue")
+      expect(within(screen.getByRole("row", { name: /May 2026/ })).getAllByRole("cell")[4]).toHaveTextContent("Did not start")
+      expect(within(screen.getByRole("row", { name: /May 2026/ })).getAllByRole("cell")[5]).toHaveTextContent("None")
+    })
+
+    it("narrows to the month in the address, and can show them all", async () => {
+      const { calls, user } = start("/solve-history?month=2026-06", withHistory([ROW]))
+
+      await screen.findByText("Solves of June 2026 only.")
+      expect(calls.map((call) => call.url)).toContain(`${UNIT}/solve-history?month=2026-06`)
+      await user.click(screen.getByRole("link", { name: "Show every month" }))
+
+      await waitFor(() => expect(calls.map((call) => call.url)).toContain(`${UNIT}/solve-history`))
+      expect(screen.queryByText("Solves of June 2026 only.")).not.toBeInTheDocument()
+    })
+
+    it("goes back a page at a time", async () => {
+      const { calls, user } = start("/solve-history", manager({
+        [`GET ${UNIT}/solve-history`]: { body: { solves: [ROW], older_than: OLDER } },
+        [`GET ${UNIT}/solve-history?older_than=${OLDER}`]: { body: { solves: [{ ...ROW, id: OLDER, month: "2026-01" }], older_than: null } },
+      }))
+
+      await user.click(await screen.findByRole("link", { name: "Older solves" }))
+
+      await screen.findByRole("row", { name: /January 2026/ })
+      expect(calls.map((call) => call.url)).toContain(`${UNIT}/solve-history?older_than=${OLDER}`)
+      expect(screen.queryByRole("link", { name: "Older solves" })).not.toBeInTheDocument()
+    })
+
+    it("says when there is none, and when it cannot be read", async () => {
+      start("/solve-history", withHistory([]))
+      expect(await screen.findByText("This unit has not solved a month yet.")).toBeInTheDocument()
+      cleanup()
+
+      start("/solve-history", manager({ [`GET ${UNIT}/solve-history`]: { status: 500 } }))
+      expect(await screen.findByRole("alert")).toHaveTextContent("could not be read")
+    })
+
+    it("is for a manager and the System Admin only", async () => {
+      const { router } = start("/solve-history", { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+
+      await screen.findByText("No roster yet.")
+      expect(router.state.location.pathname).toBe("/")
+    })
+
+    describe("a result", () => {
+      const NOT_DRAFT = { ...RESULT, solve: { ...ROW, in_draft: false }, restore_refusal: null }
+      const result = (body: unknown) => ({ [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body } })
+      const open = (body: unknown, extra = {}) => start(`/solve-history/${SOLVE_ID}`, manager({ ...result(body), ...extra }))
+
+      it("shows what it asked for, its grid and everything it holds", async () => {
+        open(NOT_DRAFT)
+
+        await screen.findByRole("heading", { level: 1, name: "Result for June 2026" })
+        expect(screen.getByText("Asked for by").nextElementSibling).toHaveTextContent("Mona Ali")
+        expect(screen.getByText("Status").nextElementSibling).toHaveTextContent("Finished")
+        expect(screen.getByRole("region", { name: "Roster of this result, June 2026" })).toBeInTheDocument()
+        expect(screen.getByRole("region", { name: "Hours and cost per nurse" })).toBeInTheDocument()
+        expect(screen.getByRole("region", { name: "Solver statistics" })).toBeInTheDocument()
+        expect(screen.getByRole("link", { name: "Solve history of June 2026" })).toHaveAttribute("href", "/solve-history?month=2026-06")
+      })
+
+      it("restores it once asked, and says it is the draft", async () => {
+        const restored = { ...RESULT, solve: { ...ROW, in_draft: true } }
+        const { calls, user } = open(NOT_DRAFT, {
+          [`POST ${UNIT}/solve-history/${SOLVE_ID}/restore`]: { body: restored },
+          [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: () => ({ body: calls.some((call) => call.method === "POST") ? restored : NOT_DRAFT }),
+        })
+
+        await user.click(await screen.findByRole("button", { name: "Restore as the draft" }))
+        const dialog = await screen.findByRole("alertdialog")
+        expect(dialog).toHaveTextContent(/replaces the draft of June 2026/)
+        expect(calls.some((call) => call.method === "POST")).toBe(false)
+        await user.click(within(dialog).getByRole("button", { name: "Restore" }))
+
+        expect(await screen.findByText(/This result is now the draft of June 2026/)).toHaveAttribute("role", "status")
+        expect(screen.queryByRole("button", { name: "Restore as the draft" })).not.toBeInTheDocument()
+        expect(calls.filter((call) => call.method === "POST").map((call) => call.url)).toEqual([`${UNIT}/solve-history/${SOLVE_ID}/restore`])
+        expect(screen.getByRole("link", { name: "See the draft" })).toHaveAttribute("href", "/roster?month=2026-06")
+        await waitFor(() => expect(document.activeElement).toHaveAttribute("id", "restore-state"))
+      })
+
+      it("fetches the month's draft again after a restore", async () => {
+        const restored = { ...RESULT, solve: { ...ROW, in_draft: true } }
+        let draft: unknown = { ...DRAFT, solve_id: OLDER, cost: 99 }
+        const { user } = open(NOT_DRAFT, {
+          [`GET ${UNIT}/roster`]: () => ({ body: { ...EMPTY, draft } }),
+          [`GET ${UNIT}/solve-history/${OLDER}`]: { body: RESULT },
+          [`POST ${UNIT}/solve-history/${SOLVE_ID}/restore`]: () => {
+            draft = { ...DRAFT, restored_at: "2026-05-16T09:00:00+03:00" }
+            return { body: restored }
+          },
+        })
+
+        await user.click(await screen.findByRole("button", { name: "Restore as the draft" }))
+        await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Restore" }))
+        await user.click(await screen.findByRole("link", { name: "See the draft" }))
+
+        expect(await screen.findByText(/Restored 2026-05-16 09:00:00/)).toBeInTheDocument()
+      })
+
+      it("keeps the dialog and says why when the restore is refused", async () => {
+        const reason = "A solve of this month is queued or running, and would replace this when it ends. Stop it or wait for it first."
+        const { user } = open(NOT_DRAFT, { [`POST ${UNIT}/solve-history/${SOLVE_ID}/restore`]: { status: 409, body: { detail: reason } } })
+
+        await user.click(await screen.findByRole("button", { name: "Restore as the draft" }))
+        const dialog = await screen.findByRole("alertdialog")
+        await user.click(within(dialog).getByRole("button", { name: "Restore" }))
+
+        expect(await within(dialog).findByRole("alert")).toHaveTextContent(reason)
+      })
+
+      it("says why it cannot be restored instead of offering to", async () => {
+        const reason = "D was 12 hours at this solve and is 8 now, so this roster's cost and hours no longer hold. Solve the month again."
+        open({ ...NOT_DRAFT, restore_refusal: reason })
+
+        expect(await screen.findByText(reason)).toBeInTheDocument()
+        expect(screen.queryByRole("button", { name: "Restore as the draft" })).not.toBeInTheDocument()
+      })
+
+      it("says when it is the draft", async () => {
+        open(RESULT)
+
+        expect(await screen.findByText(/This result is the draft of June 2026/)).toBeInTheDocument()
+        expect(screen.queryByText("This result is the draft already.")).not.toBeInTheDocument()
+      })
+
+      it("says why a failed solve has nothing to show", async () => {
+        const failed = {
+          ...RESULT, solve: { ...ROW, ...FAILED, id: SOLVE_ID }, error: "The solver restarted and lost this solve.", rules: [], explained: true, nurses: [],
+          statistics: null, grid: null, department_cost: null, restore_refusal: "This solve left no roster to restore.",
+        }
+        open(failed)
+
+        expect(await screen.findByText(/The solver restarted and lost this solve\./)).toBeInTheDocument()
+        expect(screen.queryByRole("region", { name: "Hours and cost per nurse" })).not.toBeInTheDocument()
+        expect(screen.queryByRole("region", { name: "Solver statistics" })).not.toBeInTheDocument()
+        expect(screen.getByText("This solve left no roster to restore.")).toBeInTheDocument()
+      })
+
+      it("reads rules the solver refused as rules to review", async () => {
+        open({ ...RESULT, solve: { ...ROW, ...REFUSED, id: SOLVE_ID }, error: "night_shift is not a shift", rules: [], nurses: [], statistics: null, grid: null, department_cost: null, restore_refusal: "This solve left no roster to restore." })
+
+        expect(await screen.findByRole("link", { name: "Review the unit rules" })).toBeInTheDocument()
+        expect(screen.getByText(/night_shift is not a shift/)).toBeInTheDocument()
+      })
+
+      it("gives the solver's reason when it found no roster, and any hard rule a roster it would not keep breaks", async () => {
+        const broken = { rule: "headcount", hospital_id: null, full_name: "", date: "2026-06-02", text: "headcount: D = 4, want 1..2" }
+        open({ ...NOT_DRAFT, solve: { ...ROW, found_roster: false, in_draft: false }, message: "the roster breaks 1 hard rule(s)", violations: [broken], restore_refusal: "This solve left no roster to restore." })
+
+        expect(await screen.findByText(/the roster breaks 1 hard rule/)).toBeInTheDocument()
+        expect(within(screen.getByRole("region", { name: "Hard rules this roster breaks" })).getByText(/The unit, 2 Jun 2026/)).toHaveTextContent("want 1..2")
+      })
+
+      it("says when it cannot be read", async () => {
+        start(`/solve-history/${SOLVE_ID}`, manager({ [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { status: 404, body: { detail: "Not Found" } } }))
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("This result could not be read")
+      })
+
+      it("is for a manager", async () => {
+        const { router } = start(`/solve-history/${SOLVE_ID}`, admin({ "GET /api/solve-history": { body: { solves: [], older_than: null } } }))
+
+        await screen.findByRole("heading", { name: "Health" })
+        expect(router.state.location.pathname).toBe("/health")
+      })
+    })
+
+    describe("the System Admin's view", () => {
+      const { in_draft: _inDraft, ...plain } = ROW
+      const HOSPITAL_ROW = { ...plain, unit: "ER" }
+      const everything = (solves: unknown[], extra = {}) => admin({ "GET /api/solve-history": { body: { solves, older_than: null } }, ...extra })
+
+      it("lists every unit's solves and offers nothing to open", async () => {
+        const { calls } = start("/solve-history", everything([HOSPITAL_ROW, { ...HOSPITAL_ROW, id: "b", unit: "ICU", state: "failed", failure: "solver", found_roster: false, cost: null }]))
+
+        await screen.findByRole("heading", { level: 1, name: "Solve history" })
+        const row = await screen.findByRole("row", { name: /ICU/ })
+        expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["June 2026", "Failed", "Mona Ali", "2026-05-15 10:00:00", "1 min 3 s", "60 s", "1", "None"])
+        expect(screen.queryByRole("link", { name: /Open/ })).not.toBeInTheDocument()
+        expect(screen.getByText(/worker's log/)).toBeInTheDocument()
+        expect(calls.map((call) => call.url)).not.toContain("/api/units")
+      })
+
+      it("goes back a page at a time", async () => {
+        const { user } = start("/solve-history", admin({
+          "GET /api/solve-history": { body: { solves: [HOSPITAL_ROW], older_than: OLDER } },
+          [`GET /api/solve-history?older_than=${OLDER}`]: { body: { solves: [{ ...HOSPITAL_ROW, id: OLDER, unit: "ICU" }], older_than: null } },
+        }))
+
+        await user.click(await screen.findByRole("link", { name: "Older solves" }))
+
+        expect(await screen.findByRole("row", { name: /ICU/ })).toBeInTheDocument()
+      })
+
+      it("says when there is none", async () => {
+        start("/solve-history", everything([]))
+
+        expect(await screen.findByText("No unit has solved a month yet.")).toBeInTheDocument()
+      })
+    })
   })
 })

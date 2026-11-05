@@ -8,17 +8,17 @@ import type { DraftChange } from './draftChange';
 import type { GridDay } from './gridDay';
 import type { GridRow } from './gridRow';
 import type { GridShift } from './gridShift';
-import type { RulePenalty } from './rulePenalty';
 
 export interface Draft {
-  solve_id: string;
-  updated_at: string;
-  cost: number;
-  stopped_early: boolean;
   days: GridDay[];
   rows: GridRow[];
   shifts: GridShift[];
-  penalties: RulePenalty[];
+  solve_id: string;
+  solved_at: string;
+  /** When the manager restored this result as the draft. Null when the draft is what its solve left. */
+  restored_at: string | null;
+  cost: number;
+  stopped_early: boolean;
   /** What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14). */
   changes: DraftChange[];
 }

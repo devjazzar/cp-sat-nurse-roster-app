@@ -10,7 +10,7 @@ import type { SolveProgress } from './solveProgress';
 export interface RosterMonth {
   month: string;
   active_solve: SolveProgress | null;
-  /** The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. */
+  /** The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those. */
   last_solve: SolveProgress | null;
   draft: Draft | null;
 }

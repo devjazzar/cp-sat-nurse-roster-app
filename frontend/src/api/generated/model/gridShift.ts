@@ -9,5 +9,6 @@ export interface GridShift {
   code: string;
   display_name: string;
   colour: string;
+  /** As the solve that made this grid was given them. */
   hours: number;
 }

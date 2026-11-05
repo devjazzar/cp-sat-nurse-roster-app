@@ -12,6 +12,7 @@ import {
   getPreviewSolveQueryKey,
   useGetRosterMonth,
   useGetSolveProgress,
+  useGetSolveResult,
   usePreviewSolve,
   useStartSolve,
   useStopSolve,
@@ -20,13 +21,12 @@ import { Role, type Draft, type DraftChange, type SolvePreview, type SolveProgre
 import { FormField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { GridLegend, RosterGrid } from "@/components/roster-grid"
+import { SolveResultPanels } from "@/components/solve-result"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useChosenUnit } from "@/components/unit-picker"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
 import { hospitalTime, monthName } from "@/lib/utils"
-import { WEIGHTS } from "@/lib/weights"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress })
@@ -118,8 +118,9 @@ function RulesRefused({ detail }: { detail: string }) {
   )
 }
 
-/** Why the latest solve left no draft of its own. */
+/** Why the latest solve left no draft of its own. The whole of it is one link away. */
 function LastSolve({ solve }: { solve: SolveProgress }) {
+  const open = <Link to="/solve-history/$solveId" params={{ solveId: solve.id }} className={`text-sm ${LINK}`}>Open this result</Link>
   if (solve.failure === "refused") return <RulesRefused detail={solve.error} />
   if (solve.state === "failed") {
     return <p role="alert">The solve failed twice, and the draft is as it was. You can run it again. It says: {solve.error}</p>
@@ -131,6 +132,7 @@ function LastSolve({ solve }: { solve: SolveProgress }) {
     <div className="flex flex-col gap-1">
       <p role="alert">The solver found no roster for this month, so nothing has changed. {solve.message}</p>
       {solve.precheck.length > 0 && <ul className="list-disc ps-5 text-sm">{solve.precheck.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
+      <p>{open}</p>
     </div>
   )
 }
@@ -142,15 +144,20 @@ const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   left: "is no longer in this month but still in this draft",
 }
 
-function DraftCard({ draft, label }: { draft: Draft; label: string }) {
-  const weights = new Map(WEIGHTS.map((weight) => [weight.name as string, weight.label]))
-  const penalties = draft.penalties.filter((row) => row.penalty !== 0).sort((a, b) => b.penalty - a.penalty)
+function DraftDetails({ unitId, solveId }: { unitId: string; solveId: string }) {
+  const result = useGetSolveResult(unitId, solveId)
+  if (result.isPending) return <p className="text-sm">Loading the details of this result…</p>
+  if (!result.data) return <p role="alert" className="text-sm">The details of this result could not be read. The grid above is still the draft. Reload the page to try again.</p>
+  return <SolveResultPanels result={result.data} />
+}
+
+function DraftCard({ unitId, draft, label }: { unitId: string; draft: Draft; label: string }) {
   return (
     <section aria-labelledby="draft" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h3 id="draft" tabIndex={-1} className="font-medium outline-none">Draft</h3>
         <p className="text-sm text-muted-foreground tabular-nums">
-          Solved {hospitalTime(draft.updated_at)}. Cost {draft.cost}.
+          {draft.restored_at ? `Restored ${hospitalTime(draft.restored_at)} from the solve of ${hospitalTime(draft.solved_at)}.` : `Solved ${hospitalTime(draft.solved_at)}.`} Cost {draft.cost}.
           {draft.stopped_early && " You stopped this solve early, so this is the best roster it had found."}
         </p>
       </div>
@@ -165,27 +172,7 @@ function DraftCard({ draft, label }: { draft: Draft; label: string }) {
       )}
       <RosterGrid draft={draft} label={label} />
       <GridLegend draft={draft} />
-      <div className="flex max-w-md flex-col gap-2">
-        <h4 className="text-sm font-medium">Penalties per rule</h4>
-        {penalties.length === 0
-          ? <p className="text-sm">No soft rule is broken.</p>
-          : (
-            <>
-              <Table>
-                <TableHeader><TableRow><TableHead>Soft rule</TableHead><TableHead className="text-end">Penalty</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {penalties.map((row) => (
-                    <TableRow key={row.rule}>
-                      <TableCell>{weights.get(row.rule) ?? row.rule}</TableCell>
-                      <TableCell className="text-end tabular-nums">{row.penalty}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <p className="text-sm text-muted-foreground">Every other soft rule costs nothing.</p>
-            </>
-          )}
-      </div>
+      <DraftDetails unitId={unitId} solveId={draft.solve_id} />
     </section>
   )
 }
@@ -240,7 +227,7 @@ function StartForm({ unitId, preview, onStarted, solvingAgain }: { unitId: strin
           description={`Up to ${preview.time_limit_cap}.`}
           registration={form.register("time_limit_seconds", { valueAsNumber: true })} error={form.formState.errors.time_limit_seconds} />
       </div>
-      {solvingAgain && <p className="text-sm text-muted-foreground">Solving again replaces the draft's grid. The solve history keeps what it replaced.</p>}
+      {solvingAgain && <p className="text-sm text-muted-foreground">Solving again replaces the draft's grid. The solve history keeps what it replaced, which you can restore.</p>}
       {refused && <p role="alert" className="text-sm text-destructive">{refused}</p>}
       {start.isError && !refused && !form.formState.errors.time_limit_seconds && <p role="alert" className="text-sm text-destructive">The solve could not be started. Check your connection and try again.</p>}
       <Button type="submit" disabled={start.isPending}>{solvingAgain ? "Solve again" : "Start solve"}</Button>
@@ -323,9 +310,10 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
       {answer && (
         <>
           <MonthNav month={answer.month} link={(month, label) => <Link to="/roster" search={{ month }} className={MONTH_LINK} onClick={() => setSaid("")}>{label}</Link>} />
+          <p><Link to="/solve-history" search={{ month: answer.month }} className={`text-sm ${LINK}`}>Solve history of {monthName(answer.month)}</Link></p>
           {active && <ProgressCard key={active.id} unitId={unit.id} solve={active} onEnded={ended} />}
           {!active && answer.last_solve && <LastSolve solve={answer.last_solve} />}
-          {answer.draft && <DraftCard draft={answer.draft} label={`Draft of ${unit.name}, ${monthName(answer.month)}`} />}
+          {answer.draft && <DraftCard unitId={unit.id} draft={answer.draft} label={`Draft of ${unit.name}, ${monthName(answer.month)}`} />}
           {!answer.draft && !active && !answer.last_solve && <p>No draft yet for {monthName(answer.month)}.</p>}
           {!active && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} />}
         </>

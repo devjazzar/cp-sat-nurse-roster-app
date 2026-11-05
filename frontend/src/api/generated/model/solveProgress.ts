@@ -24,7 +24,7 @@ export interface SolveProgress {
   /** `refused` is a matter of the rules, to be shown as such and not as a failed solve. */
   failure: SolveProgressFailure;
   error: string;
-  /** Whether this solve ended with a roster that became the draft. */
+  /** Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since. */
   found_roster: boolean;
   /** Why the solver found no roster, in its words. */
   message: string;

@@ -5,8 +5,10 @@
  * OpenAPI spec version: 1
  */
 
-export interface RulePenalty {
-  /** The soft rule's name: the same as its weight's. */
+export interface BrokenRule {
   rule: string;
-  penalty: number;
+  hospital_id: string | null;
+  full_name: string;
+  date: string | null;
+  text: string;
 }

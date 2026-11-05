@@ -15,6 +15,7 @@ const ADMIN_PAGES = linkOptions([
   { to: "/settings", label: "Technical settings" },
   { to: "/users", label: "Users" },
   { to: "/audit-log", label: "Audit log" },
+  { to: "/solve-history", label: "Solve history" },
 ])
 const HOME = { to: "/", label: "Home", activeOptions: { exact: true } } as const
 const RULES = { to: "/hospital-rules", label: "Hospital rules" } as const
@@ -28,10 +29,11 @@ const NURSES = { to: "/nurses", label: "Nurses" } as const
 const UNIT_RULES = { to: "/unit-rules", label: "Unit rules" } as const
 const ATTRIBUTES = { to: "/rostering-attributes", label: "Rostering attributes" } as const
 const ROSTER = { to: "/roster", label: "Roster" } as const
+const SOLVE_HISTORY = { to: "/solve-history", label: "Solve history" } as const
 const LEAVE = { to: "/leave", label: "Leave" } as const
 const MY_LEAVE = { to: "/my-leave", label: "My leave" } as const
 const NURSE_PAGES = linkOptions([HOME, MY_LEAVE, ...CATALOGUE])
-const MANAGER_PAGES = linkOptions([HOME, ROSTER, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
+const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
 const DEPUTY_PAGES = linkOptions([HOME, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
 const CNO_PAGES = linkOptions([HOME, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])
 

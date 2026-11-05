@@ -1620,7 +1620,7 @@ export const StartSolveResponse = zod.object({
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
   "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
-  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
   "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
 })
@@ -1650,7 +1650,7 @@ export const GetSolveProgressResponse = zod.object({
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
   "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
-  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
   "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
 })
@@ -1681,7 +1681,7 @@ export const StopSolveResponse = zod.object({
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
   "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
-  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
   "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
 })
@@ -1718,7 +1718,7 @@ export const GetRosterMonthResponse = zod.object({
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
   "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
-  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
   "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
 }),zod.null()]),
@@ -1737,15 +1737,11 @@ export const GetRosterMonthResponse = zod.object({
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
   "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
-  "found_roster": zod.boolean().describe('Whether this solve ended with a roster that became the draft.'),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
   "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
-}),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for.'),
+}),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
   "draft": zod.union([zod.object({
-  "solve_id": zod.uuid(),
-  "updated_at": zod.iso.datetime({"offset":true}),
-  "cost": zod.int(),
-  "stopped_early": zod.boolean(),
   "days": zod.array(zod.object({
   "date": zod.iso.date(),
   "weekend": zod.boolean(),
@@ -1763,18 +1759,315 @@ export const GetRosterMonthResponse = zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
   "colour": zod.string(),
-  "hours": zod.int()
+  "hours": zod.int().describe('As the solve that made this grid was given them.')
 })),
-  "penalties": zod.array(zod.object({
-  "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
-  "penalty": zod.int()
-})),
+  "solve_id": zod.uuid(),
+  "solved_at": zod.iso.datetime({"offset":true}),
+  "restored_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('When the manager restored this result as the draft. Null when the draft is what its solve left.'),
+  "cost": zod.int(),
+  "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
   "what": zod.enum(['gender', 'leave', 'joined', 'left'])
 })).describe('What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14).')
 }),zod.null()])
+})
+
+
+/**
+ * @summary Unit History
+ */
+export const ListUnitSolveHistoryParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const listUnitSolveHistoryQueryLimitDefault = 50;
+export const listUnitSolveHistoryQueryLimitMax = 200;
+
+export const listUnitSolveHistoryQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ListUnitSolveHistoryQueryParams = zod.object({
+  "older_than": zod.union([zod.uuid(),zod.null()]).optional().describe('The `older_than` of the page before.'),
+  "limit": zod.int().min(1).max(listUnitSolveHistoryQueryLimitMax).default(listUnitSolveHistoryQueryLimitDefault),
+  "month": zod.union([zod.string().regex(listUnitSolveHistoryQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. Every month when left out.')
+})
+
+export const ListUnitSolveHistoryResponse = zod.object({
+  "solves": zod.array(zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "requested_by": zod.string(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "elapsed_seconds": zod.number(),
+  "time_limit_seconds": zod.int(),
+  "attempts": zod.int(),
+  "cost": zod.union([zod.int(),zod.null()]),
+  "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft is this solve\'s.')
+})),
+  "older_than": zod.union([zod.uuid(),zod.null()])
+})
+
+
+/**
+ * @summary Solve Result
+ */
+export const GetSolveResultParams = zod.object({
+  "unit_id": zod.uuid(),
+  "solve_id": zod.uuid()
+})
+
+export const GetSolveResultResponse = zod.object({
+  "solve": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "requested_by": zod.string(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "elapsed_seconds": zod.number(),
+  "time_limit_seconds": zod.int(),
+  "attempts": zod.int(),
+  "cost": zod.union([zod.int(),zod.null()]),
+  "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft is this solve\'s.')
+}),
+  "stop_requested": zod.boolean(),
+  "error": zod.string().describe('Why the last attempt failed, also when a retry then worked.'),
+  "message": zod.string().describe('Why the solver found no roster or it could not be kept, in its words.'),
+  "precheck": zod.array(zod.string()),
+  "violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('Hard rules its roster breaks. Such a roster does not become a draft.'),
+  "elapsed_violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('Recorded facts that broke hard rules: days already over, which no solve could change.'),
+  "department_cost": zod.union([zod.int(),zod.null()]),
+  "rules": zod.array(zod.object({
+  "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
+  "penalty": zod.int(),
+  "weight": zod.union([zod.int(),zod.null()]).describe('Null, as are the next three, when the explanation could not be worked out.'),
+  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule was broken, in `unit`.'),
+  "unit": zod.union([zod.string(),zod.null()]),
+  "largest": zod.array(zod.object({
+  "hospital_id": zod.union([zod.string(),zod.null()]).describe('Null when the rule is about the unit as a whole.'),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]).describe('Null when it is about the month as a whole.'),
+  "amount": zod.int(),
+  "text": zod.string()
+})).describe('Its 5 largest occurrences.'),
+  "others": zod.int().describe('How many more occurrences it has.')
+})).describe('Each soft rule that costs something, the costliest first.'),
+  "explained": zod.boolean().describe('False when the solver\'s code could not explain the stored roster.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "contract": zod.int(),
+  "leave_credit": zod.int(),
+  "required": zod.int(),
+  "hours_worked": zod.int(),
+  "overtime": zod.int(),
+  "shortfall": zod.int(),
+  "shifts": zod.record(zod.string(), zod.int()).describe('How many of each, under the code each shift has now.'),
+  "cost": zod.int()
+})),
+  "statistics": zod.union([zod.object({
+  "status": zod.string(),
+  "stopped_by": zod.union([zod.string(),zod.null()]),
+  "objective": zod.union([zod.number(),zod.null()]),
+  "best_bound": zod.union([zod.number(),zod.null()]),
+  "solve_seconds": zod.union([zod.number(),zod.null()]),
+  "build_seconds": zod.union([zod.number(),zod.null()]),
+  "deterministic_time": zod.union([zod.number(),zod.null()]),
+  "improvements": zod.int(),
+  "workers": zod.union([zod.int(),zod.null()]),
+  "time_limit_seconds": zod.union([zod.number(),zod.null()]),
+  "variables": zod.union([zod.int(),zod.null()]),
+  "constraints": zod.union([zod.int(),zod.null()]),
+  "objective_terms": zod.union([zod.int(),zod.null()])
+}),zod.null()]),
+  "grid": zod.union([zod.object({
+  "days": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "weekend": zod.boolean(),
+  "holiday": zod.boolean()
+})),
+  "rows": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "cells": zod.array(zod.object({
+  "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
+  "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
+}))
+})),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "colour": zod.string(),
+  "hours": zod.int().describe('As the solve that made this grid was given them.')
+}))
+}),zod.null()]).describe('The roster it answered, under the codes in use now. Null when it found none.'),
+  "restore_refusal": zod.union([zod.string(),zod.null()]).describe('Why this result cannot be restored as the draft now.')
+})
+
+
+/**
+ * Under the locks a solve's start and end take, so none of them passes between deciding and writing. The audit entry says
+ * which solve and its cost, as `roster.draft_replaced` does, and nothing of a nurse.
+ * @summary Restore Result
+ */
+export const RestoreSolveResultParams = zod.object({
+  "unit_id": zod.uuid(),
+  "solve_id": zod.uuid()
+})
+
+export const RestoreSolveResultResponse = zod.object({
+  "solve": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "requested_by": zod.string(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "elapsed_seconds": zod.number(),
+  "time_limit_seconds": zod.int(),
+  "attempts": zod.int(),
+  "cost": zod.union([zod.int(),zod.null()]),
+  "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft is this solve\'s.')
+}),
+  "stop_requested": zod.boolean(),
+  "error": zod.string().describe('Why the last attempt failed, also when a retry then worked.'),
+  "message": zod.string().describe('Why the solver found no roster or it could not be kept, in its words.'),
+  "precheck": zod.array(zod.string()),
+  "violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('Hard rules its roster breaks. Such a roster does not become a draft.'),
+  "elapsed_violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('Recorded facts that broke hard rules: days already over, which no solve could change.'),
+  "department_cost": zod.union([zod.int(),zod.null()]),
+  "rules": zod.array(zod.object({
+  "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
+  "penalty": zod.int(),
+  "weight": zod.union([zod.int(),zod.null()]).describe('Null, as are the next three, when the explanation could not be worked out.'),
+  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule was broken, in `unit`.'),
+  "unit": zod.union([zod.string(),zod.null()]),
+  "largest": zod.array(zod.object({
+  "hospital_id": zod.union([zod.string(),zod.null()]).describe('Null when the rule is about the unit as a whole.'),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]).describe('Null when it is about the month as a whole.'),
+  "amount": zod.int(),
+  "text": zod.string()
+})).describe('Its 5 largest occurrences.'),
+  "others": zod.int().describe('How many more occurrences it has.')
+})).describe('Each soft rule that costs something, the costliest first.'),
+  "explained": zod.boolean().describe('False when the solver\'s code could not explain the stored roster.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "contract": zod.int(),
+  "leave_credit": zod.int(),
+  "required": zod.int(),
+  "hours_worked": zod.int(),
+  "overtime": zod.int(),
+  "shortfall": zod.int(),
+  "shifts": zod.record(zod.string(), zod.int()).describe('How many of each, under the code each shift has now.'),
+  "cost": zod.int()
+})),
+  "statistics": zod.union([zod.object({
+  "status": zod.string(),
+  "stopped_by": zod.union([zod.string(),zod.null()]),
+  "objective": zod.union([zod.number(),zod.null()]),
+  "best_bound": zod.union([zod.number(),zod.null()]),
+  "solve_seconds": zod.union([zod.number(),zod.null()]),
+  "build_seconds": zod.union([zod.number(),zod.null()]),
+  "deterministic_time": zod.union([zod.number(),zod.null()]),
+  "improvements": zod.int(),
+  "workers": zod.union([zod.int(),zod.null()]),
+  "time_limit_seconds": zod.union([zod.number(),zod.null()]),
+  "variables": zod.union([zod.int(),zod.null()]),
+  "constraints": zod.union([zod.int(),zod.null()]),
+  "objective_terms": zod.union([zod.int(),zod.null()])
+}),zod.null()]),
+  "grid": zod.union([zod.object({
+  "days": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "weekend": zod.boolean(),
+  "holiday": zod.boolean()
+})),
+  "rows": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "cells": zod.array(zod.object({
+  "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
+  "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
+}))
+})),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "colour": zod.string(),
+  "hours": zod.int().describe('As the solve that made this grid was given them.')
+}))
+}),zod.null()]).describe('The roster it answered, under the codes in use now. Null when it found none.'),
+  "restore_refusal": zod.union([zod.string(),zod.null()]).describe('Why this result cannot be restored as the draft now.')
+})
+
+
+/**
+ * @summary Hospital History
+ */
+export const listHospitalSolveHistoryQueryLimitDefault = 50;
+export const listHospitalSolveHistoryQueryLimitMax = 200;
+
+
+
+export const ListHospitalSolveHistoryQueryParams = zod.object({
+  "older_than": zod.union([zod.uuid(),zod.null()]).optional().describe('The `older_than` of the page before.'),
+  "limit": zod.int().min(1).max(listHospitalSolveHistoryQueryLimitMax).default(listHospitalSolveHistoryQueryLimitDefault)
+})
+
+export const ListHospitalSolveHistoryResponse = zod.object({
+  "solves": zod.array(zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "requested_by": zod.string(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "elapsed_seconds": zod.number(),
+  "time_limit_seconds": zod.int(),
+  "attempts": zod.int(),
+  "cost": zod.union([zod.int(),zod.null()]),
+  "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
+  "unit": zod.string()
+})),
+  "older_than": zod.union([zod.uuid(),zod.null()])
 })
 
 

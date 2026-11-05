@@ -37,6 +37,7 @@ import type {
   GetMyLeaveParams,
   GetRosterMonthParams,
   Health,
+  HospitalHistory,
   HospitalRules,
   HospitalRulesState,
   ImportPreview,
@@ -47,9 +48,11 @@ import type {
   LeaveTypeBody,
   LeaveTypeSchema,
   ListAuditEntriesParams,
+  ListHospitalSolveHistoryParams,
   ListPublicHolidaysParams,
   ListRamadanMonthsParams,
   ListUnitLeaveParams,
+  ListUnitSolveHistoryParams,
   LoginBody,
   LoginRefusal,
   ManagedUser,
@@ -80,10 +83,12 @@ import type {
   ShiftSchema,
   SolvePreview,
   SolveProgress,
+  SolveResult,
   StartSolveBody,
   TechnicalSettingsSchema,
   TransferBody,
   UnitBody,
+  UnitHistory,
   UnitLeaveMonth,
   UnitName,
   UnitRulesBody,
@@ -4874,6 +4879,417 @@ export function useGetRosterMonth<TData = Awaited<ReturnType<typeof getRosterMon
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetRosterMonthQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListUnitSolveHistoryUrl = (unitId: string,
+    params?: ListUnitSolveHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/solve-history?${stringifiedParams}` : `/api/units/${unitId}/solve-history`
+}
+
+/**
+ * @summary Unit History
+ */
+export const listUnitSolveHistory = async (unitId: string,
+    params?: ListUnitSolveHistoryParams, options?: Parameters<typeof apiFetch>[1]): Promise<UnitHistory> => {
+
+  return apiFetch<UnitHistory>(getListUnitSolveHistoryUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnitSolveHistoryQueryKey = (unitId: string,
+    params?: ListUnitSolveHistoryParams,) => {
+    return [
+    `/api/units/${unitId}/solve-history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListUnitSolveHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listUnitSolveHistory>>, TError = unknown>(unitId: string,
+    params?: ListUnitSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSolveHistory>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnitSolveHistoryQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnitSolveHistory>>> = ({ signal }) => listUnitSolveHistory(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnitSolveHistory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUnitSolveHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listUnitSolveHistory>>>
+export type ListUnitSolveHistoryQueryError = unknown
+
+
+export function useListUnitSolveHistory<TData = Awaited<ReturnType<typeof listUnitSolveHistory>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  ListUnitSolveHistoryParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSolveHistory>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitSolveHistory>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitSolveHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitSolveHistory<TData = Awaited<ReturnType<typeof listUnitSolveHistory>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSolveHistory>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitSolveHistory>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitSolveHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitSolveHistory<TData = Awaited<ReturnType<typeof listUnitSolveHistory>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSolveHistory>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Unit History
+ */
+
+export function useListUnitSolveHistory<TData = Awaited<ReturnType<typeof listUnitSolveHistory>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSolveHistory>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUnitSolveHistoryQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSolveResultUrl = (unitId: string,
+    solveId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/solve-history/${solveId}`
+}
+
+/**
+ * @summary Solve Result
+ */
+export const getSolveResult = async (unitId: string,
+    solveId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SolveResult> => {
+
+  return apiFetch<SolveResult>(getGetSolveResultUrl(unitId,solveId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSolveResultQueryKey = (unitId: string,
+    solveId: string,) => {
+    return [
+    `/api/units/${unitId}/solve-history/${solveId}`
+    ] as const;
+    }
+
+
+export const getGetSolveResultQueryOptions = <TData = Awaited<ReturnType<typeof getSolveResult>>, TError = unknown>(unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveResult>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSolveResultQueryKey(unitId,solveId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSolveResult>>> = ({ signal }) => getSolveResult(unitId,solveId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined && solveId !== null && solveId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSolveResult>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSolveResultQueryResult = NonNullable<Awaited<ReturnType<typeof getSolveResult>>>
+export type GetSolveResultQueryError = unknown
+
+
+export function useGetSolveResult<TData = Awaited<ReturnType<typeof getSolveResult>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveResult>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSolveResult>>,
+          TError,
+          Awaited<ReturnType<typeof getSolveResult>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSolveResult<TData = Awaited<ReturnType<typeof getSolveResult>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveResult>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSolveResult>>,
+          TError,
+          Awaited<ReturnType<typeof getSolveResult>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSolveResult<TData = Awaited<ReturnType<typeof getSolveResult>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveResult>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Solve Result
+ */
+
+export function useGetSolveResult<TData = Awaited<ReturnType<typeof getSolveResult>>, TError = unknown>(
+ unitId: string,
+    solveId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSolveResult>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSolveResultQueryOptions(unitId,solveId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRestoreSolveResultUrl = (unitId: string,
+    solveId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/solve-history/${solveId}/restore`
+}
+
+/**
+ * Under the locks a solve's start and end take, so none of them passes between deciding and writing. The audit entry says
+ * which solve and its cost, as `roster.draft_replaced` does, and nothing of a nurse.
+ * @summary Restore Result
+ */
+export const restoreSolveResult = async (unitId: string,
+    solveId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SolveResult> => {
+
+  return apiFetch<SolveResult>(getRestoreSolveResultUrl(unitId,solveId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRestoreSolveResultMutationKey = () => ['restoreSolveResult'] as const;
+
+export const getRestoreSolveResultMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreSolveResult>>, TError,RestoreSolveResultMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof restoreSolveResult>>, TError,RestoreSolveResultMutationVariables, TContext> => {
+
+const mutationKey = getRestoreSolveResultMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof restoreSolveResult>>, RestoreSolveResultMutationVariables> = (props) => {
+          const {unitId,solveId} = props ?? {};
+
+          return  restoreSolveResult(unitId,solveId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RestoreSolveResultMutationResult = NonNullable<Awaited<ReturnType<typeof restoreSolveResult>>>
+
+    export type RestoreSolveResultMutationError = unknown
+    export type RestoreSolveResultMutationVariables = {unitId: string;solveId: string}
+
+    /**
+ * @summary Restore Result
+ */
+export const useRestoreSolveResult = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreSolveResult>>, TError,RestoreSolveResultMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof restoreSolveResult>>,
+        TError,
+        RestoreSolveResultMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRestoreSolveResultMutationOptions(options), queryClient);
+    }
+
+export const getListHospitalSolveHistoryUrl = (params?: ListHospitalSolveHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/solve-history?${stringifiedParams}` : `/api/solve-history`
+}
+
+/**
+ * @summary Hospital History
+ */
+export const listHospitalSolveHistory = async (params?: ListHospitalSolveHistoryParams, options?: Parameters<typeof apiFetch>[1]): Promise<HospitalHistory> => {
+
+  return apiFetch<HospitalHistory>(getListHospitalSolveHistoryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListHospitalSolveHistoryQueryKey = (params?: ListHospitalSolveHistoryParams,) => {
+    return [
+    `/api/solve-history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListHospitalSolveHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError = unknown>(params?: ListHospitalSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListHospitalSolveHistoryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listHospitalSolveHistory>>> = ({ signal }) => listHospitalSolveHistory(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListHospitalSolveHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listHospitalSolveHistory>>>
+export type ListHospitalSolveHistoryQueryError = unknown
+
+
+export function useListHospitalSolveHistory<TData = Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError = unknown>(
+ params: undefined |  ListHospitalSolveHistoryParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listHospitalSolveHistory>>,
+          TError,
+          Awaited<ReturnType<typeof listHospitalSolveHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListHospitalSolveHistory<TData = Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError = unknown>(
+ params?: ListHospitalSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listHospitalSolveHistory>>,
+          TError,
+          Awaited<ReturnType<typeof listHospitalSolveHistory>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListHospitalSolveHistory<TData = Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError = unknown>(
+ params?: ListHospitalSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Hospital History
+ */
+
+export function useListHospitalSolveHistory<TData = Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError = unknown>(
+ params?: ListHospitalSolveHistoryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listHospitalSolveHistory>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListHospitalSolveHistoryQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

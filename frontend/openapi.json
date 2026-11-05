@@ -2159,6 +2159,253 @@
         ]
       }
     },
+    "/api/units/{unit_id}/solve-history": {
+      "get": {
+        "operationId": "listUnitSolveHistory",
+        "summary": "Unit History",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "older_than",
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The `older_than` of the page before.",
+              "title": "Older Than"
+            },
+            "required": false,
+            "description": "The `older_than` of the page before."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. Every month when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. Every month when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitHistory"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "solve history"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/solve-history/{solve_id}": {
+      "get": {
+        "operationId": "getSolveResult",
+        "summary": "Solve Result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "solve_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Solve Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolveResult"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "solve history"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/solve-history/{solve_id}/restore": {
+      "post": {
+        "operationId": "restoreSolveResult",
+        "summary": "Restore Result",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "solve_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Solve Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SolveResult"
+                }
+              }
+            }
+          }
+        },
+        "description": "Under the locks a solve's start and end take, so none of them passes between deciding and writing. The audit entry says\nwhich solve and its cost, as `roster.draft_replaced` does, and nothing of a nurse.",
+        "tags": [
+          "solve history"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/solve-history": {
+      "get": {
+        "operationId": "listHospitalSolveHistory",
+        "summary": "Hospital History",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "older_than",
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The `older_than` of the page before.",
+              "title": "Older Than"
+            },
+            "required": false,
+            "description": "The `older_than` of the page before."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HospitalHistory"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "solve history"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/nurses": {
       "get": {
         "operationId": "listNurses",
@@ -5380,7 +5627,7 @@
             "type": "string"
           },
           "found_roster": {
-            "description": "Whether this solve ended with a roster that became the draft.",
+            "description": "Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.",
             "title": "Found Roster",
             "type": "boolean"
           },
@@ -5447,24 +5694,6 @@
       },
       "Draft": {
         "properties": {
-          "solve_id": {
-            "format": "uuid",
-            "title": "Solve Id",
-            "type": "string"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          },
-          "cost": {
-            "title": "Cost",
-            "type": "integer"
-          },
-          "stopped_early": {
-            "title": "Stopped Early",
-            "type": "boolean"
-          },
           "days": {
             "items": {
               "$ref": "#/components/schemas/GridDay"
@@ -5486,12 +5715,36 @@
             "title": "Shifts",
             "type": "array"
           },
-          "penalties": {
-            "items": {
-              "$ref": "#/components/schemas/RulePenalty"
-            },
-            "title": "Penalties",
-            "type": "array"
+          "solve_id": {
+            "format": "uuid",
+            "title": "Solve Id",
+            "type": "string"
+          },
+          "solved_at": {
+            "format": "date-time",
+            "title": "Solved At",
+            "type": "string"
+          },
+          "restored_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the manager restored this result as the draft. Null when the draft is what its solve left.",
+            "title": "Restored At"
+          },
+          "cost": {
+            "title": "Cost",
+            "type": "integer"
+          },
+          "stopped_early": {
+            "title": "Stopped Early",
+            "type": "boolean"
           },
           "changes": {
             "description": "What has changed since this draft was solved. Warned of here, and validated again at submit (ticket 14).",
@@ -5503,14 +5756,14 @@
           }
         },
         "required": [
-          "solve_id",
-          "updated_at",
-          "cost",
-          "stopped_early",
           "days",
           "rows",
           "shifts",
-          "penalties",
+          "solve_id",
+          "solved_at",
+          "restored_at",
+          "cost",
+          "stopped_early",
           "changes"
         ],
         "title": "Draft",
@@ -5636,6 +5889,7 @@
             "type": "string"
           },
           "hours": {
+            "description": "As the solve that made this grid was given them.",
             "title": "Hours",
             "type": "integer"
           }
@@ -5674,7 +5928,7 @@
                 "type": "null"
               }
             ],
-            "description": "The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for."
+            "description": "The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those."
           },
           "draft": {
             "anyOf": [
@@ -5696,7 +5950,380 @@
         "title": "RosterMonth",
         "type": "object"
       },
-      "RulePenalty": {
+      "UnitHistoryFilter": {
+        "properties": {
+          "older_than": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `older_than` of the page before.",
+            "title": "Older Than"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. Every month when left out.",
+            "title": "Month"
+          }
+        },
+        "title": "UnitHistoryFilter",
+        "type": "object"
+      },
+      "UnitHistory": {
+        "properties": {
+          "solves": {
+            "items": {
+              "$ref": "#/components/schemas/UnitSolveRow"
+            },
+            "title": "Solves",
+            "type": "array"
+          },
+          "older_than": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Older Than"
+          }
+        },
+        "required": [
+          "solves",
+          "older_than"
+        ],
+        "title": "UnitHistory",
+        "type": "object"
+      },
+      "UnitSolveRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "solver",
+                  "refused"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "elapsed_seconds": {
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "time_limit_seconds": {
+            "title": "Time Limit Seconds",
+            "type": "integer"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "found_roster": {
+            "description": "Whether it ended with a roster it could keep.",
+            "title": "Found Roster",
+            "type": "boolean"
+          },
+          "in_draft": {
+            "description": "Whether its month's draft is this solve's.",
+            "title": "In Draft",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "state",
+          "failure",
+          "requested_by",
+          "requested_at",
+          "finished_at",
+          "elapsed_seconds",
+          "time_limit_seconds",
+          "attempts",
+          "cost",
+          "found_roster",
+          "in_draft"
+        ],
+        "title": "UnitSolveRow",
+        "type": "object"
+      },
+      "BrokenRule": {
+        "properties": {
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "hospital_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hospital Id"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "hospital_id",
+          "full_name",
+          "date",
+          "text"
+        ],
+        "title": "BrokenRule",
+        "type": "object"
+      },
+      "GridView": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/GridDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/GridRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "shifts": {
+            "items": {
+              "$ref": "#/components/schemas/GridShift"
+            },
+            "title": "Shifts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days",
+          "rows",
+          "shifts"
+        ],
+        "title": "GridView",
+        "type": "object"
+      },
+      "NurseAccounting": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "contract": {
+            "title": "Contract",
+            "type": "integer"
+          },
+          "leave_credit": {
+            "title": "Leave Credit",
+            "type": "integer"
+          },
+          "required": {
+            "title": "Required",
+            "type": "integer"
+          },
+          "hours_worked": {
+            "title": "Hours Worked",
+            "type": "integer"
+          },
+          "overtime": {
+            "title": "Overtime",
+            "type": "integer"
+          },
+          "shortfall": {
+            "title": "Shortfall",
+            "type": "integer"
+          },
+          "shifts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "How many of each, under the code each shift has now.",
+            "title": "Shifts",
+            "type": "object"
+          },
+          "cost": {
+            "title": "Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "contract",
+          "leave_credit",
+          "required",
+          "hours_worked",
+          "overtime",
+          "shortfall",
+          "shifts",
+          "cost"
+        ],
+        "title": "NurseAccounting",
+        "type": "object"
+      },
+      "RuleMatch": {
+        "properties": {
+          "hospital_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the rule is about the unit as a whole.",
+            "title": "Hospital Id"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when it is about the month as a whole.",
+            "title": "Date"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "date",
+          "amount",
+          "text"
+        ],
+        "title": "RuleMatch",
+        "type": "object"
+      },
+      "RuleResult": {
         "properties": {
           "rule": {
             "description": "The soft rule's name: the same as its weight's.",
@@ -5706,13 +6333,506 @@
           "penalty": {
             "title": "Penalty",
             "type": "integer"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null, as are the next three, when the explanation could not be worked out.",
+            "title": "Weight"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How much of the rule was broken, in `unit`.",
+            "title": "Amount"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "largest": {
+            "description": "Its 5 largest occurrences.",
+            "items": {
+              "$ref": "#/components/schemas/RuleMatch"
+            },
+            "title": "Largest",
+            "type": "array"
+          },
+          "others": {
+            "description": "How many more occurrences it has.",
+            "title": "Others",
+            "type": "integer"
           }
         },
         "required": [
           "rule",
-          "penalty"
+          "penalty",
+          "weight",
+          "amount",
+          "unit",
+          "largest",
+          "others"
         ],
-        "title": "RulePenalty",
+        "title": "RuleResult",
+        "type": "object"
+      },
+      "SolveResult": {
+        "properties": {
+          "solve": {
+            "$ref": "#/components/schemas/UnitSolveRow"
+          },
+          "stop_requested": {
+            "title": "Stop Requested",
+            "type": "boolean"
+          },
+          "error": {
+            "description": "Why the last attempt failed, also when a retry then worked.",
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "description": "Why the solver found no roster or it could not be kept, in its words.",
+            "title": "Message",
+            "type": "string"
+          },
+          "precheck": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Precheck",
+            "type": "array"
+          },
+          "violations": {
+            "description": "Hard rules its roster breaks. Such a roster does not become a draft.",
+            "items": {
+              "$ref": "#/components/schemas/BrokenRule"
+            },
+            "title": "Violations",
+            "type": "array"
+          },
+          "elapsed_violations": {
+            "description": "Recorded facts that broke hard rules: days already over, which no solve could change.",
+            "items": {
+              "$ref": "#/components/schemas/BrokenRule"
+            },
+            "title": "Elapsed Violations",
+            "type": "array"
+          },
+          "department_cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Cost"
+          },
+          "rules": {
+            "description": "Each soft rule that costs something, the costliest first.",
+            "items": {
+              "$ref": "#/components/schemas/RuleResult"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "explained": {
+            "description": "False when the solver's code could not explain the stored roster.",
+            "title": "Explained",
+            "type": "boolean"
+          },
+          "nurses": {
+            "items": {
+              "$ref": "#/components/schemas/NurseAccounting"
+            },
+            "title": "Nurses",
+            "type": "array"
+          },
+          "statistics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolverStatistics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grid": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GridView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The roster it answered, under the codes in use now. Null when it found none."
+          },
+          "restore_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why this result cannot be restored as the draft now.",
+            "title": "Restore Refusal"
+          }
+        },
+        "required": [
+          "solve",
+          "stop_requested",
+          "error",
+          "message",
+          "precheck",
+          "violations",
+          "elapsed_violations",
+          "department_cost",
+          "rules",
+          "explained",
+          "nurses",
+          "statistics",
+          "grid",
+          "restore_refusal"
+        ],
+        "title": "SolveResult",
+        "type": "object"
+      },
+      "SolverStatistics": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "stopped_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopped By"
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective"
+          },
+          "best_bound": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Bound"
+          },
+          "solve_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solve Seconds"
+          },
+          "build_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Seconds"
+          },
+          "deterministic_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deterministic Time"
+          },
+          "improvements": {
+            "title": "Improvements",
+            "type": "integer"
+          },
+          "workers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workers"
+          },
+          "time_limit_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit Seconds"
+          },
+          "variables": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variables"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraints"
+          },
+          "objective_terms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Terms"
+          }
+        },
+        "required": [
+          "status",
+          "stopped_by",
+          "objective",
+          "best_bound",
+          "solve_seconds",
+          "build_seconds",
+          "deterministic_time",
+          "improvements",
+          "workers",
+          "time_limit_seconds",
+          "variables",
+          "constraints",
+          "objective_terms"
+        ],
+        "title": "SolverStatistics",
+        "type": "object"
+      },
+      "PageFilter": {
+        "properties": {
+          "older_than": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `older_than` of the page before.",
+            "title": "Older Than"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "PageFilter",
+        "type": "object"
+      },
+      "HospitalHistory": {
+        "properties": {
+          "solves": {
+            "items": {
+              "$ref": "#/components/schemas/HospitalSolveRow"
+            },
+            "title": "Solves",
+            "type": "array"
+          },
+          "older_than": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Older Than"
+          }
+        },
+        "required": [
+          "solves",
+          "older_than"
+        ],
+        "title": "HospitalHistory",
+        "type": "object"
+      },
+      "HospitalSolveRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "solver",
+                  "refused"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "elapsed_seconds": {
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "time_limit_seconds": {
+            "title": "Time Limit Seconds",
+            "type": "integer"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "found_roster": {
+            "description": "Whether it ended with a roster it could keep.",
+            "title": "Found Roster",
+            "type": "boolean"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "state",
+          "failure",
+          "requested_by",
+          "requested_at",
+          "finished_at",
+          "elapsed_seconds",
+          "time_limit_seconds",
+          "attempts",
+          "cost",
+          "found_roster",
+          "unit"
+        ],
+        "title": "HospitalSolveRow",
         "type": "object"
       },
       "ComingTransfer": {

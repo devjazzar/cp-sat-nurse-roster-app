@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -112,7 +113,18 @@ def test_the_whole_flow(mona, er):
     assert badr_cells[9] == {"shift": "", "kind": "leave"} and badr_cells[10] == {"shift": "", "kind": "leave"}
     assert {cell["kind"] for row in draft["rows"] for cell in row["cells"]} <= {"shift", "off", "leave"}
     assert Roster.objects.get(unit=er).grid == stored.result["roster"]
-    assert {row["rule"] for row in draft["penalties"]} == set(stored.result["penalties"])
+
+    answer = mona.get(url(er, f"/solve-history/{solve['id']}")).json()
+    assert answer["explained"] is True and answer["solve"]["in_draft"] is True and answer["statistics"]["workers"] >= 1
+    # The solver's own code, on what is stored, comes to what the solver said while it ran.
+    assert [rule["penalty"] for rule in answer["rules"]] == sorted((p for p in stored.result["penalties"].values() if p), reverse=True)
+    assert all(rule["weight"] * rule["amount"] == rule["penalty"] for rule in answer["rules"])
+    assert sum(nurse["cost"] for nurse in answer["nurses"]) + answer["department_cost"] == stored.result["cost"]
+    badr_hours = next(nurse for nurse in answer["nurses"] if nurse["hospital_id"] == "Badr")
+    assert badr_hours["leave_credit"] > 0
+    assert [row["hospital_id"] for row in answer["grid"]["rows"]] == NURSES
+    matches = [match for rule in answer["rules"] for match in rule["largest"] if match["date"]]
+    assert not [match["text"] for match in matches if re.search(r"(?<!/)day \d", match["text"])]
 
 
 def test_a_stop_keeps_the_best_roster_found(mona, er):

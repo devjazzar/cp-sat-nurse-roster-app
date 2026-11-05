@@ -70,6 +70,7 @@ const ACTION_NAMES: Record<string, string> = {
   "public_holiday.removed": "Removed a public holiday",
   "ramadan_dates.changed": "Changed Ramadan dates",
   "roster.draft_replaced": "A solve replaced a draft",
+  "roster.draft_restored": "Restored a result as a draft",
   "shift.changed": "Changed a shift",
   "shift.created": "Added a shift",
   "solve.started": "Started a solve",

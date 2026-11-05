@@ -25,10 +25,12 @@ import { Route as SignedInRosterRouteImport } from './routes/_signed-in/roster'
 import { Route as SignedInRosteringAttributesRouteImport } from './routes/_signed-in/rostering-attributes'
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
 import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
+import { Route as SignedInSolveHistoryRouteImport } from './routes/_signed-in/solve-history'
 import { Route as SignedInUnitRulesRouteImport } from './routes/_signed-in/unit-rules'
 import { Route as SignedInUnitsRouteImport } from './routes/_signed-in/units'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
 import { Route as SignedInNursesImportRouteImport } from './routes/_signed-in/nurses_.import'
+import { Route as SignedInSolveHistorySolveIdRouteImport } from './routes/_signed-in/solve-history_.$solveId'
 
 const SignedInRoute = SignedInRouteImport.update({
   id: '/_signed-in',
@@ -110,6 +112,11 @@ const SignedInShiftsRoute = SignedInShiftsRouteImport.update({
   path: '/shifts',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInSolveHistoryRoute = SignedInSolveHistoryRouteImport.update({
+  id: '/solve-history',
+  path: '/solve-history',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInUnitRulesRoute = SignedInUnitRulesRouteImport.update({
   id: '/unit-rules',
   path: '/unit-rules',
@@ -130,6 +137,12 @@ const SignedInNursesImportRoute = SignedInNursesImportRouteImport.update({
   path: '/nurses/import',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInSolveHistorySolveIdRoute =
+  SignedInSolveHistorySolveIdRouteImport.update({
+    id: '/solve-history_/$solveId',
+    path: '/solve-history/$solveId',
+    getParentRoute: () => SignedInRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
@@ -147,10 +160,12 @@ export interface FileRoutesByFullPath {
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
+  '/solve-history': typeof SignedInSolveHistoryRoute
   '/unit-rules': typeof SignedInUnitRulesRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/nurses/import': typeof SignedInNursesImportRoute
+  '/solve-history/$solveId': typeof SignedInSolveHistorySolveIdRoute
 }
 export interface FileRoutesByTo {
   '/change-password': typeof ChangePasswordRoute
@@ -167,11 +182,13 @@ export interface FileRoutesByTo {
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
+  '/solve-history': typeof SignedInSolveHistoryRoute
   '/unit-rules': typeof SignedInUnitRulesRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
   '/nurses/import': typeof SignedInNursesImportRoute
+  '/solve-history/$solveId': typeof SignedInSolveHistorySolveIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -190,11 +207,13 @@ export interface FileRoutesById {
   '/_signed-in/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/_signed-in/settings': typeof SignedInSettingsRoute
   '/_signed-in/shifts': typeof SignedInShiftsRoute
+  '/_signed-in/solve-history': typeof SignedInSolveHistoryRoute
   '/_signed-in/unit-rules': typeof SignedInUnitRulesRoute
   '/_signed-in/units': typeof SignedInUnitsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
   '/_signed-in/nurses_/import': typeof SignedInNursesImportRoute
+  '/_signed-in/solve-history_/$solveId': typeof SignedInSolveHistorySolveIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -214,10 +233,12 @@ export interface FileRouteTypes {
     | '/rostering-attributes'
     | '/settings'
     | '/shifts'
+    | '/solve-history'
     | '/unit-rules'
     | '/units'
     | '/users'
     | '/nurses/import'
+    | '/solve-history/$solveId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/change-password'
@@ -234,11 +255,13 @@ export interface FileRouteTypes {
     | '/rostering-attributes'
     | '/settings'
     | '/shifts'
+    | '/solve-history'
     | '/unit-rules'
     | '/units'
     | '/users'
     | '/'
     | '/nurses/import'
+    | '/solve-history/$solveId'
   id:
     | '__root__'
     | '/_signed-in'
@@ -256,11 +279,13 @@ export interface FileRouteTypes {
     | '/_signed-in/rostering-attributes'
     | '/_signed-in/settings'
     | '/_signed-in/shifts'
+    | '/_signed-in/solve-history'
     | '/_signed-in/unit-rules'
     | '/_signed-in/units'
     | '/_signed-in/users'
     | '/_signed-in/'
     | '/_signed-in/nurses_/import'
+    | '/_signed-in/solve-history_/$solveId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -383,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInShiftsRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/solve-history': {
+      id: '/_signed-in/solve-history'
+      path: '/solve-history'
+      fullPath: '/solve-history'
+      preLoaderRoute: typeof SignedInSolveHistoryRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/unit-rules': {
       id: '/_signed-in/unit-rules'
       path: '/unit-rules'
@@ -411,6 +443,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInNursesImportRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/solve-history_/$solveId': {
+      id: '/_signed-in/solve-history_/$solveId'
+      path: '/solve-history/$solveId'
+      fullPath: '/solve-history/$solveId'
+      preLoaderRoute: typeof SignedInSolveHistorySolveIdRouteImport
+      parentRoute: typeof SignedInRoute
+    }
   }
 }
 
@@ -427,11 +466,13 @@ interface SignedInRouteChildren {
   SignedInRosteringAttributesRoute: typeof SignedInRosteringAttributesRoute
   SignedInSettingsRoute: typeof SignedInSettingsRoute
   SignedInShiftsRoute: typeof SignedInShiftsRoute
+  SignedInSolveHistoryRoute: typeof SignedInSolveHistoryRoute
   SignedInUnitRulesRoute: typeof SignedInUnitRulesRoute
   SignedInUnitsRoute: typeof SignedInUnitsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
   SignedInNursesImportRoute: typeof SignedInNursesImportRoute
+  SignedInSolveHistorySolveIdRoute: typeof SignedInSolveHistorySolveIdRoute
 }
 
 const SignedInRouteChildren: SignedInRouteChildren = {
@@ -447,11 +488,13 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInRosteringAttributesRoute: SignedInRosteringAttributesRoute,
   SignedInSettingsRoute: SignedInSettingsRoute,
   SignedInShiftsRoute: SignedInShiftsRoute,
+  SignedInSolveHistoryRoute: SignedInSolveHistoryRoute,
   SignedInUnitRulesRoute: SignedInUnitRulesRoute,
   SignedInUnitsRoute: SignedInUnitsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,
   SignedInNursesImportRoute: SignedInNursesImportRoute,
+  SignedInSolveHistorySolveIdRoute: SignedInSolveHistorySolveIdRoute,
 }
 
 const SignedInRouteWithChildren = SignedInRoute._addFileChildren(

@@ -20,6 +20,8 @@ class Roster(models.Model):
     grid = models.JSONField(help_text='{hospital ID: {date: shift code or ""}}, the shape of a result\'s roster.')
     solve = models.ForeignKey("solves.Solve", on_delete=models.PROTECT, related_name="+",
                               help_text="The solve that produced this grid.")
+    restored_at = models.DateTimeField(null=True, blank=True, help_text="When the manager last restored `solve`'s result as "
+                                                                        "this grid. A solve replacing it clears this.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -537,18 +537,11 @@ class TestTheGrid:
 
         assert [day["date"] for day in days if day["weekend"]][:2] == ["2026-06-05", "2026-06-12"]
 
-    def test_penalties_are_per_rule(self, mona, er, solver):
-        solver.script([finished()])
-        running.run(started(mona, er)["id"])
-
-        assert {row["rule"]: row["penalty"] for row in month_of(mona, er)["draft"]["penalties"]} == {
-            "night_rest": 2, "fair_day": 5, "change": 0}
-
     def test_its_time_is_on_the_hospitals_clock(self, mona, er, solver):
         solver.script([finished()])
         running.run(started(mona, er)["id"])
 
-        assert month_of(mona, er)["draft"]["updated_at"].endswith("+03:00")
+        assert month_of(mona, er)["draft"]["solved_at"].endswith("+03:00")
 
     def test_no_roster_yet(self, mona, er):
         assert month_of(mona, er) == {"month": MONTH, "active_solve": None, "last_solve": None, "draft": None}
