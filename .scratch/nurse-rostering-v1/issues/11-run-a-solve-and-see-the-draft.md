@@ -64,6 +64,7 @@ Implemented on 2026-11-05. Backend under pytest on real PostgreSQL 18, frontend 
 
 What was not checked:
 
+- **The frontend suite under load, or from a clean export.** `npm test` ran alone in the working tree, 348 of 348. The new tests should hold under load, with a 10 ms poll, `findBy` and no wait that proves something did not happen, but that is reasoning and not a measurement.
 - **A grid long enough to be windowed, in a real browser.** Above 60 nurses only the rows in view are drawn. A test with a stubbed size shows that and `aria-rowcount`; scrolling it for real was not done.
 - **Rules the solver refuses, on a real page with a real unit.** The refusal is in API tests against the real loader, and the page in Vitest. The block for an emptied list was seen with the flag set by hand; a real transfer reaching it is in an API test.
 - **A solver crash for real, and so a real retry.** Scripted only.
@@ -83,13 +84,15 @@ What was not checked:
 - **A job the solver is running that no solve is watching** is stopped before the next starts: only a worker that died between starting it and writing its id can leave one.
 - **Stale drafts compare gender, credited days and who is in the month** with the stored input. A start date counts only if it moves a day of that month. Other attributes do not warn, as you asked only for these.
 - **A deactivated account:** left out and warned when it has no end date, or one still to come. One whose end date has come stays for the days worked, as a staff nurse's does.
-- **`attributes_saved`** is set by a save of the attributes form even if nothing changes, and not by the allowed-shifts-only save, which is all a joining unit's manager has. Existing nurses count as never saved.
+- **Worth your review: `attributes_saved`** is set by a save of the attributes form even if nothing changes, and not by the allowed-shifts-only save, which is all a joining unit's manager has. Existing nurses count as never saved, so your dev data's 24 nurses will show in the warning on first opening the page.
 - **What is outside a nurse's dates is stored with the solve** (`Solve.outside_days`), because the input lists those days with leave and a cell should say what it was when solved. A later correction shows as a warning instead of changing the cell.
 - **The worker's concurrency stays 1.** The lock would hold at any number, but a five-minute solve delays the crons by that much. A later ticket with a job that cannot wait should raise it.
 - **Rules refused are checked in `web` with the solver's own loader,** so a refusal needs no call to the solver, and in the worker too in case the rules change while it waits.
 - **No roster version yet:** ticket 14 creates version 1 at the first approval.
 - **`jsonb` keeps no key order,** so "verbatim" holds as values, not as text.
 - **Polling:** 1.5 s while the page is open and a solve is active, stops on a refusal. A poll, refused or not, does not move the idle limit, unless authentication itself refuses it, and then the page stops asking.
+
+The glossary needed no change: `Solve`, `Result`, `Draft` and the rest mean what they did. The architecture's sections 4, 5, 7 and 8 moved and say so.
 
 **Review.** The `code-review` skill's two axes. Spec found a refused poll polling forever and keeping the session alive, a retry's reason being lost, focus lost after taking a solve out of the queue and taken from elsewhere when a solve ended, and a cell's label going wrong after a correction: all fixed, with tests. Standards found roster reads in the `solves` app, no `result` reader, Avoid words, an unsorted audit map, a badly named migration, the table's accessors unused and several duplications: all fixed. Left as judgement calls: `solver_health` keeps its own `httpx.get`, because the health tests patch that; `plural` is one more ad hoc plural beside the others, in an English-only v1; `changes_since` returns dicts; `POLL_MS` has a test branch in production code, which this ticket's last comment suggests. `better-interface` and its six skills, by hand, from the code and the screenshots: nurse names truncated with only a title now wrap, a public holiday carried only by shading now says Hol, the muted weekday on a shaded day now uses the plain foreground, because the page's own tokens looked short of 4.5:1 (computed by eye, not measured). `interface-review` is yours to invoke.
 
