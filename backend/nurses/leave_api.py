@@ -1,6 +1,7 @@
-"""Leave: a unit's manager records it, and the nurse reads their own. Nobody else reads it with its type, because a type
-such as Sick or Maternity says something about a person. The System Admin reads the audit log, so an entry here says only
-whose leave changed and by whom: not the type, not the dates and not how many, since a long run gives the type away.
+"""Leave: a unit's manager records it, the nurse reads their own, and the CNO and the Deputy CNO read any unit's. Nobody
+else reads it with its type, because a type such as Sick or Maternity says something about a person. The System Admin reads
+the audit log, so an entry here says only whose leave changed and by whom: not the type, not the dates and not how many,
+since a long run gives the type away.
 
 The manager of a date is the manager of the unit its month falls under (`membership.placement_in`), whichever unit the
 nurse is in today. So across a transfer each manager reaches their own months and sees nothing of the other's: the old unit
@@ -35,6 +36,7 @@ from units.scope import unit_in_scope
 unit_leave_router = Router(tags=["nurses"])
 my_leave_router = Router(tags=["nurses"])
 manager = SignedIn(Role.UNIT_MANAGER)
+reader = SignedIn(Role.UNIT_MANAGER, Role.CNO, Role.DEPUTY_CNO)
 
 MAX_DAYS = 366
 LeaveIds = Annotated[list[UUID], Field(min_length=1, max_length=MAX_DAYS)]
@@ -243,9 +245,10 @@ def _as_saved(nurse: NurseProfile, first: dt.date, last: dt.date) -> LeaveRun:
 
 # Every write below goes through `_refuse_dates`, `_rows_to_change` or both, then writes leave and one audit entry. No roster
 # exists yet, so nothing here looks at one. Tickets 11, 13, 14, 16, 19 and 21 have what they must add in their own comments.
-@unit_leave_router.get("/{unit_id}/leave", response=UnitLeaveMonth, auth=manager, operation_id="listUnitLeave")
+@unit_leave_router.get("/{unit_id}/leave", response=UnitLeaveMonth, auth=reader, operation_id="listUnitLeave")
 def unit_leave(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) -> UnitLeaveMonth:
-    """The unit's month. A nurse's month in another unit is not here, before or after a transfer."""
+    """The unit's month, for its manager and, to read, for the CNO and the Deputy CNO. A nurse's month in another unit is
+    not here, before or after a transfer."""
     unit = unit_in_scope(request.user, unit_id)
     month = _chosen_month(filters.month)
     rows = list(_rows_with_names(Leave.objects.current().in_month(month)

@@ -554,12 +554,84 @@ def test_a_nurse_reads_nothing_of_a_colleagues_leave(cno, mona, er, amal):
     assert b"Maternity" not in nurse.get("/api/nurses/my-unit").content
 
 
-def test_no_other_role_reads_a_units_leave(client_of, cno, mona, er, amal):
+def test_the_system_admin_reads_no_units_leave(client_of, mona, er, amal):
     recorded(mona, er, amal)
+    admin = client_of("admin", Role.SYSTEM_ADMIN)
 
-    for client in (cno, client_of("deputy", Role.DEPUTY_CNO), client_of("admin", Role.SYSTEM_ADMIN)):
-        assert client.get(f"/api/units/{er.pk}/leave").status_code == 403
-        assert client.get(f"{NURSES}/my-leave").status_code == 403
+    assert admin.get(f"/api/units/{er.pk}/leave").status_code == 403
+    assert admin.get(f"{NURSES}/my-leave").status_code == 403
+
+
+# ---- the CNO and the Deputy CNO --------------------------------------------------------------------
+@pytest.fixture(params=["the cno", "the deputy"])
+def hospital_wide(request, cno, client_of) -> Client:
+    return cno if request.param == "the cno" else client_of("deputy", Role.DEPUTY_CNO)
+
+
+def test_a_hospital_wide_role_reads_any_units_leave_with_its_type(hospital_wide, cno, mona, omar, er, icu, amal):
+    badr = added(cno, icu, "h456", full_name="Badr Omar")["nurse"]["id"]
+    recorded(mona, er, amal, "2026-11-10", "2026-11-11", leave_type="Maternity")
+    recorded(omar, icu, badr, "2026-11-20")
+
+    assert runs_of(hospital_wide, er) == [("h123", "2026-11-10", "2026-11-11", 2, "Maternity")]
+    assert runs_of(hospital_wide, icu) == [("h456", "2026-11-20", "2026-11-20", 1, "Sick")]
+
+
+def test_a_hospital_wide_role_reads_every_month_each_under_the_unit_it_falls_under(hospital_wide, cno, mona, omar, er, icu, amal):
+    recorded(mona, er, amal, "2026-11-10")
+    transfer(cno, amal, icu, "2026-12")
+    recorded(omar, icu, amal, "2026-12-10")
+    far_ahead = "2029-03"
+
+    assert runs_of(hospital_wide, er, NOVEMBER) == [("h123", "2026-11-10", "2026-11-10", 1, "Sick")]
+    assert runs_of(hospital_wide, icu, NOVEMBER) == []
+    assert runs_of(hospital_wide, icu, "2026-12") == [("h123", "2026-12-10", "2026-12-10", 1, "Sick")]
+    assert runs_of(hospital_wide, er, "2026-12") == []
+    assert month_of(hospital_wide, icu, far_ahead)["runs"] == []
+    assert hospital_wide.get(f"/api/units/{er.pk}/leave").json()["month"] == NOVEMBER
+
+
+def test_a_hospital_wide_role_reads_an_archived_units_leave(hospital_wide, mona, er, amal):
+    recorded(mona, er, amal)
+    er.archived, er.manager = True, None
+    er.save()
+
+    assert runs_of(hospital_wide, er) == [("h123", "2026-11-10", "2026-11-10", 1, "Sick")]
+
+
+def test_a_hospital_wide_role_reads_no_ended_rows(hospital_wide, mona, er, amal):
+    corrected = recorded(mona, er, amal, "2026-11-10", leave_type="Maternity")["leave_ids"]
+    assert change(mona, er, corrected, "2026-11-12").status_code == 200
+    remove(mona, er, recorded(mona, er, amal, "2026-11-20")["leave_ids"])
+
+    assert runs_of(hospital_wide, er) == [("h123", "2026-11-12", "2026-11-12", 1, "Sick")]
+    assert b"Maternity" not in hospital_wide.get(f"/api/units/{er.pk}/leave", {"month": NOVEMBER}).content
+
+
+def test_a_unit_that_does_not_exist_is_a_404_for_a_hospital_wide_role(hospital_wide):
+    assert hospital_wide.get(f"/api/units/{uuid4()}/leave").status_code == 404
+
+
+def test_a_hospital_wide_role_can_change_nothing(hospital_wide, mona, er, amal):
+    ids = recorded(mona, er, amal, leave_type="Maternity")["leave_ids"]
+    AuditEntry.objects.all().delete()
+
+    assert record_leave(hospital_wide, er, amal, "2026-11-20").status_code == 403
+    assert change(hospital_wide, er, ids, "2026-11-20").status_code == 403
+    assert remove(hospital_wide, er, ids).status_code == 403
+    assert hospital_wide.get(f"{NURSES}/my-leave").status_code == 403
+
+    assert runs_of(mona, er) == [("h123", "2026-11-10", "2026-11-10", 1, "Maternity")]
+    assert not AuditEntry.objects.exists()
+
+
+def test_reading_leave_writes_nothing_to_the_audit_log(hospital_wide, mona, er, amal):
+    recorded(mona, er, amal)
+    AuditEntry.objects.all().delete()
+
+    month_of(hospital_wide, er)
+
+    assert not AuditEntry.objects.exists()
 
 
 # ---- the audit log --------------------------------------------------------------------------------

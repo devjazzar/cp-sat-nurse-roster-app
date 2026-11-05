@@ -1421,7 +1421,8 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
 
 
 /**
- * The unit's month. A nurse's month in another unit is not here, before or after a transfer.
+ * The unit's month, for its manager and, to read, for the CNO and the Deputy CNO. A nurse's month in another unit is
+ * not here, before or after a transfer.
  * @summary Unit Leave
  */
 export const ListUnitLeaveParams = zod.object({

@@ -24,25 +24,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useChosenUnit } from "@/components/unit-picker"
+import { UnitPicker, useChosenUnit } from "@/components/unit-picker"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
-import { dayRange, monthName } from "@/lib/utils"
+import { dayRange, monthName, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({
+  unit: z.string().optional().catch(undefined),
   month: monthInAddress,
   nurse: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute("/_signed-in/leave")({
   validateSearch: (search) => searchSchema.parse(search),
-  beforeLoad: onlyFor(Role.unit_manager),
+  beforeLoad: onlyFor(Role.unit_manager, Role.cno, Role.deputy_cno),
   staticData: { title: "Leave" },
   component: LeavePage,
 })
 
 const RECORD_BUTTON = "record-leave"
+
+type LeaveSearch = z.infer<typeof searchSchema>
 
 const formSchema = z.object({
   nurse_id: z.string().min(1, "Choose a nurse."),
@@ -132,23 +135,28 @@ function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
 }
 
 // A row's actions do not stay in view on a narrow screen, as on the holidays page: two buttons would cover the dates. Like
-// the other lists, this one has not moved to TanStack Table (ADR 0008), a breach tickets 07 and 09 recorded.
-function LeaveTable({ runs, showNurse, month, onChange, onRemove }: {
+// the other lists, this one has not moved to TanStack Table (ADR 0008), a breach tickets 07 and 09 recorded. Those who only
+// read have no buttons, and in one nurse's month no links, so a keyboard scrolls the table through its region.
+function LeaveTable({ runs, showNurse, label, nurseSearch, actions }: {
   runs: LeaveRun[]
   showNurse: boolean
-  month: string
-  onChange: (run: LeaveRun, button: HTMLElement) => void
-  onRemove: (run: LeaveRun) => void
+  label: string
+  nurseSearch: (nurse: string) => LeaveSearch
+  /** What a manager can do to each leave. Those who only read have none. */
+  actions: {
+    onChange: (run: LeaveRun, button: HTMLElement) => void
+    onRemove: (run: LeaveRun) => void
+  } | null
 }) {
   return (
-    <Table>
+    <Table container={actions ? undefined : scrollableRegion(label)}>
       <TableHeader>
         <TableRow>
           {showNurse && <TableHead>Nurse</TableHead>}
           <TableHead>Dates</TableHead>
           <TableHead>Days</TableHead>
           <TableHead>Type</TableHead>
-          <TableHead><span className="sr-only">Actions</span></TableHead>
+          {actions && <TableHead><span className="sr-only">Actions</span></TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -158,7 +166,7 @@ function LeaveTable({ runs, showNurse, month, onChange, onRemove }: {
             <TableRow key={run.leave_ids[0]}>
               {showNurse && (
                 <TableCell>
-                  <Link to="/leave" search={{ month, nurse: run.nurse.id }} className="underline underline-offset-3">{run.nurse.full_name}</Link>
+                  <Link to="/leave" search={nurseSearch(run.nurse.id)} className="underline underline-offset-3">{run.nurse.full_name}</Link>
                 </TableCell>
               )}
               <TableCell>
@@ -169,12 +177,14 @@ function LeaveTable({ runs, showNurse, month, onChange, onRemove }: {
               </TableCell>
               <TableCell className="tabular-nums">{run.days}</TableCell>
               <TableCell>{run.leave_type.name}</TableCell>
-              <TableCell>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" aria-label={`Change ${what}`} onClick={(event) => onChange(run, event.currentTarget)}>Change</Button>
-                  <Button variant="outline" size="sm" aria-label={`Remove ${what}`} onClick={() => onRemove(run)}>Remove</Button>
-                </div>
-              </TableCell>
+              {actions && (
+                <TableCell>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" aria-label={`Change ${what}`} onClick={(event) => actions.onChange(run, event.currentTarget)}>Change</Button>
+                    <Button variant="outline" size="sm" aria-label={`Remove ${what}`} onClick={() => actions.onRemove(run)}>Remove</Button>
+                  </div>
+                </TableCell>
+              )}
             </TableRow>
           )
         })}
@@ -185,7 +195,13 @@ function LeaveTable({ runs, showNurse, month, onChange, onRemove }: {
 
 type Panel = { run: LeaveRun | null }
 
-function UnitLeave({ unit, month: inAddress, nurseId }: { unit: { id: string; name: string }; month: string | undefined; nurseId: string | undefined }) {
+function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }: {
+  unit: { id: string; name: string }
+  unitInAddress: string | undefined
+  month: string | undefined
+  nurseId: string | undefined
+  mayChange: boolean
+}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate({ from: Route.fullPath })
   const leave = useListUnitLeave(unit.id, inAddress ? { month: inAddress } : undefined, { query: { placeholderData: keepPreviousData } })
@@ -199,6 +215,7 @@ function UnitLeave({ unit, month: inAddress, nurseId }: { unit: { id: string; na
   const chosenNurse = answer?.nurses.find((nurse) => nurse.id === nurseId)
   const runs = (answer?.runs ?? []).filter((run) => !chosenNurse || run.nurse.id === chosenNurse.id)
   const days = runs.reduce((total, run) => total + run.days, 0)
+  const searchFor = (month: string | undefined, nurse: string | undefined): LeaveSearch => ({ unit: unitInAddress, month, nurse })
 
   const confirmRemoval = () => {
     if (!removing) return
@@ -222,23 +239,23 @@ function UnitLeave({ unit, month: inAddress, nurseId }: { unit: { id: string; na
       <p role="status" className="text-sm text-muted-foreground empty:sr-only">{done}</p>
       {answer && (
         <>
-          <MonthNav month={answer.month} link={(month, label) => <Link to="/leave" search={{ month, nurse: nurseId }} className={MONTH_LINK}>{label}</Link>} />
+          <MonthNav month={answer.month} link={(month, label) => <Link to="/leave" search={searchFor(month, nurseId)} className={MONTH_LINK}>{label}</Link>} />
           <div className="flex flex-wrap items-end gap-3">
             <Field className="max-w-xs">
               <FieldLabel htmlFor="chosen-nurse">Show</FieldLabel>
               <NativeSelect id="chosen-nurse" value={chosenNurse?.id ?? ""}
-                onChange={(event) => void navigate({ search: { month: answer.month, nurse: event.target.value || undefined } })}>
+                onChange={(event) => void navigate({ search: searchFor(answer.month, event.target.value || undefined) })}>
                 <NativeSelectOption value="">Everyone</NativeSelectOption>
                 {answer.nurses.map((nurse) => <NativeSelectOption key={nurse.id} value={nurse.id}>{nurse.full_name}</NativeSelectOption>)}
               </NativeSelect>
             </Field>
-            <Button id={RECORD_BUTTON} onClick={(event) => { setDone(""); remove.reset(); start({ run: null }, event.currentTarget) }}>Record leave</Button>
+            {mayChange && <Button id={RECORD_BUTTON} onClick={(event) => { setDone(""); remove.reset(); start({ run: null }, event.currentTarget) }}>Record leave</Button>}
           </div>
           {editing && (
             <Card className="max-w-xl">
               <CardHeader>
                 <CardTitle><h3>{editing.run ? `Change leave of ${editing.run.nurse.full_name}` : "Record leave"}</h3></CardTitle>
-                <CardDescription>Every day in between counts. Only you and the nurse can see the type.</CardDescription>
+                <CardDescription>Every day in between counts. Only you, the nurse, the CNO and the Deputy CNO can see the type.</CardDescription>
               </CardHeader>
               <CardContent>
                 <LeaveForm key={editing.run?.leave_ids[0] ?? "new"} unitId={unit.id} nurses={answer.nurses} run={editing.run}
@@ -251,7 +268,7 @@ function UnitLeave({ unit, month: inAddress, nurseId }: { unit: { id: string; na
                       document.getElementById(RECORD_BUTTON)?.focus()
                     } else finish()
                     const saved = first.slice(0, 7)
-                    if (saved !== answer.month) void navigate({ search: { month: saved, nurse: nurseId } })
+                    if (saved !== answer.month) void navigate({ search: searchFor(saved, nurseId) })
                   }} />
               </CardContent>
             </Card>
@@ -268,14 +285,17 @@ function UnitLeave({ unit, month: inAddress, nurseId }: { unit: { id: string; na
           {runs.length > 0 && (
             <Card>
               <CardContent>
-                <LeaveTable runs={runs} showNurse={!chosenNurse} month={answer.month}
-                  onChange={(run, button) => { setDone(""); start({ run }, button) }}
-                  onRemove={(run) => { setDone(""); remove.reset(); focusAfter.current = null; setRemoving(run) }} />
+                <LeaveTable runs={runs} showNurse={!chosenNurse} label={`Leave in ${unit.name}, ${monthName(answer.month)}`}
+                  nurseSearch={(nurse) => searchFor(answer.month, nurse)}
+                  actions={mayChange ? {
+                    onChange: (run, button) => { setDone(""); start({ run }, button) },
+                    onRemove: (run) => { setDone(""); remove.reset(); focusAfter.current = null; setRemoving(run) },
+                  } : null} />
               </CardContent>
             </Card>
           )}
           {runs.some((run) => run.outside_dates) && (
-            <p className="text-sm text-muted-foreground">A correction to the nurse's start or end date left the days marked Outside their dates beyond them, where they count for nothing. Remove them unless the date is corrected back.</p>
+            <p className="text-sm text-muted-foreground">A correction to the nurse's start or end date left the days marked Outside their dates beyond them, where they count for nothing. {mayChange ? "Remove them" : "The unit's manager removes them"} unless the date is corrected back.</p>
           )}
         </>
       )}
@@ -293,24 +313,32 @@ function UnitLeave({ unit, month: inAddress, nurseId }: { unit: { id: string; na
 
 function LeavePage() {
   const { user } = useRouteContext({ from: "/_signed-in" })
-  const { month, nurse } = Route.useSearch()
-  const { units, chosen } = useChosenUnit(user, undefined)
+  const { unit: unitInAddress, month, nurse } = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+  const { units, chosen } = useChosenUnit(user, unitInAddress)
+  const mayChange = user.role === Role.unit_manager
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
-      <h1 className="text-xl font-medium">{chosen ? `Leave in ${chosen.name}` : "Leave"}</h1>
+      <h1 className="text-xl font-medium">{mayChange && chosen ? `Leave in ${chosen.name}` : "Leave"}</h1>
       <p className="text-muted-foreground">
-        The leave of your unit's nurses, month by month. A month in another unit is that unit's manager's. Only you and the nurse can see a leave's type: colleagues see a day off.
+        {mayChange
+          ? "The leave of your unit's nurses, month by month. A month in another unit is that unit's manager's. Only you, the nurse, the CNO and the Deputy CNO can see a leave's type: colleagues see a day off."
+          : "The leave of each unit's nurses, month by month. Only the unit's manager can change it. A leave's type says something about a person, so colleagues see only a day off."}
       </p>
       {units.isPending && <p>Loading…</p>}
-      {units.isError && <p role="alert">Your unit could not be read. Reload the page to try again.</p>}
-      {units.data && !chosen && (
+      {units.isError && <p role="alert">{mayChange ? "Your unit" : "The units"} could not be read. Reload the page to try again.</p>}
+      {units.data && !chosen && (mayChange ? (
         <p>
           No unit is assigned to you yet. The CNO assigns each unit its manager. If you are on a roster yourself, your own leave is under{" "}
           <Link to="/my-leave" className="underline underline-offset-3">My leave</Link>.
         </p>
+      ) : <p>There are no units yet.</p>)}
+      {!mayChange && units.data && chosen && (
+        // A nurse is in one unit a month, so the one chosen does not follow to the next unit. The month does.
+        <UnitPicker units={units.data} value={chosen.id} onChange={(unit) => void navigate({ search: { unit, month } })} />
       )}
-      {chosen && <UnitLeave unit={chosen} month={month} nurseId={nurse} />}
+      {chosen && <UnitLeave key={chosen.id} unit={chosen} unitInAddress={unitInAddress} month={month} nurseId={nurse} mayChange={mayChange} />}
     </div>
   )
 }

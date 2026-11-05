@@ -27,7 +27,7 @@ function MyLeavePage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <h1 className="text-xl font-medium">My leave</h1>
-      <p className="text-muted-foreground">Your unit manager records your leave. Only you and your manager can see its type: colleagues see a day off.</p>
+      <p className="text-muted-foreground">Your unit manager records your leave. Only you, your manager, the CNO and the Deputy CNO can see its type: colleagues see a day off.</p>
       {leave.isPending && <p>Loading…</p>}
       {leave.isError && <p role="alert">Your leave could not be read. Reload the page to try again.</p>}
       {answer && <MonthNav month={answer.month} link={(next, label) => <Link to="/my-leave" search={{ month: next }} className={MONTH_LINK}>{label}</Link>} />}

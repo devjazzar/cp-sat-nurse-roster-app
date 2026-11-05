@@ -737,8 +737,8 @@ describe("each role's navigation and home", () => {
   })
 
   it.each([
-    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Unit rules", "Rostering attributes", "Nurses", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
-    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Unit rules", "Rostering attributes", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
+    ["cno", "CNO", /under Hospital rules/, ["Home", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["deputy_cno", "Deputy CNO", /Submitted rosters waiting for your decision/, ["Home", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], []],
     ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["staff_nurse", "Staff Nurse", "No roster yet.", ["Home", "My leave", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
@@ -3164,6 +3164,87 @@ describe("the leave pages", () => {
     expect(screen.getByText(/No unit is assigned to you yet/)).toBeInTheDocument()
   })
 
+  describe.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s", (_name, me) => {
+    const ICU_UNIT = { ...ER_UNIT, id: "icu", name: "ICU" }
+    const readerPage = (extra = {}) => pageOf({
+      ...session(me),
+      "GET /api/units": { body: [ER_UNIT, ICU_UNIT] },
+      "GET /api/units/icu/leave": { body: { month: "2026-11", nurses: [BADR], runs: [{ ...BADR_RUN, outside_dates: false, leave_type: ANNUAL }] } },
+      ...extra,
+    })
+
+    it("reads a unit's month with its types and no way to change anything", async () => {
+      const { calls } = start("/leave", readerPage())
+
+      const row = within((await screen.findByRole("link", { name: "Amal Saleh" })).closest("tr")!)
+      expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Amal Saleh", "10 to 11 Nov 2026", "2", "Sick"])
+      expect(screen.getByRole("heading", { level: 1, name: "Leave" })).toBeInTheDocument()
+      expect(screen.getByLabelText("Unit")).toHaveValue("er")
+      expect(screen.getByText(/Only the unit's manager can change it/)).toBeInTheDocument()
+      expect(within(screen.getByRole("main")).queryAllByRole("button")).toEqual([])
+      expect(document.querySelector("form")).toBeNull()
+      expect(screen.queryByText(/Actions/)).not.toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "Leave in ER, November 2026" })).toHaveAttribute("tabindex", "0")
+      expect(screen.getByText(/The unit's manager removes them/)).toBeInTheDocument()
+      expect(calls.some((call) => call.url.includes("leave-types"))).toBe(false)
+      expect(calls.every((call) => call.method === "GET")).toBe(true)
+    })
+
+    it("chooses a unit, keeping the month and letting go of the nurse", async () => {
+      const { router, user, calls } = start("/leave?month=2026-11&nurse=n1", readerPage())
+
+      expect(await screen.findByText("Amal Saleh has 2 days of leave in November 2026.")).toBeInTheDocument()
+      await user.selectOptions(screen.getByLabelText("Unit"), "icu")
+
+      expect(await screen.findByRole("link", { name: "Badr Omar" })).toBeInTheDocument()
+      expect(screen.getByLabelText("Unit")).toHaveFocus()
+      expect(screen.getByRole("heading", { name: "November 2026" })).toBeInTheDocument()
+      expect(router.state.location.search).toEqual({ unit: "icu", month: "2026-11" })
+      expect(calls.some((call) => call.url.includes("/api/units/icu/leave?month=2026-11"))).toBe(true)
+    })
+
+    it("keeps the unit through a month and a nurse's month", async () => {
+      const { router, user, calls } = start("/leave?unit=icu&month=2026-11", readerPage({ "GET /api/units/icu/leave": { body: { month: "2026-11", nurses: [BADR], runs: [BADR_RUN] } } }))
+
+      await user.click(await screen.findByRole("link", { name: "Badr Omar" }))
+      expect(await screen.findByText("Badr Omar has 1 day of leave in November 2026.")).toBeInTheDocument()
+      expect(router.state.location.search).toEqual({ unit: "icu", month: "2026-11", nurse: "n2" })
+      expect(within(screen.getByRole("main")).queryAllByRole("button")).toEqual([])
+
+      await user.click(screen.getByRole("link", { name: "Next month" }))
+      await waitFor(() => expect(router.state.location.search).toEqual({ unit: "icu", month: "2026-12", nurse: "n2" }))
+      expect(calls.some((call) => call.url.includes("/api/units/icu/leave?month=2026-12"))).toBe(true)
+      expect(calls.some((call) => call.url.includes("/api/units/er/leave"))).toBe(false)
+    })
+
+    it("says so when there are no units, and offers them no leave of their own", async () => {
+      start("/leave", readerPage({ "GET /api/units": { body: [] } }))
+
+      expect(await screen.findByText("There are no units yet.")).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "My leave" })).not.toBeInTheDocument()
+    })
+
+    it("says so when the units cannot be read", async () => {
+      start("/leave", readerPage({ "GET /api/units": { status: 500 } }))
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("The units could not be read.")
+    })
+  })
+
+  it("tells a manager who else can see a type, and offers them no unit to choose", async () => {
+    start("/leave", pageOf())
+
+    expect(await screen.findByText(/Only you, the nurse, the CNO and the Deputy CNO can see a leave's type/)).toBeInTheDocument()
+    expect(screen.queryByLabelText("Unit")).not.toBeInTheDocument()
+  })
+
+  it("the System Admin has no way in", async () => {
+    const { router } = start("/leave", admin())
+
+    await screen.findByRole("heading", { name: "Health" })
+    expect(router.state.location.pathname).not.toBe("/leave")
+  })
+
   it.each(["/leave"])("%s has no way in for a staff nurse", async (path) => {
     const { router } = start(path, { ...session(NURSE), "GET /api/nurses/my-unit": { body: { id: "er", name: "ER" } } })
 
@@ -3188,7 +3269,7 @@ describe("the leave pages", () => {
     const row = within((await screen.findByRole("cell", { name: "Annual" })).closest("tr")!)
     expect(document.title).toBe("My leave · Nurse roster")
     expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["10 to 12 Nov 2026", "3", "Annual"])
-    expect(screen.getByText(/colleagues see a day off/)).toBeInTheDocument()
+    expect(screen.getByText(/Only you, your manager, the CNO and the Deputy CNO can see its type: colleagues see a day off/)).toBeInTheDocument()
 
     await user.click(screen.getByRole("link", { name: "Previous month" }))
     await waitFor(() => expect(router.state.location.search).toEqual({ month: "2026-10" }))

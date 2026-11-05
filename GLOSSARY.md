@@ -110,7 +110,7 @@ A nurse's shift (or day off) on one date fixed as a fact, by the unit manager, b
 _Avoid_: locked cell, fixed cell, override
 
 **Leave**:
-A date a nurse is off for a recorded reason (sick, annual, educational, and so on), entered by the manager of the unit that month falls under. It counts as worked for her hours. Only she and that manager see its reason; to her colleagues it is a day off.
+A date a nurse is off for a recorded reason (sick, annual, educational, and so on), entered by the manager of the unit that month falls under. It counts as worked for her hours. Only she, that manager, the CNO and the Deputy CNO see its reason; to her colleagues it is a day off.
 _Avoid_: absence, day off, vacation
 
 **Leave type**:

@@ -1744,7 +1744,7 @@
             }
           }
         },
-        "description": "The unit's month. A nurse's month in another unit is not here, before or after a transfer.",
+        "description": "The unit's month, for its manager and, to read, for the CNO and the Deputy CNO. A nurse's month in another unit is\nnot here, before or after a transfer.",
         "tags": [
           "nurses"
         ],
