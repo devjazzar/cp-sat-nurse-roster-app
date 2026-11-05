@@ -1,4 +1,4 @@
-import { useBlocker } from "@tanstack/react-router"
+import { useBlocker, useMatch } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 
 import {
@@ -48,8 +48,11 @@ export function LeavePageGuard({ holding, title = "Leave without the password?",
   title?: string
   description?: string
 }) {
+  const page = useMatch({ strict: false, select: (match) => match.routeId })
   const blocker = useBlocker({
-    shouldBlockFn: ({ current, next }) => holding && current.pathname !== next.pathname,
+    // Only from this page. Once Leave has moved the address on, this page stays mounted a little longer with `holding`
+    // as it was, and the next link followed must not be caught, with no question left to answer.
+    shouldBlockFn: ({ current, next }) => holding && current.routeId === page && next.routeId !== page,
     enableBeforeUnload: () => holding,
     withResolver: true,
     disabled: !holding,

@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router"
-import { act, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -77,6 +77,25 @@ function hold(request: string) {
 }
 
 const LEAVE_QUESTION = "Leave without the password?"
+
+/** Chooses Leave and does something straight after, as soon as the address has changed and before anything has rendered
+ *  since. Only microtasks pass, which `user` could not do, so this lands every time in the moment a person would rarely
+ *  hit. The question's dialog is still up, so a link is found behind it, with `hidden`. */
+async function leaveThen(router: ReturnType<typeof start>["router"], question: HTMLElement, next: () => void) {
+  const from = router.state.location.pathname
+  await act(async () => {
+    fireEvent.click(within(question).getByRole("button", { name: "Leave" }))
+    for (let turn = 0; turn < 100 && router.state.location.pathname === from; turn++) await Promise.resolve()
+    expect(router.state.location.pathname).not.toBe(from)
+    next()
+  })
+}
+const follow = (name: string) => () => void fireEvent.click(screen.getByRole("link", { name, hidden: true }))
+const onChangePassword = async (router: ReturnType<typeof start>["router"]) => {
+  await screen.findByLabelText("Current password")
+  expect(router.state.location.pathname).toBe("/change-password")
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+}
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -996,6 +1015,33 @@ describe("the users page", () => {
       await user.click(within(question).getByRole("button", { name: "Stay" }))
       await creating.answer(CREATED)
       await passwordShown()
+    })
+
+    it("follows a link straight after Leave", async () => {
+      const { user, router } = await open()
+      await fillNewUser(user)
+      await user.click(screen.getByRole("link", { name: "Technical settings" }))
+
+      await leaveThen(router, await screen.findByRole("alertdialog", { name: LEAVE_QUESTION }), follow("Change password"))
+
+      await onChangePassword(router)
+    })
+
+    it("still guards the page when a link straight after Leave comes back to it", async () => {
+      const { user, router, creating } = await open()
+      await fillNewUser(user)
+      await user.click(screen.getByRole("link", { name: "Technical settings" }))
+
+      await leaveThen(router, await screen.findByRole("alertdialog", { name: LEAVE_QUESTION }), follow("Users"))
+      await waitFor(() => expect(router.state.status).toBe("idle"))
+      expect(router.state.location.pathname).toBe("/users")
+      await creating.answer({ status: 422, body: { detail: "No." } })
+      await user.click(await screen.findByRole("button", { name: "Create user" }))
+      await waitFor(() => expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "true"))
+
+      await user.click(screen.getByRole("link", { name: "Technical settings" }))
+      expect(await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/users")
     })
 
     it("cannot log out from under it", async () => {
@@ -2100,8 +2146,6 @@ describe("the nurses page", () => {
       await waitFor(() => expect(router.state.location.pathname).toBe("/"))
       // Nothing waits for it now: neither the header, nor this page on the way back.
       expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "false")
-      // The address changes before the page does. A link followed in between is lost: ticket 10b.
-      await screen.findByRole("heading", { name: "The Chief" })
       await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Nurses" }))
       expect(await screen.findByRole("button", { name: "Add a nurse" })).toHaveAttribute("aria-disabled", "false")
       await user.click(screen.getByRole("link", { name: "Home" }))
@@ -2110,6 +2154,31 @@ describe("the nurses page", () => {
 
       await creating.answer(CREATED)
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    })
+
+    it("follows a link straight after Leave", async () => {
+      const { user, router } = await sendNewNurse({ "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+      await user.click(screen.getByRole("link", { name: "Home" }))
+
+      await leaveThen(router, await screen.findByRole("alertdialog", { name: LEAVE_QUESTION }), follow("Change password"))
+
+      await onChangePassword(router)
+    })
+
+    it("still guards the page when a link straight after Leave comes back to it", async () => {
+      const { user, router, creating } = await sendNewNurse({ "GET /api/nurses/my-unit": { body: { id: "u1", name: "ER" } } })
+      await user.click(screen.getByRole("link", { name: "Home" }))
+
+      await leaveThen(router, await screen.findByRole("alertdialog", { name: LEAVE_QUESTION }), follow("Nurses"))
+      await waitFor(() => expect(router.state.status).toBe("idle"))
+      expect(router.state.location.pathname).toBe("/nurses")
+      await creating.answer({ status: 422, body: { detail: "No." } })
+      await user.click(await screen.findByRole("button", { name: "Add nurse" }))
+      await waitFor(() => expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "true"))
+
+      await user.click(screen.getByRole("link", { name: "Home" }))
+      expect(await screen.findByRole("alertdialog", { name: LEAVE_QUESTION })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/nurses")
     })
 
     it("narrowing the list asks nothing, because the form stays", async () => {
@@ -2679,6 +2748,73 @@ describe("importing nurses", () => {
     await user.click(screen.getByRole("link", { name: "Home" }))
     await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Leave" }))
     await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+  })
+
+  describe("straight after Leave", () => {
+    async function sheetOnScreen() {
+      const started = start("/nurses/import", here({
+        "POST /api/nurses/import/preview": { body: GOOD },
+        "POST /api/nurses/import/confirm": { status: 201, body: SHEET },
+        "GET /api/units": { body: [] },
+      }))
+      await check(started.user)
+      await started.user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+      await screen.findByText("aaaa-bbbb-cccc-dddd")
+      await started.user.click(screen.getByRole("link", { name: "Home" }))
+      return { ...started, question: await screen.findByRole("alertdialog") }
+    }
+
+    it("still asks about a sheet on an address with a slash at the end", async () => {
+      const { user, router } = start("/nurses/import/", here({
+        "POST /api/nurses/import/preview": { body: GOOD },
+        "POST /api/nurses/import/confirm": { status: 201, body: SHEET },
+        "GET /api/units": { body: [] },
+      }))
+      await check(user)
+      await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+      await screen.findByText("aaaa-bbbb-cccc-dddd")
+
+      await user.click(screen.getByRole("link", { name: "Home" }))
+
+      expect(within(await screen.findByRole("alertdialog")).getByText("Leave without the passwords?")).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/nurses/import/")
+    })
+
+    it("follows a link, from the sheet", async () => {
+      const { router, question } = await sheetOnScreen()
+
+      await leaveThen(router, question, follow("Change password"))
+
+      await onChangePassword(router)
+    })
+
+    it("follows a link, while a confirmation is on its way", async () => {
+      const { user, router } = start("/nurses/import", here({
+        "POST /api/nurses/import/preview": { body: GOOD },
+        "GET /api/units": { body: [] },
+      }))
+      await check(user)
+      hold("POST /api/nurses/import/confirm")
+      await user.click(await screen.findByRole("button", { name: "Add 2 nurses" }))
+      await user.click(screen.getByRole("link", { name: "Home" }))
+
+      await leaveThen(router, await screen.findByRole("alertdialog"), follow("Change password"))
+
+      await onChangePassword(router)
+    })
+
+    it("still guards a sheet that going back keeps on screen", async () => {
+      const { user, router, question } = await sheetOnScreen()
+
+      await leaveThen(router, question, () => router.history.back())
+      await waitFor(() => expect(router.state.status).toBe("idle"))
+      expect(router.state.location.pathname).toBe("/nurses/import")
+      expect(await screen.findByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
+
+      await user.click(screen.getByRole("link", { name: "Home" }))
+      expect(within(await screen.findByRole("alertdialog")).getByText("Leave without the passwords?")).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/nurses/import")
+    })
   })
 
   it("copies the sheet with any cell that looks like a formula made safe", async () => {
