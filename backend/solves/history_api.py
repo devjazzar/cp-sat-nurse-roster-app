@@ -23,10 +23,12 @@ from hospital.models import HospitalSettings
 from nurses.api import MonthText
 from rosters import drafts
 from rosters.grids import GridView, by_name, full_names, grid_view
-from rosters.models import Roster
+from rosters.models import Roster, RosterVersion, VersionOrigin
+from rosters.versions import differences
 from rosters.review import SEEN_BY_APPROVERS
 from solves.api import chosen_month, manager
-from solves.models import Solve, SolveFailure, SolveState
+from solver_service.grid import validate_grid
+from solves.models import ReplanOutcome, Solve, SolveFailure, SolveState
 from solves.result import LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, precheck_of, statistics_of
 from units.models import Unit
 from units.scope import HOSPITAL_WIDE, unit_in_scope
@@ -64,8 +66,15 @@ class SolveRow(Schema):
 
 
 class UnitSolveRow(SolveRow):
+    """The System Admin's row never has these: a re-plan's date is about a roster."""
     in_draft: bool = Field(description="Whether its month's draft came from this solve. The draft may have been edited by hand "
-                                       "since, and then holds more than this result.")
+                                       "since, and then holds more than this result. After a re-plan put its roster in force, "
+                                       "that roster's grid is the re-plan's.")
+    replan_from: dt.date | None = Field(description="Set on a re-plan: the first date it planned again.")
+    replan_outcome: Literal[ReplanOutcome.VERSION, ReplanOutcome.UNCHANGED, ReplanOutcome.OUTDATED,
+                            ReplanOutcome.MONTH_OVER] | None = Field(
+        description="What a re-plan's end did to the roster in force. Null for a solve, before the end, and for a re-plan that "
+                    "kept no roster.")
 
 
 class HospitalSolveRow(SolveRow):
@@ -89,6 +98,11 @@ def _row_fields(solve: Solve) -> dict:
             "finished_at": timezone.localtime(solve.finished_at) if solve.finished_at else None,
             "elapsed_seconds": solve.elapsed_seconds, "time_limit_seconds": solve.time_limit_seconds,
             "attempts": solve.attempts, "cost": cost_of(solve.result), "found_roster": has_a_roster_to_keep(solve.result)}
+
+
+def _unit_row(solve: Solve, in_draft: set[UUID]) -> UnitSolveRow:
+    return UnitSolveRow(**_row_fields(solve), in_draft=solve.pk in in_draft, replan_from=solve.replan_from,
+                        replan_outcome=solve.replan_outcome or None)
 
 
 def _page(solves: QuerySet[Solve], filters: PageFilter) -> tuple[list[Solve], UUID | None]:
@@ -129,7 +143,7 @@ def unit_history(request: HttpRequest, unit_id: UUID, filters: Query[UnitHistory
         solves = solves.filter(month=chosen_month(filters.month))
     page, older_than = _page(solves, filters)
     in_draft = _solves_in_drafts(unit)
-    return UnitHistory(solves=[UnitSolveRow(**_row_fields(solve), in_draft=solve.pk in in_draft) for solve in page],
+    return UnitHistory(solves=[_unit_row(solve, in_draft) for solve in page],
                        older_than=older_than)
 
 
@@ -188,6 +202,38 @@ class SolverStatistics(Schema):
     objective_terms: int | None
 
 
+class ReplanChange(Schema):
+    hospital_id: str
+    full_name: str
+    date: dt.date
+    before: str = Field(description="The roster in force's shift when the re-plan started, under today's code. Empty for a day "
+                                    "not worked.")
+    after: str = Field(description="The re-plan's.")
+
+
+class ReplanRule(Schema):
+    rule: str = Field(description="The soft rule's name: the same as its weight's.")
+    before: int = Field(description="What it cost in the roster in force, on the re-plan's input.")
+    after: int = Field(description="What it costs in the re-plan's roster.")
+
+
+class ReplanComparison(Schema):
+    """The re-plan against the roster in force it started from. Both are costed on the re-plan's own input, so they compare;
+    the roster in force is its own baseline, so its `change` is always 0, and the re-plan's is the price of the cells it
+    changed."""
+    replan_from: dt.date
+    recorded_cells_differ: int | None = Field(description="Days before the date whose facts differ from the roster in force, as "
+                                                          "the solver counted them. Null when it found no roster.")
+    based_on: int = Field(description="The version in force when it started.")
+    version: int | None = Field(description="The version it made. Null when it made none.")
+    outcome: Literal[ReplanOutcome.VERSION, ReplanOutcome.UNCHANGED, ReplanOutcome.OUTDATED, ReplanOutcome.MONTH_OVER] | None
+    changes: list[ReplanChange] = Field(description="Each cell its roster changes, by nurse then date. Empty with no roster.")
+    cost_before: int | None = Field(description="Null when the solver's code could not cost the roster in force.")
+    cost_after: int | None
+    rules: list[ReplanRule] = Field(description="Each soft rule that costs something in either, the largest difference first. "
+                                                "Empty when `cost_before` is null.")
+
+
 class SolveResult(Schema):
     solve: UnitSolveRow
     error: str = Field(description="Why the last attempt failed, also when a retry then worked.")
@@ -203,6 +249,8 @@ class SolveResult(Schema):
     statistics: SolverStatistics | None
     grid: GridView | None = Field(description="The roster it answered, under the codes in use now. Null when it found none.")
     restore_refusal: str | None = Field(description="Why this result cannot be restored as the draft now.")
+    replan: ReplanComparison | None = Field(description="Set on a re-plan: its comparison with the roster in force it started "
+                                                        "from. Its elapsed violations are `elapsed_violations`.")
 
 
 def _with_names(rows: list[dict], names: dict[str, str], month: dt.date) -> list[Violation]:
@@ -237,6 +285,34 @@ def _accounting(row: dict, hospital_id: str, name: str) -> NurseAccounting:
                            cost=row["cost"])
 
 
+def _replan_of(solve: Solve) -> ReplanComparison | None:
+    if not solve.replan_from:
+        return None
+    result = solve.result or {}
+    published = solve.input["published"]
+    roster = result.get("roster")
+    changes = differences(published, roster) if roster else []
+    names = full_names(change.hospital_id for change in changes)
+    try:
+        before = validate_grid(solve.input, published)
+    except ValueError:
+        before = None
+    rules = []
+    if before is not None:
+        after = result.get("penalties") or {}
+        found = sorted(set(before["penalties"]) | set(after))
+        rules = [ReplanRule(rule=rule, before=before["penalties"].get(rule, 0), after=after.get(rule, 0)) for rule in found
+                 if before["penalties"].get(rule, 0) or after.get(rule, 0)]
+        rules.sort(key=lambda row: -abs(row.after - row.before))
+    version = RosterVersion.objects.filter(solve=solve, origin=VersionOrigin.REPLAN).first()
+    return ReplanComparison(
+        replan_from=solve.replan_from, recorded_cells_differ=(result.get("replan") or {}).get("recorded_cells_differ"),
+        based_on=solve.replan_of, version=version.number if version else None, outcome=solve.replan_outcome or None,
+        changes=[ReplanChange(hospital_id=change.hospital_id, full_name=names.get(change.hospital_id, ""), date=change.date,
+                              before=change.before, after=change.after) for change in changes],
+        cost_before=before["cost"] if before else None, cost_after=cost_of(result), rules=rules)
+
+
 def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
     result = solve.result or {}
     accounting = result.get("nurses") or {}
@@ -247,7 +323,7 @@ def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
     named |= {match["nurse"] for rule in (explained or {}).values() for match in rule["matches"][:LARGEST] if match["nurse"]}
     names = full_names(named)
     return SolveResult(
-        solve=UnitSolveRow(**_row_fields(solve), in_draft=solve.pk in _solves_in_drafts(unit)),
+        solve=_unit_row(solve, _solves_in_drafts(unit)),
         error=in_dates(solve.error, solve.month), message=in_dates(result.get("message") or "", solve.month),
         precheck=precheck_of(result, solve.month),
         violations=_with_names(result.get("violations") or [], names, solve.month),
@@ -258,7 +334,8 @@ def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
                 for hospital_id in by_name(accounting, names)],
         statistics=SolverStatistics(**statistics_of(result)) if result else None,
         grid=grid_view(drafts.in_current_codes(roster), solve) if roster else None,
-        restore_refusal=ONLY_THE_MANAGER_RESTORES if user.role in HOSPITAL_WIDE else drafts.why_not_restore(solve))
+        restore_refusal=ONLY_THE_MANAGER_RESTORES if user.role in HOSPITAL_WIDE else drafts.why_not_restore(solve),
+        replan=_replan_of(solve))
 
 
 @router.get("/{unit_id}/solve-history/{solve_id}", response=SolveResult, auth=reader, operation_id="getSolveResult")

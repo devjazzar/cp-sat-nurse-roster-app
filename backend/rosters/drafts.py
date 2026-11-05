@@ -21,15 +21,15 @@ MONTH_OVER = "This month is over, so its draft cannot change."
 FROZEN = {
     RosterState.SUBMITTED: "This roster is submitted and waits for the CNO or the Deputy CNO, so nothing can change it until "
                            "they decide. A rejection returns it to draft.",
-    RosterState.APPROVED: "This roster is approved and in force, so no solve or restore can change it. Change its cells by "
-                          "hand on the Roster page instead: each save is a new version.",
+    RosterState.APPROVED: "This roster is approved and in force, so no solve or restore can change it. Re-plan it from a "
+                          "date, or change its cells by hand on the Roster page: either is a new version.",
 }
 
 
 def why_frozen(roster: Roster | None) -> str | None:
     """The one place a submitted or an approved roster refuses a solve's start and end and a restore. A submitted one refuses a
     save of pins too (`rosters.api._why_not_edit`); an approved one is edited by hand, each save a new version
-    (`rosters.versions`), and a re-plan is ticket 17's. A rename is not a change: the grid follows it whatever the state. Hold the
+    (`rosters.versions`), and a re-plan passes this on purpose (`solves.replans`). A rename is not a change: the grid follows it whatever the state. Hold the
     unit's lock, which a submit and a decision take, when this decides a write."""
     return FROZEN.get(roster.state) if roster is not None else None
 

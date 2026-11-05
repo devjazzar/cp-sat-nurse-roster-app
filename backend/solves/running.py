@@ -16,9 +16,12 @@ from notifications.models import SolveOutcome
 from ops import solver_client
 from ops.queue import still_on_the_queue
 from ops.solver_client import SolverBusy, SolverJobUnknown, SolverRefused, SolverUnreachable
-from rosters import drafts
+from rosters import drafts, review
+from rosters.models import Roster
+from solves import replans
 from solves.models import ACTIVE_STATES, Solve, SolveFailure, SolveState
 from solves.result import has_a_roster_to_keep
+from units.models import Unit
 
 logger = logging.getLogger(__name__)
 
@@ -139,13 +142,13 @@ def _end(solve: Solve, **fields) -> None:
 def _fail(solve: Solve, **fields) -> None:
     with transaction.atomic():
         _end(solve, state=SolveState.FAILED, solver_job_id="", **fields)
-        sending.solve_ended(solve.unit_id, solve.month, solve.pk, SolveOutcome.FAILED)
+        sending.solve_ended(solve.unit_id, solve.month, solve.pk, SolveOutcome.FAILED, replan=bool(solve.replan_from))
 
 
 def _finish(solve: Solve, job: dict) -> None:
     """A stopped solve keeps the best roster found. A search that ended with no roster, or one breaking a hard rule, which the
     solver reports with `ok` false, leaves the draft as it was: the result says why. So does a roster submitted or approved
-    meanwhile, though submitting refuses while a solve is active."""
+    meanwhile, though submitting refuses while a solve is active. A re-plan's end is `solves.replans.finish`'s."""
     result = job["result"]
     state = SolveState.CANCELLED if job["state"] == "cancelled" else SolveState.SUCCEEDED
     # The catalogue's lock first, as everywhere, so a rename cannot pass between reading a code and writing it.
@@ -156,6 +159,13 @@ def _finish(solve: Solve, job: dict) -> None:
         if result is not None:
             fields |= {"best_cost": result["cost"], "improvements": result["solver"]["improvements"]}
         _end(solve, **fields)
+        if solve.replan_from:
+            # Then the month's nurses', which a leave write takes, and the unit's, as an approval takes them; the roster's last.
+            review.lock_the_months_nurses(solve.unit, solve.month, Roster.objects.filter(unit=solve.unit, month=solve.month).first())
+            Unit.objects.select_for_update().get(pk=solve.unit_id)
+            outcome = replans.finish(solve, result, state)
+            sending.solve_ended(solve.unit_id, solve.month, solve.pk, outcome, replan=True)
+            return
         # Submitting refuses while a solve is active, so only a roster frozen behind the API's back meets this. The result stays
         # in the history, and the frozen grid as it was.
         frozen = drafts.frozen_month(solve.unit, solve.month)

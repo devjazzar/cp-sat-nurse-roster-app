@@ -19,6 +19,15 @@ class SolveFailure(models.TextChoices):
     REFUSED = "refused", "The solver refused the solve input, which is a matter of the rules and not of the solver."
 
 
+class ReplanOutcome(models.TextChoices):
+    """What a re-plan's end did to the roster in force. Blank until it ends, and for a re-plan that kept no roster: no roster
+    found, one breaking a hard rule, a failure, or a stop before any was found."""
+    VERSION = "version", "Its roster became a new version in force."
+    UNCHANGED = "unchanged", "Its roster changed no cell, so no version was made."
+    OUTDATED = "outdated", "The roster in force or the month's facts changed while it waited or ran, so it was not applied."
+    MONTH_OVER = "month_over", "The month ended while it waited or ran, so it was not applied."
+
+
 class Solve(models.Model):
     """One run of the solver on one solve input, kept for good. `input` and `result` are what the solver was given and
     what it answered, and nothing rewrites them, not even a shift's rename: the grid in use is on `rosters.Roster`.
@@ -50,6 +59,13 @@ class Solve(models.Model):
     result = models.JSONField(null=True, blank=True, help_text="The solver's result, as it answered.")
     failure = models.CharField(max_length=7, choices=SolveFailure, blank=True)
     error = models.TextField(blank=True, help_text="Why the last attempt failed, also when a retry then worked.")
+    # A re-plan of an approved month: days before `replan_from` are facts, and its roster becomes a new version.
+    replan_from = models.DateField(null=True, blank=True, help_text="Set only on a re-plan: the first date it plans again.")
+    replan_of = models.PositiveIntegerField(null=True, blank=True, help_text="The version in force when the re-plan started, "
+                                                                             "which its input holds as `published`.")
+    replan_reason = models.TextField(blank=True, help_text="The manager's reason, for the version it makes. Read by the unit's "
+                                                           "manager and the approvers only, as a version's reason is.")
+    replan_outcome = models.CharField(max_length=10, choices=ReplanOutcome, blank=True)
 
     class Meta:
         ordering = ["-requested_at", "-id"]

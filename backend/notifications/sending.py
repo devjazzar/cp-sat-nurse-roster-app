@@ -55,8 +55,10 @@ def roster_rejected(unit: Unit, month: dt.date, by: User) -> None:
     notify([unit.manager], Event.ROSTER_REJECTED, **_about(unit, month), by=str(by.pk))
 
 
-def solve_ended(unit_id: UUID, month: dt.date, solve_id: UUID, outcome: SolveOutcome) -> None:
+def solve_ended(unit_id: UUID, month: dt.date, solve_id: UUID, outcome: SolveOutcome, *, replan: bool = False) -> None:
     """To whoever manages the unit when the solve ends, read again then: a manager taken off it since starting the solve no
-    longer reads its pages, and the one who holds it now has the draft. Nobody when the unit has none."""
+    longer reads its pages, and the one who holds it now has the draft. Nobody when the unit has none. A re-plan says so, so
+    that its failure is told as a re-plan's."""
     unit = Unit.objects.select_related("manager").get(pk=unit_id)
-    notify([unit.manager], Event.SOLVE_ENDED, **_about(unit, month), solve_id=str(solve_id), outcome=outcome)
+    notify([unit.manager], Event.SOLVE_ENDED, **_about(unit, month), solve_id=str(solve_id), outcome=outcome,
+           **({"replan": True} if replan else {}))

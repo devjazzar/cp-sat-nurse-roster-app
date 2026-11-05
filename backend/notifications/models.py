@@ -19,6 +19,12 @@ class SolveOutcome(models.TextChoices):
     NO_ROSTER = "no_roster"
     FROZEN = "frozen"
     FAILED = "failed"
+    # A re-plan's own ends. Its failure and a search that kept no roster are FAILED and NO_ROSTER, with `replan` in the payload.
+    REPLANNED = "replanned"
+    STOPPED_REPLANNED = "stopped_replanned"
+    REPLAN_UNCHANGED = "replan_unchanged"
+    REPLAN_OUTDATED = "replan_outdated"
+    REPLAN_MONTH_OVER = "replan_month_over"
 
 
 class Notification(models.Model):

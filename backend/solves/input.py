@@ -13,7 +13,7 @@ from hospital.rules import general_block
 from nurses import membership
 from nurses.models import NurseProfile
 from nurses.rostering import leave_dates, nurse_block
-from rosters.drafts import current_codes
+from rosters.drafts import current_codes, in_current_codes
 from rosters.pins import month_pins
 from units.models import Unit
 from units.rules import unit_block
@@ -81,6 +81,32 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1) -> Assembled:
         if placement.allowed_shifts_to_check:
             assembled.to_check.append(nurse)
     return assembled
+
+
+def assemble_replan(unit: Unit, month: dt.date, replan_from: dt.date, in_force: dict[str, dict[str, str]], *,
+                    time_limit: int = 1) -> Assembled:
+    """A re-plan's input: the month as `assemble` builds it, with the roster in force as `published` and the date to plan again
+    from. The solver itself makes every earlier day a fact: a pin that counts, of any origin, wins; then leave and the days
+    outside a nurse's dates, which it holds off; then the roster in force. A pin set aside reaches no solve, so its day is the
+    roster in force's like any other. `published` holds exactly the month's nurses, as the solver asks: a nurse not on the roster
+    in force (one who joined since) worked nothing, and a row of a nurse no longer in the month is left out, so the new version
+    has none."""
+    assembled = assemble(unit, month, time_limit=time_limit)
+    in_force = in_current_codes(in_force)
+    days = [day.isoformat() for day in _days_of(month)]
+    assembled.input["published"] = {row["id"]: {day: in_force.get(row["id"], {}).get(day, "") for day in days}
+                                     for row in assembled.nurses}
+    assembled.input["replan_from"] = replan_from.isoformat()
+    return assembled
+
+
+def recorded_cells_differ(solve_input: dict) -> int | None:
+    """How many days before the date the facts make different from the roster in force: leave since, a pin. None if the solver
+    would refuse the input."""
+    try:
+        return load_request(solve_input).differ
+    except ValueError:
+        return None
 
 
 def solver_refusal(solve_input: dict) -> str | None:
