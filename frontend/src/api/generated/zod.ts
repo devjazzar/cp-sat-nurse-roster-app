@@ -2844,7 +2844,7 @@ export const ListSubmittedRostersResponse = zod.array(ListSubmittedRostersRespon
 
 
 /**
- * Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too.
+ * Takes no nurse, so it answers only for the reader.
  * @summary My Roster
  */
 export const getMyRosterQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');

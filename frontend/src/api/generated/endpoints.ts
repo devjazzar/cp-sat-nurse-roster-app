@@ -5897,7 +5897,7 @@ export const getGetMyRosterUrl = (params?: GetMyRosterParams,) => {
 }
 
 /**
- * Takes no nurse, so it answers only for the reader. A manager with a nurse profile is a nurse too.
+ * Takes no nurse, so it answers only for the reader.
  * @summary My Roster
  */
 export const getMyRoster = async (params?: GetMyRosterParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyRosterMonth> => {
