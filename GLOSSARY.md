@@ -131,6 +131,12 @@ _Avoid_: request period, submission window
 A nurse's proposal to change a set of cells on her unit's approved roster: her own and those of any colleagues needed to make the change work. It needs every involved colleague's acceptance, then the unit manager's; accepted, it becomes pinned cells. A rejected swap stays on record.
 _Avoid_: exchange, trade, shift change, cover
 
+**Notification**:
+Something a user is told in the application, about a roster's submit, approval or rejection, a solve's end, and later a
+change, a request window, a request or a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
+rejection's comment stays on the roster.
+_Avoid_: alert, message, notice
+
 ### Solving
 
 **Solve**:

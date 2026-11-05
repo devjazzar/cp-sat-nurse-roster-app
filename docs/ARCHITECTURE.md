@@ -220,7 +220,9 @@ and the carry-over per nurse.
 **Carry-over** (per nurse and month): the values and their source (`opening`, `projected`,
 `closed`).
 
-**Notification**: user, event, payload, read flag. **Audit entry**: actor, action, target,
+**Notification**: user, event, payload, when it was read. The payload holds identifiers only (a unit, a month, a solve, a
+version number), and the words are worked out as it is read, from what those name then: a rename or a corrected name leaves
+nothing stale, and nothing about a nurse, a leave or a rejection's comment is kept or said. **Audit entry**: actor, action, target,
 before and after, IP, time. **Technical settings** (one row): time limit cap (default 300 s),
 backup time and retention, close time.
 
@@ -365,7 +367,9 @@ React 19 + TypeScript, Vite 8, shadcn/ui on Base UI with Tailwind 4, TanStack Qu
 Router, TanStack Table (the roster grid and any table that needs sorting or filtering; short lists
 stay plain tables) and Virtual (the roster grid), React Hook Form + Zod, Zustand, Recharts via shadcn, TanStack Pacer behind one debounce hook, orval-generated client. One responsive
 web app, installable as a PWA; the grid scrolls horizontally on phones. In-app notifications
-only. Visual design is decided later; the architecture does not depend on it.
+only: every role's header has a bell with the unread count, which polls and does not count as activity, and leads to the
+Notifications page. Who is told of what is in one place, `notifications.sending`, called inside the transaction of the
+change. A notification links to the reader's own page for it, by what they hold when they read it. Visual design is decided later; the architecture does not depend on it.
 
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types,
@@ -373,8 +377,10 @@ holidays and Ramadan, units and managers, nurses with import and export, each un
 to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules,
 rostering attributes and leave to read); Unit Manager (unit rules, rostering attributes, nurses, request
 windows and requests, swaps, leave, the roster grid with solve, progress, results and
-explanations, submit, versions, exports, month close); Staff Nurse (unit roster, own summary,
-requests, swaps, own leave, notifications, password). The Deputy CNO, Unit Manager and Staff Nurse also read
+explanations, submit, versions, exports, month close); Staff Nurse (unit roster, own month: hours, overtime, what
+is carried, shift counts and leave with its type, requests, swaps, notifications, password). A nurse's own hours are
+worked out from the version in force on the month as it stands, with the solver's own arithmetic, for this month and later;
+a month already over shows its leave only. Every role has the bell and Change password. The Deputy CNO, Unit Manager and Staff Nurse also read
 the shift catalogue, leave types, holidays and Ramadan; the System Admin may open those pages
 but has no link to them, because nothing in that role's work calls for it.
 
