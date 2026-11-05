@@ -36,3 +36,25 @@ def explanation(solve_input: dict, result: dict | None) -> dict[str, dict] | Non
         return None
     return {rule["id"]: rule | {"matches": sorted(rule["matches"], key=lambda match: -match["amount"])}
             for rule in answer["rules"] if rule["level"] == SOFT and rule["weighted"]}
+
+
+def precheck_of(result: dict, month: dt.date) -> list[str]:
+    return [in_dates(issue, month) for issue in result.get("precheck") or []]
+
+
+def cost_of(result: dict | None) -> int | None:
+    """What the roster it answered costs. `Solve.best_cost` is only how far the search got, and outlasts a failure."""
+    return (result or {}).get("cost")
+
+
+def shifts_used(result: dict) -> set[str]:
+    return {code for row in result["roster"].values() for code in row.values() if code}
+
+
+def statistics_of(result: dict) -> dict:
+    solver = result.get("solver") or {}
+    model = solver.get("model") or {}
+    return {"status": result.get("status", ""), "stopped_by": solver.get("stopped_by"), "improvements": solver.get("improvements", 0),
+            **{name: solver.get(name) for name in ("objective", "best_bound", "solve_seconds", "build_seconds",
+                                                   "deterministic_time", "workers", "time_limit_seconds")},
+            **{name: model.get(name) for name in ("variables", "constraints", "objective_terms")}}

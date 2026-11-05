@@ -9,7 +9,7 @@ from hospital.models import Shift, ShiftRename
 from nurses import membership
 from rosters.models import Roster
 from solves.models import ACTIVE_STATES, Solve
-from solves.result import has_a_roster_to_keep
+from solves.result import has_a_roster_to_keep, shifts_used
 
 
 def current_code(code: str) -> str:
@@ -38,7 +38,7 @@ def replace_grid(solve: Solve, grid: dict[str, dict[str, str]], *, restoring: bo
 def why_not_restore(solve: Solve) -> str | None:
     """Why this solve's result cannot become its month's draft now, or None. Hold the catalogue's lock and the unit's when it
     decides a restore. Its cost and each nurse's hours were worked out on the shifts as they stood then, so a shift whose
-    hours moved or that has since been retired stops it: a draft could not hold those by any other way
+    hours moved or that has since been retired stops it: no draft could come to hold those any other way
     (`hospital.catalogue_api`). A rename does not: it is the same shift."""
     if solve.state in ACTIVE_STATES:
         return "This solve has not ended yet."
@@ -50,13 +50,12 @@ def why_not_restore(solve: Solve) -> str | None:
         return "A solve of this month is queued or running, and would replace this when it ends. Stop it or wait for it first."
     if Roster.objects.filter(unit=solve.unit, month=solve.month, solve=solve).exists():
         return "This result is the draft already."
-    return _shift_since(solve)
+    return _shift_changed_since(solve)
 
 
-def _shift_since(solve: Solve) -> str | None:
+def _shift_changed_since(solve: Solve) -> str | None:
     hours_then = solve.input["general"]["shift_hours"]
-    used = {code for row in solve.result["roster"].values() for code in row.values() if code}
-    for code in sorted(used):
+    for code in sorted(shifts_used(solve.result)):
         shift = Shift.objects.filter(code=current_code(code)).first()
         if shift is None or not shift.active:
             return f"{code} has been retired since this solve, so this roster can no longer be worked. Solve the month again."

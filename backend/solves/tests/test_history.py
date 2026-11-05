@@ -100,6 +100,17 @@ class TestTheUnitsHistory:
 
         assert row["state"] == "failed" and row["failure"] == "refused" and row["found_roster"] is False
 
+    def test_a_cost_seen_during_a_search_that_kept_no_roster_is_not_its_cost(self, mona, er, solver):
+        solver.script([job("running", best_cost=40), RuntimeError("down")], RuntimeError("down"))
+        failed = started(mona, er)
+        running.run(failed["id"])
+        assert Solve.objects.get(pk=failed["id"]).best_cost == 40
+        solver.script([job("running", best_cost=30), job("cancelled", result=None)])
+        stopped = started(mona, er)
+        running.run(stopped["id"])
+
+        assert [row["cost"] for row in history(mona, er)["solves"]] == [None, None]
+
     def test_a_month_narrows_it(self, mona, er, solver):
         june = solved(mona, er, solver)
         solved(mona, er, solver, month="2026-07")
@@ -213,7 +224,7 @@ class TestAResult:
         assert answer["nurses"][0] == {"hospital_id": "Amal", "full_name": "Amal", "contract": 192, "leave_credit": 24,
                                        "required": 168, "hours_worked": 180, "overtime": 12, "shortfall": 0,
                                        "shifts": {"D": 15, "N": 0}, "cost": 3}
-        assert answer["department_cost"] == 0
+        assert answer["unit_cost"] == 0
         assert answer["solve"]["id"] == solve and answer["solve"]["in_draft"] is True
 
     def test_each_costly_rule_has_its_penalty_and_the_solvers_largest_occurrences(self, mona, er, solver):
@@ -224,7 +235,7 @@ class TestAResult:
         assert answer["explained"] is True
         assert [(row["rule"], row["penalty"]) for row in rules] == [("fair_day", 5), ("night_rest", 2)]
         fair = rules[0]
-        assert fair["weight"] > 0 and fair["amount"] > 0 and fair["unit"]
+        assert fair["weight"] > 0 and fair["amount"] > 0 and fair["counted_in"]
         assert 1 <= len(fair["largest"]) <= 5
         amounts = [match["amount"] for match in fair["largest"]]
         assert amounts == sorted(amounts, reverse=True)
@@ -269,6 +280,13 @@ class TestAResult:
             {"rule": "shift_switch", "hospital_id": "Amal", "full_name": "Amal", "date": None,
              "text": "switches: Amal changes night/day 6 times, max 2"},
             {"rule": "headcount", "hospital_id": None, "full_name": "", "date": None, "text": "at 2026-05-31"}]
+
+    def test_a_loaders_refusal_has_dates_too(self, mona, er, solver):
+        solver.script([SolverRefused("nurses['Amal'].pinned: day 3 is given twice")])
+        solve = started(mona, er)
+        running.run(solve["id"])
+
+        assert details(mona, er, solve["id"])["error"] == "nurses['Amal'].pinned: 2026-06-04 is given twice"
 
     def test_the_solvers_statistics_and_what_stopped_it(self, mona, er, solver):
         answer = finished(stopped_by="time_limit")

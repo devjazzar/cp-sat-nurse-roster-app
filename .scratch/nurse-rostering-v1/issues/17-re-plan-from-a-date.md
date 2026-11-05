@@ -14,3 +14,5 @@
 ## Comments
 
 **From ticket 11 (2026-11-05).** `solves.input.assemble` has no re-plan yet. A month that has started can be solved from scratch today, which replaces the draft's whole grid: `_what_stops_it` refuses only a month that is over. Once a month has an approved roster a plain solve should be refused in favour of a re-plan.
+
+**From ticket 12 (2026-11-05).** `rosters.drafts.why_not_restore` refuses a month that is over and allows the month under way, as `_what_stops_it` does for a solve. When this ticket refuses a plain solve once a month has an approved roster, restore needs the same refusal, which ticket 14's state check will already give. A result's `replan` block is not shown anywhere yet: `solves/history_api.py`'s `SolveResult` leaves it out, and section 8's "in a re-plan the comparison with the roster in force" is yours to add to `components/solve-result.tsx`.

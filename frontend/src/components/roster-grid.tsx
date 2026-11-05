@@ -41,18 +41,18 @@ function Cell({ cell, shifts, title }: { cell: GridCell; shifts: Map<string, Gri
 }
 
 /** A grid's nurses across its dates. Nurse names stay in view while it scrolls, and on a phone it scrolls sideways. */
-export function RosterGrid({ draft, label }: { draft: GridView; label: string }) {
+export function RosterGrid({ grid, label }: { grid: GridView; label: string }) {
   const scroller = useRef<HTMLDivElement>(null)
-  const shifts = useMemo(() => new Map(draft.shifts.map((shift) => [shift.code, shift])), [draft.shifts])
+  const shifts = useMemo(() => new Map(grid.shifts.map((shift) => [shift.code, shift])), [grid.shifts])
   const columns = useMemo<ColumnDef<typeof features, GridRow>[]>(() => [
     { id: "nurse", header: NURSE_HEADER, accessorFn: (row) => row.full_name || row.hospital_id },
-    ...draft.days.map((day, index) => ({
+    ...grid.days.map((day, index) => ({
       id: day.date,
       header: day.date,
       accessorFn: (row: GridRow) => row.cells[index],
     })),
-  ], [draft.days])
-  const table = useTable({ features, columns, data: draft.rows })
+  ], [grid.days])
+  const table = useTable({ features, columns, data: grid.rows })
   const rows = table.getRowModel().rows
   const windowed = rows.length > WINDOWED_ABOVE
   const virtualizer = useVirtualizer({
@@ -77,7 +77,7 @@ export function RosterGrid({ draft, label }: { draft: GridView; label: string })
           <tr aria-rowindex={1}>
             {table.getHeaderGroups()[0].headers.map((header, index) => {
               if (index === 0) return <th key={header.id} scope="col" className="sticky start-0 z-30 min-w-40 border-b bg-background px-2 py-1 text-start font-medium">{NURSE_HEADER}</th>
-              const day = draft.days[index - 1]
+              const day = grid.days[index - 1]
               const date = asDate(day.date)
               return (
                 <th key={header.id} scope="col" title={longDay.format(date) + (day.holiday ? ", public holiday" : "")}
@@ -91,7 +91,7 @@ export function RosterGrid({ draft, label }: { draft: GridView; label: string })
           </tr>
         </thead>
         <tbody>
-          {before > 0 && <tr aria-hidden="true"><td style={{ height: before }} colSpan={draft.days.length + 1} /></tr>}
+          {before > 0 && <tr aria-hidden="true"><td style={{ height: before }} colSpan={grid.days.length + 1} /></tr>}
           {items.map(({ index }) => {
             const row = rows[index]
             const [nurse, ...cells] = row.getAllCells()
@@ -106,17 +106,17 @@ export function RosterGrid({ draft, label }: { draft: GridView; label: string })
               </tr>
             )
           })}
-          {after > 0 && <tr aria-hidden="true"><td style={{ height: after }} colSpan={draft.days.length + 1} /></tr>}
+          {after > 0 && <tr aria-hidden="true"><td style={{ height: after }} colSpan={grid.days.length + 1} /></tr>}
         </tbody>
       </table>
     </div>
   )
 }
 
-export function GridLegend({ draft }: { draft: GridView }) {
+export function GridLegend({ grid }: { grid: GridView }) {
   return (
     <ul aria-label="What the cells mean" className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-      {draft.shifts.map((shift) => (
+      {grid.shifts.map((shift) => (
         <li key={shift.code} className="flex items-center gap-1.5">
           <span aria-hidden="true" className="inline-flex size-6 items-center justify-center rounded-sm text-xs font-medium"
             style={{ backgroundColor: shift.colour, color: readableOn(shift.colour) }}>{shift.code}</span>

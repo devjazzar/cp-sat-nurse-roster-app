@@ -12,9 +12,9 @@ export interface RuleResult {
   penalty: number;
   /** Null, as are the next three, when the explanation could not be worked out. */
   weight: number | null;
-  /** How much of the rule was broken, in `unit`. */
+  /** How much of the rule was broken, in `counted_in`. */
   amount: number | null;
-  unit: string | null;
+  counted_in: string | null;
   /** Its 5 largest occurrences. */
   largest: RuleMatch[];
   /** How many more occurrences it has. */

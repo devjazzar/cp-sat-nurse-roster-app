@@ -24,9 +24,9 @@ from nurses.api import MonthText
 from rosters import drafts
 from rosters.grids import GridView, by_name, full_names, grid_view
 from rosters.models import Roster
-from solves.api import manager
+from solves.api import chosen_month, manager
 from solves.models import Solve, SolveFailure, SolveState
-from solves.result import LARGEST, explanation, has_a_roster_to_keep, in_dates
+from solves.result import LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, precheck_of, statistics_of
 from units.models import Unit
 from units.scope import unit_in_scope
 
@@ -84,7 +84,7 @@ def _row_fields(solve: Solve) -> dict:
             "requested_at": timezone.localtime(solve.requested_at),
             "finished_at": timezone.localtime(solve.finished_at) if solve.finished_at else None,
             "elapsed_seconds": solve.elapsed_seconds, "time_limit_seconds": solve.time_limit_seconds,
-            "attempts": solve.attempts, "cost": solve.best_cost, "found_roster": has_a_roster_to_keep(solve.result)}
+            "attempts": solve.attempts, "cost": cost_of(solve.result), "found_roster": has_a_roster_to_keep(solve.result)}
 
 
 def _page(solves: QuerySet[Solve], filters: PageFilter) -> tuple[list[Solve], UUID | None]:
@@ -105,7 +105,7 @@ def hospital_history(request: HttpRequest, filters: Query[PageFilter]) -> Hospit
                            older_than=older_than)
 
 
-def _in_draft(unit: Unit) -> set[UUID]:
+def _solves_in_drafts(unit: Unit) -> set[UUID]:
     return set(Roster.objects.filter(unit=unit).values_list("solve_id", flat=True))
 
 
@@ -114,9 +114,9 @@ def unit_history(request: HttpRequest, unit_id: UUID, filters: Query[UnitHistory
     unit = unit_in_scope(request.user, unit_id)
     solves = Solve.objects.filter(unit=unit)
     if filters.month:
-        solves = solves.filter(month=dt.date.fromisoformat(f"{filters.month}-01"))
+        solves = solves.filter(month=chosen_month(filters.month))
     page, older_than = _page(solves, filters)
-    in_draft = _in_draft(unit)
+    in_draft = _solves_in_drafts(unit)
     return UnitHistory(solves=[UnitSolveRow(**_row_fields(solve), in_draft=solve.pk in in_draft) for solve in page],
                        older_than=older_than)
 
@@ -133,13 +133,13 @@ class RuleResult(Schema):
     rule: str = Field(description="The soft rule's name: the same as its weight's.")
     penalty: int
     weight: int | None = Field(description="Null, as are the next three, when the explanation could not be worked out.")
-    amount: int | None = Field(description="How much of the rule was broken, in `unit`.")
-    unit: str | None
+    amount: int | None = Field(description="How much of the rule was broken, in `counted_in`.")
+    counted_in: str | None
     largest: list[RuleMatch] = Field(description=f"Its {LARGEST} largest occurrences.")
     others: int = Field(description="How many more occurrences it has.")
 
 
-class BrokenRule(Schema):
+class Violation(Schema):
     rule: str
     hospital_id: str | None
     full_name: str
@@ -178,14 +178,13 @@ class SolverStatistics(Schema):
 
 class SolveResult(Schema):
     solve: UnitSolveRow
-    stop_requested: bool
     error: str = Field(description="Why the last attempt failed, also when a retry then worked.")
     message: str = Field(description="Why the solver found no roster or it could not be kept, in its words.")
     precheck: list[str]
-    violations: list[BrokenRule] = Field(description="Hard rules its roster breaks. Such a roster does not become a draft.")
-    elapsed_violations: list[BrokenRule] = Field(description="Recorded facts that broke hard rules: days already over, which "
+    violations: list[Violation] = Field(description="Hard rules its roster breaks. Such a roster does not become a draft.")
+    elapsed_violations: list[Violation] = Field(description="Recorded facts that broke hard rules: days already over, which "
                                                              "no solve could change.")
-    department_cost: int | None
+    unit_cost: int | None = Field(description="What it costs apart from any one nurse.")
     rules: list[RuleResult] = Field(description="Each soft rule that costs something, the costliest first.")
     explained: bool = Field(description="False when the solver's code could not explain the stored roster.")
     nurses: list[NurseAccounting]
@@ -194,8 +193,8 @@ class SolveResult(Schema):
     restore_refusal: str | None = Field(description="Why this result cannot be restored as the draft now.")
 
 
-def _with_names(rows: list[dict], names: dict[str, str], month: dt.date) -> list[BrokenRule]:
-    return [BrokenRule(rule=row["rule"], hospital_id=row["nurse"], full_name=names.get(row["nurse"], ""), date=row["date"],
+def _with_names(rows: list[dict], names: dict[str, str], month: dt.date) -> list[Violation]:
+    return [Violation(rule=row["rule"], hospital_id=row["nurse"], full_name=names.get(row["nurse"], ""), date=row["date"],
                        text=in_dates(row["text"], month)) for row in rows]
 
 
@@ -206,27 +205,15 @@ def _rule_results(solve: Solve, explained: dict[str, dict] | None, names: dict[s
     def row(rule: str, penalty: int) -> RuleResult:
         found = (explained or {}).get(rule)
         if found is None:
-            return RuleResult(rule=rule, penalty=penalty, weight=None, amount=None, unit=None, largest=[], others=0)
+            return RuleResult(rule=rule, penalty=penalty, weight=None, amount=None, counted_in=None, largest=[], others=0)
         largest = [RuleMatch(hospital_id=match["nurse"], full_name=names.get(match["nurse"], ""), date=match["date"],
                              amount=match["amount"], text=in_dates(match["text"], solve.month))
                    for match in found["matches"][:LARGEST]]
-        return RuleResult(rule=rule, penalty=penalty, weight=found["weight"], amount=found["raw"], unit=found["unit"],
+        return RuleResult(rule=rule, penalty=penalty, weight=found["weight"], amount=found["raw"], counted_in=found["unit"],
                           largest=largest, others=max(0, len(found["matches"]) - LARGEST))
 
     costly = [(rule, penalty) for rule, penalty in (result.get("penalties") or {}).items() if penalty]
     return [row(rule, penalty) for rule, penalty in sorted(costly, key=lambda item: (-item[1], item[0]))]
-
-
-def _statistics(result: dict) -> SolverStatistics:
-    solver = result.get("solver") or {}
-    model = solver.get("model") or {}
-    return SolverStatistics(
-        status=result["status"], stopped_by=solver.get("stopped_by"), objective=solver.get("objective"),
-        best_bound=solver.get("best_bound"), solve_seconds=solver.get("solve_seconds"),
-        build_seconds=solver.get("build_seconds"), deterministic_time=solver.get("deterministic_time"),
-        improvements=solver.get("improvements", 0), workers=solver.get("workers"),
-        time_limit_seconds=solver.get("time_limit_seconds"), variables=model.get("variables"),
-        constraints=model.get("constraints"), objective_terms=model.get("objective_terms"))
 
 
 def _accounting(row: dict, hospital_id: str, name: str) -> NurseAccounting:
@@ -248,16 +235,16 @@ def _result_of(solve: Solve, unit: Unit) -> SolveResult:
     named |= {match["nurse"] for rule in (explained or {}).values() for match in rule["matches"][:LARGEST] if match["nurse"]}
     names = full_names(named)
     return SolveResult(
-        solve=UnitSolveRow(**_row_fields(solve), in_draft=solve.pk in _in_draft(unit)),
-        stop_requested=solve.stop_requested, error=solve.error, message=result.get("message") or "",
-        precheck=[in_dates(issue, solve.month) for issue in result.get("precheck") or []],
+        solve=UnitSolveRow(**_row_fields(solve), in_draft=solve.pk in _solves_in_drafts(unit)),
+        error=in_dates(solve.error, solve.month), message=in_dates(result.get("message") or "", solve.month),
+        precheck=precheck_of(result, solve.month),
         violations=_with_names(result.get("violations") or [], names, solve.month),
         elapsed_violations=_with_names(result.get("elapsed_violations") or [], names, solve.month),
-        department_cost=result.get("department_cost"), rules=_rule_results(solve, explained, names),
+        unit_cost=result.get("department_cost"), rules=_rule_results(solve, explained, names),
         explained=explained is not None,
         nurses=[_accounting(accounting[hospital_id], hospital_id, names.get(hospital_id, ""))
                 for hospital_id in by_name(accounting, names)],
-        statistics=_statistics(result) if result else None,
+        statistics=SolverStatistics(**statistics_of(result)) if result else None,
         grid=grid_view(drafts.in_current_codes(roster), solve) if roster else None,
         restore_refusal=drafts.why_not_restore(solve))
 

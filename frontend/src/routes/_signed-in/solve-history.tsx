@@ -96,7 +96,7 @@ function HospitalHistory({ older_than }: { older_than: string | undefined }) {
       <h1 ref={heading} tabIndex={-1} className="text-xl font-medium outline-none">Solve history</h1>
       <p className="text-muted-foreground">
         Every unit's solves, newest first, with times in hospital time. No roster or nurse appears here. A solve's stated reason could name a nurse, so why a solve
-        failed stays with its unit's manager. The worker's log has it for you, under the solve's id.
+        failed stays with its unit's manager.
       </p>
       {history.isPending && <p>Loading…</p>}
       {history.isError && <p role="alert">The solve history could not be read. Reload the page to try again.</p>}

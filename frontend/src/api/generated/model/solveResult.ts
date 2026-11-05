@@ -4,26 +4,26 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
-import type { BrokenRule } from './brokenRule';
 import type { GridView } from './gridView';
 import type { NurseAccounting } from './nurseAccounting';
 import type { RuleResult } from './ruleResult';
 import type { SolverStatistics } from './solverStatistics';
 import type { UnitSolveRow } from './unitSolveRow';
+import type { Violation } from './violation';
 
 export interface SolveResult {
   solve: UnitSolveRow;
-  stop_requested: boolean;
   /** Why the last attempt failed, also when a retry then worked. */
   error: string;
   /** Why the solver found no roster or it could not be kept, in its words. */
   message: string;
   precheck: string[];
   /** Hard rules its roster breaks. Such a roster does not become a draft. */
-  violations: BrokenRule[];
+  violations: Violation[];
   /** Recorded facts that broke hard rules: days already over, which no solve could change. */
-  elapsed_violations: BrokenRule[];
-  department_cost: number | null;
+  elapsed_violations: Violation[];
+  /** What it costs apart from any one nurse. */
+  unit_cost: number | null;
   /** Each soft rule that costs something, the costliest first. */
   rules: RuleResult[];
   /** False when the solver's code could not explain the stored roster. */

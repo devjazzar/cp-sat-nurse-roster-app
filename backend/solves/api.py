@@ -27,7 +27,7 @@ from ops.queue import enqueue
 from ops.solver_client import SolverRefused, SolverUnreachable
 from solves.input import Assembled, assemble, solver_refusal
 from solves.models import ACTIVE_STATES, Solve, SolveFailure, SolveState
-from solves.result import has_a_roster_to_keep, in_dates
+from solves.result import has_a_roster_to_keep, in_dates, precheck_of
 from solves.tasks import run_solve
 from units.models import Unit
 from units.scope import unit_in_scope
@@ -159,10 +159,9 @@ def progress_of(solve: Solve) -> SolveProgress:
                          elapsed_seconds=solve.elapsed_seconds, best_cost=solve.best_cost, improvements=solve.improvements,
                          attempts=solve.attempts, requested_at=timezone.localtime(solve.requested_at),
                          finished_at=timezone.localtime(solve.finished_at) if solve.finished_at else None,
-                         failure=solve.failure or None, error=solve.error,
+                         failure=solve.failure or None, error=in_dates(solve.error, solve.month),
                          found_roster=has_a_roster_to_keep(result),
-                         message=result.get("message") or "",
-                         precheck=[in_dates(issue, solve.month) for issue in result.get("precheck") or []])
+                         message=in_dates(result.get("message") or "", solve.month), precheck=precheck_of(result, solve.month))
 
 
 @router.post("/{unit_id}/solves", response={201: SolveProgress}, auth=manager, operation_id="startSolve")

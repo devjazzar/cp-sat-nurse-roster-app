@@ -33,7 +33,8 @@ function Restoring({ unitId, result, restored, onRestored }: { unitId: string; r
   const queryClient = useQueryClient()
   const restore = useRestoreSolveResult()
   const [asking, setAsking] = useState(false)
-  const focusAfter = useRef<string | null>("restore-state")
+  // Nowhere until it works, so that Cancel returns to the button. Once it works the button is gone.
+  const focusAfter = useRef<string | null>(null)
   const { solve } = result
   const month = monthName(solve.month)
   const confirm = () => restore.mutate({ unitId, solveId: solve.id }, {
@@ -42,6 +43,7 @@ function Restoring({ unitId, result, restored, onRestored }: { unitId: string; r
       void queryClient.invalidateQueries({ queryKey: getGetRosterMonthQueryKey(unitId) })
       void queryClient.invalidateQueries({ queryKey: getPreviewSolveQueryKey(unitId) })
       void queryClient.invalidateQueries({ queryKey: getListUnitSolveHistoryQueryKey(unitId) })
+      focusAfter.current = "restore-state"
       setAsking(false)
       onRestored()
     },
@@ -52,7 +54,7 @@ function Restoring({ unitId, result, restored, onRestored }: { unitId: string; r
     <section aria-label="Restoring this result" className="flex flex-col items-start gap-2">
       {/* Always rendered, because a live region mounted with its text may never be read out. */}
       <p id="restore-state" role="status" tabIndex={-1} className="text-sm outline-none empty:sr-only">
-        {restored ? `This result is now the draft of ${month}. What the draft held before is still in the solve history.` : ""}
+        {restored && solve.in_draft ? `This result is now the draft of ${month}. What the draft held before is still in the solve history.` : ""}
       </p>
       {!restored && solve.in_draft && <p className="text-sm">This result is the draft of {month}.</p>}
       {solve.in_draft && <Link to="/roster" search={{ month: solve.month }} className={`text-sm ${LINK}`}>See the draft</Link>}
@@ -61,7 +63,7 @@ function Restoring({ unitId, result, restored, onRestored }: { unitId: string; r
       <ConfirmDialog
         question={asking ? {
           title: "Restore this result as the draft?",
-          body: `Its grid replaces the draft of ${month}. The solve history keeps what it replaces, so you can restore that too.`,
+          body: `Its grid replaces the draft of ${month}. The solve history keeps what it replaces.`,
           confirm: "Restore",
         } : null}
         pending={restore.isPending} failed={restore.isError} failure={plainRefusal(restore.error)} focusAfter={focusAfter}
@@ -80,11 +82,11 @@ function Why({ result }: { result: SolveResult }) {
       </div>
     )
   }
-  if (solve.state === "failed") return <p>The solve failed twice and gave no answer. It says: {error}</p>
+  if (solve.state === "failed") return <p>The solve failed and gave no answer. It says: {error}</p>
   return (
     <>
       {message && <p>The solver says: {message}</p>}
-      {error && <p className="text-sm text-muted-foreground">An attempt failed before this one worked: {error}</p>}
+      {error && <p className="text-sm text-muted-foreground">An earlier attempt failed: {error}</p>}
     </>
   )
 }
@@ -117,11 +119,11 @@ function Result({ unit, solveId }: { unit: { id: string; name: string }; solveId
       <Restoring unitId={unit.id} result={result} restored={restored} onRestored={() => setRestored(true)} />
       {grid && (
         <section aria-label="The roster it answered" className="flex flex-col gap-4">
-          <RosterGrid draft={grid} label={`Roster of this result, ${month}`} />
-          <GridLegend draft={grid} />
+          <RosterGrid grid={grid} label={`Roster of this result, ${month}`} />
+          <GridLegend grid={grid} />
         </section>
       )}
-      <SolveResultPanels result={result} />
+      <SolveResultPanels result={result} headingLevel="h2" />
     </>
   )
 }

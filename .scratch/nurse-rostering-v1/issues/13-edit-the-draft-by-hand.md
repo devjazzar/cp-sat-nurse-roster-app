@@ -21,3 +21,9 @@
 - **Pinning a shift on a leave day is refused,** in the cell editor and when saving pins.
 
 **From ticket 11 (2026-11-05).** Pins go in `solves/input.py`, `assemble`, which counts them for the summary too: `Summary.pins` in `solves/api.py` is a literal 0 until then. Its docstring holds the decision: if a row ever holds a shift pinned on a credited day, leave wins and the pin is dropped there, so it is not a failed solve. A pin in the input also has to be part of `changes_since`, or a pin saved after a solve will not warn. `Roster.grid` is what the cell editor edits, and it follows renames through `rosters.drafts.carry_rename_through_grids`.
+
+**From ticket 12 (2026-11-05).** Three things once a draft can be edited.
+
+- **Restoring and pins.** `rosters.drafts.replace_grid` swaps the whole grid. A restored result knows nothing of a pin saved since it was solved, so a saved pin can then disagree with the grid. Decide whether a restore keeps pins, removes them or refuses, and whether a pin saved since counts in `changes_since`.
+- **Restoring the draft's own solve** is refused today as "This result is the draft already" (`why_not_restore`, and `in_draft` in the history), because nothing could differ. After a hand edit it can differ, and a manager may want the solve's grid back, so that refusal has to look at whether the grid was edited. `in_draft` then means "came from this solve", not "is this result".
+- **`roster_month`'s `last_solve`** counts a failed solve as old news once `Roster.updated_at` is newer than it. That was written for a restore. A hand edit also moves `updated_at`, so a solve that failed before an edit stops being mentioned. Check that is what you want.

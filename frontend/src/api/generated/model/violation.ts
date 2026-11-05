@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1
  */
 
-export interface BrokenRule {
+export interface Violation {
   rule: string;
   hospital_id: string | null;
   full_name: string;

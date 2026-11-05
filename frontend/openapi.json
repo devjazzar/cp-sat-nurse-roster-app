@@ -6131,54 +6131,6 @@
         "title": "UnitSolveRow",
         "type": "object"
       },
-      "BrokenRule": {
-        "properties": {
-          "rule": {
-            "title": "Rule",
-            "type": "string"
-          },
-          "hospital_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hospital Id"
-          },
-          "full_name": {
-            "title": "Full Name",
-            "type": "string"
-          },
-          "date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Date"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "rule",
-          "hospital_id",
-          "full_name",
-          "date",
-          "text"
-        ],
-        "title": "BrokenRule",
-        "type": "object"
-      },
       "GridView": {
         "properties": {
           "days": {
@@ -6355,10 +6307,10 @@
                 "type": "null"
               }
             ],
-            "description": "How much of the rule was broken, in `unit`.",
+            "description": "How much of the rule was broken, in `counted_in`.",
             "title": "Amount"
           },
-          "unit": {
+          "counted_in": {
             "anyOf": [
               {
                 "type": "string"
@@ -6367,7 +6319,7 @@
                 "type": "null"
               }
             ],
-            "title": "Unit"
+            "title": "Counted In"
           },
           "largest": {
             "description": "Its 5 largest occurrences.",
@@ -6388,7 +6340,7 @@
           "penalty",
           "weight",
           "amount",
-          "unit",
+          "counted_in",
           "largest",
           "others"
         ],
@@ -6399,10 +6351,6 @@
         "properties": {
           "solve": {
             "$ref": "#/components/schemas/UnitSolveRow"
-          },
-          "stop_requested": {
-            "title": "Stop Requested",
-            "type": "boolean"
           },
           "error": {
             "description": "Why the last attempt failed, also when a retry then worked.",
@@ -6424,7 +6372,7 @@
           "violations": {
             "description": "Hard rules its roster breaks. Such a roster does not become a draft.",
             "items": {
-              "$ref": "#/components/schemas/BrokenRule"
+              "$ref": "#/components/schemas/Violation"
             },
             "title": "Violations",
             "type": "array"
@@ -6432,12 +6380,12 @@
           "elapsed_violations": {
             "description": "Recorded facts that broke hard rules: days already over, which no solve could change.",
             "items": {
-              "$ref": "#/components/schemas/BrokenRule"
+              "$ref": "#/components/schemas/Violation"
             },
             "title": "Elapsed Violations",
             "type": "array"
           },
-          "department_cost": {
+          "unit_cost": {
             "anyOf": [
               {
                 "type": "integer"
@@ -6446,7 +6394,8 @@
                 "type": "null"
               }
             ],
-            "title": "Department Cost"
+            "description": "What it costs apart from any one nurse.",
+            "title": "Unit Cost"
           },
           "rules": {
             "description": "Each soft rule that costs something, the costliest first.",
@@ -6504,13 +6453,12 @@
         },
         "required": [
           "solve",
-          "stop_requested",
           "error",
           "message",
           "precheck",
           "violations",
           "elapsed_violations",
-          "department_cost",
+          "unit_cost",
           "rules",
           "explained",
           "nurses",
@@ -6669,6 +6617,54 @@
           "objective_terms"
         ],
         "title": "SolverStatistics",
+        "type": "object"
+      },
+      "Violation": {
+        "properties": {
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "hospital_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hospital Id"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "hospital_id",
+          "full_name",
+          "date",
+          "text"
+        ],
+        "title": "Violation",
         "type": "object"
       },
       "PageFilter": {

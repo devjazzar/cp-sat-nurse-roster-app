@@ -165,7 +165,8 @@ end date not passed.
 
 **Roster** (one per unit and month): state `draft`, `submitted`, `approved`; a rejection
 returns it to `draft` with the comment kept. Exactly one draft per unit-month. Its grid is the one in use and
-follows a shift's rename, while the solve it came from keeps what it was given and answered.
+follows a shift's rename, while the solve it came from keeps what it was given and answered. It remembers when a manager
+last restored a result as that grid; a solve replacing the grid clears that.
 
 **Roster version**: the roster's full grid (nurse × date → shift code or off) with who,
 when, why and origin (solve, manual edit, re-plan, swap, request), plus the result it came
@@ -223,7 +224,9 @@ backup time and retention, close time.
 
 - Each solve replaces the draft's grid, unless its result has no roster or `ok` is false, which
   leaves the draft as it was; the solve history keeps every result, and any result
-  can be restored as the draft. The draft grid is editable by hand with instant validation;
+  with a roster can be restored as the draft, unless a solve of that month is queued or running, the month is over, or a shift
+  it uses has since been retired or had its hours changed, since its cost and hours would no longer hold (it can still be
+  opened, and a rename is carried). The stale-draft warning then compares with the restored solve's input. The draft grid is editable by hand with instant validation;
   a re-solve keeps pins. Submitting freezes the draft until the decision.
 - After approval, the unit manager alone changes the roster: direct cell edits, swaps,
   re-plans from a date (earlier days are facts; the `change` weight keeps the new roster
@@ -287,7 +290,7 @@ rejects a second with `409`; the worker guarantees the ordering.
 | `POST /solve` | Start a solve of one solve input; returns a job id. |
 | `GET /jobs/{id}` | State, elapsed time, best cost so far, number of improving rosters, the best grid so far, the full result when finished. |
 | `POST /jobs/{id}/cancel` | Sets the solver's stop event; the best roster found is kept. |
-| `POST /validate` | Hard violations, cost, penalties and the per-rule explanation of a given grid against a solve input. No search. |
+| `POST /validate` | Hard violations, cost, penalties and the per-rule explanation of a given grid against a solve input. No search. `web` also calls the same code (`solver_service.grid`) in its own process to explain a stored result, since it is in the one image and needs no search: the history reads when the solver is down or busy. |
 | `POST /precheck` | Plain-language reasons the month may be infeasible. No search. |
 | `GET /health` | Liveness, package version, worker count. |
 
@@ -348,8 +351,15 @@ but has no link to them, because nothing in that role's work calls for it.
 
 What a solve shows afterwards: every piece of information the result holds: precheck
 warnings, penalties per rule, per-nurse cost and hours accounting, the explanation of the
-largest violations per rule, solver statistics, and in a re-plan the comparison with the
-roster in force.
+largest violations per rule, solver statistics, recorded facts that broke rules, and in a
+re-plan the comparison with the roster in force. A nurse's carry-over waits for the month close.
+A stored result holds the penalties' totals only, so the explanation is worked out when asked.
+The solver's words count days from 0, so what the pages show says dates instead.
+
+The System Admin's solve history is unit, month, state, the kind of failure, who asked, when, how
+long, the time limit, the attempts and the cost, and only that: the solver's and the worker's words
+(`error`, `message`, `precheck`, the explanations) can name a nurse and a date, and no free text
+reaches it. The cost was already theirs to read in the audit log.
 
 ### Security
 

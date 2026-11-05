@@ -1,6 +1,6 @@
-import type { ReactNode } from "react"
+import { createContext, useContext, type ReactNode } from "react"
 
-import type { BrokenRule, NurseAccounting, RuleMatch, RuleResult, SolveResult, SolverStatistics } from "@/api/generated/model"
+import type { NurseAccounting, RuleMatch, RuleResult, SolveResult, SolverStatistics, Violation } from "@/api/generated/model"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { stoppedBy } from "@/lib/solve-words"
 import { scrollableRegion, shortDay } from "@/lib/utils"
@@ -11,10 +11,14 @@ const labels = new Map(WEIGHTS.map((weight) => [weight.name as string, weight.la
 const whose = (row: { full_name: string; hospital_id?: string | null; date?: string | null; text: string }) =>
   `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}`
 
+/** The level their heading takes depends on what is above: the roster page has the draft's heading and the result's page only its title. */
+const HeadingLevel = createContext<"h2" | "h4">("h4")
+
 function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const Heading = useContext(HeadingLevel)
   return (
-    <section role="region" aria-labelledby={id} className="flex flex-col gap-2">
-      <h4 id={id} className="text-sm font-medium">{title}</h4>
+    <section aria-labelledby={id} className="flex flex-col gap-2">
+      <Heading id={id} className="text-sm font-medium">{title}</Heading>
       {children}
     </section>
   )
@@ -65,7 +69,7 @@ function Rule({ rule }: { rule: RuleResult }) {
     <li className="flex flex-col gap-1 border-b py-2 last:border-b-0">
       <p className="flex justify-between gap-4 font-medium"><span>{name}</span><span className="tabular-nums">{rule.penalty}</span></p>
       {rule.amount !== null && (
-        <p className="text-muted-foreground tabular-nums">{rule.amount} × {rule.weight}, its weight. Counted in: {rule.unit}.</p>
+        <p className="text-muted-foreground tabular-nums">{rule.amount} × {rule.weight}, its weight. Counted in: {rule.counted_in}.</p>
       )}
       {rule.largest.length > 0 && <ul className="list-disc ps-5">{rule.largest.map((match, index) => <Occurrence key={index} match={match} />)}</ul>}
       {rule.others > 0 && <p className="text-muted-foreground">and {rule.others} more like these</p>}
@@ -89,7 +93,7 @@ function Penalties({ rules, explained }: { rules: RuleResult[]; explained: boole
   )
 }
 
-function Broken({ id, title, rows, note }: { id: string; title: string; rows: BrokenRule[]; note: string }) {
+function Violations({ id, title, rows, note }: { id: string; title: string; rows: Violation[]; note: string }) {
   return (
     <Panel id={id} title={title}>
       <p className="text-sm text-muted-foreground">{note}</p>
@@ -122,9 +126,9 @@ function Statistics({ statistics }: { statistics: SolverStatistics }) {
     ["Workers", shown(statistics.workers)],
     ["Building the model took", shown(statistics.build_seconds, " s")],
     ["Deterministic time", shown(statistics.deterministic_time)],
-    ["Variables", shown(statistics.variables)],
-    ["Constraints", shown(statistics.constraints)],
-    ["Objective terms", shown(statistics.objective_terms)],
+    ["Model variables", shown(statistics.variables)],
+    ["Model constraints", shown(statistics.constraints)],
+    ["Model objective terms", shown(statistics.objective_terms)],
   ]
   return (
     <Panel id="result-statistics" title="Solver statistics">
@@ -141,19 +145,21 @@ function Statistics({ statistics }: { statistics: SolverStatistics }) {
 }
 
 /** Everything a result holds but its grid, for the draft beside it and for any result opened from the history. */
-export function SolveResultPanels({ result }: { result: SolveResult }) {
+export function SolveResultPanels({ result, headingLevel = "h4" }: { result: SolveResult; headingLevel?: "h2" | "h4" }) {
   return (
+    <HeadingLevel.Provider value={headingLevel}>
     <div className="flex flex-col gap-6">
-      {result.nurses.length > 0 && <Accounting nurses={result.nurses} unitCost={result.department_cost} />}
-      {result.statistics && <Penalties rules={result.rules} explained={result.explained} />}
+      {result.nurses.length > 0 && <Accounting nurses={result.nurses} unitCost={result.unit_cost} />}
+      {result.grid && <Penalties rules={result.rules} explained={result.explained} />}
       {result.violations.length > 0 && (
-        <Broken id="result-violations" title="Hard rules this roster breaks" rows={result.violations} note="A roster that breaks one does not become a draft." />
+        <Violations id="result-violations" title="Hard rules this roster breaks" rows={result.violations} note="A roster that breaks one does not become a draft." />
       )}
       {result.elapsed_violations.length > 0 && (
-        <Broken id="result-facts" title="Recorded facts that broke rules" rows={result.elapsed_violations} note="These days are over, so no solve could change them." />
+        <Violations id="result-facts" title="Recorded facts that broke rules" rows={result.elapsed_violations} note="These days are over, so no solve could change them." />
       )}
       {result.statistics && <Precheck issues={result.precheck} />}
       {result.statistics && <Statistics statistics={result.statistics} />}
     </div>
+    </HeadingLevel.Provider>
   )
 }

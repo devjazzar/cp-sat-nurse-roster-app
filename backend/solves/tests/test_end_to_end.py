@@ -119,7 +119,7 @@ def test_the_whole_flow(mona, er):
     # The solver's own code, on what is stored, comes to what the solver said while it ran.
     assert [rule["penalty"] for rule in answer["rules"]] == sorted((p for p in stored.result["penalties"].values() if p), reverse=True)
     assert all(rule["weight"] * rule["amount"] == rule["penalty"] for rule in answer["rules"])
-    assert sum(nurse["cost"] for nurse in answer["nurses"]) + answer["department_cost"] == stored.result["cost"]
+    assert sum(nurse["cost"] for nurse in answer["nurses"]) + answer["unit_cost"] == stored.result["cost"]
     badr_hours = next(nurse for nurse in answer["nurses"] if nurse["hospital_id"] == "Badr")
     assert badr_hours["leave_credit"] > 0
     assert [row["hospital_id"] for row in answer["grid"]["rows"]] == NURSES

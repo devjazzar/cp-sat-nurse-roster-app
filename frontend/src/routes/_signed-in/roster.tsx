@@ -118,21 +118,28 @@ function RulesRefused({ detail }: { detail: string }) {
   )
 }
 
-/** Why the latest solve left no draft of its own. The whole of it is one link away. */
-function LastSolve({ solve }: { solve: SolveProgress }) {
-  const open = <Link to="/solve-history/$solveId" params={{ solveId: solve.id }} className={`text-sm ${LINK}`}>Open this result</Link>
+function WhyNoDraft({ solve }: { solve: SolveProgress }) {
   if (solve.failure === "refused") return <RulesRefused detail={solve.error} />
   if (solve.state === "failed") {
-    return <p role="alert">The solve failed twice, and the draft is as it was. You can run it again. It says: {solve.error}</p>
+    return <p role="alert">The solve failed, and the draft is as it was. You can run it again. It says: {solve.error}</p>
   }
   if (solve.state === "cancelled") {
     return <p>The solve you stopped had found no roster yet, so nothing has changed.</p>
   }
   return (
-    <div className="flex flex-col gap-1">
+    <>
       <p role="alert">The solver found no roster for this month, so nothing has changed. {solve.message}</p>
       {solve.precheck.length > 0 && <ul className="list-disc ps-5 text-sm">{solve.precheck.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
-      <p>{open}</p>
+    </>
+  )
+}
+
+/** Why the latest solve left no draft of its own. The whole of it is one link away. */
+function LastSolve({ solve }: { solve: SolveProgress }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <WhyNoDraft solve={solve} />
+      <p><Link to="/solve-history/$solveId" params={{ solveId: solve.id }} className={`text-sm ${LINK}`}>Open this result</Link></p>
     </div>
   )
 }
@@ -170,8 +177,8 @@ function DraftCard({ unitId, draft, label }: { unitId: string; draft: Draft; lab
           <p>Solve again to take them in. Otherwise, the roster is checked again when you submit it.</p>
         </div>
       )}
-      <RosterGrid draft={draft} label={label} />
-      <GridLegend draft={draft} />
+      <RosterGrid grid={draft} label={label} />
+      <GridLegend grid={draft} />
       <DraftDetails unitId={unitId} solveId={draft.solve_id} />
     </section>
   )
@@ -227,7 +234,7 @@ function StartForm({ unitId, preview, onStarted, solvingAgain }: { unitId: strin
           description={`Up to ${preview.time_limit_cap}.`}
           registration={form.register("time_limit_seconds", { valueAsNumber: true })} error={form.formState.errors.time_limit_seconds} />
       </div>
-      {solvingAgain && <p className="text-sm text-muted-foreground">Solving again replaces the draft's grid. The solve history keeps what it replaced, which you can restore.</p>}
+      {solvingAgain && <p className="text-sm text-muted-foreground">Solving again replaces the draft's grid. The solve history keeps what it replaced.</p>}
       {refused && <p role="alert" className="text-sm text-destructive">{refused}</p>}
       {start.isError && !refused && !form.formState.errors.time_limit_seconds && <p role="alert" className="text-sm text-destructive">The solve could not be started. Check your connection and try again.</p>}
       <Button type="submit" disabled={start.isPending}>{solvingAgain ? "Solve again" : "Start solve"}</Button>

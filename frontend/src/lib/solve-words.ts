@@ -22,8 +22,7 @@ export function solveDuration({ attempts, elapsed_seconds }: Pick<SolveRow, "att
 const STOPPED_BY: Record<string, string> = {
   proof: "It proved no better roster exists",
   time_limit: "The time limit",
-  cancelled: "You stopped it",
-  deterministic_budget: "Its search budget",
+  cancelled: "It was stopped by hand",
 }
 /** What ended a search. An unknown word from a later solver is still readable. */
 export const stoppedBy = (word: string | null) => (word ? STOPPED_BY[word] ?? word : "Unknown")

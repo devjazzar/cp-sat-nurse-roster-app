@@ -1838,7 +1838,6 @@ export const GetSolveResultResponse = zod.object({
   "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
   "in_draft": zod.boolean().describe('Whether its month\'s draft is this solve\'s.')
 }),
-  "stop_requested": zod.boolean(),
   "error": zod.string().describe('Why the last attempt failed, also when a retry then worked.'),
   "message": zod.string().describe('Why the solver found no roster or it could not be kept, in its words.'),
   "precheck": zod.array(zod.string()),
@@ -1856,13 +1855,13 @@ export const GetSolveResultResponse = zod.object({
   "date": zod.union([zod.iso.date(),zod.null()]),
   "text": zod.string()
 })).describe('Recorded facts that broke hard rules: days already over, which no solve could change.'),
-  "department_cost": zod.union([zod.int(),zod.null()]),
+  "unit_cost": zod.union([zod.int(),zod.null()]).describe('What it costs apart from any one nurse.'),
   "rules": zod.array(zod.object({
   "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
   "penalty": zod.int(),
   "weight": zod.union([zod.int(),zod.null()]).describe('Null, as are the next three, when the explanation could not be worked out.'),
-  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule was broken, in `unit`.'),
-  "unit": zod.union([zod.string(),zod.null()]),
+  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule was broken, in `counted_in`.'),
+  "counted_in": zod.union([zod.string(),zod.null()]),
   "largest": zod.array(zod.object({
   "hospital_id": zod.union([zod.string(),zod.null()]).describe('Null when the rule is about the unit as a whole.'),
   "full_name": zod.string(),
@@ -1951,7 +1950,6 @@ export const RestoreSolveResultResponse = zod.object({
   "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
   "in_draft": zod.boolean().describe('Whether its month\'s draft is this solve\'s.')
 }),
-  "stop_requested": zod.boolean(),
   "error": zod.string().describe('Why the last attempt failed, also when a retry then worked.'),
   "message": zod.string().describe('Why the solver found no roster or it could not be kept, in its words.'),
   "precheck": zod.array(zod.string()),
@@ -1969,13 +1967,13 @@ export const RestoreSolveResultResponse = zod.object({
   "date": zod.union([zod.iso.date(),zod.null()]),
   "text": zod.string()
 })).describe('Recorded facts that broke hard rules: days already over, which no solve could change.'),
-  "department_cost": zod.union([zod.int(),zod.null()]),
+  "unit_cost": zod.union([zod.int(),zod.null()]).describe('What it costs apart from any one nurse.'),
   "rules": zod.array(zod.object({
   "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
   "penalty": zod.int(),
   "weight": zod.union([zod.int(),zod.null()]).describe('Null, as are the next three, when the explanation could not be worked out.'),
-  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule was broken, in `unit`.'),
-  "unit": zod.union([zod.string(),zod.null()]),
+  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule was broken, in `counted_in`.'),
+  "counted_in": zod.union([zod.string(),zod.null()]),
   "largest": zod.array(zod.object({
   "hospital_id": zod.union([zod.string(),zod.null()]).describe('Null when the rule is about the unit as a whole.'),
   "full_name": zod.string(),
