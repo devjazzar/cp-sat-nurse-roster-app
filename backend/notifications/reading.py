@@ -41,7 +41,7 @@ def _solve_words(payload: dict, roster: str) -> str:
         case SolveOutcome.STOPPED_DRAFT:
             return f"The solve of the {roster} was stopped, and the best roster it found is now the draft."
         case SolveOutcome.FROZEN:
-            return f"The solve of the {roster} has ended. The roster had been submitted meanwhile, so it stays as it was."
+            return f"The solve of the {roster} has ended. The roster had been submitted or approved meanwhile, so it stays as it was."
         case SolveOutcome.FAILED:
             return f"The solve of the {roster} failed. Its result says why."
         case SolveOutcome.NO_ROSTER:
