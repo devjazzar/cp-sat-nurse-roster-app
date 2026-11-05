@@ -2100,6 +2100,8 @@ describe("the nurses page", () => {
       await waitFor(() => expect(router.state.location.pathname).toBe("/"))
       // Nothing waits for it now: neither the header, nor this page on the way back.
       expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute("aria-disabled", "false")
+      // The address changes before the page does. A link followed in between is lost: ticket 10b.
+      await screen.findByRole("heading", { name: "The Chief" })
       await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Nurses" }))
       expect(await screen.findByRole("button", { name: "Add a nurse" })).toHaveAttribute("aria-disabled", "false")
       await user.click(screen.getByRole("link", { name: "Home" }))
