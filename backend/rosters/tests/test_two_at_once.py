@@ -5,9 +5,13 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from django.db import transaction
 
+from conftest import post
+from hospital.models import LeaveType
+from nurses.models import NurseProfile
 from nurses.tests.test_two_at_once import alongside
+from rosters.drafts import in_current_codes
 from rosters.models import RosterState, RosterVersion, Submission
-from rosters.tests.test_pins import off, pin
+from rosters.tests.test_pins import change_shift, off, pin
 from rosters.tests.test_review import (BADR_OFF, BADR_WORKS, approve, approved, carla, dina, record_leave,  # noqa: F401
                                        reject, roster, solved, submit, submitted)
 from rosters.tests.test_versions import change
@@ -137,3 +141,24 @@ def test_a_change_waits_for_leave_on_another_nurse_and_keeps_the_shift_it_took_o
     latest = roster(er).versions.first()
     assert latest.number == 3
     assert latest.grid["Badr"][f"2026-06-{BADR_WORKS:02d}"] == "" and latest.grid["Amal"]["2026-06-09"] == "N"
+
+
+def test_a_rename_waits_for_leave_taking_shifts_off_two_approved_months_and_then_follows_both(mona, carla, er, solver, pool):
+    """Leave over the end of a month locks June's roster, then July's. A rename locks every roster by month, then unit, so it
+    waits on June and never holds July while waiting on June. Dana works 30 June and 1 July in the sound rosters."""
+    approved(mona, carla, er, solver)
+    approved(mona, carla, er, solver, month="2026-07")
+
+    with transaction.atomic():
+        answer = post(mona, f"/api/units/{er.pk}/leave", {
+            "nurse_id": str(NurseProfile.objects.get(user__username="Dana").pk),
+            "leave_type_id": str(LeaveType.objects.get(name="Sick").pk), "first": "2026-06-30", "last": "2026-07-01"})
+        assert [row["date"] for row in answer.json()["shifts_taken_off"]] == ["2026-06-30", "2026-07-01"]
+        rename = alongside(pool, lambda: change_shift(carla, "N", code="NT"))
+        assert not rename.done()
+
+    assert rename.result().status_code == 200
+    for month in ("2026-06", "2026-07"):
+        held = roster(er, month).grid
+        assert "N" not in {code for row in held.values() for code in row.values()}
+        assert roster(er, month).grid == in_current_codes(roster(er, month).versions.first().grid)

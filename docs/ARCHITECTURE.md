@@ -83,6 +83,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read nurses | | yes | | own unit | |
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
+| Read an approved roster's versions with their reasons, and compare any two | | yes | yes | own unit | |
 | Unit rules; nurses' rostering attributes (gender aside: the CNO sets and corrects it) and opening values | | | | own unit | |
 | Read the unit rules, and the rostering attributes and opening values of a unit's nurses | | yes | yes | own unit | |
 | Request windows; decide requests; decide swaps; record, correct and remove leave | | | | own unit | |
@@ -166,9 +167,11 @@ end date not passed.
 **Roster** (one per unit and month): state `draft`, `submitted`, `approved`; a rejection
 returns it to `draft` with the comment kept. Exactly one draft per unit-month. Its grid is the one in use and
 follows a shift's rename, while the solve it came from keeps what it was given and answered. It remembers when a manager
-last restored a result as that grid; a solve replacing it clears that. A submitted or an approved roster is frozen: no solve
-starts or ends on it, no result is restored onto it and no pin is saved (one check, `rosters.drafts.why_frozen`). Leave may
-still be recorded, and ends a pin as ever; the grid keeps its shift and the approval sees the broken rule.
+last restored a result as that grid; a solve replacing it clears that. A submitted or an approved roster is frozen to a solve:
+none starts or ends on it and no result is restored onto it (one check, `rosters.drafts.why_frozen`); a re-plan is the way to
+solve an approved month again. A submitted one takes no pin either. Leave may still be recorded on it, and ends a pin as ever;
+the grid keeps its shift and the approval sees the broken rule. An approved roster of a month not over is edited by its manager
+cell by cell, each save a new version (below).
 
 **Submission**: one sending of a draft for a decision: who submitted it and when, what the draft was warned of then, and
 the decision, by whom, when and, for a rejection, the comment the manager reads. Nothing is deleted, so every comment is
@@ -179,7 +182,15 @@ when, why and origin (solve, manual edit, re-plan, swap, request), plus the resu
 from when a solve produced it. The latest version of an approved roster is in force. The first approval makes version 1
 with origin `solve` and the roster's solve, and its grid is the roster's as approved, hand edits included: the pins and the
 solve history say where each cell came from. A version keeps the codes it was saved with, as a stored result does, and is
-read under today's.
+read under today's. `Roster.grid` is always the latest version's grid under today's codes: every version is made by one
+function, `rosters.versions.make_version`, under the roster's row lock, which numbers it. A manager's direct edit needs a
+reason, saves even when it breaks a hard rule (the roster in force has to say what is so, a shift left short included) and
+makes each edited cell a manager's pin. Leave recorded on a day an approved roster of a month not over works takes the shift
+off as a version of its own, origin `edit`, by whoever recorded it, with a reason that says leave and never the type; removing
+the leave puts nothing back. The reason, which can say a cell was leave, is read by the unit's manager, the CNO and the Deputy
+CNO, in the version list and its comparison of any two versions; never by a nurse, in a notification or in the audit log, whose
+entry `roster.changed` says only which version was made and how many pins and cells changed. A leave-made version has no
+entry of its own, since one beside the leave's would date that leave for the System Admin.
 
 **Leave**: nurse, date, leave type, recorded by and when; removed by and when. One row a date, and at most one current row
 for a nurse and date. A correction or removal ends the row rather than rewriting it, because the audit log may hold none of
@@ -259,7 +270,10 @@ backup time and retention, close time.
   submitted or approved roster with its solve's details.
 - After approval, the unit manager alone changes the roster: direct cell edits, swaps,
   re-plans from a date (earlier days are facts; the `change` weight keeps the new roster
-  close). Every change is a new version, in force immediately, and notifies the unit's nurses.
+  close). Every change is a new version, in force immediately, and notifies the unit's nurses of the month, except whoever
+  made it, that the roster changed: never why, which cells or whose. A nurse reads the roster in force on My roster and no
+  version list. Leave recorded late is such a change too (section 4). A month already over cannot be edited; its close
+  (ticket 21) reads leave and pins itself.
 - A month with no approved roster shows "no roster yet" to its nurses; the CNO's and the Deputy CNO's homes
   list submitted rosters waiting, oldest first. A nurse sees their unit's approved roster for this month and later, the unit
   being the one each month falls under for them: names and shifts only, a colleague's leave the same empty cell as a day off,

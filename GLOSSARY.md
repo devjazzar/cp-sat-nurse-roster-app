@@ -98,7 +98,7 @@ A submitted roster the Deputy CNO or the CNO sent back, with a comment for the u
 _Avoid_: declined, returned
 
 **Roster version**:
-One saved state of a unit's roster for a month, with who changed it, when and why. The latest approved version is the one in force.
+One saved state of a unit's approved roster for a month, with who changed it, when and why. The latest is the one in force. Approval makes the first; each change after it, a manager's edit or leave recorded on a worked day, makes the next. Only the unit's manager, the CNO and the Deputy CNO read why.
 _Avoid_: revision, snapshot, copy
 
 **Re-plan**:
@@ -132,8 +132,8 @@ A nurse's proposal to change a set of cells on her unit's approved roster: her o
 _Avoid_: exchange, trade, shift change, cover
 
 **Notification**:
-Something a user is told in the application, about a roster's submit, approval or rejection, a solve's end, and later a
-change, a request window, a request or a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
+Something a user is told in the application, about a roster's submit, approval, rejection or change, a solve's end, and
+later a request window, a request or a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
 rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 

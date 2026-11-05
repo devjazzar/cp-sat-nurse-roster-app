@@ -45,3 +45,10 @@
 - **What to change:** once a month is closed, its closed figures are the right answer for it: hours worked, overtime, and what was carried. `rosters.reading_api._in_force` cuts at `membership.this_month()`. Open earlier months there from the close.
 - **"Carried into next month"** is the projected carry-over today, worked out from the version in force on the month as it stands. The page already says it is worked out again at the month close.
 - **A close is not notified.** Add an `Event` in `notifications.models` and a function in `notifications/sending.py` if the manager should be told what the facts broke.
+
+**From ticket 16 (2026-11-06).** What holds for a month that is over, until this ticket.
+
+- **No edit:** the roster in force of a month already over cannot be changed by hand (`rosters.api._why_not_edit`, `IN_FORCE_OVER`). Re-closing with late facts may want to reopen that for the month before: it is one place.
+- **Leave recorded late on a month that is over makes no version** (`rosters.versions.take_off_for_leave` skips months before `membership.this_month()`), so that month's grid can still hold a shift on a day of leave. The close reads leave itself and leave wins, as it already does in `rosters.own_month`.
+- **The month under way** is edited and versioned as any other approved month. Its days already passed can change too: a sick day recorded the day after takes that shift off.
+- "The roster in force" is still `roster.versions.first()`, and `Roster.grid` equals its grid under today's codes.

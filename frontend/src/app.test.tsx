@@ -4945,6 +4945,22 @@ describe("the roster page", () => {
       expect(await within(list).findByText("Badr covers Amal's night.")).toBeInTheDocument()
     })
 
+    it("says so when a save changed nothing and made no version", async () => {
+      const { user } = start("/roster", manager({
+        [`GET ${UNIT}/roster`]: { body: IN_FORCE },
+        [`POST ${UNIT}/roster/check`]: { body: CHECK },
+        [`POST ${UNIT}/roster/versions`]: { body: IN_FORCE },
+      }))
+
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+      const unsaved = screen.getByRole("region", { name: "1 change not saved yet" })
+      await user.type(within(unsaved).getByLabelText("Why"), "Nothing, in the end.")
+      await user.click(within(unsaved).getByRole("button", { name: "Save as a new version" }))
+
+      expect(await screen.findByText("Nothing in these changes differs from the roster in force, so no version was made.")).toBeInTheDocument()
+    })
+
     it("shows a refusal of the reason beside it, keeping the changes", async () => {
       const { user } = start("/roster", manager({
         [`GET ${UNIT}/roster`]: { body: IN_FORCE },

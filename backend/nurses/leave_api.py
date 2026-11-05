@@ -27,10 +27,10 @@ from audit.log import record
 from hospital.api import refuse
 from hospital.catalogue_api import IsoDate
 from hospital.models import LeaveType
+from notifications import sending
 from nurses import membership
 from nurses.api import Body, MonthText, with_units
 from nurses.models import Leave, NurseProfile
-from notifications import sending
 from rosters.pins import end_for_leave
 from rosters.versions import TakenOff, take_off_for_leave
 from units.models import Unit
@@ -258,11 +258,14 @@ class _Begun:
     pins_removed: list[RemovedPin]
     taken_off: list[TakenOff]
 
-    def told(self, user: User) -> list[ShiftTakenOff]:
+    def notify_nurses(self, user: User) -> None:
         """Tells the unit's nurses of each version made. Call it after the leave's audit entry, as every change tells after its
         own."""
         for taken in self.taken_off:
             sending.roster_changed(taken.roster.unit, taken.roster.month, user)
+
+    @property
+    def shifts_taken_off(self) -> list[ShiftTakenOff]:
         return [ShiftTakenOff(date=day, shift=code, version=taken.version.number)
                 for taken in self.taken_off for day, code in taken.days]
 
@@ -315,8 +318,9 @@ def record_leave(request: HttpRequest, unit_id: UUID, body: NewLeaveBody) -> Sta
         _refuse_dates(nurse, unit, body.first, body.last)
         begun = _begin(nurse, unit, leave_type, _days(body.first, body.last), request.user)
         record("leave.recorded", actor=request.user, target=nurse.user.username, request=request)
+        begun.notify_nurses(request.user)
         return Status(201, SavedLeave(**_as_saved(nurse, body.first, body.last).dict(), pins_removed=begun.pins_removed,
-                                      shifts_taken_off=begun.told(request.user)))
+                                      shifts_taken_off=begun.shifts_taken_off))
 
 
 @unit_leave_router.post("/{unit_id}/leave/change", response=SavedLeave, auth=manager, operation_id="changeLeave")
@@ -334,8 +338,9 @@ def change_leave(request: HttpRequest, unit_id: UUID, body: LeaveChangeBody) -> 
             _end(ended, request.user)
             begun = _begin(nurse, unit, leave_type, sorted(wanted - kept), request.user)
             record("leave.changed", actor=request.user, target=nurse.user.username, request=request)
+            begun.notify_nurses(request.user)
         return SavedLeave(**_as_saved(nurse, body.first, body.last).dict(), pins_removed=begun.pins_removed,
-                          shifts_taken_off=begun.told(request.user))
+                          shifts_taken_off=begun.shifts_taken_off)
 
 
 @unit_leave_router.post("/{unit_id}/leave/remove", response={204: None}, auth=manager, operation_id="removeLeave")

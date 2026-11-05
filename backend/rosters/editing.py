@@ -54,7 +54,7 @@ class DraftEdits:
         nurse = self.nurses.get(edit.hospital_id)
         # In one sentence, and the same for a nurse of another unit as for no such nurse.
         if nurse is None or edit.day not in self.roster.grid.get(edit.hospital_id, ()):
-            return f"{edit.hospital_id} has no cell on {long_date(edit.date)} in this draft."
+            return f"{edit.hospital_id} has no cell on {long_date(edit.date)} in this roster."
         name = nurse.user.full_name or edit.hospital_id
         match self.judge.day_why(nurse.pk, edit.date):
             case "outside_dates":

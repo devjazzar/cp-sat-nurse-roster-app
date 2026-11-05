@@ -6,6 +6,8 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import {
+  getGetRosterMonthQueryKey,
+  getListRosterVersionsQueryKey,
   getListUnitLeaveQueryKey,
   useChangeLeave,
   useListLeaveTypes,
@@ -91,6 +93,10 @@ function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
     const callbacks = {
       onSuccess: (saved: SavedLeave) => {
         void queryClient.invalidateQueries({ queryKey: getListUnitLeaveQueryKey(unitId) })
+        if (saved.shifts_taken_off.length > 0) {
+          void queryClient.invalidateQueries({ queryKey: getGetRosterMonthQueryKey(unitId) })
+          void queryClient.invalidateQueries({ queryKey: getListRosterVersionsQueryKey(unitId) })
+        }
         onDone(`The leave of ${name} is saved: ${dayRange(first, last || first)}.${pinsReplaced(saved.pins_removed)}${shiftsTakenOff(saved.shifts_taken_off)}`, first)
       },
       onError: (error: unknown) => showServerErrors(form, error),

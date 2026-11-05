@@ -10,11 +10,11 @@ import {
   checkDraftEdits,
   getGetRosterMonthQueryKey,
   getGetSolveProgressQueryKey,
+  getListRosterVersionsQueryKey,
   getPreviewSolveQueryKey,
   useGetRosterMonth,
   useGetSolveProgress,
   usePreviewSolve,
-  getListRosterVersionsQueryKey,
   useSaveDraftPins,
   useSaveRosterVersion,
   useStartSolve,
@@ -36,11 +36,11 @@ import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { LeavePageDialog } from "@/components/password-dialog"
 import { type CellMarks, GridLegend, RosterGrid } from "@/components/roster-grid"
 import { CHANGE_SAYS, longDay, PinNotes, plural, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
+import { RosterVersions } from "@/components/roster-versions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
-import { RosterVersions } from "@/components/roster-versions"
 import { useChosenUnit } from "@/components/unit-picker"
 import { cellKey, keyOf, usePendingEdits } from "@/lib/pending-edits"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
@@ -556,7 +556,10 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
     void queryClient.invalidateQueries({ queryKey: getPreviewSolveQueryKey(unit.id) })
     pending.clear()
     void queryClient.invalidateQueries({ queryKey: getListRosterVersionsQueryKey(unit.id) })
-    setSaid(month.state === "approved"
+    const versionBefore = answer?.approved?.version
+    setSaid(month.state === "approved" && month.approved?.version === versionBefore
+      ? "Nothing in these changes differs from the roster in force, so no version was made."
+      : month.state === "approved"
       ? `${plural(count, "change")} saved as version ${month.approved?.version}, now in force. The unit's nurses are told the roster has changed.`
       : `${plural(count, "change")} saved.${month.active_solve ? " The solve under way was given the month without them: they go on top of its roster when it ends." : ""}`)
     backToTheGrid()

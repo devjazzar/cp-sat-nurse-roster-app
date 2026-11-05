@@ -16,13 +16,14 @@ from nurses.models import NurseProfile
 from rosters.drafts import in_current_codes
 from rosters.models import Roster, RosterState, RosterVersion, VersionOrigin
 from rosters.pins import long_date
+from solves.models import Solve
 from units.models import Unit
 
 Grid = dict[str, dict[str, str]]
 
 
 def make_version(roster: Roster, grid: Grid, origin: str, by: User, reason: str = "",
-                 solve=None) -> RosterVersion:
+                 solve: Solve | None = None) -> RosterVersion:
     """The next number, with `grid` in today's codes, which becomes `Roster.grid` too. Hold the roster's row lock, so that two
     changes at once each get their own number in the order they commit."""
     latest = roster.versions.first()

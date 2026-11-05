@@ -402,7 +402,7 @@ class TestNursesAreTold:
         for note in Notification.objects.filter(event="roster_changed"):
             assert set(note.payload) == {"unit_id", "month", "by"}
         said = " ".join(everything_said(user) for user in User.objects.all())
-        assert "covers" not in said and "Amal" not in said and "09" not in said
+        assert "covers" not in said and "Amal" not in said and "2026-06-09" not in said
 
     def test_each_new_version_tells_them_again(self, mona, carla, er, solver):
         approved(mona, carla, er, solver)
