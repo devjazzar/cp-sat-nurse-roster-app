@@ -267,7 +267,9 @@ backup time and retention, close time.
   may have been recorded while it waited, or rejects it with a comment. Approving takes the catalogue's lock, then the
   month's nurses' (the lock a leave write takes), then the unit's, so neither leave nor a second approver passes between the
   check and the decision. A draft is the unit management's alone: the CNO and the Deputy CNO see that one exists, and read a
-  submitted or approved roster with its solve's details.
+  submitted or approved roster with its solve's details. The locks on nurses' and users' rows are `FOR NO KEY UPDATE`: they serialise
+  those writes as `FOR UPDATE` would, but let another transaction's foreign key to the row (a notification's, checked at
+  commit) through, which `FOR UPDATE` did not, deadlocking a leave against an edit. Every new such lock is taken the same way.
 - After approval, the unit manager alone changes the roster: direct cell edits, swaps,
   re-plans from a date (earlier days are facts; the `change` weight keeps the new roster
   close). Every change is a new version, in force immediately, and notifies the unit's nurses of the month, except whoever
