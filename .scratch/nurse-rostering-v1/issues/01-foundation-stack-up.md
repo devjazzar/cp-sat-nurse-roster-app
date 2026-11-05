@@ -34,3 +34,5 @@ Things a later ticket should know:
 - **Cancel and 409 tests:** the exact four-nurse sample proves optimal in about 0.6 s, too fast to catch running, so those tests use the same four nurses with looser headcounts and the soft rules on. Ticket 11's cancellation test will need the same (`long_search` in `solver/service_tests/conftest.py`).
 - **Not built here:** `INITIAL_ADMIN_PASSWORD` is required by compose but nothing reads it until ticket 02. TanStack Router and the rest of the ADR 0008 toolkit arrive with the tickets that need them.
 - **Open risk:** without a `DOMAIN`, on-demand certificates are issued for any name a client sends, so a client sending many names adds files to `caddy_data`. This is low risk on a hospital network, but worth revisiting for a server exposed to the internet with no domain.
+
+**Reviewed by the user (2026-11-05).** The user chose to stay with no GitHub remote for now, so CI remains unproven on GitHub and its criterion stays unticked. The on-demand certificate risk stands, and the README's install notes now warn of it. Proving Let's Encrypt moved to the first real install (ticket 22).

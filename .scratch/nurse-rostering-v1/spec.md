@@ -361,8 +361,9 @@ carry-over into January resets overtime-to-date and both fairness balances.
 ### Frontend
 
 - React 19 + TypeScript, Vite 8, shadcn/ui on Base UI with Tailwind 4, TanStack Query,
-  TanStack Router (unit, month and filters in typed search params), TanStack Table and
-  Virtual for every list and the roster grid, React Hook Form + Zod, Zustand for the little
+  TanStack Router (unit, month and filters in typed search params), TanStack Table for
+  the roster grid and any table that needs sorting or filtering (short lists stay plain tables)
+  and Virtual for the grid, React Hook Form + Zod, Zustand for the little
   client-only state, Recharts via shadcn, TanStack Pacer behind one debounce hook, an
   orval-generated client from the OpenAPI document regenerated in CI (ADR 0008).
 - One responsive web app installable as a PWA; the grid scrolls horizontally on phones;

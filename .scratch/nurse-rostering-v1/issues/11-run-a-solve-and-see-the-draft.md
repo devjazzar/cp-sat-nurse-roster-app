@@ -28,7 +28,7 @@
 - **The hours guard:** rosters arrive here, so add section 4's "hours cannot change while an open month's roster uses the shift" to `update_shift` in `hospital/catalogue_api.py`, as `refuse((("hours",), ...))` under its lock. Ticket 09 could not: there was nothing to check.
 - **A nurse in the input:** start from `nurses.rostering.nurse_block(nurse, placement)`, with the placement of that month, since allowed shifts are on the placement. Add leave and pins, and replace the opening values and empty history with the carry-over once there is one.
 - **A block the solver now refuses:** a unit's save checks its night and day shifts against the CNO's `night_rest` and `shift_switch` weights as they stood. A one-shift unit saved with them at 0 is refused if one rises. Show that like a gap from seeding, as "review the unit rules", not as a failed solve.
-- **The time limit:** `Unit.default_time_limit` may be above the cap, if the System Admin lowered the cap after the unit's save. Use the lower. A nurse's `allowed_shifts_to_check` may still be up: consider a warning beside the precheck.
+- **The time limit:** `Unit.default_time_limit` may be above the cap, if the System Admin lowered the cap after the unit's save. Use the lower. A nurse's `allowed_shifts_to_check` may still be up: block the solve until the manager has checked it, as the user decided on 2026-11-05 (see the last comment).
 
 **From ticket 10 (2026-11-05): leave in the solve input.** The seam is proven in `nurses/tests/test_leave.py`; extend it there.
 
@@ -39,3 +39,15 @@
 - **A pin on a leave day:** `load_request` refuses a shift pinned on a leave date (`on leave but pinned`), though `""` is fine and a desired or undesired day on leave is simply superseded. Leave does not look at pins, so the assembler must not pass such a pair on as a failed solve. Decide with ticket 13 which wins.
 - **Leave changed since the last solve:** like a corrected start date (see the comment from 07a), a draft solved before leave was recorded, corrected or removed must not pass as current. Compare with the stored input, warn, and validate before submit.
 
+**Decisions from the user (2026-11-05).** These settle what the comments above left open.
+
+- **Allowed shifts a transfer emptied:** refuse to start a solve while `allowed_shifts_to_check` is up on the placement of that month for any nurse in it, naming them, until the manager has checked. This replaces the earlier "consider a warning".
+- **Solve progress polling is not activity.** It does not count towards the twelve-hour idle limit. `SESSION_SAVE_EVERY_REQUEST` makes every signed-in request count today, so the polling call must not extend the session. A test holds it.
+- **A draft older than a change to a start date, gender or leave:** warn the manager, and block submit only if validating again fails. Ticket 14 holds the submit side.
+- **A review flag up on the hospital or unit rules:** warn beside the precheck, with no block.
+- **A block the solver itself refuses** (a unit seeded with a gap, or a one-shift unit after the CNO raised a weight) shows as "review the unit rules", not as a failed solve.
+- **Scores nobody has reviewed at the 0.8 default:** show a count beside the precheck, with no block. Ticket 09 left nothing that marks a score as looked at, so this ticket has to work out what it counts.
+- **A manager whose account is deactivated but whose nurse profile has no end date:** leave them out of the solve and warn. `membership.rostered_in` does not filter on the account, so the assembler has to.
+- **Leave wins over a pinned shift.** Recording leave on a pinned day removes the pin and tells the manager, and pinning a shift on a leave day is refused (tickets 13 and 19). So the assembler should never meet the pair `load_request` refuses as `on leave but pinned`; if a row ever holds one, leave wins and it is not a failed solve.
+- **Run the production compose file through Caddy once and report back.** Tickets 04 to 10 ran only the dev overlay or a scratch stack.
+- **The session may read `INITIAL_ADMIN_PASSWORD` from `deploy/.env`** to use the dev stack. Earlier sessions worked around not knowing it.

@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-11-04
+amended: 2026-11-05
 ---
 # Frontend toolkit: shadcn/ui on Base UI, TanStack Query/Router/Table/Virtual, React Hook Form, Zustand, Recharts, orval
 
@@ -15,8 +16,13 @@ Chosen on 2026-11-04 from the maintenance signals recorded in
 - **TanStack Query 5** for all server state, including solve progress polling.
 - **TanStack Router 1** for file-based, typed routes and typed search parameters (unit, month
   and filters live in the URL). React Router was the mainstream alternative and gains nothing here.
-- **TanStack Table 9 and TanStack Virtual** from day one, for every list and for the roster
-  grid's row and column model.
+- **TanStack Table 9** for the roster grid's row and column model and any table that needs
+  sorting or filtering, with **TanStack Virtual** for the grid. Short lists stay plain tables
+  (shadcn's `Table`). This changed on 2026-11-05, by the user's choice, from "from day one, for
+  every list": the lists built so far sort and filter nothing on the page, so a table model
+  there would be a dependency and code with nothing to do, and each ticket's review kept
+  reporting them as a breach. A filter the API answers, with its values in the address as on the
+  audit log and the Nurses page, needs no table model either. Plain tables are not a breach.
 - **React Hook Form with Zod**, not TanStack Form: TanStack Form 1.x is stable but has not
   shipped since August 2026 while its v2 rewrite is in alpha; React Hook Form has the widest
   use and shadcn's `Field` component documents both. Revisit when TanStack Form 2 is stable.

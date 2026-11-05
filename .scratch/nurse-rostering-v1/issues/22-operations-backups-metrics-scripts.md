@@ -10,3 +10,11 @@
 - [ ] Restore script stops the app, restores, starts it; admin reset script; both documented in the install guide
 - [ ] JSON logging for web, worker and solver; metrics endpoint unreachable through Caddy
 - [ ] API tests cover the backup list and download authorization; a compose-level test runs backup and restore
+
+## Comments
+
+**Decisions from the user (2026-11-05).**
+
+- **Trim the public `/api/health`** so it no longer shows the solver's version and thread count, keeping what the compose health check needs. `deploy/compose.yaml` needs only a 200 from it, and the README's install check reads `"solver": {"reachable": true, ...}`, so change that line if the answer changes. The System Admin's page reads `/api/ops/health`, behind a role.
+- **Measure the 500-row import against the timeout on the real server at first install.** Ticket 08 measured 62.5 s on 8 cores on a development machine, against gunicorn's `--timeout 300`, and no real hospital server's hash speed. Say this in the install guide.
+- **Prove Let's Encrypt at first real install.** Ticket 01's criterion stays unticked until then, because it needs a real domain whose DNS points at the server. Say this in the install guide too.

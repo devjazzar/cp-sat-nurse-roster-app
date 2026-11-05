@@ -34,6 +34,9 @@ The answer reports `"solver": {"reachable": true, ...}`. Without a `DOMAIN` the 
 self-signed, so a browser warns once. With a `DOMAIN` whose DNS points at the server, and ports 80
 and 443 open to the internet, Caddy obtains a Let's Encrypt certificate by itself.
 
+**On a server exposed to the internet, set a `DOMAIN`.** Without one, Caddy issues a certificate for
+any name a client sends, and each one adds files to `caddy_data`.
+
 The solver publishes no port and sits on an internal network only `web` and `worker` can reach.
 
 Open `https://<server>/` and log in as `admin` with `INITIAL_ADMIN_PASSWORD` from `.env`. The first

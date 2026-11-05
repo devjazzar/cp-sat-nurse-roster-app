@@ -48,3 +48,4 @@ Things a later ticket should know:
 - **Live regions:** render `role="status"` empty first and change its text.
 - **Tokens:** `--ring` (4.73:1 on white) and `--input` (3.36:1) now meet 3:1, and destructive fills use `--destructive-foreground` (4.76:1). The dark values are computed only, because nothing can switch the theme yet.
 
+**Reviewed by the user (2026-11-05).** Both open points are decided, not kept: solve progress polling does not count as activity (ticket 11's last comment), and the public `/api/health` is to be trimmed (ticket 22's comment).

@@ -13,4 +13,4 @@
 
 ## Comments
 
-For this ticket to decide: the staff list writes one audit entry per download (`nurses.exported`, with who, the request and the count, and nothing from the file; see `export_staff_list`).
+**Decisions from the user (2026-11-05).** Roster exports are audited the same way as the staff list (`export_staff_list`): one entry per download, saying who and which roster, with nothing from the file. Name the new action in `ACTION_NAMES`, and add roster exports to the line in `docs/ARCHITECTURE.md` that says each taking of the staff list goes to the audit log.

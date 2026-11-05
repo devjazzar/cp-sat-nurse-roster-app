@@ -319,8 +319,8 @@ and stores it verbatim with every solve; a `result` reader stores and interprets
 ### Frontend (ADR 0008)
 
 React 19 + TypeScript, Vite 8, shadcn/ui on Base UI with Tailwind 4, TanStack Query, TanStack
-Router, TanStack Table and Virtual (the roster grid), React Hook Form + Zod, Zustand, Recharts
-via shadcn, TanStack Pacer behind one debounce hook, orval-generated client. One responsive
+Router, TanStack Table (the roster grid and any table that needs sorting or filtering; short lists
+stay plain tables) and Virtual (the roster grid), React Hook Form + Zod, Zustand, Recharts via shadcn, TanStack Pacer behind one debounce hook, orval-generated client. One responsive
 web app, installable as a PWA; the grid scrolls horizontally on phones. In-app notifications
 only. Visual design is decided later; the architecture does not depend on it.
 

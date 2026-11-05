@@ -53,3 +53,5 @@ Things a later ticket should know:
 - **Audit actions added:** `shift.created`, `shift.changed`, `leave_type.created`, `leave_type.changed`, `public_holiday.created`, `public_holiday.changed`, `public_holiday.removed`, `ramadan_dates.changed`, all named in `ACTION_NAMES`. None is a roster or a rostering attribute, so ticket 03's restriction on what the System Admin reads in the log holds.
 
 **Review (2026-11-05).** The `code-review` skill's two axes found the design doc stale on who reads the catalogue and on deletes, removals with no confirmation, focus lost after them, `hospital-rules.tsx` keeping its own copy of the refusal loop, `public_holiday.added` out of step with the other actions, and a month fixed to no days reopening as an empty range. All fixed. The `interface-review` skill itself was not run; the pages were held to the `better-*` rules by hand and by that review.
+
+**Reviewed by the user (2026-11-05), and kept as built:** the System Admin reading the catalogue with no navigation link; seeded shifts left for the CNO to correct, with no flag; the seeded leave types; holidays and fixed Ramadan months can be removed.

@@ -19,3 +19,7 @@
 
 **From ticket 10 (2026-11-05).** An accepted request for a shift becomes a pin, and the solver refuses a shift pinned on a leave date. Accepting one on a leave date should be refused, and leave recorded later over an accepted one is ticket 11's to resolve. A nurse may request on their own leave date from the solver's side (it is superseded), so decide what the form says.
 
+**Decisions from the user (2026-11-05).** Leave wins over a pinned shift. An accepted request for a shift is a pin, so:
+
+- **Accepting a shift request on a leave date is refused,** because pinning a shift on a leave day is refused.
+- **Leave recorded later over an accepted request removes the pin and tells the manager,** which answers "ticket 11's to resolve" above. The request stays on record; which state it then takes is for this ticket, along with what the form says.
