@@ -39,3 +39,9 @@
 - **Saving a pin on a month that is over is refused** (`rosters.api._why_not_edit`), as a solve and a restore are. Re-closing with late facts may want to reopen that for the month before; it is one place.
 
 **From ticket 14 (2026-11-05).** "The roster in force" is the approved roster's latest `RosterVersion` (`roster.versions.first()`), whose grid is also `Roster.grid` under today's codes. A month still submitted at the close time has no roster in force and, as section 5 says, is skipped.
+
+**From ticket 15 (2026-11-06).** A nurse's own month (`GET /api/rosters/mine/month`, page My month) shows hours for this month and later only. A month already over shows its leave and no hours, as My roster shows no month before this one.
+
+- **What to change:** once a month is closed, its closed figures are the right answer for it: hours worked, overtime, and what was carried. `rosters.reading_api._in_force` cuts at `membership.this_month()`. Open earlier months there from the close.
+- **"Carried into next month"** is the projected carry-over today, worked out from the version in force on the month as it stands. The page already says it is worked out again at the month close.
+- **A close is not notified.** Add an `Event` in `notifications.models` and a function in `notifications/sending.py` if the manager should be told what the facts broke.

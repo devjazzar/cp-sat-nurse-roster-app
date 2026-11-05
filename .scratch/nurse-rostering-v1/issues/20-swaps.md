@@ -12,3 +12,15 @@
 - [ ] Hourly expiry job; expiry also on a new version touching the cells
 - [ ] Notifications at each step; audit entries; a nurse sees her swaps and their status
 - [ ] API tests cover composition, refusal, acceptance paths, manager decision, expiry and authorization
+
+**From ticket 15 (2026-11-06).** Every step of a swap is yours to notify. Nothing sends one yet.
+
+- **What to call:** add one `Event` per step, or one `SWAP_STEP` event with the step in the payload, and a function in `notifications/sending.py`.
+- **Recipients, in the ticket's words:** "everyone involved".
+  - When the swap is proposed, the colleagues whose cells change.
+  - At each acceptance, the proposer.
+  - When all have accepted, the unit's manager. This is "something awaits him".
+  - At the decision, at a rejection, at a withdrawal and at an expiry, the proposer and every colleague involved.
+- **Privacy:** the words must not say a colleague's cell was leave. A swap's cells are shifts on an approved roster, and a colleague of a nurse sees a day off where she is on leave. Keep the cells out of the payload, and link to the swap's page.
+
+How to add an event, the same for each: add it to `notifications.models.Event`, which is a migration only of `choices`. Write a function beside the others in `notifications/sending.py` that works out the recipients and calls `notify(users, Event.X, **payload)`. Call that function inside the change's transaction, after its audit entry. Then give the event its words in `notifications.reading.text_of` and its link in `link_of`, adding a page to `NotificationLink.page` and to `Open` in `routes/_signed-in/notifications.tsx` if it needs one. **A payload holds identifiers only** (`unit_id`, `month`, `by`, and the request's or swap's id): the words are worked out when read, so nothing goes stale and nothing about a person is stored. `text_of` reads `payload["month"]` for every event today, so an event with no month needs its own branch first. `notify` already skips deactivated users and tells each user once.
