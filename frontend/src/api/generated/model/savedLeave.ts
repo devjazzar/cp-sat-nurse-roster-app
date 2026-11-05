@@ -7,6 +7,7 @@
 import type { LeaveNurse } from './leaveNurse';
 import type { LeaveTypeChoice } from './leaveTypeChoice';
 import type { RemovedPin } from './removedPin';
+import type { ShiftTakenOff } from './shiftTakenOff';
 
 export interface SavedLeave {
   leave_ids: string[];
@@ -19,4 +20,6 @@ export interface SavedLeave {
   outside_dates: boolean;
   /** Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve. */
   pins_removed: RemovedPin[];
+  /** Shifts an approved roster of this unit held on these dates, in a month not over, which a new version took off, as leave wins. The unit's nurses are told the roster changed, and not why. */
+  shifts_taken_off: ShiftTakenOff[];
 }

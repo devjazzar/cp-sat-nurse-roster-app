@@ -21,6 +21,7 @@ import { CHANGE_SAYS, PinNotes, ResultDetails, ROSTER_HEADING, RosterStatus, Vio
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
+import { RosterVersions } from "@/components/roster-versions"
 import { UnitPicker, useChosenUnit } from "@/components/unit-picker"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
 import { monthName } from "@/lib/utils"
@@ -144,7 +145,7 @@ function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: str
             <section aria-labelledby="roster" className="flex flex-col gap-4">
               <h3 id="roster" className="font-medium">{ROSTER_HEADING[answer.state]}</h3>
               <p className="text-sm text-muted-foreground tabular-nums">
-                {draft.edited ? "Edited by hand after its solve. " : ""}
+                {draft.edited ? (answer.state === "approved" ? "Changed by hand after its solve, as the versions below say. " : "Edited by hand after its solve. ") : ""}
                 {draft.check ? `Cost ${draft.cost ?? "not known"} on the month as it stands, against ${draft.solved_cost} as solved.` : `Cost ${draft.cost}.`}
               </p>
               <Changes answer={answer} draft={draft} />
@@ -153,6 +154,7 @@ function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: str
               <RosterGrid grid={draft} label={label} />
               <GridLegend grid={draft} />
               {answer.state === "submitted" && <Decision unitId={unit.id} answer={answer} onDecided={decided} />}
+              {answer.state === "approved" && <RosterVersions unitId={unit.id} month={answer.month} />}
               {draft.edited && <p className="text-sm text-muted-foreground">The details below are what its solve answered, before the changes made by hand.</p>}
               <ResultDetails unitId={unit.id} solveId={draft.solve_id} />
             </section>

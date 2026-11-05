@@ -3520,7 +3520,7 @@ describe("the leave pages", () => {
   const OLD = { id: "old", name: "Study", active: false }
   const ANNUAL = { id: "annual", name: "Annual", active: true }
   const RUN = { leave_ids: ["l1", "l2"], nurse: AMAL, leave_type: SICK, first: "2026-11-10", last: "2026-11-11", days: 2, outside_dates: false }
-  const SAVED = { ...RUN, pins_removed: [] }
+  const SAVED = { ...RUN, pins_removed: [], shifts_taken_off: [] }
   const BADR_RUN = { leave_ids: ["l3"], nurse: BADR, leave_type: OLD, first: "2026-11-20", last: "2026-11-20", days: 1, outside_dates: true }
   const MONTH = { month: "2026-11", nurses: [AMAL, BADR], runs: [RUN, BADR_RUN] }
   const pageOf = (extra = {}) => ({
@@ -3647,6 +3647,20 @@ describe("the leave pages", () => {
     expect(await screen.findByText(/already on leave on 10 November 2026/)).toBeInTheDocument()
     expect(screen.getByLabelText("First day")).toHaveFocus()
     expect(screen.getByLabelText("First day")).toHaveAttribute("aria-invalid", "true")
+  })
+
+  it("says which shifts the leave took off an approved roster, and that the nurses are told only of a change", async () => {
+    const taken = { ...SAVED, shifts_taken_off: [{ date: "2026-11-10", shift: "N", version: 3 }, { date: "2026-11-11", shift: "D", version: 3 }] }
+    const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: taken } }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2026-11-10")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "It took 2 shifts off the approved roster: N on 10 Nov 2026, D on 11 Nov 2026. Version 3 is now in force, and the unit's nurses are told the roster has changed, not why.")
   })
 
   it("says which pins on the draft the leave replaced, as leave wins over a pin", async () => {
@@ -3893,6 +3907,7 @@ describe("the roster page", () => {
     refusal: null,
     shifts: [...SHIFTS, { code: "E", display_name: "Evening", colour: "#16a34a", hours: 8 }],
     nurses: [{ hospital_id: "h1", allowed_shifts: null, credited: ["2026-06-06", "2026-06-07"] }, { hospital_id: "h2", allowed_shifts: ["N"], credited: [] }],
+    gone: [] as string[],
   }
   const DRAFT = {
     solve_id: SOLVE_ID, solved_at: "2026-05-15T10:01:00+03:00", restored_at: null, cost: 12, stopped_early: false, days: DAYS, shifts: SHIFTS, changes: [],
@@ -3938,6 +3953,7 @@ describe("the roster page", () => {
     [`GET ${UNIT}/roster`]: { body: EMPTY },
     [`GET ${UNIT}/solves/preview`]: { body: PREVIEW },
     [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: RESULT },
+    [`GET ${UNIT}/roster/versions`]: { body: [] },
     ...extra,
   })
 
@@ -4875,6 +4891,129 @@ describe("the roster page", () => {
     })
   })
 
+  describe("changes after approval", () => {
+    const IN_FORCE = {
+      ...DRAFTED, state: "approved", submit_refusal: "This roster is approved and in force, so no solve or restore can change it.",
+      approved: { approved_by: "Dina Deputy", approved_at: "2026-05-16T12:00:00+03:00", version: 1 }, draft: DRAFT,
+    }
+    const VERSION_1 = { number: 1, origin: "solve", created_by: "Dina Deputy", created_at: "2026-05-16T12:00:00+03:00", reason: "", cells_changed: null }
+    const VERSION_2 = { number: 2, origin: "edit", created_by: "Mona Ali", created_at: "2026-06-03T08:30:00+03:00", reason: "Badr covers Amal's night.", cells_changed: 2 }
+    const VERSION_3 = { number: 3, origin: "edit", created_by: "Mona Ali", created_at: "2026-06-04T09:00:00+03:00", reason: "Leave recorded for Amal Saleh took their shift off 7 June 2026.", cells_changed: 1 }
+    const CHECK = { reason: null, ok: true, violations: [], cost: 15, cost_before: 12, delta: 3, refusals: [] }
+    const comparison = (from: number, to: number) => ({
+      from_version: from, to_version: to,
+      changes: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-07", before: "N", after: "" }],
+    })
+    const compared = ({ url }: { url: string }) => {
+      const query = new URL(url, "http://here").searchParams
+      return { body: comparison(Number(query.get("from_version")), Number(query.get("to_version"))) }
+    }
+    const cellNamed = (name: RegExp | string) => screen.findByRole("button", { name })
+
+    it("saves a change as a new version, needing a reason, and tells the manager the nurses are told", async () => {
+      const rows = [{ ...DRAFT.rows[0], cells: DRAFT.rows[0].cells.map((cell, index) => (index === 1 ? { shift: "N", kind: "shift" } : cell)) }, DRAFT.rows[1]]
+      const after = { ...IN_FORCE, approved: { ...IN_FORCE.approved, version: 2 }, draft: { ...DRAFT, rows, edited: true,
+        pins: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-05", shift: "N", origin: "manager", set_aside: null }] } }
+      let versions: object[] = [VERSION_1]
+      const { user, calls } = start("/roster", manager({
+        [`GET ${UNIT}/roster`]: { body: IN_FORCE },
+        [`POST ${UNIT}/roster/check`]: { body: CHECK },
+        [`POST ${UNIT}/roster/versions`]: () => { versions = [VERSION_2, VERSION_1]; return { body: after } },
+        [`GET ${UNIT}/roster/versions`]: () => ({ body: versions }),
+      }))
+
+      expect(await screen.findByText(/Each save is a new version in force at once, with your reason/)).toBeInTheDocument()
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+      const unsaved = screen.getByRole("region", { name: "1 change not saved yet" })
+      await user.click(within(unsaved).getByRole("button", { name: "Save as a new version" }))
+
+      expect(await within(unsaved).findByText("Say why, for the version list.")).toBeInTheDocument()
+      expect(within(unsaved).getByLabelText("Why")).toHaveFocus()
+      expect(calls.some((call) => call.url.endsWith("/roster/versions") && call.method === "POST")).toBe(false)
+
+      await user.type(within(unsaved).getByLabelText("Why"), "Amal covers the night.")
+      await user.click(within(unsaved).getByRole("button", { name: "Save as a new version" }))
+
+      expect(await screen.findByText("1 change saved as version 2, now in force. The unit's nurses are told the roster has changed.")).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "POST" && call.url.endsWith("/roster/versions"))!.body).toEqual({
+        month: "2026-06", edits: [{ hospital_id: "h1", date: "2026-06-05", action: "shift", shift: "N" }], reason: "Amal covers the night." })
+      expect(calls.some((call) => call.url.endsWith("/roster/pins"))).toBe(false)
+      await waitFor(() => expect(screen.getByRole("button", { name: "Amal Saleh, 5 June: Night, pinned" })).toHaveFocus())
+      const list = await screen.findByRole("region", { name: "Versions" })
+      expect(await within(list).findByText("Badr covers Amal's night.")).toBeInTheDocument()
+    })
+
+    it("shows a refusal of the reason beside it, keeping the changes", async () => {
+      const { user } = start("/roster", manager({
+        [`GET ${UNIT}/roster`]: { body: IN_FORCE },
+        [`POST ${UNIT}/roster/check`]: { body: CHECK },
+        [`POST ${UNIT}/roster/versions`]: { status: 422, body: { detail: [{ loc: ["body", "body", "reason"], msg: "Say why, for the version list.", type: "value_error" }] } },
+      }))
+
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+      const unsaved = screen.getByRole("region", { name: "1 change not saved yet" })
+      await user.type(within(unsaved).getByLabelText("Why"), "   x")
+      await user.click(within(unsaved).getByRole("button", { name: "Save as a new version" }))
+
+      expect(await within(unsaved).findByText("Say why, for the version list.")).toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "1 change not saved yet" })).toBeInTheDocument()
+    })
+
+    it("lists the versions with who, when, why and how much changed, and compares the latest two", async () => {
+      const { user, calls } = start("/roster", manager({
+        [`GET ${UNIT}/roster`]: { body: { ...IN_FORCE, approved: { ...IN_FORCE.approved, version: 3 } } },
+        [`GET ${UNIT}/roster/versions`]: { body: [VERSION_3, VERSION_2, VERSION_1] },
+        [`GET ${UNIT}/roster/versions/compare`]: compared,
+      }))
+
+      const list = await screen.findByRole("region", { name: "Versions" })
+      const rows = within(within(list).getAllByRole("table")[0]).getAllByRole("row").slice(1)
+      expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+        ["3 (in force)", "Changed by hand", "Mona Ali", "2026-06-04 09:00:00", "1", "Leave recorded for Amal Saleh took their shift off 7 June 2026."],
+        ["2", "Changed by hand", "Mona Ali", "2026-06-03 08:30:00", "2", "Badr covers Amal's night."],
+        ["1", "Approved from a solve", "Dina Deputy", "2026-05-16 12:00:00", "—", "—"],
+      ])
+      expect(within(list).getByLabelText("From")).toHaveValue("2")
+      expect(within(list).getByLabelText("To")).toHaveValue("3")
+      expect(await within(list).findByText("1 cell differ from version 2 to version 3.")).toBeInTheDocument()
+      const changed = within(list).getByRole("table", { name: "Cells that differ from version 2 to version 3" })
+      expect(within(changed).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Amal Saleh", "7 June", "N", "Off"])
+
+      await user.selectOptions(within(list).getByLabelText("From"), "1")
+
+      expect(await within(list).findByRole("table", { name: "Cells that differ from version 1 to version 3" })).toBeInTheDocument()
+      expect(calls.map((call) => call.url)).toContain(`${UNIT}/roster/versions/compare?month=2026-06&from_version=1&to_version=3`)
+    })
+
+    it("offers to take a shift off a nurse no longer in the unit's month, and nothing to pin", async () => {
+      const { user } = start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...IN_FORCE, draft: { ...DRAFT, editor: { ...EDITOR, gone: ["h2"] } } } } }))
+
+      await user.click(await cellNamed("Badr Noor, 1 June: Night"))
+      const menu = await screen.findByRole("menu")
+      expect(menu).toHaveTextContent("No longer in this unit's month, so they work nothing here.")
+      expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Take the shift off this day"])
+    })
+
+    it("lets an approver read the versions and compare them, with nothing to edit", async () => {
+      start("/unit-roster?unit=u1&month=2026-06", {
+        ...session(ME_DEPUTY),
+        "GET /api/units": { body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] },
+        [`GET ${UNIT}/roster`]: { body: { ...IN_FORCE, approve_refusal: "This roster has been approved already by Dina Deputy.",
+          draft: { ...DRAFT, editor: { ...EDITOR, refusal: "Only the unit's manager changes its roster or submits it." } } } },
+        [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: RESULT },
+        [`GET ${UNIT}/roster/versions`]: { body: [VERSION_2, VERSION_1] },
+        [`GET ${UNIT}/roster/versions/compare`]: compared,
+      })
+
+      const list = await screen.findByRole("region", { name: "Versions" })
+      expect(within(list).getByText("Badr covers Amal's night.")).toBeInTheDocument()
+      expect(await within(list).findByRole("table", { name: "Cells that differ from version 1 to version 2" })).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /Amal Saleh, 1 June/ })).not.toBeInTheDocument()
+    })
+  })
+
   describe("its approval", () => {
     const FROZEN = "This roster is submitted and waits for the CNO or the Deputy CNO, so nothing can change it until they decide. A rejection returns it to draft."
     const WAITING = { submitted_by: "Mona Ali", submitted_at: "2026-05-16T09:00:00+03:00", new_since: [] as object[] }
@@ -4959,6 +5098,7 @@ describe("the roster page", () => {
       "GET /api/units": { body: [ER_UNIT, ICU_UNIT] },
       [`GET ${UNIT}/roster`]: { body: FOR_APPROVER },
       [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, restore_refusal: "Only the unit's manager can restore a result." } },
+      [`GET ${UNIT}/roster/versions`]: { body: [] },
       ...extra,
     })
 

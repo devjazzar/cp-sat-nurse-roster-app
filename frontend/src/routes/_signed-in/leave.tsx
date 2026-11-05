@@ -13,7 +13,7 @@ import {
   useRecordLeave,
   useRemoveLeave,
 } from "@/api/generated/endpoints"
-import { Role, type LeaveNurse, type LeaveRun, type RemovedPin, type SavedLeave, type UnitLeaveMonth } from "@/api/generated/model"
+import { Role, type LeaveNurse, type LeaveRun, type RemovedPin, type SavedLeave, type ShiftTakenOff, type UnitLeaveMonth } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { FormField, SelectField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
@@ -91,7 +91,7 @@ function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
     const callbacks = {
       onSuccess: (saved: SavedLeave) => {
         void queryClient.invalidateQueries({ queryKey: getListUnitLeaveQueryKey(unitId) })
-        onDone(`The leave of ${name} is saved: ${dayRange(first, last || first)}.${pinsReplaced(saved.pins_removed)}`, first)
+        onDone(`The leave of ${name} is saved: ${dayRange(first, last || first)}.${pinsReplaced(saved.pins_removed)}${shiftsTakenOff(saved.shifts_taken_off)}`, first)
       },
       onError: (error: unknown) => showServerErrors(form, error),
     }
@@ -186,6 +186,14 @@ function LeaveTable({ runs, showNurse, label, nurseSearch, actions }: {
 }
 
 type Panel = { run: LeaveRun | null }
+
+/** Leave wins over a shift on an approved roster too, so saving it took any such shift off as a new version. */
+function shiftsTakenOff(taken: ShiftTakenOff[]): string {
+  if (taken.length === 0) return ""
+  const each = taken.map((day) => `${day.shift} on ${dayRange(day.date, day.date)}`).join(", ")
+  const versions = [...new Set(taken.map((day) => day.version))].join(" and ")
+  return ` It took ${taken.length === 1 ? "a shift" : `${taken.length} shifts`} off the approved roster: ${each}. Version ${versions} is now in force, and the unit's nurses are told the roster has changed, not why. Find a cover on the Roster page if one is needed.`
+}
 
 /** Leave wins over a pin, so saving it ended any on its days, and the Roster page goes on saying so. */
 function pinsReplaced(pins: RemovedPin[]): string {

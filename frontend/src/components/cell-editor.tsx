@@ -10,8 +10,8 @@ export type EditableCellState = {
   title: string
   /** The nurse's shifts this unit works, or every one when the list is empty. */
   shifts: EditorShift[]
-  /** A day of leave, or outside their dates, as the month stands now: nothing can be pinned. */
-  credited: "leave" | "outside" | null
+  /** A day of leave, outside their dates, or a nurse no longer in the unit's month, as it stands now: nothing can be pinned. */
+  credited: "leave" | "outside" | "gone" | null
   holdsShift: boolean
   pin: { shift: string; origin: string } | null
   pending: EditBody | null
@@ -41,7 +41,9 @@ export function CellEditor({ cell, anchor, onChoose, onUndo, onClose }: {
                 {fromElsewhere && <p className="max-w-64 px-2 pb-1.5 text-xs">Pinned by an accepted {cell.pin!.origin}. Change it there.</p>}
                 {cell.credited && (
                   <p className="max-w-64 px-2 pb-1.5 text-xs">
-                    {cell.credited === "leave" ? "On leave this day, and leave wins over a pin." : "Outside their start and end dates."}
+                    {cell.credited === "leave" ? "On leave this day, and leave wins over a pin."
+                      : cell.credited === "outside" ? "Outside their start and end dates."
+                      : "No longer in this unit's month, so they work nothing here."}
                   </p>
                 )}
                 {!fromElsewhere && !cell.credited && cell.shifts.map((shift) => (

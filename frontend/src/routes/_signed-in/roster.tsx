@@ -14,7 +14,9 @@ import {
   useGetRosterMonth,
   useGetSolveProgress,
   usePreviewSolve,
+  getListRosterVersionsQueryKey,
   useSaveDraftPins,
+  useSaveRosterVersion,
   useStartSolve,
   useStopSolve,
   useSubmitRoster,
@@ -36,6 +38,9 @@ import { type CellMarks, GridLegend, RosterGrid } from "@/components/roster-grid
 import { CHANGE_SAYS, longDay, PinNotes, plural, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
+import { Textarea } from "@/components/ui/textarea"
+import { RosterVersions } from "@/components/roster-versions"
 import { useChosenUnit } from "@/components/unit-picker"
 import { cellKey, keyOf, usePendingEdits } from "@/lib/pending-edits"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
@@ -218,29 +223,41 @@ function UnsavedEditsGuard({ holding }: { holding: boolean }) {
   )
 }
 
-function PendingPanel({ unitId, draft, month, pending, onSaved, refused, setRefused }: {
+const reasonSchema = z.object({ reason: z.string().trim().min(1, "Say why, for the version list.").max(2000, "At most 2000 characters.") })
+
+function PendingPanel({ unitId, draft, month, approved, pending, onSaved, refused, setRefused }: {
   unitId: string
   draft: Draft
   month: string
+  /** An approved roster's changes are saved as a new version, with a reason. */
+  approved: boolean
   pending: Pending
   onSaved: (answer: RosterMonth, count: number) => void
   refused: Map<string, string>
   setRefused: (refused: Map<string, string>) => void
 }) {
-  const save = useSaveDraftPins()
+  const savePins = useSaveDraftPins()
+  const saveVersion = useSaveRosterVersion()
+  const save = approved ? saveVersion : savePins
+  const form = useForm<z.infer<typeof reasonSchema>>({ resolver: zodResolver(reasonSchema), defaultValues: { reason: "" } })
   const edits = Object.values(pending.edits)
   const names = new Map(draft.rows.map((row) => [row.hospital_id, row.full_name || row.hospital_id]))
-  const send = () => save.mutate({ unitId, data: { month, edits } }, {
-    onSuccess: (answer) => { setRefused(new Map()); onSaved(answer, edits.length) },
-    onError: (error) => {
+  const callbacks = {
+    onSuccess: (answer: RosterMonth) => { setRefused(new Map()); onSaved(answer, edits.length) },
+    onError: (error: unknown) => {
       const found = new Map<string, string>()
       serverErrors(error).forEach(({ path, message }) => {
+        if (path === "reason") form.setError("reason", { message })
         const index = Number(path.split(".")[1])
-        if (edits[index]) found.set(keyOf(edits[index]), message)
+        if (path.startsWith("edits.") && edits[index]) found.set(keyOf(edits[index]), message)
       })
       setRefused(found)
     },
-  })
+  }
+  const sendPins = () => savePins.mutate({ unitId, data: { month, edits } }, callbacks)
+  const sendVersion = form.handleSubmit(({ reason }) => saveVersion.mutate({ unitId, data: { month, edits, reason } }, callbacks))
+  const send = approved ? () => void sendVersion() : sendPins
+  const reasonError = form.formState.errors.reason
   // Once the list is on the page: it is not there yet when the answer comes.
   useEffect(() => { if (refused.size > 0) document.getElementById("save-refused")?.focus() }, [refused])
   const plainly = save.isError && serverErrors(save.error).length === 0 && (plainRefusal(save.error) ?? "The changes could not be saved. Check your connection and try again. They are still here.")
@@ -262,9 +279,18 @@ function PendingPanel({ unitId, draft, month, pending, onSaved, refused, setRefu
           </ul>
         </div>
       )}
+      {approved && (
+        <Field data-invalid={!!reasonError || undefined}>
+          <FieldLabel htmlFor="change-reason">Why</FieldLabel>
+          <Textarea id="change-reason" rows={2} aria-invalid={!!reasonError || undefined}
+            aria-describedby={["change-reason-description", reasonError && "change-reason-error"].filter(Boolean).join(" ")} {...form.register("reason")} />
+          <FieldDescription id="change-reason-description">Kept with the new version, for you, the CNO and the Deputy CNO. The unit's nurses are told only that the roster changed, never why.</FieldDescription>
+          <FieldError id="change-reason-error" role={undefined} errors={reasonError ? [reasonError] : undefined} />
+        </Field>
+      )}
       {plainly && <p role="alert" className="text-sm text-destructive">{plainly}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button onClick={send} disabled={save.isPending}>{save.isPending ? "Saving…" : "Save changes"}</Button>
+        <Button onClick={send} disabled={save.isPending}>{save.isPending ? "Saving…" : approved ? "Save as a new version" : "Save changes"}</Button>
         <Button variant="outline" disabled={save.isPending} onClick={() => { setRefused(new Map()); pending.clear(); backToTheGrid() }}>Discard changes</Button>
       </div>
     </section>
@@ -310,6 +336,8 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
   const nurses = useMemo(() => new Map(draft.editor.nurses.map((nurse) => [nurse.hospital_id, nurse])), [draft.editor.nurses])
   const shiftsByCode = useMemo(() => new Map(draft.editor.shifts.map((shift) => [shift.code, shift])), [draft.editor.shifts])
   const editable = draft.editor.refusal === null
+  const approved = state === "approved"
+  const gone = useMemo(() => new Set(draft.editor.gone), [draft.editor.gone])
 
   const marks = (hospitalId: string, date: string): CellMarks => {
     const key = cellKey(hospitalId, date)
@@ -325,7 +353,7 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
     const nurse = nurses.get(hospitalId)
     const row = draft.rows.find((candidate) => candidate.hospital_id === hospitalId)
     const cell = row?.cells[draft.days.findIndex((day) => day.date === date)]
-    const credited = nurse?.credited.includes(date) ? (cell?.kind === "outside" ? "outside" : "leave") : null
+    const credited = gone.has(hospitalId) ? "gone" : nurse?.credited.includes(date) ? (cell?.kind === "outside" ? "outside" : "leave") : null
     const allowed = nurse?.allowed_shifts
     const key = cellKey(hospitalId, date)
     const pin = pins.get(key)
@@ -353,7 +381,7 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
         <h3 id="draft" tabIndex={-1} className="font-medium outline-none">{ROSTER_HEADING[state]}</h3>
         <p className="text-sm text-muted-foreground tabular-nums">
           {draft.restored_at ? `Restored ${hospitalTime(draft.restored_at)} from the solve of ${hospitalTime(draft.solved_at)}.` : `Solved ${hospitalTime(draft.solved_at)}.`}{" "}
-          {draft.edited && "Edited by hand since. "}
+          {draft.edited && (approved ? "Changed by hand since, as the versions below say. " : "Edited by hand since. ")}
           {draft.check
             ? `Cost ${draft.cost ?? "not known"} on the month as it stands, against ${draft.solved_cost} as solved.`
             : `Cost ${draft.cost}.`}
@@ -362,27 +390,32 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
       </div>
       {draft.changes.length > 0 && (
         <div role="alert" className="flex flex-col gap-1 rounded-md border border-destructive/40 p-3 text-sm">
-          <p className="font-medium">This draft was solved before these changes:</p>
+          <p className="font-medium">{approved ? "This roster was solved before these changes:" : "This draft was solved before these changes:"}</p>
           <ul className="list-disc ps-5">
             {draft.changes.map((change) => <li key={change.hospital_id + change.what}>{change.full_name || change.hospital_id}: {CHANGE_SAYS[change.what]}</li>)}
           </ul>
-          <p>Solve again to take them in: a solve keeps your pins. Otherwise, the roster is checked again when you submit it.</p>
+          <p>{approved
+            ? "What it now breaks is listed below the grid. Change the cells by hand to put it right: each save is a new version."
+            : "Solve again to take them in: a solve keeps your pins. Otherwise, the roster is checked again when you submit it."}</p>
         </div>
       )}
       <PinNotes draft={draft} />
       {draft.editor.refusal
         ? <p className="text-sm">{draft.editor.refusal}</p>
-        : <p className="text-sm text-muted-foreground">Choose a cell to pin a shift or a day off, or to clear its pin. The arrow keys move between cells. Pins are kept by every solve of this month.</p>}
+        : approved
+          ? <p className="text-sm text-muted-foreground">Choose a cell to change it: a cover, late leave, a swap agreed in person. The arrow keys move between cells. Each save is a new version in force at once, with your reason, and the unit's nurses are told the roster has changed. Changed cells are pinned, so a later re-plan keeps them.</p>
+          : <p className="text-sm text-muted-foreground">Choose a cell to pin a shift or a day off, or to clear its pin. The arrow keys move between cells. Pins are kept by every solve of this month.</p>}
       {solving && editable && <p className="text-sm">A solve of this month is under way. It was given the month as it was when it started, so changes you save now are put on top of its roster when it ends, and the draft then asks you to solve again.</p>}
       <RosterGrid grid={draft} label={label} extraShifts={draft.editor.shifts} editing={editable ? { marks, onOpen: openCell } : undefined} />
       <GridLegend grid={draft} editable={editable} />
       {editable && <CellEditor cell={open?.cell ?? null} anchor={open?.anchor ?? null} onChoose={choose}
         onUndo={() => { if (open) pending.drop(cellKey(open.cell.hospitalId, open.cell.date)); setOpen(null) }} onClose={() => setOpen(null)} />}
       {editable && Object.keys(pending.edits).length > 0 && (
-        <PendingPanel unitId={unitId} draft={draft} month={month} pending={pending} onSaved={onSaved} refused={refused} setRefused={setRefused} />
+        <PendingPanel unitId={unitId} draft={draft} month={month} approved={approved} pending={pending} onSaved={onSaved} refused={refused} setRefused={setRefused} />
       )}
-      {draft.check && <Violations check={draft.check} what="the draft as it stands" />}
+      {draft.check && <Violations check={draft.check} what={approved ? "the roster in force, on the month as it stands," : "the draft as it stands"} />}
       {submit}
+      {approved && <RosterVersions unitId={unitId} month={month} />}
       {draft.edited && <p className="text-sm text-muted-foreground">The details below are what its solve answered, before the changes made by hand.</p>}
       <ResultDetails unitId={unitId} solveId={draft.solve_id} />
     </section>
@@ -522,7 +555,10 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
     queryClient.setQueryData(getGetRosterMonthQueryKey(unit.id, inAddress ? { month: inAddress } : undefined), month)
     void queryClient.invalidateQueries({ queryKey: getPreviewSolveQueryKey(unit.id) })
     pending.clear()
-    setSaid(`${plural(count, "change")} saved.${month.active_solve ? " The solve under way was given the month without them: they go on top of its roster when it ends." : ""}`)
+    void queryClient.invalidateQueries({ queryKey: getListRosterVersionsQueryKey(unit.id) })
+    setSaid(month.state === "approved"
+      ? `${plural(count, "change")} saved as version ${month.approved?.version}, now in force. The unit's nurses are told the roster has changed.`
+      : `${plural(count, "change")} saved.${month.active_solve ? " The solve under way was given the month without them: they go on top of its roster when it ends." : ""}`)
     backToTheGrid()
   }
   const submitted = (month: RosterMonth) => {
@@ -566,7 +602,7 @@ function RosterPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <h1 className="text-xl font-medium">{chosen ? `Roster of ${chosen.name}` : "Roster"}</h1>
-      <p className="text-muted-foreground">Solve a month to get its draft, then change any cell by hand. Each solve replaces the draft's grid and keeps your pins. Only you see a draft, until you submit it for approval.</p>
+      <p className="text-muted-foreground">Solve a month to get its draft, then change any cell by hand. Each solve replaces the draft's grid and keeps your pins. Only you see a draft, until you submit it for approval. Once approved, your changes are new versions, in force at once.</p>
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">Your unit could not be read. Reload the page to try again.</p>}
       {units.data && !chosen && <p>No unit is assigned to you yet. The CNO assigns each unit its manager.</p>}

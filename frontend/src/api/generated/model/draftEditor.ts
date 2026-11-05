@@ -8,9 +8,11 @@ import type { EditorNurse } from './editorNurse';
 import type { EditorShift } from './editorShift';
 
 export interface DraftEditor {
-  /** Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager. */
+  /** Why this roster cannot be edited now: the month is over, the roster is submitted, or the reader is not its manager. An approved one is edited too, each save a new version (`saveRosterVersion`). */
   refusal: string | null;
   /** What a cell can be pinned to: the unit's shifts. */
   shifts: EditorShift[];
   nurses: EditorNurse[];
+  /** Hospital IDs on the grid no longer in the unit's month, such as a nurse transferred out: nothing can be pinned for them, and clearing a cell takes its shift off. */
+  gone: string[];
 }

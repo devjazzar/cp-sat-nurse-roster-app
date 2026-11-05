@@ -70,6 +70,7 @@ const ACTION_NAMES: Record<string, string> = {
   "public_holiday.removed": "Removed a public holiday",
   "ramadan_dates.changed": "Changed Ramadan dates",
   "roster.approved": "Approved a roster",
+  "roster.changed": "Changed an approved roster",
   "roster.draft_replaced": "A solve replaced a draft",
   "roster.draft_restored": "Restored a result as a draft",
   "roster.rejected": "Rejected a roster",

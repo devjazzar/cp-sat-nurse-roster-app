@@ -8,6 +8,6 @@
 export interface Approval {
   approved_by: string;
   approved_at: string;
-  /** The roster version in force. */
+  /** The roster version in force: the latest. */
   version: number;
 }

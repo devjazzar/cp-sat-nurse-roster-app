@@ -1496,7 +1496,12 @@ export const RecordLeaveResponse = zod.object({
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.')
-})).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.')
+})).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
+  "shifts_taken_off": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('The shift\'s code the roster in force held that day.'),
+  "version": zod.int().describe('The roster version that took it off, now in force.')
+})).describe('Shifts an approved roster of this unit held on these dates, in a month not over, which a new version took off, as leave wins. The unit\'s nurses are told the roster changed, and not why.')
 })
 
 
@@ -1538,7 +1543,12 @@ export const ChangeLeaveResponse = zod.object({
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.')
-})).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.')
+})).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
+  "shifts_taken_off": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('The shift\'s code the roster in force held that day.'),
+  "version": zod.int().describe('The roster version that took it off, now in force.')
+})).describe('Shifts an approved roster of this unit held on these dates, in a month not over, which a new version took off, as leave wins. The unit\'s nurses are told the roster changed, and not why.')
 })
 
 
@@ -1730,7 +1740,7 @@ export const GetRosterMonthResponse = zod.object({
   "approved": zod.union([zod.object({
   "approved_by": zod.string(),
   "approved_at": zod.iso.datetime({"offset":true}),
-  "version": zod.int().describe('The roster version in force.')
+  "version": zod.int().describe('The roster version in force: the latest.')
 }),zod.null()]),
   "submit_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot submit it now: also a hard rule it breaks on the month as it stands, which `draft.check` lists.'),
   "approve_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be approved now, the same check included.'),
@@ -1827,7 +1837,7 @@ export const GetRosterMonthResponse = zod.object({
   "by": zod.string().describe('Who recorded the leave.')
 })).describe('Pins leave has replaced since this draft\'s solve was started, whoever recorded it, until a newer solve has taken that in.'),
   "editor": zod.object({
-  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this roster cannot be edited now: the month is over, the roster is submitted, or the reader is not its manager. An approved one is edited too, each save a new version (`saveRosterVersion`).'),
   "shifts": zod.array(zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
@@ -1838,7 +1848,8 @@ export const GetRosterMonthResponse = zod.object({
   "hospital_id": zod.string(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('Null for any the unit works.'),
   "credited": zod.array(zod.iso.date()).describe('Their days of leave and days outside their dates, as they stand now.')
-}))
+})),
+  "gone": zod.array(zod.string()).describe('Hospital IDs on the grid no longer in the unit\'s month, such as a nurse transferred out: nothing can be pinned for them, and clearing a cell takes its shift off.')
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
@@ -1900,11 +1911,10 @@ export const CheckDraftEditsResponse = zod.object({
 
 
 /**
- * All of it or none of it. Under the catalogue's lock, which a solve's start and end, a restore and a rename hold, then each
- * nurse's, which a leave write holds and which comes before a unit's in a transfer. A solve already under way was given the
- * month without these: it may run on, its roster takes them on top when it ends, and the draft says so through `changes`. The
- * audit entry names the unit and the month and how many pins and cells changed, and no nurse, date or shift: the System Admin
- * sees no roster.
+ * A draft's, all of it or none of it, under the locks `_locked_for_edits` names; an approved roster's changes are versions
+ * (`saveRosterVersion`). A solve already under way was given the month without these: it may run on, its roster takes them on
+ * top when it ends, and the draft says so through `changes`. The audit entry names the unit and the month and how many pins and
+ * cells changed, and no nurse, date or shift: the System Admin sees no roster.
  * @summary Save Pins
  */
 export const SaveDraftPinsParams = zod.object({
@@ -1950,7 +1960,7 @@ export const SaveDraftPinsResponse = zod.object({
   "approved": zod.union([zod.object({
   "approved_by": zod.string(),
   "approved_at": zod.iso.datetime({"offset":true}),
-  "version": zod.int().describe('The roster version in force.')
+  "version": zod.int().describe('The roster version in force: the latest.')
 }),zod.null()]),
   "submit_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot submit it now: also a hard rule it breaks on the month as it stands, which `draft.check` lists.'),
   "approve_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be approved now, the same check included.'),
@@ -2047,7 +2057,7 @@ export const SaveDraftPinsResponse = zod.object({
   "by": zod.string().describe('Who recorded the leave.')
 })).describe('Pins leave has replaced since this draft\'s solve was started, whoever recorded it, until a newer solve has taken that in.'),
   "editor": zod.object({
-  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this roster cannot be edited now: the month is over, the roster is submitted, or the reader is not its manager. An approved one is edited too, each save a new version (`saveRosterVersion`).'),
   "shifts": zod.array(zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
@@ -2058,7 +2068,8 @@ export const SaveDraftPinsResponse = zod.object({
   "hospital_id": zod.string(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('Null for any the unit works.'),
   "credited": zod.array(zod.iso.date()).describe('Their days of leave and days outside their dates, as they stand now.')
-}))
+})),
+  "gone": zod.array(zod.string()).describe('Hospital IDs on the grid no longer in the unit\'s month, such as a nurse transferred out: nothing can be pinned for them, and clearing a cell takes its shift off.')
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
@@ -2067,6 +2078,240 @@ export const SaveDraftPinsResponse = zod.object({
   "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
+})
+
+
+/**
+ * An approved roster's direct edits, all of it or none of it, under the locks `_locked_for_edits` names: a new version with
+ * origin `edit` and the reason, in force at once, each edited cell a manager's pin as on the draft. A save that changes nothing
+ * makes none. One that breaks a hard rule saves, and the answer's `draft.check` says what it breaks: the roster in force has to
+ * say what is so, such as a shift left short by a nurse taken off sick. The audit entry says a version was made, and never why.
+ * The unit's nurses of the month are told, with no reason, cell or name.
+ * @summary Save Version
+ */
+export const SaveRosterVersionParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const saveRosterVersionBodyMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const saveRosterVersionBodyEditsItemHospitalIdMax = 150;
+
+export const saveRosterVersionBodyEditsItemShiftOneMax = 8;
+
+export const saveRosterVersionBodyEditsMax = 3100;
+
+export const saveRosterVersionBodyReasonMax = 2000;
+
+
+
+export const SaveRosterVersionBody = zod.object({
+  "month": zod.string().regex(saveRosterVersionBodyMonthRegExp),
+  "edits": zod.array(zod.object({
+  "hospital_id": zod.string().min(1).max(saveRosterVersionBodyEditsItemHospitalIdMax),
+  "date": zod.iso.date(),
+  "action": zod.enum(['shift', 'off', 'clear']).describe('Pin a shift, pin a day off, or clear the cell\'s pin.'),
+  "shift": zod.union([zod.string().max(saveRosterVersionBodyEditsItemShiftOneMax),zod.null()]).optional().describe('The shift\'s code, with `shift`.')
+})).max(saveRosterVersionBodyEditsMax),
+  "reason": zod.string().min(1).max(saveRosterVersionBodyReasonMax).describe('Why, for the unit\'s manager and the approvers, who read it in the version list. Never a nurse, a notification or the audit log.')
+})
+
+export const SaveRosterVersionResponse = zod.object({
+  "month": zod.string(),
+  "state": zod.enum(['none', 'draft', 'submitted', 'approved']).describe('`none` until a solve keeps a roster.'),
+  "submitted": zod.union([zod.object({
+  "submitted_by": zod.string(),
+  "submitted_at": zod.iso.datetime({"offset":true}),
+  "new_since": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+})).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
+}),zod.null()]).describe('While it waits for a decision.'),
+  "last_rejection": zod.union([zod.object({
+  "rejected_by": zod.string(),
+  "rejected_at": zod.iso.datetime({"offset":true}),
+  "comment": zod.string()
+}),zod.null()]).describe('The latest rejection, kept through the submits after it.'),
+  "approved": zod.union([zod.object({
+  "approved_by": zod.string(),
+  "approved_at": zod.iso.datetime({"offset":true}),
+  "version": zod.int().describe('The roster version in force: the latest.')
+}),zod.null()]),
+  "submit_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot submit it now: also a hard rule it breaks on the month as it stands, which `draft.check` lists.'),
+  "approve_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be approved now, the same check included.'),
+  "reject_refusal": zod.union([zod.string(),zod.null()]),
+  "active_solve": zod.union([zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+}),zod.null()]),
+  "last_solve": zod.union([zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+}),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
+  "draft": zod.union([zod.object({
+  "days": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "weekend": zod.boolean(),
+  "holiday": zod.boolean()
+})),
+  "rows": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "cells": zod.array(zod.object({
+  "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
+  "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
+}))
+})),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "colour": zod.string(),
+  "hours": zod.int().describe('As the solve that made this grid was given them.')
+})),
+  "solve_id": zod.uuid(),
+  "solved_at": zod.iso.datetime({"offset":true}),
+  "restored_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('When the manager restored this result as the draft. Null when the draft is what its solve left.'),
+  "edited": zod.boolean().describe('Whether the grid differs from what its solve answered.'),
+  "cost": zod.union([zod.int(),zod.null()]).describe('This grid\'s on the month as it stands, which is its solve\'s while neither the grid nor the month has changed since. Null if it could not be worked out.'),
+  "solved_cost": zod.int(),
+  "check": zod.union([zod.object({
+  "reason": zod.union([zod.string(),zod.null()]).describe('Why this could not be worked out: the solver\'s code cannot read the month as it stands.'),
+  "ok": zod.union([zod.boolean(),zod.null()]).describe('Whether it breaks no hard rule.'),
+  "violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})),
+  "cost": zod.union([zod.int(),zod.null()])
+}).describe('What the solver\'s own code says of a grid. `reason` says why it could not, and the rest is then null.'),zod.null()]).describe('What the grid breaks on the month as it stands. Null while neither the grid nor the month has changed since its solve, whose roster breaks none.'),
+  "pins": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
+  "origin": zod.enum(['manager', 'request', 'swap']),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+})),
+  "pins_lost_to_leave": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string(),
+  "by": zod.string().describe('Who recorded the leave.')
+})).describe('Pins leave has replaced since this draft\'s solve was started, whoever recorded it, until a newer solve has taken that in.'),
+  "editor": zod.object({
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this roster cannot be edited now: the month is over, the roster is submitted, or the reader is not its manager. An approved one is edited too, each save a new version (`saveRosterVersion`).'),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "colour": zod.string(),
+  "hours": zod.int()
+})).describe('What a cell can be pinned to: the unit\'s shifts.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('Null for any the unit works.'),
+  "credited": zod.array(zod.iso.date()).describe('Their days of leave and days outside their dates, as they stand now.')
+})),
+  "gone": zod.array(zod.string()).describe('Hospital IDs on the grid no longer in the unit\'s month, such as a nurse transferred out: nothing can be pinned for them, and clearing a cell takes its shift off.')
+}),
+  "stopped_early": zod.boolean(),
+  "changes": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+})).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
+}),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
+})
+
+
+/**
+ * Newest first. Only an approved roster has versions, so the CNO and the Deputy CNO read them as they read the roster.
+ * @summary Roster Versions
+ */
+export const ListRosterVersionsParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const listRosterVersionsQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ListRosterVersionsQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(listRosterVersionsQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.')
+})
+
+export const ListRosterVersionsResponseItem = zod.object({
+  "number": zod.int(),
+  "origin": zod.enum(['solve', 'edit', 'replan', 'swap', 'request']),
+  "created_by": zod.string(),
+  "created_at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('Empty for version 1, which the approval made. It can say a cell was leave, so only the unit\'s manager and the approvers read it.'),
+  "cells_changed": zod.union([zod.int(),zod.null()]).describe('Cells that differ from the version before. Null for version 1.')
+})
+export const ListRosterVersionsResponse = zod.array(ListRosterVersionsResponseItem)
+
+
+/**
+ * Any two versions of the month, in either order, cell by cell under today's codes. For the unit's manager and the approvers:
+ * a nurse reads the roster in force on My roster, and nothing of what changed in a colleague's row.
+ * @summary Compare Versions
+ */
+export const CompareRosterVersionsParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const compareRosterVersionsQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+
+
+export const CompareRosterVersionsQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(compareRosterVersionsQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.'),
+  "from_version": zod.int().min(1),
+  "to_version": zod.int().min(1)
+})
+
+export const CompareRosterVersionsResponse = zod.object({
+  "from_version": zod.int(),
+  "to_version": zod.int(),
+  "changes": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The shift\'s code in `from_version`, today\'s code. Empty for a day not worked.'),
+  "after": zod.string().describe('The same in `to_version`.')
+})).describe('Each cell that differs, by nurse then date. A rename is not a change.')
 })
 
 
@@ -2108,7 +2353,7 @@ export const SubmitRosterResponse = zod.object({
   "approved": zod.union([zod.object({
   "approved_by": zod.string(),
   "approved_at": zod.iso.datetime({"offset":true}),
-  "version": zod.int().describe('The roster version in force.')
+  "version": zod.int().describe('The roster version in force: the latest.')
 }),zod.null()]),
   "submit_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot submit it now: also a hard rule it breaks on the month as it stands, which `draft.check` lists.'),
   "approve_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be approved now, the same check included.'),
@@ -2205,7 +2450,7 @@ export const SubmitRosterResponse = zod.object({
   "by": zod.string().describe('Who recorded the leave.')
 })).describe('Pins leave has replaced since this draft\'s solve was started, whoever recorded it, until a newer solve has taken that in.'),
   "editor": zod.object({
-  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this roster cannot be edited now: the month is over, the roster is submitted, or the reader is not its manager. An approved one is edited too, each save a new version (`saveRosterVersion`).'),
   "shifts": zod.array(zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
@@ -2216,7 +2461,8 @@ export const SubmitRosterResponse = zod.object({
   "hospital_id": zod.string(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('Null for any the unit works.'),
   "credited": zod.array(zod.iso.date()).describe('Their days of leave and days outside their dates, as they stand now.')
-}))
+})),
+  "gone": zod.array(zod.string()).describe('Hospital IDs on the grid no longer in the unit\'s month, such as a nurse transferred out: nothing can be pinned for them, and clearing a cell takes its shift off.')
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
@@ -2265,7 +2511,7 @@ export const ApproveRosterResponse = zod.object({
   "approved": zod.union([zod.object({
   "approved_by": zod.string(),
   "approved_at": zod.iso.datetime({"offset":true}),
-  "version": zod.int().describe('The roster version in force.')
+  "version": zod.int().describe('The roster version in force: the latest.')
 }),zod.null()]),
   "submit_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot submit it now: also a hard rule it breaks on the month as it stands, which `draft.check` lists.'),
   "approve_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be approved now, the same check included.'),
@@ -2362,7 +2608,7 @@ export const ApproveRosterResponse = zod.object({
   "by": zod.string().describe('Who recorded the leave.')
 })).describe('Pins leave has replaced since this draft\'s solve was started, whoever recorded it, until a newer solve has taken that in.'),
   "editor": zod.object({
-  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this roster cannot be edited now: the month is over, the roster is submitted, or the reader is not its manager. An approved one is edited too, each save a new version (`saveRosterVersion`).'),
   "shifts": zod.array(zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
@@ -2373,7 +2619,8 @@ export const ApproveRosterResponse = zod.object({
   "hospital_id": zod.string(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('Null for any the unit works.'),
   "credited": zod.array(zod.iso.date()).describe('Their days of leave and days outside their dates, as they stand now.')
-}))
+})),
+  "gone": zod.array(zod.string()).describe('Hospital IDs on the grid no longer in the unit\'s month, such as a nurse transferred out: nothing can be pinned for them, and clearing a cell takes its shift off.')
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
@@ -2424,7 +2671,7 @@ export const RejectRosterResponse = zod.object({
   "approved": zod.union([zod.object({
   "approved_by": zod.string(),
   "approved_at": zod.iso.datetime({"offset":true}),
-  "version": zod.int().describe('The roster version in force.')
+  "version": zod.int().describe('The roster version in force: the latest.')
 }),zod.null()]),
   "submit_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot submit it now: also a hard rule it breaks on the month as it stands, which `draft.check` lists.'),
   "approve_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be approved now, the same check included.'),
@@ -2521,7 +2768,7 @@ export const RejectRosterResponse = zod.object({
   "by": zod.string().describe('Who recorded the leave.')
 })).describe('Pins leave has replaced since this draft\'s solve was started, whoever recorded it, until a newer solve has taken that in.'),
   "editor": zod.object({
-  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this draft cannot be edited now: the month is over, the roster is submitted or approved, or the reader is not its manager.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why this roster cannot be edited now: the month is over, the roster is submitted, or the reader is not its manager. An approved one is edited too, each save a new version (`saveRosterVersion`).'),
   "shifts": zod.array(zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
@@ -2532,7 +2779,8 @@ export const RejectRosterResponse = zod.object({
   "hospital_id": zod.string(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('Null for any the unit works.'),
   "credited": zod.array(zod.iso.date()).describe('Their days of leave and days outside their dates, as they stand now.')
-}))
+})),
+  "gone": zod.array(zod.string()).describe('Hospital IDs on the grid no longer in the unit\'s month, such as a nurse transferred out: nothing can be pinned for them, and clearing a cell takes its shift off.')
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({

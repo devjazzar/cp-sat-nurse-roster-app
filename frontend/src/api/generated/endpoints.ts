@@ -30,6 +30,7 @@ import type {
   AuditPage,
   ChangePasswordBody,
   ChangePasswordRefusal,
+  CompareRosterVersionsParams,
   ConfirmNurseImportBody,
   CorrectedNurse,
   CorrectionBody,
@@ -55,6 +56,7 @@ import type {
   ListHospitalSolveHistoryParams,
   ListPublicHolidaysParams,
   ListRamadanMonthsParams,
+  ListRosterVersionsParams,
   ListUnitLeaveParams,
   ListUnitSolveHistoryParams,
   LoginBody,
@@ -107,6 +109,9 @@ import type {
   UnitSchema,
   Unread,
   UserWithPassword,
+  VersionBody,
+  VersionComparison,
+  VersionRow,
   WaitingRoster
 } from './model';
 
@@ -5005,11 +5010,10 @@ export const getSaveDraftPinsUrl = (unitId: string,) => {
 }
 
 /**
- * All of it or none of it. Under the catalogue's lock, which a solve's start and end, a restore and a rename hold, then each
- * nurse's, which a leave write holds and which comes before a unit's in a transfer. A solve already under way was given the
- * month without these: it may run on, its roster takes them on top when it ends, and the draft says so through `changes`. The
- * audit entry names the unit and the month and how many pins and cells changed, and no nurse, date or shift: the System Admin
- * sees no roster.
+ * A draft's, all of it or none of it, under the locks `_locked_for_edits` names; an approved roster's changes are versions
+ * (`saveRosterVersion`). A solve already under way was given the month without these: it may run on, its roster takes them on
+ * top when it ends, and the draft says so through `changes`. The audit entry names the unit and the month and how many pins and
+ * cells changed, and no nurse, date or shift: the System Admin sees no roster.
  * @summary Save Pins
  */
 export const saveDraftPins = async (unitId: string,
@@ -5089,6 +5093,335 @@ export const useSaveDraftPins = <TError = unknown,
       > => {
       return useMutation(getSaveDraftPinsMutationOptions(options), queryClient);
     }
+
+export const getSaveRosterVersionUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/roster/versions`
+}
+
+/**
+ * An approved roster's direct edits, all of it or none of it, under the locks `_locked_for_edits` names: a new version with
+ * origin `edit` and the reason, in force at once, each edited cell a manager's pin as on the draft. A save that changes nothing
+ * makes none. One that breaks a hard rule saves, and the answer's `draft.check` says what it breaks: the roster in force has to
+ * say what is so, such as a shift left short by a nurse taken off sick. The audit entry says a version was made, and never why.
+ * The unit's nurses of the month are told, with no reason, cell or name.
+ * @summary Save Version
+ */
+export const saveRosterVersion = async (unitId: string,
+    versionBody: VersionBody, options?: Parameters<typeof apiFetch>[1]): Promise<RosterMonth> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RosterMonth>(getSaveRosterVersionUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionBody)
+  }
+);}
+
+
+
+
+
+export const getSaveRosterVersionMutationKey = () => ['saveRosterVersion'] as const;
+
+export const getSaveRosterVersionMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveRosterVersion>>, TError,SaveRosterVersionMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveRosterVersion>>, TError,SaveRosterVersionMutationVariables, TContext> => {
+
+const mutationKey = getSaveRosterVersionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveRosterVersion>>, SaveRosterVersionMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  saveRosterVersion(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveRosterVersionMutationResult = NonNullable<Awaited<ReturnType<typeof saveRosterVersion>>>
+    export type SaveRosterVersionMutationBody = VersionBody
+    export type SaveRosterVersionMutationError = unknown
+    export type SaveRosterVersionMutationVariables = {unitId: string;data: VersionBody}
+
+    /**
+ * @summary Save Version
+ */
+export const useSaveRosterVersion = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveRosterVersion>>, TError,SaveRosterVersionMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveRosterVersion>>,
+        TError,
+        SaveRosterVersionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveRosterVersionMutationOptions(options), queryClient);
+    }
+
+export const getListRosterVersionsUrl = (unitId: string,
+    params?: ListRosterVersionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/roster/versions?${stringifiedParams}` : `/api/units/${unitId}/roster/versions`
+}
+
+/**
+ * Newest first. Only an approved roster has versions, so the CNO and the Deputy CNO read them as they read the roster.
+ * @summary Roster Versions
+ */
+export const listRosterVersions = async (unitId: string,
+    params?: ListRosterVersionsParams, options?: Parameters<typeof apiFetch>[1]): Promise<VersionRow[]> => {
+
+  return apiFetch<VersionRow[]>(getListRosterVersionsUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRosterVersionsQueryKey = (unitId: string,
+    params?: ListRosterVersionsParams,) => {
+    return [
+    `/api/units/${unitId}/roster/versions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListRosterVersionsQueryOptions = <TData = Awaited<ReturnType<typeof listRosterVersions>>, TError = unknown>(unitId: string,
+    params?: ListRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRosterVersions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRosterVersionsQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRosterVersions>>> = ({ signal }) => listRosterVersions(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRosterVersions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListRosterVersionsQueryResult = NonNullable<Awaited<ReturnType<typeof listRosterVersions>>>
+export type ListRosterVersionsQueryError = unknown
+
+
+export function useListRosterVersions<TData = Awaited<ReturnType<typeof listRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  ListRosterVersionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRosterVersions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRosterVersions>>,
+          TError,
+          Awaited<ReturnType<typeof listRosterVersions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRosterVersions<TData = Awaited<ReturnType<typeof listRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params?: ListRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRosterVersions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRosterVersions>>,
+          TError,
+          Awaited<ReturnType<typeof listRosterVersions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRosterVersions<TData = Awaited<ReturnType<typeof listRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params?: ListRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRosterVersions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Roster Versions
+ */
+
+export function useListRosterVersions<TData = Awaited<ReturnType<typeof listRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params?: ListRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRosterVersions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListRosterVersionsQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCompareRosterVersionsUrl = (unitId: string,
+    params: CompareRosterVersionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/roster/versions/compare?${stringifiedParams}` : `/api/units/${unitId}/roster/versions/compare`
+}
+
+/**
+ * Any two versions of the month, in either order, cell by cell under today's codes. For the unit's manager and the approvers:
+ * a nurse reads the roster in force on My roster, and nothing of what changed in a colleague's row.
+ * @summary Compare Versions
+ */
+export const compareRosterVersions = async (unitId: string,
+    params: CompareRosterVersionsParams, options?: Parameters<typeof apiFetch>[1]): Promise<VersionComparison> => {
+
+  return apiFetch<VersionComparison>(getCompareRosterVersionsUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompareRosterVersionsQueryKey = (unitId: string,
+    params?: CompareRosterVersionsParams,) => {
+    return [
+    `/api/units/${unitId}/roster/versions/compare`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCompareRosterVersionsQueryOptions = <TData = Awaited<ReturnType<typeof compareRosterVersions>>, TError = unknown>(unitId: string,
+    params: CompareRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRosterVersions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCompareRosterVersionsQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof compareRosterVersions>>> = ({ signal }) => compareRosterVersions(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof compareRosterVersions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CompareRosterVersionsQueryResult = NonNullable<Awaited<ReturnType<typeof compareRosterVersions>>>
+export type CompareRosterVersionsQueryError = unknown
+
+
+export function useCompareRosterVersions<TData = Awaited<ReturnType<typeof compareRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params: CompareRosterVersionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRosterVersions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof compareRosterVersions>>,
+          TError,
+          Awaited<ReturnType<typeof compareRosterVersions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompareRosterVersions<TData = Awaited<ReturnType<typeof compareRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params: CompareRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRosterVersions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof compareRosterVersions>>,
+          TError,
+          Awaited<ReturnType<typeof compareRosterVersions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompareRosterVersions<TData = Awaited<ReturnType<typeof compareRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params: CompareRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRosterVersions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Compare Versions
+ */
+
+export function useCompareRosterVersions<TData = Awaited<ReturnType<typeof compareRosterVersions>>, TError = unknown>(
+ unitId: string,
+    params: CompareRosterVersionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRosterVersions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCompareRosterVersionsQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSubmitRosterUrl = (unitId: string,) => {
 
