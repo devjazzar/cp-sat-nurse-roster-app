@@ -3678,7 +3678,7 @@ describe("the leave pages", () => {
   })
 
   it("says which pins on the draft the leave replaced, as leave wins over a pin", async () => {
-    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "manager" }, { date: "2026-11-11", shift: "", origin: "manager" }] }
+    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "manager", roster: "draft" }, { date: "2026-11-11", shift: "", origin: "manager", roster: "draft" }] }
     const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
 
     await user.click(await screen.findByRole("button", { name: "Record leave" }))
@@ -3691,8 +3691,47 @@ describe("the leave pages", () => {
       "It replaced 2 pins on the draft: N on 10 Nov 2026, a day off on 11 Nov 2026. A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again.")
   })
 
+  it("names the roster in force, not the draft, for a pin on an approved roster, beside the shift it took off", async () => {
+    const replaced = {
+      ...SAVED,
+      pins_removed: [{ date: "2026-11-10", shift: "N", origin: "manager", roster: "approved" }],
+      shifts_taken_off: [{ date: "2026-11-10", shift: "N", version: 3 }],
+    }
+    const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2026-11-10")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    const said = await screen.findByRole("status")
+    expect(said).toHaveTextContent(
+      "It replaced a pin on the roster in force: N on 10 Nov 2026. It took a shift off the approved roster: N on 10 Nov 2026. Version 3 is now in force")
+    expect(said).not.toHaveTextContent(/draft|solve again/)
+  })
+
+  it("says a submitted roster keeps the shift of a pin it replaced until the decision, and one on the draft as before", async () => {
+    const replaced = {
+      ...SAVED,
+      pins_removed: [{ date: "2026-11-30", shift: "N", origin: "manager", roster: "submitted" }, { date: "2026-12-01", shift: "D", origin: "manager", roster: "draft" }],
+    }
+    const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2026-11-30")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "It replaced a pin on the draft: D on 1 Dec 2026. It replaced a pin on the submitted roster: N on 30 Nov 2026. " +
+      "A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again. " +
+      "The submitted roster keeps its shift until the decision, which checks it again.")
+  })
+
   it("says an accepted request's pin it replaced stays on record and its nurse is told", async () => {
-    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "request" }] }
+    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "request", roster: "draft" }] }
     const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
 
     await user.click(await screen.findByRole("button", { name: "Record leave" }))

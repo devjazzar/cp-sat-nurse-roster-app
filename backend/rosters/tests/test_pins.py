@@ -595,8 +595,8 @@ class TestLeaveOnAPinnedDay:
         response = record_leave(mona, er, "Amal", 3, 5)
 
         assert response.status_code == 201, response.content
-        assert response.json()["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "manager"},
-                                                   {"date": "2026-06-04", "shift": "", "origin": "manager"}]
+        assert response.json()["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "manager", "roster": "draft"},
+                                                   {"date": "2026-06-04", "shift": "", "origin": "manager", "roster": "draft"}]
         draft = month_of(mona, er)["draft"]
         assert pins_of(draft) == {("Amal", "2026-06-09"): "N"}
         ended = PinnedCell.objects.exclude(removed_at=None).get(date="2026-06-03")
@@ -621,7 +621,7 @@ class TestLeaveOnAPinnedDay:
             "leave_ids": leave["leave_ids"], "leave_type_id": leave["leave_type"]["id"], "first": "2026-06-03", "last": "2026-06-06"})
 
         assert response.status_code == 200, response.content
-        assert response.json()["pins_removed"] == [{"date": "2026-06-06", "shift": "N", "origin": "manager"}]
+        assert response.json()["pins_removed"] == [{"date": "2026-06-06", "shift": "N", "origin": "manager", "roster": "draft"}]
         assert month_of(mona, er)["draft"]["pins"] == []
 
     def test_with_no_pin_there_the_answer_says_nothing(self, mona, er, solver):
@@ -638,7 +638,7 @@ class TestLeaveOnAPinnedDay:
 
         response = record_leave(omar, er, "Amal", 3)
 
-        assert response.json()["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "manager"}]
+        assert response.json()["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "manager", "roster": "draft"}]
         lost = month_of(omar, er)["draft"]["pins_lost_to_leave"]
         assert [(row["hospital_id"], row["date"], row["shift"], row["by"]) for row in lost] == [("Amal", "2026-06-03", "N", "Omar Said")]
 

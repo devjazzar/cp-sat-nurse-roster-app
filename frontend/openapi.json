@@ -7424,12 +7424,24 @@
             ],
             "title": "Origin",
             "type": "string"
+          },
+          "roster": {
+            "description": "The state of the unit's roster of the pin's month, which decides what the page says follows: a draft still holds the shift until it is edited or solved again, a submitted roster keeps it for the decision, and on an approved one the leave has taken it off as a version.",
+            "enum": [
+              "none",
+              "draft",
+              "submitted",
+              "approved"
+            ],
+            "title": "Roster",
+            "type": "string"
           }
         },
         "required": [
           "date",
           "shift",
-          "origin"
+          "origin",
+          "roster"
         ],
         "title": "RemovedPin",
         "type": "object"

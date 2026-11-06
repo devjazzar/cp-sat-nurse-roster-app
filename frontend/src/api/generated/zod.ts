@@ -1496,7 +1496,8 @@ export const RecordLeaveResponse = zod.object({
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.')
+  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.'),
+  "roster": zod.enum(['none', 'draft', 'submitted', 'approved']).describe('The state of the unit\'s roster of the pin\'s month, which decides what the page says follows: a draft still holds the shift until it is edited or solved again, a submitted roster keeps it for the decision, and on an approved one the leave has taken it off as a version.')
 })).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
   "shifts_taken_off": zod.array(zod.object({
   "date": zod.iso.date(),
@@ -1544,7 +1545,8 @@ export const ChangeLeaveResponse = zod.object({
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.')
+  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.'),
+  "roster": zod.enum(['none', 'draft', 'submitted', 'approved']).describe('The state of the unit\'s roster of the pin\'s month, which decides what the page says follows: a draft still holds the shift until it is edited or solved again, a submitted roster keeps it for the decision, and on an approved one the leave has taken it off as a version.')
 })).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
   "shifts_taken_off": zod.array(zod.object({
   "date": zod.iso.date(),

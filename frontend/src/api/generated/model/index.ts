@@ -171,6 +171,7 @@ export * from './rejection';
 export * from './rejectSwapBody';
 export * from './removedPin';
 export * from './removedPinOrigin';
+export * from './removedPinRoster';
 export * from './replanChange';
 export * from './replanComparison';
 export * from './replanComparisonOutcome';

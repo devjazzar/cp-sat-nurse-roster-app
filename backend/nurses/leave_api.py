@@ -33,6 +33,7 @@ from nurses.api import Body, MonthText, with_units
 from nurses.models import Leave, NurseProfile
 from requesting.deciding import replaced_by_leave
 from requesting.models import Request, Step
+from rosters.models import Roster
 from rosters.pins import end_for_leave
 from rosters.versions import TakenOff, take_off_for_leave
 from units.models import Unit
@@ -104,6 +105,10 @@ class RemovedPin(Schema):
     shift: str = Field(description="The shift's code. Empty for a day off.")
     origin: Literal["manager", "request", "swap"] = Field(description="An accepted request's pin is the nurse's: the request "
                                                                       "stays on record, replaced by leave, and they are told.")
+    roster: Literal["none", "draft", "submitted", "approved"] = Field(
+        description="The state of the unit's roster of the pin's month, which decides what the page says follows: a draft "
+                    "still holds the shift until it is edited or solved again, a submitted roster keeps it for the decision, "
+                    "and on an approved one the leave has taken it off as a version.")
 
 
 class ShiftTakenOff(Schema):
@@ -284,7 +289,11 @@ def _begin(nurse: NurseProfile, unit: Unit, leave_type: LeaveType, days: list[dt
     Leave.objects.bulk_create([Leave(nurse=nurse, date=day, leave_type=leave_type, recorded_by=user) for day in days])
     ended = sorted(end_for_leave(nurse, days, user), key=lambda pin: pin.date)
     replaced = replaced_by_leave(nurse, days, ended, user)
-    return _Begun([RemovedPin(date=pin.date, shift=pin.code, origin=pin.origin) for pin in ended if pin.unit_id == unit.pk],
+    ours = [pin for pin in ended if pin.unit_id == unit.pk]
+    states = dict(Roster.objects.filter(unit=unit, month__in={pin.date.replace(day=1) for pin in ours})
+                  .values_list("month", "state"))
+    return _Begun([RemovedPin(date=pin.date, shift=pin.code, origin=pin.origin,
+                              roster=states.get(pin.date.replace(day=1), "none")) for pin in ours],
                   take_off_for_leave(nurse, unit, days, user), replaced)
 
 

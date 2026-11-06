@@ -704,7 +704,7 @@ class TestLeaveOverAnAcceptedRequest:
 
         answer = ok(leave_for(mona, er, "Amal", 3), 201)
 
-        assert answer["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "request"}]
+        assert answer["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "request", "roster": "draft"}]
         seen = mine(amal)["requests"][0]
         assert (seen["state"], seen["promised"], seen["steps"][-1]["step"]) == ("replaced_by_leave", None, "replaced_by_leave")
         assert texts(amal, "request_decided")[0] == (

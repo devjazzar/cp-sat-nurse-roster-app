@@ -201,15 +201,29 @@ function shiftsTakenOff(taken: ShiftTakenOff[]): string {
   return ` It took ${taken.length === 1 ? "a shift" : `${taken.length} shifts`} off the approved roster: ${each}. Version ${versions} is now in force, and the unit's nurses are told the roster has changed, not why. Find a cover on the Roster page if one is needed.`
 }
 
+/** Where a replaced pin was decides what follows: a draft still holds its shift, a submitted roster keeps it for the decision,
+ * and on the roster in force the leave took it off as a version, which `shiftsTakenOff` says. A month with no roster yet reads
+ * as its draft. */
+const PIN_PLACES: { on: RemovedPin["roster"][]; where: string; then: string }[] = [
+  { on: ["none", "draft"], where: "the draft", then: " A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again." },
+  { on: ["submitted"], where: "the submitted roster", then: " The submitted roster keeps its shift until the decision, which checks it again." },
+  { on: ["approved"], where: "the roster in force", then: "" },
+]
+
 /** Leave wins over a pin, so saving it ended any on its days, and the Roster page goes on saying so. */
 function pinsReplaced(pins: RemovedPin[]): string {
   if (pins.length === 0) return ""
-  const each = pins.map((pin) => `${pin.shift || "a day off"} on ${dayRange(pin.date, pin.date)}`).join(", ")
+  const places = PIN_PLACES.map((place) => ({ ...place, pins: pins.filter((pin) => place.on.includes(pin.roster)) }))
+    .filter((place) => place.pins.length > 0)
+  const said = places.map(({ where, pins: here }) => {
+    const each = here.map((pin) => `${pin.shift || "a day off"} on ${dayRange(pin.date, pin.date)}`).join(", ")
+    return ` It replaced ${here.length === 1 ? "a pin" : `${here.length} pins`} on ${where}: ${each}.`
+  }).join("")
   const requests = pins.filter((pin) => pin.origin === "request")
   const told = requests.length === 0 ? ""
     : requests.length === 1 ? " One was an accepted request, which stays on record as replaced by leave; its nurse is told."
     : ` ${requests.length} were accepted requests, which stay on record as replaced by leave; their nurses are told.`
-  return ` It replaced ${pins.length === 1 ? "a pin" : `${pins.length} pins`} on the draft: ${each}.${told} A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again.`
+  return `${said}${told}${places.map((place) => place.then).join("")}`
 }
 
 function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }: {
