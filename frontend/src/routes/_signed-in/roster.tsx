@@ -39,7 +39,7 @@ import { FormField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { LeavePageDialog } from "@/components/password-dialog"
 import { type CellMarks, GridLegend, RosterGrid } from "@/components/roster-grid"
-import { CHANGE_SAYS, longDay, PinNotes, plural, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
+import { CHANGE_SAYS, PinNotes, plural, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
 import { RosterVersions } from "@/components/roster-versions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,7 +49,7 @@ import { useChosenUnit } from "@/components/unit-picker"
 import { cellKey, keyOf, usePendingEdits } from "@/lib/pending-edits"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useDebounced } from "@/lib/use-debounced"
-import { hospitalTime, monthName } from "@/lib/utils"
+import { hospitalTime, longDay, monthName } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress })
@@ -156,7 +156,9 @@ function WhyNotInForce({ solve }: { solve: SolveProgress }) {
     return <p role="alert">The roster in force or the month changed while the re-plan ran, so its roster was not put in force: it would have undone that change. Re-plan again to take it in.</p>
   }
   if (solve.replan_outcome === "month_over") return <p>The month ended while the re-plan ran, so its roster was not put in force.</p>
-  if (solve.state === "cancelled") return <p>The re-plan you stopped had found no roster yet, {IN_FORCE_AS_IT_WAS}</p>
+  if (solve.state === "cancelled") {
+    return <p>The re-plan you stopped had found {solve.best_cost === null ? "no roster yet" : "no roster it could keep"}, {IN_FORCE_AS_IT_WAS}</p>
+  }
   return (
     <>
       <p role="alert">The re-plan ended with no roster to keep, {IN_FORCE_AS_IT_WAS} {solve.message}</p>
@@ -416,7 +418,9 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
           {draft.check
             ? `Cost ${draft.cost ?? "not known"} on the month as it stands, against ${draft.solved_cost} as solved.`
             : `Cost ${draft.cost}.`}
-          {draft.stopped_early && " You stopped this solve early, so this is the best roster it had found."}
+          {draft.stopped_early && (approved
+            ? " The solve or re-plan it came from was stopped early, so this is the best roster that had been found."
+            : " You stopped this solve early, so this is the best roster it had found.")}
         </p>
       </div>
       {draft.changes.length > 0 && (

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from django.conf import settings
 from django.db import models
 from django.db.models.functions import UUID7
@@ -26,6 +28,10 @@ class ReplanOutcome(models.TextChoices):
     UNCHANGED = "unchanged", "Its roster changed no cell, so no version was made."
     OUTDATED = "outdated", "The roster in force or the month's facts changed while it waited or ran, so it was not applied."
     MONTH_OVER = "month_over", "The month ended while it waited or ran, so it was not applied."
+
+
+# How the API types a `ReplanOutcome`.
+ReplanOutcomeWord = Literal[ReplanOutcome.VERSION, ReplanOutcome.UNCHANGED, ReplanOutcome.OUTDATED, ReplanOutcome.MONTH_OVER]
 
 
 class Solve(models.Model):

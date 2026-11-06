@@ -159,8 +159,10 @@ def _finish(solve: Solve, job: dict) -> None:
         if result is not None:
             fields |= {"best_cost": result["cost"], "improvements": result["solver"]["improvements"]}
         _end(solve, **fields)
+        # This solve's own row is written before the locks below, as for a plain solve. No leave, edit or approval locks a solve's
+        # row, and a stop takes only that row, so it adds no wait to the order they share.
         if solve.replan_from:
-            # Then the month's nurses', which a leave write takes, and the unit's, as an approval takes them; the roster's last.
+            # Then the month's nurses which a leave write takes, and the unit's, as an approval takes them; the roster's last.
             review.lock_the_months_nurses(solve.unit, solve.month, Roster.objects.filter(unit=solve.unit, month=solve.month).first())
             Unit.objects.select_for_update().get(pk=solve.unit_id)
             outcome = replans.finish(solve, result, state)

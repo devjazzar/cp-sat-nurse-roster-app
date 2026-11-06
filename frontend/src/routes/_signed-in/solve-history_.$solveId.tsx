@@ -91,6 +91,11 @@ function Why({ result }: { result: SolveResult }) {
   )
 }
 
+/** A re-plan is never restored: what it did to the roster in force is said beside its comparison. */
+function ReplanLink({ month }: { month: string }) {
+  return <Link to="/roster" search={{ month }} className={`text-sm ${LINK}`}>See the roster in force</Link>
+}
+
 function Result({ unit, solveId }: { unit: { id: string; name: string }; solveId: string }) {
   const answer = useGetSolveResult(unit.id, solveId)
   const [restored, setRestored] = useState(false)
@@ -122,7 +127,9 @@ function Result({ unit, solveId }: { unit: { id: string; name: string }; solveId
         <dd>{solve.cost ?? "None"}</dd>
       </dl>
       <Why result={result} />
-      <Restoring unitId={unit.id} result={result} restored={restored} onRestored={() => setRestored(true)} />
+      {solve.replan_from
+        ? <ReplanLink month={solve.month} />
+        : <Restoring unitId={unit.id} result={result} restored={restored} onRestored={() => setRestored(true)} />}
       {grid && (
         <section aria-label="The roster it answered" className="flex flex-col gap-4">
           <RosterGrid grid={grid} label={`Roster of this result, ${month}`} />

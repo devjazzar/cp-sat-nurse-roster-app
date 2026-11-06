@@ -21,7 +21,7 @@ from solves.result import has_a_roster_to_keep
 
 logger = logging.getLogger(__name__)
 
-NO_ROSTER = "This month has no roster yet. A re-plan changes an approved roster, so solve it, submit it and have it approved first."
+NO_ROSTER_YET = "This month has no roster yet. A re-plan changes an approved roster, so solve it, submit it and have it approved first."
 A_DRAFT = ("This roster is a draft, with nothing in force to re-plan. Solve it again instead: each solve of a draft starts afresh "
            "and keeps your pins.")
 MONTH_OVER = "This month is over, so its roster in force cannot be re-planned."
@@ -40,7 +40,7 @@ def why_not(roster: Roster | None, month: dt.date) -> str | None:
     if month < membership.this_month():
         return MONTH_OVER
     if roster is None:
-        return NO_ROSTER
+        return NO_ROSTER_YET
     if roster.state == RosterState.DRAFT:
         return A_DRAFT
     if roster.state == RosterState.SUBMITTED:
@@ -76,7 +76,7 @@ def finish(solve: Solve, result: dict | None, state: SolveState) -> SolveOutcome
     roster = Roster.objects.select_for_update(of=("self",)).get(unit=solve.unit, month=solve.month)
     stopped = state == SolveState.CANCELLED
     if not has_a_roster_to_keep(result):
-        return _ended(solve, "", SolveOutcome.NO_ROSTER)
+        return _ended(solve, None, SolveOutcome.NO_ROSTER)
     if solve.month < membership.this_month():
         return _ended(solve, ReplanOutcome.MONTH_OVER, SolveOutcome.REPLAN_MONTH_OVER)
     latest = roster.versions.first()
@@ -97,7 +97,7 @@ def finish(solve: Solve, result: dict | None, state: SolveState) -> SolveOutcome
     return _ended(solve, ReplanOutcome.VERSION, SolveOutcome.STOPPED_REPLANNED if stopped else SolveOutcome.REPLANNED)
 
 
-def _ended(solve: Solve, outcome: str, told: SolveOutcome) -> SolveOutcome:
+def _ended(solve: Solve, outcome: ReplanOutcome | None, told: SolveOutcome) -> SolveOutcome:
     if outcome:
         Solve.objects.filter(pk=solve.pk).update(replan_outcome=outcome)
         solve.replan_outcome = outcome

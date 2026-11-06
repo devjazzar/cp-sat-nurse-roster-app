@@ -4736,8 +4736,8 @@ export const getStartReplanUrl = (unitId: string,) => {
 /**
  * An approved month's re-plan from a date, through the same queue as a solve. Its input holds the roster in force as it
  * stands now, and the version it was, so its end can tell whether anything moved since (`solves.replans.finish`). Under the
- * catalogue's lock, the unit's and the roster's. The audit entry is a solve's, saying it is a re-plan and nothing of the date
- * or the reason, which are about the roster.
+ * catalogue's lock, the unit's and the roster's. The audit entry is a solve's, and says nothing of the date or the reason,
+ * or that it is a re-plan: those are about the roster.
  * @summary Start Replan
  */
 export const startReplan = async (unitId: string,

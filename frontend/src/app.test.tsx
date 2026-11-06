@@ -5125,7 +5125,8 @@ describe("the roster page", () => {
         [{ ...ended, found_roster: true, replan_outcome: "unchanged" }, /changed no cell, so the roster in force is as it was/],
         [{ ...ended, found_roster: true, replan_outcome: "outdated" }, /roster in force or the month changed while the re-plan ran/],
         [{ ...ended, found_roster: true, replan_outcome: "month_over" }, /month ended while the re-plan ran/],
-        [{ ...ended, state: "cancelled", found_roster: false }, /re-plan you stopped had found no roster yet/],
+        [{ ...ended, state: "cancelled", found_roster: false, best_cost: null }, /re-plan you stopped had found no roster yet/],
+        [{ ...ended, state: "cancelled", found_roster: false, best_cost: 90 }, /re-plan you stopped had found no roster it could keep/],
       ]
       for (const [last, said] of words) {
         start("/roster", replanner({ [`GET ${UNIT}/roster`]: { body: { ...IN_FORCE, last_solve: last } } }))
@@ -5180,6 +5181,8 @@ describe("the roster page", () => {
       const facts = screen.getByRole("region", { name: "Recorded facts that broke rules" })
       expect(within(facts).getByText(/Amal Saleh works the 5th after a night/)).toBeInTheDocument()
       expect(screen.getByText("Re-planned from").nextElementSibling).toHaveTextContent("12 June")
+      expect(screen.queryByText(/the draft/)).not.toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "See the roster in force" })).toHaveAttribute("href", "/roster?month=2026-06")
     })
 
     it("says when it was not put in force, and why", async () => {

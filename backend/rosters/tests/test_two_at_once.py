@@ -12,6 +12,7 @@ from nurses.tests.test_two_at_once import alongside
 from rosters.drafts import in_current_codes
 from rosters.models import RosterState, RosterVersion, Submission
 from rosters.tests.test_pins import change_shift, off, pin
+from rosters.tests.test_replan import mid_june  # noqa: F401
 from rosters.tests.test_review import (BADR_OFF, BADR_WORKS, approve, approved, carla, dina, record_leave,  # noqa: F401
                                        reject, roster, solved, submit, submitted)
 from rosters.tests.test_versions import change
@@ -23,9 +24,6 @@ pytestmark = pytest.mark.django_db(transaction=True)
 @pytest.fixture(autouse=True)
 def _scene(before_june, solver, empty_queue):
     pass
-
-
-from rosters.tests.test_replan import mid_june  # noqa: E402, F401
 
 
 @pytest.fixture

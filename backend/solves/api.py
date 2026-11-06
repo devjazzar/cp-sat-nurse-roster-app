@@ -30,7 +30,7 @@ from rosters.drafts import frozen_month
 from rosters.models import Roster, RosterState
 from solves import replans
 from solves.input import Assembled, assemble, assemble_replan, recorded_cells_differ, solver_refusal
-from solves.models import ACTIVE_STATES, ReplanOutcome, Solve, SolveFailure, SolveState
+from solves.models import ACTIVE_STATES, ReplanOutcomeWord, Solve, SolveFailure, SolveState
 from solves.result import has_a_roster_to_keep, in_dates, precheck_of
 from solves.tasks import run_solve
 from units.models import Unit
@@ -162,8 +162,7 @@ class SolveProgress(Schema):
     message: str = Field(description="Why the solver found no roster, in its words.")
     precheck: list[str] = Field(description="What the solver's own precheck said, once it has ended.")
     replan_from: dt.date | None = Field(description="Set on a re-plan of an approved month: the first date it plans again.")
-    replan_outcome: Literal[ReplanOutcome.VERSION, ReplanOutcome.UNCHANGED, ReplanOutcome.OUTDATED,
-                            ReplanOutcome.MONTH_OVER] | None = Field(
+    replan_outcome: ReplanOutcomeWord | None = Field(
         description="What a re-plan's end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan "
                     "that kept no roster.")
 
@@ -267,9 +266,9 @@ def preview_replan(request: HttpRequest, unit_id: UUID, filters: Query[ReplanFil
                 rules_refusal = str(e)
             except SolverUnreachable:
                 pass
-    latest = roster.versions.first() if approved else None
+    in_force = roster.versions.first() if approved else None
     return ReplanPreview(
-        month=month.strftime("%Y-%m"), replan_from=day, earliest=first, latest=last, in_force=latest.number if latest else None,
+        month=month.strftime("%Y-%m"), replan_from=day, earliest=first, latest=last, in_force=in_force.number if in_force else None,
         summary=Summary(nurses=len(assembled.nurses), leave_days=assembled.leave_days,
                         outside_days=sum(map(len, assembled.outside_days.values())), pins=assembled.pins),
         recorded_cells_differ=differ, change_weight=HospitalSettings.load().rules["weights"].get("change", 0),
@@ -288,8 +287,8 @@ class StartReplanBody(StartSolveBody):
 def start_replan(request: HttpRequest, unit_id: UUID, body: StartReplanBody) -> Status:
     """An approved month's re-plan from a date, through the same queue as a solve. Its input holds the roster in force as it
     stands now, and the version it was, so its end can tell whether anything moved since (`solves.replans.finish`). Under the
-    catalogue's lock, the unit's and the roster's. The audit entry is a solve's, saying it is a re-plan and nothing of the date
-    or the reason, which are about the roster."""
+    catalogue's lock, the unit's and the roster's. The audit entry is a solve's, and says nothing of the date or the reason,
+    or that it is a re-plan: those are about the roster."""
     month = dt.date.fromisoformat(f"{body.month}-01")
     with transaction.atomic():
         HospitalSettings.load(for_update=True)
@@ -318,8 +317,9 @@ def start_replan(request: HttpRequest, unit_id: UUID, body: StartReplanBody) -> 
                                      replan_of=roster.versions.first().number, replan_reason=body.reason.strip())
         solve.job_id = enqueue(run_solve, solve_id=str(solve.pk))
         solve.save(update_fields=["job_id"])
+        # As a solve's: the System Admin reads the log, and whether a solve was a re-plan is about a roster (section 8).
         record("solve.started", actor=request.user, target=solve.audit_target, request=request,
-               after={"time_limit_seconds": body.time_limit_seconds, "replan": True})
+               after={"time_limit_seconds": body.time_limit_seconds})
     return Status(201, progress_of(solve))
 
 

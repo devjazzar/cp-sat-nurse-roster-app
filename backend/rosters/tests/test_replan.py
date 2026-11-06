@@ -17,7 +17,7 @@ from hospital.models import Shift
 from nurses.models import Placement
 from rosters.drafts import FROZEN
 from rosters.models import PinnedCell, PinOrigin, RosterState, VersionOrigin
-from solves.replans import A_DRAFT, ACTIVE, MONTH_OVER, NO_ROSTER
+from solves.replans import A_DRAFT, ACTIVE, MONTH_OVER, NO_ROSTER_YET
 from rosters.tests.test_review import (SOUND, approve, approved, carla, dina, month_of, ok, profile, record_leave, refused,  # noqa: F401
                                        roster, solved, submitted, url)
 from rosters.tests.test_versions import changed, in_force_agrees, latest
@@ -148,8 +148,8 @@ class TestStarting:
     def test_a_month_with_no_roster_has_nothing_to_re_plan(self, mona, er, mid_june):
         mid_june()
 
-        assert refused(start(mona, er)) == NO_ROSTER
-        assert preview(mona, er)["refusal"] == NO_ROSTER and preview(mona, er)["in_force"] is None
+        assert refused(start(mona, er)) == NO_ROSTER_YET
+        assert preview(mona, er)["refusal"] == NO_ROSTER_YET and preview(mona, er)["in_force"] is None
 
     def test_a_plain_solve_of_an_approved_month_is_refused_and_points_to_a_re_plan(self, mona, er, in_force):
         assert refused(start_solve(mona, er)) == FROZEN[RosterState.APPROVED]
@@ -268,7 +268,9 @@ def answered(grid, *, ok=True, cost=120, state="finished"):
 
 
 def replanned(client, unit, solver, *answers, **options) -> Solve:
-    solver.script(list(answers) or [answered(SWAPPED)])
+    """`answers` is one attempt's script; an exception or a list among them makes them several attempts, as `script` takes."""
+    attempts = list(answers) if any(isinstance(a, (Exception, list)) for a in answers) else [list(answers)]
+    solver.script(*(attempts if answers else [[answered(SWAPPED)]]))
     solve = started(client, unit, **options)
     running.run(solve["id"])
     return Solve.objects.get(pk=solve["id"])
@@ -313,7 +315,7 @@ class TestItsEnd:
         assert solve_ended(solve) == {"unit_id": str(er.pk), "month": MONTH, "solve_id": str(solve.pk),
                                            "outcome": SolveOutcome.REPLANNED, "replan": True}
         started_entry = AuditEntry.objects.filter(action="solve.started").order_by("-pk").first()
-        assert started_entry.after == {"time_limit_seconds": 30, "replan": True}
+        assert started_entry.after == {"time_limit_seconds": 30}, "as a solve's: the System Admin reads no roster"
 
     def test_one_that_changes_no_cell_makes_no_version_and_tells_no_nurse(self, mona, er, solver, in_force):
         solve = replanned(mona, er, solver, answered(copy.deepcopy(IN_FORCE)))
@@ -409,6 +411,17 @@ class TestAChangeWhileItWaitsOrRuns:
         assert roster(er).grid["Amal"]["2026-06-15"] == "DY" and latest(er).grid["Amal"]["2026-06-15"] == "DY"
         in_force_agrees(er)
 
+    def test_an_hours_change_of_a_shift_the_roster_in_force_works_is_refused_meanwhile(self, mona, carla, er, solver, in_force):
+        """The catalogue refuses it (ticket 05: hours cannot change under an open month's roster), so the re-plan goes in force."""
+        answers = []
+        while_it_runs(solver, lambda: answers.append(change_shift(carla, "D", hours=8)))
+
+        solve = replanned(mona, er, solver, *under_way(SWAPPED))
+
+        assert answers[0].status_code == 422, answers[0].content
+        assert "roster" in answers[0].content.decode(), answers[0].content
+        assert solve.replan_outcome == ReplanOutcome.VERSION
+
     def test_a_month_that_ended_while_it_waited_is_not_re_planned(self, mona, er, solver, in_force, mid_june):
         while_it_runs(solver, lambda: mid_june(dt.date(2026, 7, 1)))
 
@@ -432,6 +445,27 @@ class TestStopping:
         assert solver.cancelled == ["job-2"], "job-1 was the solve the approval came from"
         assert latest(er).origin == VersionOrigin.REPLAN and roster(er).grid == SWAPPED
         assert solve_ended(solve)["outcome"] == SolveOutcome.STOPPED_REPLANNED
+
+    def test_a_stopped_one_whose_roster_in_force_moved_meanwhile_is_not_applied_either(self, mona, er, solver, in_force):
+        solve_id = []
+
+        def edit_then_stop():
+            changed(mona, er, pin("Amal", 20, "D"))
+            ok(post(mona, url(er, f"/solves/{solve_id[0]}/stop"), {}))
+        while_it_runs(solver, edit_then_stop)
+        solver.script([job(best_cost=130, improvements=1), answered(SWAPPED, state="cancelled")])
+        solve_id.append(started(mona, er)["id"])
+        running.run(solve_id[0])
+
+        solve = Solve.objects.get(pk=solve_id[0])
+        assert solve.state == SolveState.CANCELLED and solve.replan_outcome == ReplanOutcome.OUTDATED
+        assert latest(er).origin == VersionOrigin.EDIT and roster(er).grid["Amal"]["2026-06-15"] == ""
+
+    def test_a_failed_attempt_is_retried_in_the_same_job_and_its_roster_then_goes_in_force(self, mona, er, solver, in_force):
+        solve = replanned(mona, er, solver, RuntimeError("the solver restarted"), [answered(SWAPPED)])
+
+        assert (solve.attempts, solve.state, solve.replan_outcome) == (2, SolveState.SUCCEEDED, ReplanOutcome.VERSION)
+        assert solve.error == "the solver restarted" and latest(er).origin == VersionOrigin.REPLAN
 
     def test_one_taken_out_of_the_queue_changes_nothing(self, mona, er, solver, in_force):
         solve = started(mona, er)

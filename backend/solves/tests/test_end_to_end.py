@@ -192,6 +192,8 @@ def test_a_re_plan_from_a_date_keeps_the_days_before_it_and_becomes_a_version(mo
     for nurse, row in before.items():
         assert [row[f"2026-06-{day:02d}"] for day in range(1, 12)] == [after[nurse][f"2026-06-{day:02d}"] for day in range(1, 12)]
     assert after["Badr"][f"2026-06-{worked:02d}"] == ""
+    # Taking Badr's night off leaves him short, which the solver has always answered with changed cells. Whether it does is the
+    # solver's search to decide, so an unchanged roster is asserted to be one, not taken for a failure.
     if stored.replan_outcome == "version":
         version = RosterVersion.objects.order_by("-number").first()
         assert (version.number, version.origin, version.reason, version.solve_id) == (3, "replan", "Badr is off sick.", stored.pk)

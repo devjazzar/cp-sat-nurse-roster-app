@@ -28,7 +28,7 @@ from rosters.versions import differences
 from rosters.review import SEEN_BY_APPROVERS
 from solves.api import chosen_month, manager
 from solver_service.grid import validate_grid
-from solves.models import ReplanOutcome, Solve, SolveFailure, SolveState
+from solves.models import ReplanOutcomeWord, Solve, SolveFailure, SolveState
 from solves.result import LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, precheck_of, statistics_of
 from units.models import Unit
 from units.scope import HOSPITAL_WIDE, unit_in_scope
@@ -71,8 +71,7 @@ class UnitSolveRow(SolveRow):
                                        "since, and then holds more than this result. After a re-plan put its roster in force, "
                                        "that roster's grid is the re-plan's.")
     replan_from: dt.date | None = Field(description="Set on a re-plan: the first date it planned again.")
-    replan_outcome: Literal[ReplanOutcome.VERSION, ReplanOutcome.UNCHANGED, ReplanOutcome.OUTDATED,
-                            ReplanOutcome.MONTH_OVER] | None = Field(
+    replan_outcome: ReplanOutcomeWord | None = Field(
         description="What a re-plan's end did to the roster in force. Null for a solve, before the end, and for a re-plan that "
                     "kept no roster.")
 
@@ -226,7 +225,7 @@ class ReplanComparison(Schema):
                                                           "the solver counted them. Null when it found no roster.")
     based_on: int = Field(description="The version in force when it started.")
     version: int | None = Field(description="The version it made. Null when it made none.")
-    outcome: Literal[ReplanOutcome.VERSION, ReplanOutcome.UNCHANGED, ReplanOutcome.OUTDATED, ReplanOutcome.MONTH_OVER] | None
+    outcome: ReplanOutcomeWord | None
     changes: list[ReplanChange] = Field(description="Each cell its roster changes, by nurse then date. Empty with no roster.")
     cost_before: int | None = Field(description="Null when the solver's code could not cost the roster in force.")
     cost_after: int | None
@@ -289,12 +288,12 @@ def _replan_of(solve: Solve) -> ReplanComparison | None:
     if not solve.replan_from:
         return None
     result = solve.result or {}
-    published = solve.input["published"]
+    in_force = solve.input["published"]  # The roster in force when it started, in the solver's word for it.
     roster = result.get("roster")
-    changes = differences(published, roster) if roster else []
+    changes = differences(in_force, roster) if roster else []
     names = full_names(change.hospital_id for change in changes)
     try:
-        before = validate_grid(solve.input, published)
+        before = validate_grid(solve.input, in_force)
     except ValueError:
         before = None
     rules = []

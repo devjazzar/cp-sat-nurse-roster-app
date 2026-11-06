@@ -16,7 +16,6 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   pins: "pinned cells changed",
 }
 
-export { longDay }
 const shiftWord = (code: string) => (code ? code : "a day off")
 
 const SET_ASIDE: Record<NonNullable<DraftPin["set_aside"]>, string> = {
