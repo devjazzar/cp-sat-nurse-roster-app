@@ -234,7 +234,7 @@ def managers_to_place(request: HttpRequest) -> list[ManagerToPlace]:
 def give_manager_a_profile(request: HttpRequest, body: ManagerProfileBody) -> Status:
     """The role and the account stay as they are, so no password here. Their hospital ID is the username they have."""
     with transaction.atomic():
-        manager = User.objects.select_for_update().filter(pk=body.user_id, role=Role.UNIT_MANAGER, is_active=True).first()
+        manager = User.objects.select_for_update(no_key=True).filter(pk=body.user_id, role=Role.UNIT_MANAGER, is_active=True).first()
         if manager is None:
             refuse((("user_id",), "This is not an active unit manager."))
         if NurseProfile.objects.filter(user=manager).exists():

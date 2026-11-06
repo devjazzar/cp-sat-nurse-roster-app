@@ -95,7 +95,7 @@ def create_user(request: HttpRequest, *, username: str, full_name: str, role: st
 def correct_name(request: HttpRequest, user_id, full_name: str) -> User:
     """Changes nothing else about the user, whether or not they are active. No change writes no entry."""
     with transaction.atomic():
-        user = User.objects.select_for_update().get(pk=user_id)
+        user = User.objects.select_for_update(no_key=True).get(pk=user_id)
         before = user.full_name
         if full_name != before:
             user.full_name = full_name
@@ -109,7 +109,7 @@ def deactivate(request: HttpRequest, user_id) -> User:
     """Ends the user's sessions too, so reactivating cannot bring an old browser back in, and takes a manager
     off their unit, which reactivating does not undo."""
     with transaction.atomic():
-        user = User.objects.select_for_update().get(pk=user_id)
+        user = User.objects.select_for_update(no_key=True).get(pk=user_id)
         if user.is_active:
             user.is_active = False
             user.save(update_fields=["is_active"])
@@ -128,7 +128,7 @@ def deactivate_many(users: QuerySet[User]) -> None:
     for a row PostgreSQL looks again only if that row changed, and clearing a nurse's end date changes their profile's.
     Whatever `users` filters on must be written under the user's lock, as `_locked_nurse` in `nurses.api` does."""
     with transaction.atomic():
-        locked = [user.pk for user in users.select_for_update(of=("self",)).order_by("pk")]
+        locked = [user.pk for user in users.select_for_update(of=("self",), no_key=True).order_by("pk")]
         leaving = list(users.filter(pk__in=locked).order_by("pk"))
         if not leaving:
             return
@@ -142,7 +142,7 @@ def reactivate(request: HttpRequest, user_id) -> User:
     """Refused rather than leave a nurse in a unit archived while they were away."""
     try:
         with transaction.atomic():
-            user = User.objects.select_for_update().get(pk=user_id)
+            user = User.objects.select_for_update(no_key=True).get(pk=user_id)
             if not user.is_active:
                 unit = archived_unit_in_the_way(user)
                 if unit is not None:
@@ -161,7 +161,7 @@ def reset_password(request: HttpRequest, user_id) -> tuple[User, str]:
     ends the user's sessions, and a lock from failed logins goes, or they would stay locked out."""
     password = generate_password()
     with transaction.atomic():
-        user = User.objects.select_for_update().get(pk=user_id)
+        user = User.objects.select_for_update(no_key=True).get(pk=user_id)
         user.set_password(password)
         user.must_change_password = True
         user.save(update_fields=["password", "must_change_password"])

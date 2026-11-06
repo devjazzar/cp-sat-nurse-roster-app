@@ -4,14 +4,16 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from django.db import transaction
+from django.test import override_settings
 
+from accounts.models import Role, User
 from conftest import post
 from hospital.models import LeaveType
 from nurses.models import NurseProfile
 from nurses.tests.test_two_at_once import alongside
 from rosters.drafts import in_current_codes
 from rosters.models import RosterState, RosterVersion, Submission
-from rosters.tests.test_pins import change_shift, off, pin
+from rosters.tests.test_pins import change_shift, off, pin, save
 from rosters.tests.test_replan import mid_june  # noqa: F401
 from rosters.tests.test_review import (BADR_OFF, BADR_WORKS, approve, approved, carla, dina, record_leave,  # noqa: F401
                                        reject, roster, solved, submit, submitted)
@@ -215,3 +217,48 @@ class TestAReplansEnd:
         assert edit.result().status_code == 200
         latest = roster(er).versions.first()
         assert latest.number == 3 and latest.grid["Amal"]["2026-06-15"] == "D" and latest.grid["Badr"]["2026-06-20"] == "D"
+
+
+class TestDeactivatingAManager:
+    """Deactivating locks the manager's user row, then their unit's. A save holding the unit names that user in a foreign key
+    (a pin's or a version's), which PostgreSQL checks at commit with `FOR KEY SHARE` on the row: under `FOR UPDATE` each would
+    wait on the other and one be killed as a deadlock. `FOR NO KEY UPDATE` lets the check through, so the save commits and the
+    deactivation then takes the unit off its manager.
+
+    The save is made without saving her session: a request saves it after its own transaction has committed, but here both are in
+    the test's, and the deactivation, which ends her sessions, would wait on that row before reaching the unit."""
+
+    @pytest.fixture
+    def system_admin(self, client_of):
+        return client_of("root", Role.SYSTEM_ADMIN)
+
+    def deactivating(self, pool, system_admin):
+        mona = User.objects.get(username="mona")
+        return alongside(pool, lambda: system_admin.post(f"/api/users/{mona.pk}/deactivate"))
+
+    def test_it_waits_for_a_pin_saved_on_the_draft_and_then_takes_the_unit_off_her(self, mona, er, solver, system_admin,
+                                                                                    pool):
+        solved(mona, er, solver)
+
+        with transaction.atomic(), override_settings(SESSION_SAVE_EVERY_REQUEST=False):
+            assert save(mona, er, pin("Amal", 9, "N")).status_code == 200
+            deactivation = self.deactivating(pool, system_admin)
+            assert not deactivation.done()
+
+        assert deactivation.result().status_code == 200
+        er.refresh_from_db()
+        assert er.manager is None and not User.objects.get(username="mona").is_active
+        assert er.pins.filter(removed_at=None).count() == 1
+
+    def test_it_waits_for_an_edit_of_the_approved_roster_and_then_takes_the_unit_off_her(self, mona, carla, er, solver,
+                                                                                         system_admin, pool):
+        approved(mona, carla, er, solver)
+
+        with transaction.atomic(), override_settings(SESSION_SAVE_EVERY_REQUEST=False):
+            assert change(mona, er, pin("Amal", 9, "N")).status_code == 200
+            deactivation = self.deactivating(pool, system_admin)
+            assert not deactivation.done()
+
+        assert deactivation.result().status_code == 200
+        er.refresh_from_db()
+        assert er.manager is None and roster(er).versions.first().number == 2

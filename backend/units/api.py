@@ -56,7 +56,7 @@ def _manager_to_assign(manager_id: UUID | None, unit_id: UUID | None) -> User | 
     between this check and the save. The one-to-one field is the database's word on the same thing."""
     if manager_id is None:
         return None
-    manager = User.objects.select_for_update().filter(pk=manager_id, role=Role.UNIT_MANAGER, is_active=True).first()
+    manager = User.objects.select_for_update(no_key=True).filter(pk=manager_id, role=Role.UNIT_MANAGER, is_active=True).first()
     if manager is None:
         refuse((("manager_id",), "This is not an active unit manager."))
     held = Unit.objects.filter(manager=manager).exclude(pk=unit_id).first()
