@@ -22,9 +22,9 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { useChosenUnit } from "@/components/unit-picker"
-import { shiftNames } from "@/lib/request-words"
+import { NO_CONNECTION, shiftNames } from "@/lib/request-words"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
-import { ANSWER, cellWords, NO_CONNECTION, SWAP_STATE } from "@/lib/swap-words"
+import { ANSWER, cellWords, SWAP_STATE } from "@/lib/swap-words"
 import { hospitalTime, monthName, scrollableRegion, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
@@ -44,6 +44,14 @@ const EXPIRED_WHY = { date_passed: "one of its dates passed", cell_changed: "a n
 
 const days = (swap: UnitSwapRow) => [...new Set(swap.cells.map((cell) => shortDay(cell.date)))].join(", ")
 
+const DECIDING = {
+  approve: {
+    title: "Approve", body: "Its cells become pinned cells in a new version of the roster, in force at once.", why: "Why (optional)",
+    confirm: "Approve the swap", tone: "default",
+  },
+  reject: { title: "Reject", body: "It ends, and nothing on the roster changes.", why: "Why", confirm: "Reject the swap", tone: "destructive" },
+} as const
+
 const reasonSchema = (required: boolean) => z.object({
   reason: required ? z.string().trim().min(1, "Say why: everyone in the swap reads it.").max(2000, "At most 2000 characters.")
     : z.string().max(2000, "At most 2000 characters."),
@@ -61,6 +69,7 @@ function DecideDialog({ unitId, decision, what, focusAfter, onDone, onClose }: {
   const approve = useApproveUnitSwap()
   const reject = useRejectUnitSwap()
   const mutation = what === "approve" ? approve : reject
+  const words = DECIDING[what]
   const required = what === "reject"
   const form = useForm<{ reason: string }>({ resolver: zodResolver(reasonSchema(required)), defaultValues: { reason: "" } })
   const reasonError = form.formState.errors.reason
@@ -88,15 +97,11 @@ function DecideDialog({ unitId, decision, what, focusAfter, onDone, onClose }: {
       <AlertDialogContent finalFocus={() => (focusAfter.current ? document.getElementById(focusAfter.current) : true)}>
         <form onSubmit={submit} noValidate className="flex flex-col gap-4">
           <AlertDialogHeader>
-            <AlertDialogTitle>{what === "approve" ? "Approve" : "Reject"} {whose}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {what === "approve"
-                ? "Its cells become pinned cells in a new version of the roster, in force at once."
-                : "It ends, and nothing on the roster changes."}
-            </AlertDialogDescription>
+            <AlertDialogTitle>{words.title} {whose}?</AlertDialogTitle>
+            <AlertDialogDescription>{words.body}</AlertDialogDescription>
           </AlertDialogHeader>
           <Field data-invalid={!!reasonError || undefined}>
-            <FieldLabel htmlFor="swap-reason">{required ? "Why" : "Why (optional)"}</FieldLabel>
+            <FieldLabel htmlFor="swap-reason">{words.why}</FieldLabel>
             <Textarea id="swap-reason" rows={2} aria-invalid={!!reasonError || undefined}
               aria-describedby={["swap-reason-description", reasonError && "swap-reason-error"].filter(Boolean).join(" ")}
               {...form.register("reason")} />
@@ -109,9 +114,7 @@ function DecideDialog({ unitId, decision, what, focusAfter, onDone, onClose }: {
           {mutation.isError && !(mutation.error instanceof ApiError) && <p role="alert" className="text-sm text-destructive">{NO_CONNECTION}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Back</AlertDialogCancel>
-            <Button type="submit" variant={what === "approve" ? "default" : "destructive"} disabled={mutation.isPending}>
-              {what === "approve" ? "Approve the swap" : "Reject the swap"}
-            </Button>
+            <Button type="submit" variant={words.tone} disabled={mutation.isPending}>{words.confirm}</Button>
           </AlertDialogFooter>
         </form>
       </AlertDialogContent>

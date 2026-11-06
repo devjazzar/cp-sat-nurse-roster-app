@@ -13,7 +13,7 @@ export interface MySwapRow {
   id: string;
   month: string;
   unit: string;
-  /** As it stands now: a live swap whose earliest date has passed is expired. */
+  /** As it stands now: a waiting swap whose earliest date has passed is expired. */
   state: MySwapRowState;
   proposed_at: string;
   /** The proposer's full name. */

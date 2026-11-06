@@ -132,11 +132,15 @@ class TestComposing:
         assert refusals(propose(nurse("Badr"), cell("Badr", 9), cell("Nobody", 9, "D"))) == [
             "There is no Nobody on this roster."]
 
-    def test_a_cell_already_in_another_live_swap_is_refused(self, in_force, nurse):
+    def test_a_cell_already_in_another_waiting_swap_is_refused_and_a_colleagues_says_only_it_cannot_work(self, in_force,
+                                                                                                         nurse):
         proposed(nurse("Badr"), *SOUND_SWAP)
 
-        assert refusals(propose(nurse("Amal"), cell("Amal", 9, "D"), cell("Emad", 9, "D"))) == [
-            "Emad's cell on 9 June 2026 is already in another swap."]
+        assert refusals(propose(nurse("Emad"), cell("Emad", 9, "D"), cell("Amal", 9, "N"))) == [
+            "Your cell on 9 June 2026 is already in another swap."]
+        # Which swaps a colleague is in is not on My roster.
+        assert refusals(propose(nurse("Amal"), cell("Amal", 9, "N"), cell("Emad", 9, "D"))) == [
+            "This swap cannot work for Emad on 9 June 2026."]
 
     def test_a_managers_cells_cannot_be_swapped(self, in_force, nurse, mona):
         manager = User.objects.get(username="mona")
@@ -257,6 +261,18 @@ class TestWhatTheProposerMayNotLearn:
         judged = judge(Roster.objects.get(), [Change("Badr", dt.date(2026, 6, 9), None),
                                              Change("Emad", dt.date(2026, 6, 9), shift)], None)
         assert any(words in problem.manager for problem in judged.problems), [p.manager for p in judged.problems]
+
+    @pytest.mark.parametrize("on_leave", [False, True], ids=["a day off", "leave"])
+    def test_what_my_roster_shows_is_said_before_any_hidden_fact_so_leave_reads_as_a_day_off(self, in_force, nurse, mona,
+                                                                                            on_leave):
+        """Emad is off on the 9th, and on leave in one run: asking for what the cell holds, or for a shift the unit does not
+        work, gets the same answer either way."""
+        if on_leave:
+            _leave(mona, in_force)
+        badr = nurse("Badr")
+
+        assert refusals(propose(badr, cell("Badr", 9), cell("Emad", 9))) == ["Emad's cell on 9 June 2026 is already a day off."]
+        assert refusals(propose(badr, cell("Badr", 9), cell("Emad", 9, "ZZ"))) == ["ZZ is not one of this unit's shifts."]
 
     def test_a_colleagues_accepted_request(self, in_force, nurse, mona):
         _request(mona, in_force)

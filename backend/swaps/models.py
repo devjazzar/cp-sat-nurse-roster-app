@@ -16,8 +16,9 @@ class SwapState(models.TextChoices):
     EXPIRED = "expired"
 
 
-# A swap still waiting on someone: the only ones a passing date or a new version can expire, and one a cell.
-LIVE = (SwapState.PENDING, SwapState.AWAITING_MANAGER)
+# A swap still waiting on its colleagues or the manager: the only ones a passing date or a new version can expire, and one a
+# cell.
+WAITING = (SwapState.PENDING, SwapState.AWAITING_MANAGER)
 
 
 class Expiry(models.TextChoices):
@@ -27,15 +28,15 @@ class Expiry(models.TextChoices):
 
 
 class Swap(models.Model):
-    """`version` is the roster version in force when it was proposed, whose cells `SwapCell.before` holds. `ended_by` is who
-    rejected, withdrew or decided it; null while it is live and when it expired. `reason` is the manager's, for a decision,
+    """`proposed_on` is the roster version in force when it was proposed, whose cells `SwapCell.before` holds. `ended_by` is who
+    rejected, withdrew or decided it; null while it waits and when it expired. `reason` is the manager's, for a decision,
     read by the proposer and every colleague in it; `note` is the proposer's own, read by the same people and the manager."""
 
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     unit = models.ForeignKey("units.Unit", on_delete=models.PROTECT, related_name="swaps")
     roster = models.ForeignKey("rosters.Roster", on_delete=models.PROTECT, related_name="swaps")
-    version = models.ForeignKey("rosters.RosterVersion", on_delete=models.PROTECT, related_name="+",
-                                help_text="The version in force when it was proposed.")
+    proposed_on = models.ForeignKey("rosters.RosterVersion", on_delete=models.PROTECT, related_name="+",
+                                    help_text="The version in force when it was proposed.")
     proposer = models.ForeignKey("nurses.NurseProfile", on_delete=models.PROTECT, related_name="swaps_proposed")
     state = models.CharField(max_length=16, choices=SwapState, default=SwapState.PENDING)
     note = models.TextField(blank=True, help_text="The proposer's words to the colleagues and the manager. Optional.")
@@ -44,8 +45,8 @@ class Swap(models.Model):
     ended_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
     expired_why = models.CharField(max_length=12, choices=Expiry, blank=True)
     reason = models.TextField(blank=True, help_text="The manager's, for an approval or a rejection.")
-    made = models.ForeignKey("rosters.RosterVersion", on_delete=models.PROTECT, null=True, blank=True, related_name="+",
-                             help_text="The version its approval made.")
+    made_version = models.ForeignKey("rosters.RosterVersion", on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name="+", help_text="The version its approval made.")
 
     class Meta:
         ordering = ["-proposed_at", "-id"]
@@ -55,12 +56,8 @@ class Swap(models.Model):
         ]
 
     @property
-    def month(self):
-        return self.roster.month
-
-    @property
-    def live(self) -> bool:
-        return self.state in LIVE
+    def waiting(self) -> bool:
+        return self.state in WAITING
 
 
 class SwapCell(models.Model):

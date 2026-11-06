@@ -6,7 +6,7 @@
  */
 
 /**
- * As it stands now: a live swap whose earliest date has passed is expired.
+ * As it stands now: a waiting swap whose earliest date has passed is expired.
  */
 export type MySwapRowState = typeof MySwapRowState[keyof typeof MySwapRowState];
 

@@ -22,6 +22,5 @@ export const ANSWER: Record<SwapColleagueAnswer, string> = {
   rejected: "rejected",
 }
 
-export const LIVE: MySwapRowState[] = ["pending", "awaiting_manager"]
-
-export const NO_CONNECTION = "That did not work. Check your connection and try again."
+/** A swap still waiting on its colleagues or the manager. */
+export const WAITING: MySwapRowState[] = ["pending", "awaiting_manager"]

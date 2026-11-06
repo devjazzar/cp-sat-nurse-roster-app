@@ -24,6 +24,7 @@ from nurses.api import MonthText
 from nurses.models import NurseProfile
 from rosters.grids import GridDay, by_name, full_names
 from rosters.reading_api import MyRosterFilter, _in_force
+from rosters.review import name_of
 from rosters.sheets import days_of
 from swaps import steps
 from swaps.expiring import state_now
@@ -73,7 +74,7 @@ class MySwapRow(Schema):
     id: UUID
     month: str
     unit: str
-    state: SwapStateText = Field(description="As it stands now: a live swap whose earliest date has passed is expired.")
+    state: SwapStateText = Field(description="As it stands now: a waiting swap whose earliest date has passed is expired.")
     proposed_at: dt.datetime
     proposer: str = Field(description="The proposer's full name.")
     proposed_by_me: bool
@@ -94,7 +95,7 @@ def my_row(swap: Swap, nurse: NurseProfile) -> MySwapRow:
                      proposed_at=timezone.localtime(swap.proposed_at), proposer=swap.proposer.user.full_name,
                      proposed_by_me=swap.proposer_id == nurse.pk, note=swap.note, cells=swap_cells(swap),
                      colleagues=swap_colleagues(swap), my_answer=mine.answer if mine else None,
-                     ended_by=(ender.full_name or ender.username) if ender else None,
+                     ended_by=name_of(ender) if ender else None,
                      ended_at=timezone.localtime(swap.ended_at) if swap.ended_at else None, reason=swap.reason)
 
 

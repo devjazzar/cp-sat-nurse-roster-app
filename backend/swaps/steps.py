@@ -42,8 +42,9 @@ STATE_WORDS = {SwapState.PENDING: "waiting for its colleagues", SwapState.AWAITI
                SwapState.EXPIRED: "expired"}
 
 
-def _is(swap: Swap) -> str:
-    return f"This swap is {STATE_WORDS[swap.state]}"
+def this_swap_is(state: str) -> str:
+    """"This swap is approved": to open a refusal that its state explains."""
+    return f"This swap is {STATE_WORDS[state]}"
 
 
 def no_approved_roster(unit: Unit, month: dt.date) -> str:
@@ -82,18 +83,17 @@ def propose(user: User, month: dt.date, changes: list[Change], note: str, reques
     said = judge(roster, changes, proposer).for_proposer()
     if said:
         refuse(*[(("cells",) if index is None else ("cells", index), words) for index, words in said])
-    swap = Swap.objects.create(unit=unit, roster=roster, version=roster.versions.first(), proposer=proposer, note=note)
+    swap = Swap.objects.create(unit=unit, roster=roster, proposed_on=roster.versions.first(), proposer=proposer, note=note)
     nurses = {nurse.user.username: nurse for nurse in NurseProfile.objects.select_related("user").filter(
         user__username__in=[change.hospital_id for change in changes])}
-    shifts = {shift.code: shift for shift in Shift.objects.filter(code__in={code for row in roster.grid.values()
-                                                                           for code in row.values() if code}
-                                                                  | {current_code(c.shift) for c in changes if c.shift})}
+    codes = {current_code(change.shift) for change in changes if change.shift}
+    codes |= {roster.grid[change.hospital_id][change.day] for change in changes} - {""}
+    shifts = {shift.code: shift for shift in Shift.objects.filter(code__in=codes)}
     for change in changes:
         SwapCell.objects.create(swap=swap, nurse=nurses[change.hospital_id], date=change.date,
                                 before=shifts.get(roster.grid[change.hospital_id][change.day]),
                                 after=shifts.get(current_code(change.shift)) if change.shift else None)
-    colleagues = sorted({nurse.pk: nurse for hospital_id, nurse in nurses.items() if nurse.pk != proposer.pk}.values(),
-                        key=lambda nurse: nurse.pk)
+    colleagues = sorted((nurse for nurse in nurses.values() if nurse.pk != proposer.pk), key=lambda nurse: nurse.pk)
     SwapParticipant.objects.bulk_create([SwapParticipant(swap=swap, nurse=nurse) for nurse in colleagues])
     record("swap.proposed", actor=user, target=user.username, request=request)
     if colleagues:
@@ -120,7 +120,7 @@ def answer(user: User, swap_id: UUID, accepted: bool, request: HttpRequest) -> S
     The same 404 for a swap the reader is not in as for none."""
     swap = _locked_swap(Q(pk=swap_id, participants__nurse__user=user), "You are in no such swap.")
     if swap.state != SwapState.PENDING:
-        raise HttpError(409, f"{_is(swap)}, so it can no longer be answered.")
+        raise HttpError(409, f"{this_swap_is(swap.state)}, so it can no longer be answered.")
     mine = swap.participants.select_for_update(of=("self",)).get(nurse__user=user)
     if mine.answer != Answer.PENDING:
         raise HttpError(409, f"You have {mine.answer} this swap already.")
@@ -145,8 +145,8 @@ def answer(user: User, swap_id: UUID, accepted: bool, request: HttpRequest) -> S
 def withdraw(user: User, swap_id: UUID, request: HttpRequest) -> Swap:
     """By its proposer, while it waits for its colleagues or the manager. Another nurse's is the same 404 as none."""
     swap = _locked_swap(Q(pk=swap_id, proposer__user=user), "You have proposed no such swap.")
-    if not swap.live:
-        raise HttpError(409, f"{_is(swap)}, so it cannot be withdrawn.")
+    if not swap.waiting:
+        raise HttpError(409, f"{this_swap_is(swap.state)}, so it cannot be withdrawn.")
     awaiting = swap.state == SwapState.AWAITING_MANAGER
     swap.state, swap.ended_by, swap.ended_at = SwapState.WITHDRAWN, user, timezone.now()
     swap.save(update_fields=["state", "ended_by", "ended_at"])
@@ -161,7 +161,9 @@ def changes_of(swap: Swap) -> list[Change]:
 
 
 def locked_for_decision(user: User, unit_id: UUID, swap_id: UUID) -> Swap:
-    """The locks an approval takes, in their order. The same 404 for another unit's swap as for none."""
+    """The locks an approval takes, in their order. The same 404 for another unit's swap as for none, before any nurse's row
+    is locked."""
+    unit_in_scope(user, unit_id)
     HospitalSettings.load(for_update=True)
     _lock_nurses(Q(pk__in=SwapCell.objects.filter(swap_id=swap_id, swap__unit_id=unit_id).values("nurse_id")))
     unit = unit_in_scope(user, unit_id, for_update=True)
@@ -171,11 +173,12 @@ def locked_for_decision(user: User, unit_id: UUID, swap_id: UUID) -> Swap:
     return _locked_swap(Q(pk=swap_id, unit=unit), "There is no such swap in your unit.")
 
 
-def why_not_approve(swap: Swap) -> str | None:
+def why_not_decide(swap: Swap) -> str | None:
     """Before the swap is judged again: what its state and its month allow."""
     if swap.state != SwapState.AWAITING_MANAGER:
-        return f"{_is(swap)}, so it cannot be decided." if swap.state != SwapState.PENDING else \
-            "This swap still waits for its colleagues' answers."
+        if swap.state == SwapState.PENDING:
+            return "This swap still waits for its colleagues' answers."
+        return f"{this_swap_is(swap.state)}, so it cannot be decided."
     if swap.roster.month < membership.this_month():
         return MONTH_OVER
     return None
@@ -186,7 +189,7 @@ def approve(swap: Swap, by: User, reason: str, request: HttpRequest) -> Swap:
     them, in force at once, telling the unit's nurses the roster changed and everyone in the swap it was approved. Refused, with
     the reasons in full, if a cell can no longer hold its change or the grid would newly break a hard rule: leave or a transfer
     may have come since it was proposed. The version's reason names the swap's people and dates, never the proposer's note."""
-    refusal = why_not_approve(swap)
+    refusal = why_not_decide(swap)
     if refusal:
         raise HttpError(409, refusal)
     roster = Roster.objects.select_related("unit").get(pk=swap.roster_id)
@@ -203,10 +206,10 @@ def approve(swap: Swap, by: User, reason: str, request: HttpRequest) -> Swap:
     days = ", ".join(dict.fromkeys(long_date(cell.date) for cell in cells))
     reason_for_version = f"Swap proposed by {name_of(swap.proposer)} approved: {names} on {days}."
     version = make_version(roster, judged.grid, VersionOrigin.SWAP, by, reason_for_version)
-    swap.made = version
-    swap.save(update_fields=["made"])
+    swap.made_version = version
+    swap.save(update_fields=["made_version"])
     record("swap.approved", actor=by, target=swap.proposer.user.username, request=request)
-    record("roster.changed", actor=by, target=f"{swap.unit.name}, {roster.month:%Y-%m}", request=request,
+    record("roster.changed", actor=by, target=roster.audit_target, request=request,
            after={"version": version.number, "pins": len(cells), "cells": len(cells)})
     sending.roster_changed(swap.unit, roster.month, by)
     sending.swap_step(swap, SwapStep.APPROVED, by)
@@ -216,7 +219,7 @@ def approve(swap: Swap, by: User, reason: str, request: HttpRequest) -> Swap:
 def reject(swap: Swap, by: User, reason: str, request: HttpRequest) -> Swap:
     """By the manager, once its colleagues have all accepted, with a reason everyone in it reads."""
     if swap.state != SwapState.AWAITING_MANAGER:
-        raise HttpError(409, why_not_approve(swap) or f"{_is(swap)}, so it cannot be decided.")
+        raise HttpError(409, why_not_decide(swap) or f"{this_swap_is(swap.state)}, so it cannot be decided.")
     swap.state, swap.ended_by, swap.ended_at, swap.reason = SwapState.REJECTED, by, timezone.now(), reason
     swap.save(update_fields=["state", "ended_by", "ended_at", "reason"])
     record("swap.rejected", actor=by, target=swap.proposer.user.username, request=request)

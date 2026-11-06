@@ -18,9 +18,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
-import { shiftNames } from "@/lib/request-words"
+import { NO_CONNECTION, shiftNames } from "@/lib/request-words"
 import { plainRefusal, serverErrors } from "@/lib/server-errors"
-import { ANSWER, cellWords, LIVE, NO_CONNECTION, SWAP_STATE } from "@/lib/swap-words"
+import { ANSWER, cellWords, WAITING, SWAP_STATE } from "@/lib/swap-words"
 import { hospitalTime, monthName, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
@@ -180,7 +180,7 @@ function SwapItem({ swap, names, onAccept, onAsk, pending }: {
   onAsk: (what: Asking["what"]) => void
   pending: boolean
 }) {
-  const live = LIVE.includes(swap.state)
+  const waiting = WAITING.includes(swap.state)
   const heading = swap.proposed_by_me ? "Your swap" : `${swap.proposer}'s swap`
   const answering = swap.state === "pending" && swap.my_answer === "pending"
   return (
@@ -198,14 +198,14 @@ function SwapItem({ swap, names, onAccept, onAsk, pending }: {
         </p>
       )}
       {swap.reason && <p className="text-sm">The manager's reason: {swap.reason}</p>}
-      {(answering || (swap.proposed_by_me && live)) && (
+      {(answering || (swap.proposed_by_me && waiting)) && (
         <div className="flex flex-wrap gap-2">
           {answering && <Button size="sm" disabled={pending} onClick={onAccept} aria-label={`Accept ${swap.proposer}'s swap`}>Accept</Button>}
           {answering && (
             <Button id={`reject-${swap.id}`} variant="outline" size="sm" disabled={pending} onClick={() => onAsk("reject")}
               aria-label={`Reject ${swap.proposer}'s swap`}>Reject</Button>
           )}
-          {swap.proposed_by_me && live && (
+          {swap.proposed_by_me && waiting && (
             <Button id={`withdraw-${swap.id}`} variant="outline" size="sm" disabled={pending} onClick={() => onAsk("withdraw")}>Withdraw</Button>
           )}
         </div>

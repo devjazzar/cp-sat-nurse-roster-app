@@ -12,7 +12,7 @@ import type { UnitSwapRowState } from './unitSwapRowState';
 export interface UnitSwapRow {
   id: string;
   month: string;
-  /** As it stands now: a live swap whose earliest date has passed is expired. */
+  /** As it stands now: a waiting swap whose earliest date has passed is expired. */
   state: UnitSwapRowState;
   proposed_at: string;
   proposer: string;

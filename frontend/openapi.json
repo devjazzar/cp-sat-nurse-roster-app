@@ -11009,7 +11009,7 @@
             "type": "string"
           },
           "state": {
-            "description": "As it stands now: a live swap whose earliest date has passed is expired.",
+            "description": "As it stands now: a waiting swap whose earliest date has passed is expired.",
             "enum": [
               "pending",
               "awaiting_manager",
@@ -11641,7 +11641,7 @@
             "type": "string"
           },
           "state": {
-            "description": "As it stands now: a live swap whose earliest date has passed is expired.",
+            "description": "As it stands now: a waiting swap whose earliest date has passed is expired.",
             "enum": [
               "pending",
               "awaiting_manager",

@@ -227,7 +227,7 @@ date, the shift or off before, the new shift or off, and the pin its approval ma
 change, never the proposer) with their answers, state (`pending`, `awaiting_manager`, `approved`, `rejected`, `withdrawn`,
 `expired`), who ended it and when, why it expired (a date passed, or a version changed a cell: the manager's to read), the
 manager's reason, and the version its approval made. Only staff nurses' cells are swapped, a manager with a nurse profile's
-never; a cell is in at most one live swap. A colleague's accepted request on a cell refuses the swap (the request stays her
+never; a cell is in at most one swap still waiting. A colleague's accepted request on a cell refuses the swap (the request stays her
 promise), while a manager's pin, or an earlier swap's, is replaced by the approval.
 
 **Solve**: unit, month, requested by, time limit, state (`queued`, `running`, `succeeded`,
@@ -336,8 +336,9 @@ backup time and retention, close time.
    manager's pin there does not count against it); a proposal is refused on the spot, with every reason, when a cell cannot
    hold its change or the grid newly breaks a hard rule (one the roster in force already breaks, which an edit may save, is not
    the swap's). The proposer learns nothing about a colleague that My roster would not show: every reason resting on a
-   colleague's facts (leave, dates, unit, allowed shifts, hours, an accepted request) reads "This swap cannot work for Badr on
-   5 June", a shift-day left without a team leader or both genders reads only that that day's shifts would break the unit's
+   colleague's facts (leave, dates, unit, allowed shifts, hours, an accepted request, another swap) reads "This swap cannot work
+   for Badr on 5 June", and is checked only after what My roster shows, so leave asked for as a day off reads "already a day
+   off" like any day off; a shift-day left without a team leader or both genders reads only that that day's shifts would break the unit's
    rules, and the proposer reads no rule, solver text or cost about anyone else. Her own reasons are said in full, and so is
    anything My roster shows (a cell's shift, a date passed, a headcount). The manager reads every reason in full
    (`swaps.judging`).
@@ -348,7 +349,7 @@ backup time and retention, close time.
    proposal; to change it he edits the roster directly. Approval is refused, with the reasons in full, when the month moved
    since in a way the swap can no longer hold (leave, a transfer, a hard rule it would now newly break).
 5. Approval writes the cells as pinned cells of origin `swap` (`rosters.pins.pin_cell`) in a new roster version of origin
-   `swap`, in force at once, telling the unit's nurses the roster changed. A live proposal expires when any of its dates passes
+   `swap`, in force at once, telling the unit's nurses the roster changed. A proposal still waiting expires when any of its dates passes
    (every page reads the dates; the hourly job and the next write about it store it and tell its people) or a new version
    changes any of its cells, whatever made it (`rosters.versions.make_version`). A swap approved while a re-plan of its month
    runs makes the re-plan end `outdated`. Everyone involved is notified at each step: its colleagues when proposed, the
@@ -410,7 +411,7 @@ Jobs:
 - `close_month` (cron, close time on the first of each month) and `project_carry_over` on
   demand.
 - `backup` (cron, 02:00) and backup retention.
-- `expire_swaps` (hourly, minute 15): expires each live swap one of whose dates has passed, telling its people. Every page reads
+- `expire_swaps` (hourly, minute 15): expires each waiting swap one of whose dates has passed, telling its people. Every page reads
   the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
 - `open_and_close_request_windows` (hourly): opens each request window whose open date has come and closes each whose close
   date has passed, telling whoever that tells. Every write about a unit's windows does the same first, so a worker that is down

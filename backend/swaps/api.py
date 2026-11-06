@@ -15,12 +15,13 @@ from ninja import Field, Query, Router, Schema
 from hospital.api import StrictSchema, refuse
 from rosters.api import GridCheck, _grid_check
 from rosters.models import PinnedCell, PinOrigin, Roster
+from rosters.review import name_of
 from solves.api import MonthFilter, chosen_month, manager
 from swaps import steps
 from swaps.expiring import state_now
 from swaps.judging import judge
 from swaps.mine_api import SwapCellRow, SwapColleague, SwapStateText, swap_cells, swap_colleagues, with_rows
-from swaps.models import Swap
+from swaps.models import WAITING, Swap
 from units.scope import unit_in_scope
 
 router = Router(tags=["swaps"])
@@ -29,7 +30,7 @@ router = Router(tags=["swaps"])
 class UnitSwapRow(Schema):
     id: UUID
     month: str
-    state: SwapStateText = Field(description="As it stands now: a live swap whose earliest date has passed is expired.")
+    state: SwapStateText = Field(description="As it stands now: a waiting swap whose earliest date has passed is expired.")
     proposed_at: dt.datetime
     proposer: str
     note: str
@@ -49,10 +50,10 @@ def unit_row(swap: Swap) -> UnitSwapRow:
     return UnitSwapRow(id=swap.pk, month=swap.roster.month.strftime("%Y-%m"), state=state_now(swap),
                        proposed_at=timezone.localtime(swap.proposed_at), proposer=swap.proposer.user.full_name, note=swap.note,
                        cells=swap_cells(swap), colleagues=swap_colleagues(swap),
-                       ended_by=(ender.full_name or ender.username) if ender else None,
+                       ended_by=name_of(ender) if ender else None,
                        ended_at=timezone.localtime(swap.ended_at) if swap.ended_at else None, reason=swap.reason,
                        expired_why=swap.expired_why or ("date_passed" if state_now(swap) != swap.state else None),
-                       version=swap.made.number if swap.made_id else None)
+                       version=swap.made_version.number if swap.made_version_id else None)
 
 
 class UnitSwaps(Schema):
@@ -64,7 +65,8 @@ class UnitSwaps(Schema):
 def unit_swaps(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) -> UnitSwaps:
     unit = unit_in_scope(request.user, unit_id)
     month = chosen_month(filters.month)
-    swaps = with_rows(Swap.objects.filter(unit=unit, roster__month=month).select_related("made")).order_by("-proposed_at", "-id")
+    swaps = with_rows(Swap.objects.filter(unit=unit, roster__month=month).select_related("made_version"))
+    swaps = swaps.order_by("-proposed_at", "-id")
     return UnitSwaps(month=month.strftime("%Y-%m"), swaps=[unit_row(swap) for swap in swaps])
 
 
@@ -89,7 +91,7 @@ class SwapDecision(Schema):
 
 def _decision(request: HttpRequest, unit_id: UUID, swap_id: UUID) -> SwapDecision:
     unit = unit_in_scope(request.user, unit_id)
-    swap = with_rows(Swap.objects.filter(pk=swap_id, unit=unit).select_related("made")).first()
+    swap = with_rows(Swap.objects.filter(pk=swap_id, unit=unit).select_related("made_version")).first()
     if swap is None:
         raise Http404("There is no such swap in your unit.")
     roster = Roster.objects.select_related("unit").get(pk=swap.roster_id)
@@ -101,8 +103,8 @@ def _decision(request: HttpRequest, unit_id: UUID, swap_id: UUID) -> SwapDecisio
     answer = SwapDecision(swap=unit_row(swap), cells=cells, check=None, cost_before=None, cost_after=None, delta=None,
                           problems=[], approve_refusal=None)
     state = state_now(swap)
-    if state not in ("pending", "awaiting_manager"):
-        answer.approve_refusal = f"This swap is {steps.STATE_WORDS[state]}, so it cannot be decided."
+    if state not in WAITING:
+        answer.approve_refusal = f"{steps.this_swap_is(state)}, so it cannot be decided."
         return answer
     judged = judge(roster, steps.changes_of(swap), None, exclude=swap)
     answer.problems = list(dict.fromkeys(problem.manager for problem in judged.problems))
@@ -111,7 +113,7 @@ def _decision(request: HttpRequest, unit_id: UUID, swap_id: UUID) -> SwapDecisio
         answer.cost_before, answer.cost_after = judged.cost_before, judged.cost_after
         if judged.cost_before is not None and judged.cost_after is not None:
             answer.delta = judged.cost_after - judged.cost_before
-    answer.approve_refusal = steps.why_not_approve(swap) or (" ".join(answer.problems) or None)
+    answer.approve_refusal = steps.why_not_decide(swap) or (" ".join(answer.problems) or None)
     return answer
 
 
