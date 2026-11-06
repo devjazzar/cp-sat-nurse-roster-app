@@ -38,7 +38,8 @@ class TestSession:
 
         r = login(client)
         assert r.status_code == 200
-        me = {"username": "someone", "full_name": "Some One", "role": "cno", "must_change_password": False}
+        me = {"username": "someone", "full_name": "Some One", "role": "cno", "must_change_password": False,
+              "time_zone": "Asia/Riyadh"}
         assert r.json() == me
         assert client.get("/api/auth/session").json() == {"user": me}
 

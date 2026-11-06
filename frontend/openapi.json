@@ -5296,13 +5296,19 @@
           "must_change_password": {
             "title": "Must Change Password",
             "type": "boolean"
+          },
+          "time_zone": {
+            "description": "The hospital's time zone, for a page that must pick a default by the hospital's clock before it can ask the API anything, such as the year the holidays page opens on.",
+            "title": "Time Zone",
+            "type": "string"
           }
         },
         "required": [
           "username",
           "full_name",
           "role",
-          "must_change_password"
+          "must_change_password",
+          "time_zone"
         ],
         "title": "Me",
         "type": "object"

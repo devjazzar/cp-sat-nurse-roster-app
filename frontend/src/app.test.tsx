@@ -57,7 +57,8 @@ function start(path: string, given: Record<string, Handler | Answer>) {
   return { router, calls, user: userEvent.setup() }
 }
 
-const session = (user: unknown) => ({ "GET /api/auth/session": { body: { user } } })
+/** A signed-in user's session carries the hospital's time zone, as the API's does. */
+const session = (user: unknown) => ({ "GET /api/auth/session": { body: { user: user && { time_zone: "Asia/Riyadh", ...(user as object) } } } })
 /** A staff nurse's month with no approved roster, as their home and My roster first read it. */
 const NO_ROSTER_YET = { month: "2026-12", first_month: "2026-11", unit: "ER", roster: null }
 /** A nurse's own month with no approved roster yet. */
@@ -1562,6 +1563,22 @@ describe("the holidays and Ramadan page", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ year: 2027 }))
     await waitFor(() => expect(calls.map((call) => call.url)).toContain("/api/hospital/ramadan?year=2027"))
     expect(await screen.findByRole("heading", { name: "Public holidays in 2027" })).toBeInTheDocument()
+  })
+
+  describe("with no year in the address", () => {
+    afterEach(() => vi.useRealTimers())
+
+    it.each([
+      ["Pacific/Kiritimati", "2026-12-31T12:00:00Z", 2027],
+      ["Pacific/Pago_Pago", "2027-01-01T05:00:00Z", 2026],
+    ])("opens on the year it is in the hospital's time zone (%s at %s), not the browser's", async (zone, now, year) => {
+      vi.setSystemTime(new Date(now))
+      const { calls } = start("/holidays", { ...asCno(year2026()), ...session({ ...CNO_ME, time_zone: zone }) })
+
+      expect(await screen.findByRole("heading", { name: `Public holidays in ${year}` })).toBeInTheDocument()
+      expect(calls.map((call) => call.url)).toContain(`/api/hospital/public-holidays?year=${year}`)
+      expect(screen.getByRole("link", { name: String(year + 1) })).toBeInTheDocument()
+    })
   })
 
   it("draws its year links with an outline's border", async () => {
@@ -3731,7 +3748,7 @@ describe("the leave pages", () => {
   })
 
   it("says an accepted request's pin it replaced stays on record and its nurse is told", async () => {
-    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "request", roster: "draft" }] }
+    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "request", roster: "none" }] }
     const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
 
     await user.click(await screen.findByRole("button", { name: "Record leave" }))
@@ -3741,7 +3758,8 @@ describe("the leave pages", () => {
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "It replaced a pin on the draft: N on 10 Nov 2026. One was an accepted request, which stays on record as replaced by leave; its nurse is told.")
+      "It replaced a pin in a month with no roster yet: N on 10 Nov 2026. One was an accepted request, which stays on record as replaced by leave; its nurse is told.")
+    expect(screen.getByRole("status")).not.toHaveTextContent(/draft|solve again/)
   })
 
   it("changes leave, naming the ids it replaces, with focus on the button that stays", async () => {

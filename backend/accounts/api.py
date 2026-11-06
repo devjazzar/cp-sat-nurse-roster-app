@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
+from django.conf import settings
 from django.contrib.auth import logout, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -46,6 +47,12 @@ class Me(Schema):
     full_name: str
     role: Role
     must_change_password: bool
+    time_zone: str = Field(description="The hospital's time zone, for a page that must pick a default by the hospital's "
+                                       "clock before it can ask the API anything, such as the year the holidays page opens on.")
+
+    @staticmethod
+    def resolve_time_zone(user) -> str:
+        return settings.TIME_ZONE
 
 
 class SessionState(Schema):

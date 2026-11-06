@@ -11,4 +11,6 @@ export interface Me {
   full_name: string;
   role: Role;
   must_change_password: boolean;
+  /** The hospital's time zone, for a page that must pick a default by the hospital's clock before it can ask the API anything, such as the year the holidays page opens on. */
+  time_zone: string;
 }

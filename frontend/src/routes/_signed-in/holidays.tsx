@@ -396,10 +396,15 @@ function Ramadan({ year, mayChange }: { year: number; mayChange: boolean }) {
   )
 }
 
+/** This year on the hospital's clock, which the browser's can be a day away from at New Year. */
+function yearIn(timeZone: string): number {
+  return Number(new Intl.DateTimeFormat("en-GB", { year: "numeric", timeZone }).format(new Date()))
+}
+
 function HolidaysPage() {
   const { user } = useRouteContext({ from: "/_signed-in" })
   const { year: chosen } = Route.useSearch()
-  const year = chosen ?? new Date().getFullYear()
+  const year = chosen ?? yearIn(user.time_zone)
   const mayChange = user.role === Role.cno
   const yearLink = cn(buttonVariants({ variant: "outline", size: "sm" }))
 

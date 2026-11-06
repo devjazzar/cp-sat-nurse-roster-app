@@ -108,7 +108,8 @@ export const GetSessionResponse = zod.object({
   "username": zod.string(),
   "full_name": zod.string(),
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
-  "must_change_password": zod.boolean()
+  "must_change_password": zod.boolean(),
+  "time_zone": zod.string().describe('The hospital\'s time zone, for a page that must pick a default by the hospital\'s clock before it can ask the API anything, such as the year the holidays page opens on.')
 }),zod.null()])
 })
 
@@ -130,7 +131,8 @@ export const LoginResponse = zod.object({
   "username": zod.string(),
   "full_name": zod.string(),
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
-  "must_change_password": zod.boolean()
+  "must_change_password": zod.boolean(),
+  "time_zone": zod.string().describe('The hospital\'s time zone, for a page that must pick a default by the hospital\'s clock before it can ask the API anything, such as the year the holidays page opens on.')
 })
 
 
@@ -152,7 +154,8 @@ export const ChangePasswordResponse = zod.object({
   "username": zod.string(),
   "full_name": zod.string(),
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
-  "must_change_password": zod.boolean()
+  "must_change_password": zod.boolean(),
+  "time_zone": zod.string().describe('The hospital\'s time zone, for a page that must pick a default by the hospital\'s clock before it can ask the API anything, such as the year the holidays page opens on.')
 })
 
 
