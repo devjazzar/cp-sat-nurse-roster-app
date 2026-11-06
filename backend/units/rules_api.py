@@ -2,6 +2,7 @@
 `units.scope`. Every value here may reach the audit log, because no rule says anything about a person."""
 from __future__ import annotations
 
+import datetime as dt
 from types import SimpleNamespace
 from typing import Annotated, Literal
 from uuid import UUID
@@ -16,9 +17,12 @@ from accounts.models import Role
 from audit.log import record
 from hospital.api import StrictSchema, differing, refuse
 from hospital.models import HospitalSettings, Shift
-from nurses.membership import narrow_allowed_shifts, stranded_by
+from nurses.membership import narrow_allowed_shifts, stranded_by, this_month
 from ops.models import TechnicalSettings
-from rosters.pins import on_shifts_going, words_for
+from rosters.drafts import frozen_cells_on_shifts_going
+from rosters.grids import full_names
+from rosters.models import Roster, RosterState
+from rosters.pins import long_date, on_shifts_going, words_for
 from units.models import Unit
 from units.rules import distinct_shifts
 from units.scope import unit_in_scope
@@ -221,6 +225,19 @@ def _names(nurses: list) -> str:
     return ", ".join(shown) + (f" and {len(nurses) - 3} more" if len(nurses) > 3 else "")
 
 
+def _held_by(roster: Roster, cells: list[tuple[str, dt.date, str]]) -> str:
+    """The first roster's cells only: the manager changes them, and saving again names the next."""
+    names = full_names(nurse for nurse, _, _ in cells)
+    said = "; ".join(f"{names.get(nurse) or nurse} on {code} on {long_date(day)}" for nurse, day, code in cells[:3])
+    more = f", and {len(cells) - 3} more" if len(cells) > 3 else ""
+    codes = " and ".join(dict.fromkeys(code for _, _, code in cells))
+    if roster.state == RosterState.SUBMITTED:
+        return (f"The submitted roster for {roster.month:%B %Y} has {said}{more}. Wait for its decision first, or take {codes} out "
+                "once the month is over.")
+    return (f"The roster in force for {roster.month:%B %Y} has {said}{more}. Change those cells on the Roster page first, "
+            f"or take {codes} out once the month is over.")
+
+
 @router.get("/{unit_id}/rules", response=UnitRulesState, auth=SignedIn(Role.UNIT_MANAGER, Role.CNO, Role.DEPUTY_CNO),
             operation_id="getUnitRules")
 def get_unit_rules(request, unit_id: UUID) -> dict:
@@ -249,6 +266,9 @@ def update_unit_rules(request, unit_id: UUID, body: UnitRulesBody) -> dict:
         if pinned:
             refuse((("rules", "shifts"), f"A pin holds a shift you are taking out: {words_for(pinned)}. Clear those pins on the "
                                          "Roster page first."))
+        held = frozen_cells_on_shifts_going(unit, body.rules.shifts, this_month())
+        if held:
+            refuse((("rules", "shifts"), _held_by(*held[0])))
 
         rules = body.rules.model_dump()
         old, new = differing(

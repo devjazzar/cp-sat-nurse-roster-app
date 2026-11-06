@@ -9,7 +9,7 @@ import pytest
 from accounts.models import Role, User
 from audit.models import AuditEntry
 from conftest import post
-from hospital.models import LeaveType
+from hospital.models import LeaveType, Shift
 from notifications.models import Notification
 from nurses import membership
 from nurses.models import Leave, NurseProfile, Placement
@@ -20,7 +20,7 @@ from rosters.models import PinEnded, PinnedCell, PinOrigin, RosterState, RosterV
 from rosters.tests.test_pins import change_shift, clear, icu, off, pin, save
 from rosters.tests.test_review import (approved, carla, dina, month_of, ok, profile, refused, roster, solved,  # noqa: F401
                                        submitted, url)
-from solves.tests.conftest import MONTH
+from solves.tests.conftest import MONTH, sample_rules
 
 pytestmark = pytest.mark.django_db
 
@@ -385,6 +385,70 @@ class TestTheRosterInForce:
         for nurse in ("Amal", "Badr"):
             for path in ("/api/rosters/mine", "/api/rosters/mine/month"):
                 assert "covers" not in nurses(nurse).get(path, {"month": MONTH}).content.decode()
+
+
+class TestAUnitDroppingAShiftTheRosterInForceHolds:
+    """A roster in force reaches the solver whole, as the re-plan's `published` and as month close's facts, and the solver refuses
+    a cell on a shift its unit does not work. So the unit may not stop working a shift that a submitted or approved roster of a
+    month not yet over still holds, as it may not under a pin."""
+
+    @pytest.fixture
+    def holding_e(self, mona, carla, er, solver):
+        """Amal works E on 3 June in the roster in force, with no pin there: as approved."""
+        Shift.objects.create(code="E", display_name="Evening", hours=12, start_time="14:00", end_time="02:00", colour="#00aa00",
+                             active=True)
+        er.rules = er.rules | {"shifts": ["D", "N", "E"]}
+        er.save()
+        approved(mona, carla, er, solver)
+        version = latest(er)
+        version.grid["Amal"]["2026-06-03"] = "E"
+        version.save()
+        held = roster(er)
+        held.grid = version.grid
+        held.save(update_fields=["grid"])
+        in_force_agrees(er)
+        return er
+
+    @staticmethod
+    def take_e_out(client, unit):
+        body = {"rules": sample_rules(), "request_cap": unit.request_cap, "default_time_limit": unit.default_time_limit}
+        return client.put(f"/api/units/{unit.pk}/rules", body, content_type="application/json")
+
+    def test_it_is_refused_naming_the_month_who_and_when(self, mona, holding_e):
+        response = self.take_e_out(mona, holding_e)
+
+        assert response.status_code == 422, response.content
+        assert response.json()["detail"][0]["msg"] == (
+            "The roster in force for June 2026 has Amal on E on 3 June 2026. Change those cells on the Roster page first, "
+            "or take E out once the month is over.")
+        assert "E" in type(holding_e).objects.get(pk=holding_e.pk).rules["shifts"]
+
+    def test_a_submitted_roster_holding_it_refuses_it_too(self, mona, carla, er, solver):
+        Shift.objects.create(code="E", display_name="Evening", hours=12, start_time="14:00", end_time="02:00", colour="#00aa00",
+                             active=True)
+        er.rules = er.rules | {"shifts": ["D", "N", "E"]}
+        er.save()
+        submitted(mona, er, solver)
+        held = roster(er)
+        held.grid["Amal"]["2026-06-03"] = "E"
+        held.save(update_fields=["grid"])
+
+        response = self.take_e_out(mona, er)
+
+        assert response.status_code == 422, response.content
+        assert response.json()["detail"][0]["msg"] == (
+            "The submitted roster for June 2026 has Amal on E on 3 June 2026. Wait for its decision first, or take E out once the "
+            "month is over.")
+
+    def test_once_its_cells_are_changed_it_goes_through(self, mona, holding_e):
+        changed(mona, holding_e, pin("Amal", 3, "D"))
+
+        assert self.take_e_out(mona, holding_e).status_code == 200
+
+    def test_a_month_that_is_over_does_not_stop_it(self, mona, holding_e, monkeypatch):
+        monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 7, 1))
+
+        assert self.take_e_out(mona, holding_e).status_code == 200
 
 
 class TestNursesAreTold:

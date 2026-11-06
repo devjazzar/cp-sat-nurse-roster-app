@@ -204,7 +204,10 @@ belongs to the unit whose month it is, so a transfer leaves it behind. Leave win
 ends the pin and tells the manager, and pinning on a day of leave is refused. A pin that falls out of step with the rest (the
 nurse no longer in the unit's month, a day outside their dates or on leave, a shift the unit no longer works or the nurse may
 not work) is set aside, not removed: it reaches no solve and the draft says why, and it counts again if that changes. A shift's
-hours, a unit's shifts and a nurse's allowed shifts cannot change under a pin that counts in a month not yet over.
+hours, a unit's shifts and a nurse's allowed shifts cannot change under a pin that counts in a month not yet over. Nor can a
+unit stop working a shift that its submitted or approved roster of a month not yet over holds, pinned or not: a re-plan and
+month close give that roster whole to the solver, which refuses a cell on a shift its unit does not work
+(`rosters.drafts.frozen_cells_on_shifts_going`).
 
 **Request window**: unit, target month (one not yet begun), open date, close date (the last day requests are taken, before
 the month begins; both days on the hospital's clock), state (`scheduled`, `open`, `closed`), who closed it early. The dates

@@ -16,7 +16,7 @@ from nurses import membership
 from hospital.models import Shift
 from nurses.models import Placement
 from rosters.drafts import FROZEN
-from rosters.models import PinnedCell, PinOrigin, RosterState, VersionOrigin
+from rosters.models import PinnedCell, PinOrigin, Roster, RosterState, VersionOrigin
 from solves.replans import A_DRAFT, ACTIVE, MONTH_OVER, NO_ROSTER_YET
 from rosters.tests.test_review import (SOUND, approve, approved, carla, dina, month_of, ok, profile, record_leave, refused,  # noqa: F401
                                        roster, solved, submitted, url)
@@ -125,6 +125,32 @@ class TestStarting:
         solve = Solve.objects.get(pk=started(mona, er, day="2026-07-01", month=JULY)["id"])
         assert solve.input["replan_from"] == "2026-07-01"
         assert all(not cells for cells in facts(solve.input).values()), "no day of July has happened"
+
+    def test_a_shift_the_unit_stopped_working_that_the_roster_in_force_holds_before_the_date(self, mona, carla, er, solver,
+                                                                                            mid_june):
+        """The solver refuses the roster in force as `published` with a cell on a shift its unit does not work, whichever side of
+        the date the cell is. The unit-rules save now refuses to take out such a shift (`rosters.drafts`), so this month is one
+        from before that guard: the re-plan is refused before it starts, not a solve that fails, and no solve is kept."""
+        Shift.objects.create(code="E", display_name="Evening", hours=12, start_time="14:00", end_time="02:00", colour="#00aa00",
+                             active=True)
+        er.rules = er.rules | {"shifts": ["D", "N", "E"]}
+        er.save()
+        approved(mona, carla, er, solver)
+        mid_june()
+        version = latest(er)
+        version.grid["Amal"]["2026-06-03"] = "E"
+        version.save()
+        Roster.objects.filter(unit=er).update(grid=version.grid)
+        body = {"rules": er.rules | {"shifts": ["D", "N"]}, "request_cap": er.request_cap,
+                "default_time_limit": er.default_time_limit}
+        assert mona.put(url(er, "/rules"), body, content_type="application/json").status_code == 422
+        er.rules = er.rules | {"shifts": ["D", "N"]}
+        er.save()
+
+        assert preview(mona, er)["rules_refusal"] is not None
+        answer = start(mona, er)
+        assert answer.status_code == 409 and answer.json()["detail"].startswith("The solver refuses the month as it stands")
+        assert not Solve.objects.filter(replan_from__isnull=False).exists()
 
     def test_a_month_that_is_over_is_refused(self, mona, er, in_force, mid_june):
         mid_june(dt.date(2026, 7, 2))

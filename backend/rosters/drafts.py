@@ -123,6 +123,21 @@ def _uses(roster: Roster, code: str) -> bool:
     return any(code in row.values() for row in roster.grid.values())
 
 
+def frozen_cells_on_shifts_going(unit: Unit, shifts: list[str],
+                                 since: dt.date) -> list[tuple[Roster, list[tuple[str, dt.date, str]]]]:
+    """The unit's submitted and approved rosters from `since` on, each with its cells on a shift outside `shifts`, by date then
+    hospital ID. Only a re-plan or month close changes such a roster, and both give it whole to the solver, which refuses a cell
+    on a shift its unit does not work. A draft is solved again instead. Hold the unit's lock."""
+    rosters = Roster.objects.filter(unit=unit, month__gte=since, state__in=[RosterState.SUBMITTED, RosterState.APPROVED])
+    found = []
+    for roster in rosters.order_by("month"):
+        cells = sorted((dt.date.fromisoformat(day), nurse, code) for nurse, row in roster.grid.items()
+                       for day, code in row.items() if code and code not in shifts)
+        if cells:
+            found.append((roster, [(nurse, day, code) for day, nurse, code in cells]))
+    return found
+
+
 def using_shift(code: str) -> list[Roster]:
     """The rosters of open months whose grid holds this shift, oldest first. Until month close exists (ticket 21) every month
     is open, and it narrows this."""
