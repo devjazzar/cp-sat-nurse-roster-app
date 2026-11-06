@@ -160,3 +160,5 @@ What was NOT checked:
 - **Every version expires the waiting swaps whose cells it changes, in `make_version`.** Anything that writes `Roster.grid` of an approved roster without it would skip that.
 - **The dev stack was not touched:** no restart, no migration, no login. When this branch reaches `main`, restart `web` and `worker` there for `swaps.0001` and `notifications.0004`, and so the worker picks up `expire_swaps`. Without the restart every new version fails, since `make_version` imports the new app. **No new dependency.**
 
+
+**Reviewed by the user (2026-11-06): all six kept as built.** The proposer's refusal wording and its one-bit channel; a colleague's accepted request refusing the swap while a manager's pin is replaced; one waiting swap a cell; a swap of only the proposer's own cells going straight to the manager; withdrawal while it waits for colleagues or the manager; no audit entry for an expiry.
