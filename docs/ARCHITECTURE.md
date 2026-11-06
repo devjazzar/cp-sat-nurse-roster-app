@@ -381,7 +381,7 @@ backup time and retention, close time.
   recorded leave and pin becomes fact, the solver validates and reports what the facts broke,
   and the carry-over is stored. A unit with no approved roster is skipped; the next month then
   starts from the last closed carry-over with no shift history.
-- What becomes fact (`closing.closing`): the solver's own loader with every day elapsed makes a pin that counts a fact, then
+- What becomes fact (`closes.making`): the solver's own loader with every day elapsed makes a pin that counts a fact, then
   leave and the days outside a nurse's dates, then the roster in force. The pins are `rosters.pins.month_pins` with the month's
   facts: a pin set aside for its day counts for nothing, one on a shift since dropped or no longer allowed was worked and
   counts. A shift the roster or a pin holds that the unit has since stopped working, or that was retired, counts as worked (the

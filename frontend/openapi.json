@@ -3780,7 +3780,7 @@
           }
         },
         "tags": [
-          "closing"
+          "closes"
         ],
         "security": [
           {
@@ -3815,9 +3815,9 @@
             }
           }
         },
-        "description": "Closes a month that is over, or closes it again to take late facts in, until the month after it has closed. The schedule\ncloses each month on its own (`closing.tasks.close_month`); this is for a manager who has recorded something since.",
+        "description": "Closes a month that is over, or closes it again to take late facts in, until the month after it has closed. The schedule\ncloses each month on its own (`closes.tasks.close_month`); this is for a manager who has recorded something since.",
         "tags": [
-          "closing"
+          "closes"
         ],
         "requestBody": {
           "content": {

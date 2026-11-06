@@ -3882,7 +3882,7 @@ export const GetMonthCloseResponse = zod.object({
 
 /**
  * Closes a month that is over, or closes it again to take late facts in, until the month after it has closed. The schedule
- * closes each month on its own (`closing.tasks.close_month`); this is for a manager who has recorded something since.
+ * closes each month on its own (`closes.tasks.close_month`); this is for a manager who has recorded something since.
  * @summary Close Month
  */
 export const CloseMonthParams = zod.object({
