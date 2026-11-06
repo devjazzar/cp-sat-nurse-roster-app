@@ -20,7 +20,7 @@ A user who appears on a unit's rosters: any user with a nurse profile. Every sta
 _Avoid_: staff, employee, staff member
 
 **Nurse profile**:
-A user's roster identity: her hospital ID, her unit and her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding). Her username is her hospital ID. The CNO sets and corrects her gender; her unit manager sets the rest. The CNO and the Deputy CNO read them; nurses and the System Admin never do.
+A user's roster identity: her hospital ID, her unit and her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding). Her username is her hospital ID. The CNO sets and corrects her gender; her unit manager sets the rest. The CNO and the Deputy CNO read them; the System Admin never does, and nor do nurses, but for one exception: the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts, and nothing else of her attributes.
 _Avoid_: staff record, employee record, nurse record
 
 **Start date**, **End date**:

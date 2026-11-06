@@ -203,3 +203,14 @@ What was NOT checked:
 - **Month close (21):** a request of a month that is over can no longer be accepted, edited or cancelled (`deciding.MONTH_OVER`), and its pin is read by the close like any pin. A pending request of a month already over stays pending until its manager rejects it.
 - **A follow-up for whoever owns the Leave page's copy:** on an approved roster, leave that ends a pin still says "It replaced a pin on the draft… or solve again", which fits a draft only. It predates this ticket.
 - **The dev stack was not touched:** no restart, no migration, no login. When this branch reaches `main`, restart `web` and `worker` for `requesting.0001` and `notifications.0003`. Without the restart the pages that read or end pins (Leave, Roster) fail, since `leave_api` imports the new app. **No new dependency.**
+
+**Reviewed by the user (2026-11-06), and kept as built:**
+- the manager is told once, when a window closes by its date with requests waiting, not once a request;
+- a unit has at most one window scheduled or open, whatever its month, and once one closes another may target the same month;
+- closing a window early tells the nurses who were told it opened;
+- the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts. The glossary's Nurse profile now names this as the one exception to nurses never reading their attributes;
+- accepting onto a cell the manager pinned replaces that pin;
+- cancelling an accepted request changes no cell, so it makes no version, after approval too;
+- a reason is optional to accept, and required to reject, change or cancel;
+- leave over a pending request replaces it too, as over an accepted one;
+- the CNO and the Deputy CNO read a request's version reason in the version list, which carries neither person's reason.
