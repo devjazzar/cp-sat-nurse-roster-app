@@ -31,3 +31,23 @@
 - **`deploy/tests/operations.sh <project>`** is a compose-level test already: it builds the stack under its own project, secrets, volumes, image tag and HTTPS port (`TEST_HTTPS_PORT`, default 18443), checks a backup by the job, a failed and a real restore by `deploy/restore.sh`, the reset script lifting a lock, JSON logs, `/metrics` refused through Caddy, and the retention jobs, then removes everything. CI could run it beside the journeys; it needs Docker with Compose v2.24 or later, `curl`, `openssl` and `python3`, and takes several minutes for the build.
 - **Through Caddy** the certificate is self-signed without a `DOMAIN`, so Playwright needs `ignoreHTTPSErrors`. The built-in browser here refuses such a certificate, so ticket 22 drove the pages on `web` published over HTTP under `DJANGO_DEBUG`, as ticket 21 did.
 - **A solve's failure kind** on the System Admin's solve history ("The solver could not be reached.", and the like) was checked in Vitest only: a journey can stop the `solver` service during a solve and read it.
+
+**From ticket 23 (2026-11-07).** Phones and the PWA exist, with Playwright checks at phone size to build on.
+- **The harness is `e2e/`** (its own `package.json`, `@playwright/test` 1.64.1; `npx playwright install chromium` once):
+  - `e2e/stack.sh up <project>` builds a stack from the checkout (its own project, secrets, volumes, image tag `<project>-app:e2e`), seeds it with `e2e/seed.py`, takes a backup, and writes `e2e/.stack/<project>.json`.
+  - `E2E_STACK=<project> npx playwright test` runs the checks.
+  - `rebuild` takes a new image and keeps the data, `redeploy` stands in for a deploy (edits `index.html` and `sw.js` in `web`, restarts it), and `down` removes everything. It refuses `nurse-roster`.
+  - CI can run the same three lines; it needs Docker with Compose v2.24 or later, `openssl`, `python3` and Node 26.
+- **The origin:**
+  - The checks' `baseURL` is `web` over HTTP on `localhost:$E2E_PORT`, without `DJANGO_DEBUG`. Sign-in works there (`Secure` cookies are accepted on localhost).
+  - Through Caddy (`caddyURL`, `ignoreHTTPSErrors`) the pages work, but **Chromium will not register the service worker behind the self-signed certificate**, whatever `ignoreHTTPSErrors` says.
+  - A journey through Caddy runs without the worker, which changes nothing, since it handles no request. Only `pwa.spec` and `deploy.spec` need the localhost origin.
+- **The seed** is ticket 23's minimum: the solver's four-nurse sample as ER, next month approved by a real in-process solve, a request window open for the month after, a sound two-cell swap in `stack.swap`, `admin` signed in with the seed's password, and every user's full name in `stack.names`. **Your journeys start from an empty stack instead** (the System Admin creates the CNO and so on). Give them a seed of their own, or `up` without seeding.
+- **Projects:** `phone-360` and `phone-320` (a Pixel 7's touch screen and user agent; `phone()` in `support.ts`), and `deploy` last, since it restarts `web`. Add a desktop project. The checks run one at a time, because they share a stack and change it; each puts back what it changed.
+- **Already covered at both phone widths, so not to repeat:** every nurse page through the Menu, none scrolling sideways, the controls 44 px; a request made and withdrawn; a swap proposed and accepted on two phones (not approved by the manager: yours); the System Admin's and a unit manager's pages within 320 px; the Users page's buttons not over the names; the PWA's manifest, icons, worker and caches; Caddy's headers and `/metrics` 404.
+- **Left for you from 23:**
+  - The CNO's and the Deputy CNO's pages at 320 px.
+  - The manager's Requests and Swaps pages and the re-plan result at 375 px.
+  - Dark mode once it can be chosen. Today `index.html` says `color-scheme: light`; change it with the switch.
+- **The header on a phone** (below 640 px) is the name, the bell and a "Menu" button. Pages are reached in the `navigation` named "Main menu", which is in the page only while open; the one-row `navigation` "Main" is hidden by CSS there.
+
