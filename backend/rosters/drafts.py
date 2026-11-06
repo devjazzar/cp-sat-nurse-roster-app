@@ -123,18 +123,18 @@ def _uses(roster: Roster, code: str) -> bool:
     return any(code in row.values() for row in roster.grid.values())
 
 
-def frozen_cells_on_shifts_going(unit: Unit, shifts: list[str],
+def frozen_cells_on_shifts_going(unit: Unit, going: set[str],
                                  since: dt.date) -> list[tuple[Roster, list[tuple[str, dt.date, str]]]]:
-    """The unit's submitted and approved rosters from `since` on, each with its cells on a shift outside `shifts`, by date then
-    hospital ID. Only a re-plan or month close changes such a roster, and both give it whole to the solver, which refuses a cell
-    on a shift its unit does not work. A draft is solved again instead. Hold the unit's lock."""
+    """The unit's submitted and approved rosters from `since` on, each with its cells on a shift in `going`, as (hospital ID,
+    date, code) by date. Only a re-plan or month close changes such a roster, and both give it whole to the solver, which
+    refuses a cell on a shift its unit does not work. A draft is solved again instead. Hold the unit's lock."""
     rosters = Roster.objects.filter(unit=unit, month__gte=since, state__in=[RosterState.SUBMITTED, RosterState.APPROVED])
     found = []
     for roster in rosters.order_by("month"):
-        cells = sorted((dt.date.fromisoformat(day), nurse, code) for nurse, row in roster.grid.items()
-                       for day, code in row.items() if code and code not in shifts)
+        cells = [(nurse, dt.date.fromisoformat(day), code) for nurse, row in roster.grid.items()
+                 for day, code in row.items() if code in going]
         if cells:
-            found.append((roster, [(nurse, day, code) for day, nurse, code in cells]))
+            found.append((roster, sorted(cells, key=lambda cell: (cell[1], cell[0]))))
     return found
 
 

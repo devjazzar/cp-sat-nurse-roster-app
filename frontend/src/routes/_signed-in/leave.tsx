@@ -202,19 +202,19 @@ function shiftsTakenOff(taken: ShiftTakenOff[]): string {
 }
 
 /** Where a replaced pin was decides what follows: a draft still holds its shift, a submitted roster keeps it for the decision,
- * on the roster in force the leave took it off as a version, which `shiftsTakenOff` says, and a month with no roster yet has
- * nothing to change. */
-const PIN_PLACES: { on: RemovedPin["roster"][]; where: string; then: string }[] = [
-  { on: ["draft"], where: "on the draft", then: " A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again." },
-  { on: ["submitted"], where: "on the submitted roster", then: " The submitted roster keeps its shift until the decision, which checks it again." },
-  { on: ["approved"], where: "on the roster in force", then: "" },
-  { on: ["none"], where: "in a month with no roster yet", then: "" },
-]
+ * on the roster in force the leave took it off as a version, which `shiftsTakenOff` then says, and a month with no roster yet
+ * has nothing to change. In this order. */
+const PIN_PLACES: Record<RemovedPin["roster"], { where: string; then: string }> = {
+  draft: { where: "on the draft", then: " A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again." },
+  submitted: { where: "on the submitted roster", then: " The submitted roster keeps its shift until the decision, which checks it again." },
+  approved: { where: "on the roster in force", then: "" },
+  none: { where: "in a month with no roster yet", then: "" },
+}
 
 /** Leave wins over a pin, so saving it ended any on its days, and the Roster page goes on saying so. */
 function pinsReplaced(pins: RemovedPin[]): string {
   if (pins.length === 0) return ""
-  const places = PIN_PLACES.map((place) => ({ ...place, pins: pins.filter((pin) => place.on.includes(pin.roster)) }))
+  const places = Object.entries(PIN_PLACES).map(([roster, place]) => ({ ...place, pins: pins.filter((pin) => pin.roster === roster) }))
     .filter((place) => place.pins.length > 0)
   const said = places.map(({ where, pins: here }) => {
     const each = here.map((pin) => `${pin.shift || "a day off"} on ${dayRange(pin.date, pin.date)}`).join(", ")

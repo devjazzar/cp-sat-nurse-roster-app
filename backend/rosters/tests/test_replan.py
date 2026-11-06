@@ -20,7 +20,7 @@ from rosters.models import PinnedCell, PinOrigin, Roster, RosterState, VersionOr
 from solves.replans import A_DRAFT, ACTIVE, MONTH_OVER, NO_ROSTER_YET
 from rosters.tests.test_review import (SOUND, approve, approved, carla, dina, month_of, ok, profile, record_leave, refused,  # noqa: F401
                                        roster, solved, submitted, url)
-from rosters.tests.test_versions import changed, in_force_agrees, latest
+from rosters.tests.test_versions import changed, in_force_agrees, latest, works_e
 from rosters.tests.test_pins import change_shift, icu, pin
 from solves.tests.conftest import start_solve
 from solves import running
@@ -131,10 +131,7 @@ class TestStarting:
         """The solver refuses the roster in force as `published` with a cell on a shift its unit does not work, whichever side of
         the date the cell is. The unit-rules save now refuses to take out such a shift (`rosters.drafts`), so this month is one
         from before that guard: the re-plan is refused before it starts, not a solve that fails, and no solve is kept."""
-        Shift.objects.create(code="E", display_name="Evening", hours=12, start_time="14:00", end_time="02:00", colour="#00aa00",
-                             active=True)
-        er.rules = er.rules | {"shifts": ["D", "N", "E"]}
-        er.save()
+        works_e(er)
         approved(mona, carla, er, solver)
         mid_june()
         version = latest(er)

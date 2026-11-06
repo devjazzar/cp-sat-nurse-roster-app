@@ -266,7 +266,9 @@ def update_unit_rules(request, unit_id: UUID, body: UnitRulesBody) -> dict:
         if pinned:
             refuse((("rules", "shifts"), f"A pin holds a shift you are taking out: {words_for(pinned)}. Clear those pins on the "
                                          "Roster page first."))
-        held = frozen_cells_on_shifts_going(unit, body.rules.shifts, this_month())
+        # Only the shifts being taken out: a month from before this check may already hold one, and must not stop every save.
+        going = set(unit.rules.get("shifts", [])) - set(body.rules.shifts)
+        held = frozen_cells_on_shifts_going(unit, going, this_month())
         if held:
             refuse((("rules", "shifts"), _held_by(*held[0])))
 

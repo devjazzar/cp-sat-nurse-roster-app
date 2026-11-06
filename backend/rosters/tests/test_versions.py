@@ -387,6 +387,14 @@ class TestTheRosterInForce:
                 assert "covers" not in nurses(nurse).get(path, {"month": MONTH}).content.decode()
 
 
+def works_e(unit) -> None:
+    """A 12-hour Evening shift in the catalogue, which the unit works beside Day and Night."""
+    Shift.objects.create(code="E", display_name="Evening", hours=12, start_time="14:00", end_time="02:00", colour="#00aa00",
+                         active=True)
+    unit.rules = unit.rules | {"shifts": ["D", "N", "E"]}
+    unit.save()
+
+
 class TestAUnitDroppingAShiftTheRosterInForceHolds:
     """A roster in force reaches the solver whole, as the re-plan's `published` and as month close's facts, and the solver refuses
     a cell on a shift its unit does not work. So the unit may not stop working a shift that a submitted or approved roster of a
@@ -395,10 +403,7 @@ class TestAUnitDroppingAShiftTheRosterInForceHolds:
     @pytest.fixture
     def holding_e(self, mona, carla, er, solver):
         """Amal works E on 3 June in the roster in force, with no pin there: as approved."""
-        Shift.objects.create(code="E", display_name="Evening", hours=12, start_time="14:00", end_time="02:00", colour="#00aa00",
-                             active=True)
-        er.rules = er.rules | {"shifts": ["D", "N", "E"]}
-        er.save()
+        works_e(er)
         approved(mona, carla, er, solver)
         version = latest(er)
         version.grid["Amal"]["2026-06-03"] = "E"
@@ -424,10 +429,7 @@ class TestAUnitDroppingAShiftTheRosterInForceHolds:
         assert "E" in type(holding_e).objects.get(pk=holding_e.pk).rules["shifts"]
 
     def test_a_submitted_roster_holding_it_refuses_it_too(self, mona, carla, er, solver):
-        Shift.objects.create(code="E", display_name="Evening", hours=12, start_time="14:00", end_time="02:00", colour="#00aa00",
-                             active=True)
-        er.rules = er.rules | {"shifts": ["D", "N", "E"]}
-        er.save()
+        works_e(er)
         submitted(mona, er, solver)
         held = roster(er)
         held.grid["Amal"]["2026-06-03"] = "E"
@@ -442,6 +444,13 @@ class TestAUnitDroppingAShiftTheRosterInForceHolds:
 
     def test_once_its_cells_are_changed_it_goes_through(self, mona, holding_e):
         changed(mona, holding_e, pin("Amal", 3, "D"))
+
+        assert self.take_e_out(mona, holding_e).status_code == 200
+
+    def test_a_month_holding_a_shift_already_taken_out_does_not_stop_other_saves(self, mona, holding_e):
+        """Only a shift being taken out is checked: one dropped before this check existed must not stop every save after."""
+        holding_e.rules = holding_e.rules | {"shifts": ["D", "N"]}
+        holding_e.save()
 
         assert self.take_e_out(mona, holding_e).status_code == 200
 
