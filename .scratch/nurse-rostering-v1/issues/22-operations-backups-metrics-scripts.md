@@ -20,3 +20,5 @@
 - **Prove Let's Encrypt at first real install.** Ticket 01's criterion stays unticked until then, because it needs a real domain whose DNS points at the server. Say this in the install guide too.
 
 **From ticket 11 (2026-11-05): queue rows pile up.** Every run of a job leaves a row in `procrastinate_jobs` and its events, and nothing removes them. `recover_lost_jobs` runs every five minutes, so that is 288 rows a day beside the solves. Solves do not need theirs once ended, since the `Solve` row is the record and `queue_ahead` counts only active ones. Add retention here, with the worker's `delete_jobs` option or a job of its own. The health page's `waiting`, `running` and `failed` are unaffected by either.
+
+**From the scheduled-jobs design (2026-11-06, ADR 0009).** The worker runs at concurrency 4 and every job takes a lock. The backup can run for minutes, so it takes a lock of its own (`lock="backup"`), which `ops.queue._periodic` gives every periodic job under its name from ticket 21 on. It then holds one slot at most and never runs beside itself.

@@ -361,10 +361,11 @@ backup time and retention, close time.
 
 - The solve input for month M starts from the carry-over of the latest *closed* month,
   projected forward through each approved roster in between by the same computation the
-  close uses (the solver with every day recorded). Normally that is one step: M−1's roster in
+  close uses (the solver package's carry-over of a month with every day recorded, worked out with no
+  search in the worker's own process, ADR 0009). Normally that is one step: M−1's roster in
   force, projected.
 - At the close time on the first day after a month (default 00:30 hospital time), the worker
-  closes every unit that has an approved roster for it: the roster in force plus every
+  closes every unit that has an approved roster for it, whether or not a solve is running (ADR 0009): the roster in force plus every
   recorded leave and pin becomes fact, the solver validates and reports what the facts broke,
   and the carry-over is stored. A unit with no approved roster is skipped; the next month then
   starts from the last closed carry-over with no shift history.
@@ -381,7 +382,8 @@ backup time and retention, close time.
 
 A small FastAPI application in the solver container wrapping the vendored `nurse_roster`
 package (ADR 0002). Every call carries the shared token. It runs one job at a time and
-rejects a second with `409`; the worker guarantees the ordering.
+rejects a second with `409`; the worker guarantees the ordering, and `run_solve` is the only
+caller of `POST /solve` (ADR 0009).
 
 | Call | Purpose |
 |---|---|
@@ -397,8 +399,12 @@ by the unit manager up to the System Admin's cap. The reproducible mode is not e
 
 ## 7. The worker and the queue (ADR 0006)
 
-Procrastinate, with its tables in the application database, run by the `worker` container.
-Jobs:
+Procrastinate, with its tables in the application database, run by the `worker` container at
+concurrency 4 (`--concurrency 4` in `deploy/compose.yaml`), so a scheduled job never waits behind a
+running solve (ADR 0009). Every job takes a lock: solves share the hospital-wide one, and each
+periodic job takes one under its own name, so a waiting job takes no slot, no kind of job holds more
+than one, and no job runs beside its own previous run. A new job that can run longer than about a
+minute takes a lock of its own. Jobs:
 
 - `run_solve(solve_id)`: under a hospital-wide lock, so solves run first come first served
   across units; submits the solve input to the solver, polls progress into the `Solve` row,
@@ -408,8 +414,10 @@ Jobs:
   job the solver still holds when it comes back.
 - `recover_lost_jobs` (every five minutes): puts a dead worker's job back on the queue, which would
   otherwise hold the lock for good, and fails a solve whose job is gone.
-- `close_month` (cron, close time on the first of each month) and `project_carry_over` on
-  demand.
+- `close_month` (hourly, minute 30): closes every unit's month whose close time has passed on the hospital's clock and
+  is not closed, so a worker that was down catches up; and `project_carry_over` on demand. Neither calls the solver
+  service: the carry-over is worked out in the worker's process by `solver_service.grid`. A solve of a later month
+  that is queued or running goes on, and its draft is warned of as older than the close.
 - `backup` (cron, 02:00) and backup retention.
 - `expire_swaps` (hourly, minute 15): expires each waiting swap one of whose dates has passed, telling its people. Every page reads
   the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
