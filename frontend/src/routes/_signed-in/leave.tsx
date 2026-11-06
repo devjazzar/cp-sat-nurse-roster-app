@@ -202,12 +202,13 @@ function shiftsTakenOff(taken: ShiftTakenOff[]): string {
 }
 
 /** Where a replaced pin was decides what follows: a draft still holds its shift, a submitted roster keeps it for the decision,
- * and on the roster in force the leave took it off as a version, which `shiftsTakenOff` says. A month with no roster yet reads
- * as its draft. */
+ * on the roster in force the leave took it off as a version, which `shiftsTakenOff` says, and a month with no roster yet has
+ * nothing to change. */
 const PIN_PLACES: { on: RemovedPin["roster"][]; where: string; then: string }[] = [
-  { on: ["none", "draft"], where: "the draft", then: " A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again." },
-  { on: ["submitted"], where: "the submitted roster", then: " The submitted roster keeps its shift until the decision, which checks it again." },
-  { on: ["approved"], where: "the roster in force", then: "" },
+  { on: ["draft"], where: "on the draft", then: " A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again." },
+  { on: ["submitted"], where: "on the submitted roster", then: " The submitted roster keeps its shift until the decision, which checks it again." },
+  { on: ["approved"], where: "on the roster in force", then: "" },
+  { on: ["none"], where: "in a month with no roster yet", then: "" },
 ]
 
 /** Leave wins over a pin, so saving it ended any on its days, and the Roster page goes on saying so. */
@@ -217,7 +218,7 @@ function pinsReplaced(pins: RemovedPin[]): string {
     .filter((place) => place.pins.length > 0)
   const said = places.map(({ where, pins: here }) => {
     const each = here.map((pin) => `${pin.shift || "a day off"} on ${dayRange(pin.date, pin.date)}`).join(", ")
-    return ` It replaced ${here.length === 1 ? "a pin" : `${here.length} pins`} on ${where}: ${each}.`
+    return ` It replaced ${here.length === 1 ? "a pin" : `${here.length} pins`} ${where}: ${each}.`
   }).join("")
   const requests = pins.filter((pin) => pin.origin === "request")
   const told = requests.length === 0 ? ""
