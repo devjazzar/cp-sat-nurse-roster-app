@@ -222,9 +222,13 @@ it. An edit changes what the pin promises and keeps what was asked. Leave record
 makes it `replaced_by_leave`, and its nurse is told. Nothing is deleted: a request the manager cancels after acceptance becomes
 `cancelled`, its pin ends and no cell changes.
 
-**Swap**: unit, the roster version it was proposed on, proposer, the set of cell changes
-(nurse, date, new shift or off), the participants with their acceptance, state (`pending`,
-`awaiting_manager`, `approved`, `rejected`, `withdrawn`, `expired`), decided by, reason.
+**Swap**: unit, roster, the roster version it was proposed on, proposer, the proposer's note, the set of cell changes (nurse,
+date, the shift or off before, the new shift or off, and the pin its approval made), the participants (every colleague whose cells
+change, never the proposer) with their answers, state (`pending`, `awaiting_manager`, `approved`, `rejected`, `withdrawn`,
+`expired`), who ended it and when, why it expired (a date passed, or a version changed a cell: the manager's to read), the
+manager's reason, and the version its approval made. Only staff nurses' cells are swapped, a manager with a nurse profile's
+never; a cell is in at most one live swap. A colleague's accepted request on a cell refuses the swap (the request stays her
+promise), while a manager's pin, or an earlier swap's, is replaced by the approval.
 
 **Solve**: unit, month, requested by, time limit, state (`queued`, `running`, `succeeded`,
 `failed`, `cancelled`), the queue's job, progress (elapsed, best cost, improvements), the
@@ -325,18 +329,32 @@ backup time and retention, close time.
 
 ### Swaps
 
-1. On an approved roster, for dates not yet passed, a nurse composes a proposal: a set of
-   cell changes on her own cells and on any colleagues' cells needed to make it work.
-2. The solver's validate call checks the resulting grid at once; a proposal that breaks a
-   hard rule is refused on the spot with the reason.
+1. On an approved roster, for dates not yet passed (today included, on the hospital's clock), a staff nurse composes a
+   proposal: a set of cell changes on her own cells, at least one, and on any colleagues' cells needed to make it work. One of
+   only her own cells needs no colleague and goes to the manager at once.
+2. The solver's own code checks the resulting grid at once, on the month as it stands, with the swap's cells as pins (so a
+   manager's pin there does not count against it); a proposal is refused on the spot, with every reason, when a cell cannot
+   hold its change or the grid newly breaks a hard rule (one the roster in force already breaks, which an edit may save, is not
+   the swap's). The proposer learns nothing about a colleague that My roster would not show: every reason resting on a
+   colleague's facts (leave, dates, unit, allowed shifts, hours, an accepted request) reads "This swap cannot work for Badr on
+   5 June", a shift-day left without a team leader or both genders reads only that that day's shifts would break the unit's
+   rules, and the proposer reads no rule, solver text or cost about anyone else. Her own reasons are said in full, and so is
+   anything My roster shows (a cell's shift, a date passed, a headcount). The manager reads every reason in full
+   (`swaps.judging`).
 3. Every colleague whose cells change must accept; one rejection ends the proposal (kept,
-   with who rejected). The proposer may withdraw while pending.
+   with who rejected). The proposer may withdraw while it waits for its colleagues or the manager.
 4. When all have accepted, the unit manager sees before and after, the re-run validation and
-   the cost change, and approves or rejects. He cannot edit a proposal; to change it he
-   edits the roster directly.
-5. Approval writes the cells as pinned cells in a new roster version. A pending proposal
-   expires when any of its dates passes or a new version changes any of its cells. Everyone
-   involved is notified at each step.
+   the cost change, and approves or rejects, a reason required to reject, which everyone in it reads. He cannot edit a
+   proposal; to change it he edits the roster directly. Approval is refused, with the reasons in full, when the month moved
+   since in a way the swap can no longer hold (leave, a transfer, a hard rule it would now newly break).
+5. Approval writes the cells as pinned cells of origin `swap` (`rosters.pins.pin_cell`) in a new roster version of origin
+   `swap`, in force at once, telling the unit's nurses the roster changed. A live proposal expires when any of its dates passes
+   (every page reads the dates; the hourly job and the next write about it store it and tell its people) or a new version
+   changes any of its cells, whatever made it (`rosters.versions.make_version`). A swap approved while a re-plan of its month
+   runs makes the re-plan end `outdated`. Everyone involved is notified at each step: its colleagues when proposed, the
+   proposer at each acceptance, the manager when all have accepted, and the proposer and every colleague at a rejection, a
+   withdrawal, an expiry and an approval (the manager too for a withdrawal or an expiry of one awaiting him), never whoever took
+   the step, and never why one expired.
 
 ### Month close and the carry-over chain (ADR 0004)
 
@@ -392,7 +410,8 @@ Jobs:
 - `close_month` (cron, close time on the first of each month) and `project_carry_over` on
   demand.
 - `backup` (cron, 02:00) and backup retention.
-- `expire_swaps` (hourly).
+- `expire_swaps` (hourly, minute 15): expires each live swap one of whose dates has passed, telling its people. Every page reads
+  the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
 - `open_and_close_request_windows` (hourly): opens each request window whose open date has come and closes each whose close
   date has passed, telling whoever that tells. Every write about a unit's windows does the same first, so a worker that is down
   delays only the notifications.
@@ -466,7 +485,9 @@ the staff list, a file that leaves the system. Leave is logged the same way, as 
 dates or how many, since a long run gives the type away and a date is part of a roster. So is a request: whose it is, who moved it and how (made, withdrawn,
 accepted, rejected, edited, cancelled), never its date, its shift or either reason, which can be about someone's health. A
 request that leave replaced, and a version a request made, have no entry of their own, since one beside the leave's or the
-request's would date it.
+request's would date it. So is a swap: whose it is (the proposer's) and who moved it how (`swap.proposed`, `accepted`, `rejected`,
+`withdrawn`, `approved`), never its cells, dates, note or reasons; an approval also writes `roster.changed`. An expiry has no
+entry: it is nobody's act, and one beside the version that caused it could date a colleague's leave.
 
 ### Nurse import and the staff list
 

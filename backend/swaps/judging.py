@@ -97,7 +97,8 @@ class Month:
         self.serving = {nurse.user.username: nurse for nurse in self.judge.nurses.values()}
         on_grid = NurseProfile.objects.filter(user__username__in=list(roster.grid)).select_related("user")
         self.on_grid = {nurse.user.username: nurse for nurse in on_grid}
-        self.shifts = {shift.code: shift for shift in Shift.objects.filter(active=True, code__in=self.unit.rules.get("shifts", []))}
+        worked = Shift.objects.filter(active=True, code__in=self.unit.rules.get("shifts", []))
+        self.shifts = {shift.code: shift for shift in worked}
         self.pins = {(pin.nurse_id, pin.date): pin for pin in PinnedCell.objects.current().in_month(self.month)
                      .filter(unit=self.unit).select_related("shift")}
         live = SwapCell.objects.filter(swap__roster=roster, swap__state__in=LIVE)
@@ -169,8 +170,8 @@ def _cell_problem(month: Month, change: Change, index: int, proposer: NurseProfi
 
 
 def _with_pins(solve_input: dict, month: Month, changes: list[Change]) -> dict:
-    """The input as approval would make it: each changed cell a pin, so the solver's `pin` rule holds the new cell, and a manager's
-    pin there, which approval replaces, does not count against it."""
+    """The input as approval would make it: each changed cell a pin, so the solver's `pin` rule holds the new cell, and a
+    manager's pin there, which approval replaces, does not count against it."""
     edited = copy.deepcopy(solve_input)
     rows = {row["id"]: row for row in edited["nurses"]}
     for change in changes:

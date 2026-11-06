@@ -201,8 +201,8 @@ def approve(swap: Swap, by: User, reason: str, request: HttpRequest) -> Swap:
         cell.save(update_fields=["pin"])
     names = ", ".join(dict.fromkeys(name_of(cell.nurse) for cell in cells))
     days = ", ".join(dict.fromkeys(long_date(cell.date) for cell in cells))
-    version = make_version(roster, judged.grid, VersionOrigin.SWAP, by, f"Swap proposed by {name_of(swap.proposer)} approved: {names} on "
-                                                              f"{days}.")
+    reason_for_version = f"Swap proposed by {name_of(swap.proposer)} approved: {names} on {days}."
+    version = make_version(roster, judged.grid, VersionOrigin.SWAP, by, reason_for_version)
     swap.made = version
     swap.save(update_fields=["made"])
     record("swap.approved", actor=by, target=swap.proposer.user.username, request=request)

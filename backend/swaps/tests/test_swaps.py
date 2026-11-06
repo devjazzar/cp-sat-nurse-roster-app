@@ -6,16 +6,17 @@ import pytest
 
 from accounts.models import Role, User
 from audit.models import AuditEntry
+from conftest import post
 from hospital.models import LeaveType
 from notifications.models import Event, Notification
 from notifications.tests.test_events import as_user, told
 from nurses.models import NurseProfile, Placement
-from conftest import post
 from requesting.tests.conftest import asked, decided as request_decided, opened
 from rosters.models import PinEnded, PinnedCell, PinOrigin, Roster, RosterVersion, VersionOrigin
 from rosters.tests.test_pins import icu, pin, saved
-from rosters.tests.test_review import approve, ok as roster_ok, solved, submit
+from rosters.tests.test_review import approve, approved, ok as roster_ok, solved, submit
 from rosters.tests.test_versions import changed, in_force_agrees
+from solves.tests.conftest import nurse_in
 from swaps.models import Swap, SwapState
 from swaps.tasks import expire_swaps
 from swaps.tests.conftest import (MONTH, SOUND_SWAP, act, acted, cell, decide, decided, decision, mine, ok, propose, proposed,
@@ -125,7 +126,6 @@ class TestComposing:
 
     def test_a_nurse_not_on_the_roster_is_refused_the_same_whoever_they_are(self, in_force, nurse, make_user, mona):
         icu_unit = icu(make_user("omar", Role.UNIT_MANAGER))
-        from solves.tests.conftest import nurse_in
         nurse_in(icu_unit, make_user, "Zara")
 
         assert refusals(propose(nurse("Badr"), cell("Badr", 9), cell("Zara", 9, "D"))) == ["There is no Zara on this roster."]
@@ -151,7 +151,8 @@ class TestComposing:
 
         assert refusals(propose(nurse("Badr"), cell("Badr", 9), cell("mona", 9, "D"))) == [
             "Mona Ali is not a staff nurse, so a swap cannot change their cells."]
-        assert "mona" not in {row["hospital_id"] for row in ok(nurse("Badr").get("/api/swaps/compose", {"month": MONTH}))["nurses"]}
+        offered = ok(nurse("Badr").get("/api/swaps/compose", {"month": MONTH}))["nurses"]
+        assert "mona" not in {row["hospital_id"] for row in offered}
 
 
 class TestTheProposersOwnFacts:
@@ -303,8 +304,8 @@ class TestTheColleaguesAnswers:
 
         assert acted(nurse("Emad"), swap["id"], "accept")["state"] == "pending"
         assert steps_told("Badr") == ["accepted"] and steps_told("mona") == []
-        answer = acted(nurse("Dana"), swap["id"], "accept")
-        acted(nurse("Amal"), swap["id"], "accept") if answer["state"] == "pending" else None
+        assert acted(nurse("Dana"), swap["id"], "accept")["state"] == "pending"
+        assert acted(nurse("Amal"), swap["id"], "accept")["state"] == "awaiting_manager"
 
         assert Swap.objects.get().state == SwapState.AWAITING_MANAGER
         assert steps_told("Badr") == ["accepted", "accepted", "accepted"]
@@ -451,7 +452,8 @@ class TestExpiry:
 
         assert mine(nurse("Badr"))[0]["state"] == "expired"
         assert ok(mona.get(url(in_force, "/swaps"), {"month": MONTH}))["swaps"][0]["expired_why"] == "date_passed"
-        assert refusals(act(nurse("Emad"), swap["id"], "accept"), 409) == ["This swap is expired, so it can no longer be answered."]
+        assert refusals(act(nurse("Emad"), swap["id"], "accept"), 409) == [
+            "This swap is expired, so it can no longer be answered."]
         expire_swaps(0)
         expire_swaps(0)
 
@@ -490,7 +492,7 @@ class TestExpiry:
         assert set(swap_notes("Emad")[-1].payload) == {"unit_id", "month", "swap_id", "step"}
 
     def test_an_accepted_request_changing_one_of_its_cells_expires_it(self, mona, carla, er, solver, nurse):
-        approved_roster(mona, carla, er, solver)
+        approved(mona, carla, er, solver)
         opened(mona, er)
         made = asked(nurse("Badr"), 9, "N")
         proposed(nurse("Badr"), *SOUND_SWAP)
@@ -508,11 +510,6 @@ class TestExpiry:
         assert Swap.objects.get(pk=second["id"]).state == SwapState.PENDING
 
 
-def approved_roster(mona, carla, er, solver):
-    from rosters.tests.test_review import approved
-    approved(mona, carla, er, solver)
-
-
 class TestNotifications:
     def test_the_words_and_the_links_of_each_step(self, in_force, nurse, mona):
         swap = awaiting(nurse)
@@ -528,7 +525,8 @@ class TestNotifications:
             "Mona Ali approved the swap you proposed on the ER roster for June 2026. Its cells are in the roster in force.",
             "Emad accepted the swap you proposed on the ER roster for June 2026."]
         manager = told(mona, "swap_step")
-        assert [item["text"] for item in manager] == ["The swap Badr proposed on the ER roster for June 2026 waits for your decision."]
+        assert [item["text"] for item in manager] == [
+            "The swap Badr proposed on the ER roster for June 2026 waits for your decision."]
         assert manager[0]["link"] == {"page": "unit_swaps", "month": MONTH, "unit_id": None}
 
     def test_payloads_hold_identifiers_and_the_step_only(self, in_force, nurse, mona):
@@ -548,4 +546,5 @@ class TestNotifications:
 
         assert told(nurse("Badr"), "swap_step")[0]["text"] == (
             "Emad rejected the swap you proposed on the ER roster for June 2026, so it has ended.")
-        assert told(nurse("Emad"), "swap_step")[1]["text"] == "Badr withdrew the swap they proposed on the ER roster for June 2026."
+        assert told(nurse("Emad"), "swap_step")[1]["text"] == (
+            "Badr withdrew the swap they proposed on the ER roster for June 2026.")

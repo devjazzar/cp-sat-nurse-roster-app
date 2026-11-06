@@ -39,8 +39,8 @@ class UnitSwapRow(Schema):
     ended_at: dt.datetime | None
     reason: str
     expired_why: Literal["date_passed", "cell_changed"] | None = Field(
-        description="Why it expired: a date passed, or a new version changed one of its cells. For you only: such a version can be "
-                    "leave.")
+        description="Why it expired: a date passed, or a new version changed one of its cells. For you only: such a "
+                    "version can be leave.")
     version: int | None = Field(description="The roster version its approval made.")
 
 

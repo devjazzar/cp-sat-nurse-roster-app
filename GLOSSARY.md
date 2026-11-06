@@ -98,7 +98,7 @@ A submitted roster the Deputy CNO or the CNO sent back, with a comment for the u
 _Avoid_: declined, returned
 
 **Roster version**:
-One saved state of a unit's approved roster for a month, with who changed it, when and why. The latest is the one in force. Approval makes the first; each change after it, a manager's edit or leave recorded on a worked day, makes the next. Only the unit's manager, the CNO and the Deputy CNO read why.
+One saved state of a unit's approved roster for a month, with who changed it, when and why. The latest is the one in force. Approval makes the first; each change after it, a manager's edit, leave recorded on a worked day, a re-plan, an accepted request or an approved swap, makes the next. Only the unit's manager, the CNO and the Deputy CNO read why.
 _Avoid_: revision, snapshot, copy
 
 **Re-plan**:
@@ -128,12 +128,12 @@ The days, from an open date to a close date on the hospital's clock, that a unit
 _Avoid_: request period, submission window
 
 **Swap**:
-A nurse's proposal to change a set of cells on her unit's approved roster: her own and those of any colleagues needed to make the change work. It needs every involved colleague's acceptance, then the unit manager's; accepted, it becomes pinned cells. A rejected swap stays on record.
+A nurse's proposal to change a set of cells on her unit's approved roster: her own and those of any colleagues needed to make the change work. It needs every involved colleague's acceptance, then the unit manager's; approved, it becomes pinned cells in a new roster version. It expires when one of its dates passes or a new version changes one of its cells. A refusal tells the proposer nothing of a colleague that My roster would not show. Rejected, withdrawn or expired, it stays on record.
 _Avoid_: exchange, trade, shift change, cover
 
 **Notification**:
 Something a user is told in the application, about a roster's submit, approval, rejection or change, a solve's end, a
-request window opening or closing, a decision on a request, and later a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
+request window opening or closing, a decision on a request, and each step of a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
 rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 
