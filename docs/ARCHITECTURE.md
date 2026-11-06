@@ -618,14 +618,24 @@ cp-sat-nurse-roster-app/
   deploy/       compose.yaml, compose.dev.yaml, Caddyfile, .env.example, INSTALL.md,
                 reset-admin-password.sh, restore.sh, tests/operations.sh (the compose-level test)
   docs/         this document, adr/, research/
-  e2e/          Playwright suite against a stack of its own (stack.sh builds, seeds and removes it)
+  e2e/          Playwright suite against stacks of its own (stack.sh builds, seeds, resets and removes them; ci.sh is CI)
+  .github/      workflows/browser-checks.yml, which runs e2e/ci.sh
   Dockerfile    one multi-stage build, one image
   GLOSSARY.md
 ```
 
-Development runs from `compose.dev.yaml` with hot reload for Django and Vite. GitHub Actions
-runs the four suites on every push and, on a version tag, builds the image and pushes it to a
-private GitHub Container Registry; each hospital's VPS logs in once with a read-only token
+Development runs from `compose.dev.yaml` with hot reload for Django and Vite.
+
+The browser checks (`e2e/`, ticket 24) run against stacks of their own built from the checkout: a seeded one for every role's
+pages and the operations, and an empty one for the journey from the System Admin's first login, emptied again before each run.
+A stack's hospital date can be moved for them (`e2e/stack.sh clock`): `nurses.membership.today` adds the days in the file
+`E2E_CLOCK_FILE` names, a variable only `e2e/compose.e2e.yaml` passes, which `deploy/compose.yaml` gives no service and which
+has no URL. The hourly jobs are then run at once by the stack's own worker (`e2e/stack.sh fire`).
+
+CI is `.github/workflows/browser-checks.yml`, which runs `e2e/ci.sh`: the image, both stacks, every Playwright project and
+`deploy/tests/operations.sh`, on every push. The backend's, the solver's and the frontend's suites are not in it yet, and there
+is no remote for it to run on. Planned: GitHub Actions runs the four suites on every push and, on a version tag, builds the
+image and pushes it to a private GitHub Container Registry; each hospital's VPS logs in once with a read-only token
 and pins the version in `.env`. The orval client is regenerated in CI from the backend's
 OpenAPI document so an incompatible API change fails the build.
 
