@@ -91,6 +91,26 @@ deploy/tests/operations.sh nr-operations-test
 cd frontend && npm ci && npm test
 ```
 
+**The browser checks** (Playwright, at phone sizes: the nurse's pages, a request, a swap, the PWA's manifest and service
+worker, a deploy picked up) against a stack of their own, built from the checkout, seeded, and removed afterwards.
+`E2E_PORT` (default 18080) and `E2E_HTTPS_PORT` (default 18443) choose its ports. Never give it the installation's own name.
+
+```bash
+cd e2e && npm ci && npx playwright install chromium
+```
+
+```bash
+e2e/stack.sh up nr-e2e
+```
+
+```bash
+cd e2e && E2E_STACK=nr-e2e npx playwright test
+```
+
+```bash
+e2e/stack.sh down nr-e2e
+```
+
 ## Change the API
 
 The frontend's client is generated from the backend's OpenAPI document, and both are committed. CI
@@ -112,4 +132,5 @@ cd frontend && npm run generate:api
 | `solver/` | The vendored `nurse_roster` package and its tests, frozen in from its original repository (ADR 0002), and `solver_service`, the HTTP service around it |
 | `frontend/` | Vite, React, shadcn/ui on Base UI |
 | `deploy/` | Compose files, Caddyfile, `.env.example`, the install guide and its scripts, the compose-level test |
+| `e2e/` | The Playwright checks, the stack they run against (`stack.sh`) and its seed |
 | `Dockerfile` | One multi-stage build, one image, three containers |

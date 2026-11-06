@@ -488,7 +488,13 @@ and stores it verbatim with every solve; a `result` reader stores and interprets
 React 19 + TypeScript, Vite 8, shadcn/ui on Base UI with Tailwind 4, TanStack Query, TanStack
 Router, TanStack Table (the roster grid and any table that needs sorting or filtering; short lists
 stay plain tables) and Virtual (the roster grid), React Hook Form + Zod, Zustand, Recharts via shadcn, TanStack Pacer behind one debounce hook, orval-generated client. One responsive
-web app, installable as a PWA; the grid scrolls horizontally on phones. In-app notifications
+web app, installable as a PWA; the grid scrolls horizontally on phones. The nurse's pages are made for a phone first (320 px
+at the narrowest): below 640 px the header is the name, the bell and a Menu button, and on a touch screen every control is
+44 px tall; the managers' and the System Admin's pages only keep within the width. The PWA is a web app manifest, icons and a
+service worker that handles no request (`frontend/public/sw.js`, no `fetch` listener): nothing is kept offline, no push, so
+the API, a roster's files and print sheets, backups and `/metrics` reach the network as they would without it. Every file
+with a fixed name (the page, the worker, the manifest, the icons) answers `no-cache`, so a deploy is what loads next; only
+the build's hashed assets are cached for good. In-app notifications
 only: every role's header has a bell with the unread count, which polls and does not count as activity, and leads to the
 Notifications page. Who is told of what is in one place, `notifications.sending`, called inside the transaction of the
 change. A notification links to the reader's own page for it, by what they hold when they read it. Visual design is decided later; the architecture does not depend on it.
@@ -609,7 +615,7 @@ cp-sat-nurse-roster-app/
   deploy/       compose.yaml, compose.dev.yaml, Caddyfile, .env.example, INSTALL.md,
                 reset-admin-password.sh, restore.sh, tests/operations.sh (the compose-level test)
   docs/         this document, adr/, research/
-  e2e/          Playwright suite against the compose stack
+  e2e/          Playwright suite against a stack of its own (stack.sh builds, seeds and removes it)
   Dockerfile    one multi-stage build, one image
   GLOSSARY.md
 ```

@@ -150,7 +150,7 @@ export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: G
         <thead className="sticky top-0 z-20 bg-background">
           <tr aria-rowindex={1}>
             {table.getHeaderGroups()[0].headers.map((header, index) => {
-              if (index === 0) return <th key={header.id} scope="col" className="sticky start-0 z-30 min-w-40 border-b bg-background px-2 py-1 text-start font-medium">{NURSE_HEADER}</th>
+              if (index === 0) return <th key={header.id} scope="col" className="sticky start-0 z-30 min-w-24 border-b sm:min-w-40 bg-background px-2 py-1 text-start font-medium">{NURSE_HEADER}</th>
               const day = grid.days[index - 1]
               const date = asDate(day.date)
               return (
@@ -172,8 +172,9 @@ export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: G
             const name = nurse.getValue() as string
             return (
               <tr key={row.id} ref={windowed ? virtualizer.measureElement : undefined} data-index={index} aria-rowindex={index + 2} style={{ height: ROW_HEIGHT }}>
-                {/* Wraps rather than truncates: a name has to be reachable whole, and a title is not by keyboard. */}
-                <th scope="row" className="sticky start-0 z-10 max-w-48 border-b bg-background px-2 py-1 text-start font-normal wrap-anywhere">{name}</th>
+                {/* Wraps rather than truncates: a name has to be reachable whole, and a title is not by keyboard. Narrower on a phone,
+                    so a week of days shows beside it at 360 px (ticket 23). */}
+                <th scope="row" className="sticky start-0 z-10 max-w-28 border-b sm:max-w-48 bg-background px-2 py-1 text-start font-normal wrap-anywhere">{name}</th>
                 {cells.map((cell, col) => {
                   const title = `${name}, ${longDay.format(asDate(cell.column.id))}`
                   if (!editing) return <Cell key={cell.id} cell={cell.getValue() as GridCell} shifts={shifts} title={title} />

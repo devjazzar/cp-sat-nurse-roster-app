@@ -11,7 +11,10 @@ def spa(request: HttpRequest, path: str = "") -> FileResponse:
     index = settings.SPA_DIR / "index.html"
     if not index.is_file():
         raise Http404("the SPA is not built here; in development Vite serves it")
-    return FileResponse(index.open("rb"), content_type="text/html")
+    response = FileResponse(index.open("rb"), content_type="text/html")
+    # Asked for again on every visit, so a new deploy's page and its assets are what loads (ticket 23).
+    response["Cache-Control"] = "no-cache"
+    return response
 
 
 urlpatterns = [

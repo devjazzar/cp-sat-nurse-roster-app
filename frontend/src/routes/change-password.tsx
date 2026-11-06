@@ -91,7 +91,7 @@ function ChangePasswordPage() {
               {forced ? (
                 <Button type="button" variant="ghost" onClick={signOut.run} disabled={signOut.pending}>Log out</Button>
               ) : (
-                <Link to="/" className="text-center text-sm text-muted-foreground hover:text-foreground">Back to home</Link>
+                <Link to="/" className="flex items-center justify-center text-sm text-muted-foreground hover:text-foreground pointer-coarse:min-h-11">Back to home</Link>
               )}
             </FieldGroup>
           </form>

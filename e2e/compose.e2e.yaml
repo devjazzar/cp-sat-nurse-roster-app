@@ -1,0 +1,15 @@
+# For e2e/stack.sh only, on top of deploy/compose.yaml: a stack on ports of its own, so it runs beside another.
+#
+# `web` is also published over plain HTTP on 127.0.0.1, without DJANGO_DEBUG. That is the browser checks' origin: a browser
+# treats http://localhost as secure, so the service worker registers there, while it refuses to register one behind Caddy's
+# self-signed certificate whatever Playwright's ignoreHTTPSErrors says. Caddy stays in front on its own port, for checks of
+# what passes through it (headers, /metrics refused).
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:${E2E_HTTPS_PORT:-18443}:443"
+
+  web:
+    networks: [frontend, backend, solver, public]
+    ports:
+      - "127.0.0.1:${E2E_PORT:-18080}:8000"

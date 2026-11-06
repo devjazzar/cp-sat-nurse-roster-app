@@ -13,11 +13,13 @@ export const MONTH_LINK = cn(buttonVariants({ variant: "outline", size: "sm" }))
 /** The month a page shows, with links either side, so the month stays in the address and focus stays on the link. The
  *  page draws its own links, because only it knows its route and what else its address holds. */
 export function MonthNav({ month, link }: { month: string; link: (month: string, label: string) => ReactNode }) {
+  // On a phone the month is above and the two links share the row beneath, each half of it; wider, one row. Only the heading
+  // moves, and it takes no focus, so the order of the links is the same either way.
   return (
-    <nav aria-label="Month" className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      {link(monthAfter(month, -1), "Previous month")}
-      <h2 className="text-base font-medium tabular-nums">{monthName(month)}</h2>
-      {link(monthAfter(month, 1), "Next month")}
+    <nav aria-label="Month" className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-x-3">
+      <div className="max-sm:*:w-full">{link(monthAfter(month, -1), "Previous month")}</div>
+      <h2 className="col-span-2 text-base font-medium tabular-nums max-sm:order-first">{monthName(month)}</h2>
+      <div className="col-start-2 max-sm:*:w-full">{link(monthAfter(month, 1), "Next month")}</div>
     </nav>
   )
 }

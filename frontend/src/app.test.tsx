@@ -861,6 +861,60 @@ describe("each role's navigation and home", () => {
     expect(navLinks()).toEqual(links)
     await waitFor(() => expect(pageReads(calls).sort()).toEqual(["/api/auth/session", ...reads].sort()))
   })
+
+  // Ticket 23. On a phone the header is the name, the bell and a Menu button: the pages, the password and Log out are behind it.
+  // Which header shows is CSS alone (below 640 px), so here, with no CSS, the menu is only in the page once opened.
+  describe("on a phone", () => {
+    const menu = () => screen.getByRole("navigation", { name: "Main menu" })
+
+    it("the Menu button opens the same pages, the password and Log out, and choosing a page closes it", async () => {
+      const { user, router } = start("/", { ...nurseHome(), "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, ...NO_REQUESTS,
+        "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
+      const button = await screen.findByRole("button", { name: "Menu" })
+      expect(button).toHaveAttribute("aria-expanded", "false")
+      expect(screen.queryByRole("navigation", { name: "Main menu" })).not.toBeInTheDocument()
+
+      await user.click(button)
+
+      expect(button).toHaveAttribute("aria-expanded", "true")
+      expect(within(menu()).getAllByRole("link").map((link) => link.textContent)).toEqual(["Home", "My month", "My roster", "Swaps", ...CATALOGUE_LINKS, "Change password"])
+      // What the button opens: the pages, then who is signed in and Log out.
+      const opened = within(document.getElementById(button.getAttribute("aria-controls")!)!)
+      expect(opened.getByText("h123 · Staff Nurse")).toBeInTheDocument()
+      expect(opened.getByRole("button", { name: "Log out" })).toBeInTheDocument()
+
+      await user.click(within(menu()).getByRole("link", { name: "My month" }))
+
+      expect(await screen.findByRole("heading", { level: 1, name: "My month" })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/my-month")
+      expect(button).toHaveAttribute("aria-expanded", "false")
+      expect(screen.queryByRole("navigation", { name: "Main menu" })).not.toBeInTheDocument()
+    })
+
+    it("choosing the page already open closes the menu too", async () => {
+      const { user } = start("/", nurseHome())
+      const button = await screen.findByRole("button", { name: "Menu" })
+      await user.click(button)
+
+      await user.click(within(menu()).getByRole("link", { name: "Home" }))
+
+      expect(button).toHaveAttribute("aria-expanded", "false")
+      expect(screen.queryByRole("navigation", { name: "Main menu" })).not.toBeInTheDocument()
+    })
+
+    it("Escape closes the menu and puts focus back on its button", async () => {
+      const { user } = start("/", nurseHome())
+      const button = await screen.findByRole("button", { name: "Menu" })
+      await user.click(button)
+      await user.tab()
+      expect(within(menu()).getByRole("link", { name: "Home" })).toHaveFocus()
+
+      await user.keyboard("{Escape}")
+
+      expect(screen.queryByRole("navigation", { name: "Main menu" })).not.toBeInTheDocument()
+      expect(button).toHaveFocus()
+    })
+  })
 })
 
 const CNO = {

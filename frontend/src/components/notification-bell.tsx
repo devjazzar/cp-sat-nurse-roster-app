@@ -23,7 +23,7 @@ export function NotificationBell() {
   const count = unread.data?.unread ?? 0
   return (
     <Link to="/notifications" aria-label={count ? `Notifications, ${count} unread` : "Notifications"}
-      className={cn("relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
+      className={cn("relative inline-flex size-9 pointer-coarse:size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
         "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&.active]:text-foreground")}>
       <BellIcon aria-hidden className="size-5" />
       {count > 0 && (

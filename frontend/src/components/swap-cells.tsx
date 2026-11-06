@@ -13,7 +13,8 @@ export function SwapCells<Row extends SwapCellRow>({ cells, label, names, extra 
   extra?: { heading: string; cell: (row: Row) => ReactNode }[]
 }) {
   return (
-    <Table container={scrollableRegion(label)}>
+    // On a phone the cells wrap, so a swap's four columns fit 320 px without scrolling; the manager's extra ones may still scroll.
+    <Table container={scrollableRegion(label)} className="max-sm:[&_td]:whitespace-normal max-sm:[&_th]:whitespace-normal">
       <TableHeader>
         <TableRow>
           <TableHead>Nurse</TableHead>

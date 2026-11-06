@@ -4,6 +4,7 @@ import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 
 import "./index.css"
+import { registerServiceWorker } from "./lib/service-worker"
 import { createAppRouter, createQueryClient } from "./router"
 
 const queryClient = createQueryClient()
@@ -16,3 +17,5 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+registerServiceWorker()

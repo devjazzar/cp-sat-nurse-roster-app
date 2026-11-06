@@ -111,11 +111,23 @@ BACKUPS_DIR = Path(os.environ.get("BACKUPS_DIR", "/backups"))
 
 # The compiled SPA, copied into the image at build time. Absent in development, where Vite
 # serves it. WhiteNoise serves its files; config.urls answers every other path with index.html.
+# Only the build's hashed assets are cached for good. Every file with a fixed name (index.html, the service worker, the web
+# app manifest, the icons) answers `no-cache`, so a browser asks again each time and a new deploy is never hidden behind an
+# hour-old page (ticket 23); config.urls.spa says the same of every client-side route. The URL WhiteNoise tests starts with "/".
 SPA_DIR = Path(os.environ.get("SPA_DIR", BASE_DIR.parent / "spa"))
 WHITENOISE_ROOT = SPA_DIR if SPA_DIR.is_dir() else None
-WHITENOISE_MAX_AGE = 3600
-WHITENOISE_IMMUTABLE_FILE_TEST = r"^assets/"
+WHITENOISE_IMMUTABLE_FILE_TEST = r"^/assets/"
+WHITENOISE_MAX_AGE = None
 WHITENOISE_AUTOREFRESH = DEBUG
+WHITENOISE_MIMETYPES = {".webmanifest": "application/manifest+json"}
+
+
+def spa_cache_headers(headers, path: str, url: str) -> None:
+    if not url.startswith("/assets/"):
+        headers["Cache-Control"] = "no-cache"
+
+
+WHITENOISE_ADD_HEADERS_FUNCTION = spa_cache_headers
 
 # One JSON object a line on standard output, from every logger (ticket 22). gunicorn's own lines are config/gunicorn.py's. The
 # worker's lines can name a nurse and a date, so the install guide treats the log as personal data.

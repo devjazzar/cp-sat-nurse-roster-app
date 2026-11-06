@@ -47,7 +47,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
-import { hospitalTime } from "@/lib/utils"
+import { hospitalTime, scrollableRegion } from "@/lib/utils"
 import { ROLE_NAMES } from "@/roles"
 import { onlyFor } from "@/session"
 
@@ -273,7 +273,7 @@ function UsersTable({ users, onAsk, onCorrect }: {
 }) {
   const awaitingPassword = useAwaitingPassword()
   return (
-    <Table>
+    <Table container={scrollableRegion("Users")}>
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
@@ -281,7 +281,7 @@ function UsersTable({ users, onAsk, onCorrect }: {
           <TableHead>Role</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Last login</TableHead>
-          <TableHead className="sticky end-0 bg-card"><span className="sr-only">Actions</span></TableHead>
+          <TableHead className="sm:sticky sm:end-0 sm:bg-card"><span className="sr-only">Actions</span></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -300,8 +300,9 @@ function UsersTable({ users, onAsk, onCorrect }: {
               </div>
             </TableCell>
             <TableCell className="tabular-nums">{user.last_login ? hospitalTime(user.last_login) : "Never"}</TableCell>
-            {/* Stays in view when a narrow screen scrolls the table: it is what the row is for. */}
-            <TableCell className="sticky end-0 bg-card">
+            {/* Stays in view when the table scrolls sideways, from 640 px up. On a phone it would cover the names (ticket 23), so
+                there it scrolls with the row and comes last. */}
+            <TableCell className="sm:sticky sm:end-0 sm:bg-card">
               {/* Two by two, because three in a line would cover the whole row on a phone. */}
               <div className="ml-auto grid w-fit grid-cols-[auto_auto] gap-2">
                 {/* Correcting a name replaces the form that is waiting for its answer. */}

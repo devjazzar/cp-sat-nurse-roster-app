@@ -17,7 +17,8 @@ export const Route = createFileRoute("/_signed-in/notifications")({
   component: NotificationsPage,
 })
 
-const LINK = "underline underline-offset-3"
+/** A notification's way to its page: on a touch screen as tall as a thumb (ticket 23). */
+const LINK = "underline underline-offset-3 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
 
 function Open({ link, onOpen }: { link: NotificationLink; onOpen: () => void }) {
   switch (link.page) {
@@ -65,7 +66,7 @@ function Row({ note, told }: { note: NotificationRow; told: RefObject<HTMLParagr
         {!note.read && <><Badge className="me-2 align-middle">New</Badge>{" "}</>}
         {note.text}
       </p>
-      <p className="flex flex-wrap gap-x-3 text-sm">
+      <p className="flex flex-wrap items-center gap-x-3 text-sm">
         <span className="text-muted-foreground">{hospitalTime(note.created_at)}</span>
         {note.link && <Open link={note.link} onOpen={onOpen} />}
         {!note.read && !note.link && (
