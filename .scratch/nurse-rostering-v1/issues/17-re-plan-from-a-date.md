@@ -112,3 +112,7 @@ What was NOT checked:
 **Things later tickets should know:** comments are on 20 and 21. `solves/replans.py` holds a re-plan's rules and its end; `solves.input.assemble_replan` its input.
 
 **The dev stack was not touched:** no restart, no migration, no login. When this branch reaches `main`, restart `web` and `worker` there for `solves.0002_replan`, which adds four columns to `Solve`.
+
+**Reviewed by the user (2026-11-06), and kept as built:**
+- an outdated re-plan is kept in the history but not applied, outdated meaning the roster in force, leave, pins or the month's nurses changed while it waited or ran;
+- a stopped re-plan's best roster goes in force, as a stopped solve's becomes the draft.
