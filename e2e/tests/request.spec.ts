@@ -35,6 +35,9 @@ test("a nurse makes a request on her phone, then withdraws it", async ({ page })
 
   await expect(page.getByText(`Your request for a day off on ${shortDay(day)} is made. Your manager decides it.`)).toBeVisible()
   await expect(waiting).toHaveCount(1)
+  // The outcome is in view, not past the region's edge: the table wraps on a phone.
+  await waiting.scrollIntoViewIfNeeded()
+  await expect(waiting.getByText("Waiting for a decision")).toBeInViewport({ ratio: 1 })
 
   await expectThumbSized(withdraw)
   await withdraw.click()

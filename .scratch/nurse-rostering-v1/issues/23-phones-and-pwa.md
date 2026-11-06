@@ -53,8 +53,8 @@ Seams, test first:
 - `app.test.tsx`, "on a phone" (3): the menu opens the same pages, Change password and Log out; choosing a page closes it, the one open too; Escape closes it and returns focus. The page-already-open case was found by Playwright, not foreseen.
 - `e2e/tests` (10 checks, at both widths, plus `deploy`):
   - `layout`: the login page; every nurse page through the menu, Notifications and the password page, none scrolling sideways and each control 44 px; the grid scrolling in its region with the nurse's row header at the same x after scrolling to the last day; a manager's and the System Admin's pages within the width; no Users row's buttons overlapping its name.
-  - `request`: made and withdrawn on My month.
-  - `swap`: proposed on one phone, accepted on another, withdrawn.
+  - `request`: made and withdrawn on My month, its outcome wholly in view in the wrapped table.
+  - `swap`: proposed on one phone, accepted on another, withdrawn, its cells' "Becomes" column wholly in view.
   - `pwa`:
     - the manifest as Chrome parsed it (`Page.getAppManifest`, no errors), each icon's real size, and the registration's scope, script and `updateViaCache`;
     - with the page controlled, every response under `/api` and `/metrics` not from the worker and not from the disk cache, with each file fetched twice: My roster's sheet, the CSV and Excel exports, the unit's sheet, `/api/ops/health` and a backup, the exports and the backup `no-store`;
@@ -81,7 +81,7 @@ The checklist the session gave, answered one by one:
 - **Served through Caddy and the dev Vite server, scope and headers:** above. Caddy is checked by Playwright's request API, Vite by `curl`.
 - **Playwright:** new, where it runs and how ticket 24 reuses it: above, and in ticket 24's comment.
 - **Dark mode, 200% zoom, safe-area insets:**
-  - **Dark mode:** the app is light only (the `dark` variant is class-based and never set). Under a dark preference in the built-in browser it stayed light throughout. `color-scheme: light` keeps native selects and scrollbars light with it. Switching is ticket 24's.
+  - **Dark mode:** the app is light only (the `dark` variant is class-based and never set). Under a dark preference in the built-in browser the Users page (with its native select) stayed light; no other page was looked at under it. `color-scheme: light` asks the browser to keep its own controls and scrollbars light with the page; that effect was not observed separately. Switching is ticket 24's.
   - **200% zoom:** a 640 px window at 200% is a 320 CSS px viewport, which the `phone-320` project is. No separate zoom was driven.
   - **Safe-area insets:** none to handle. The viewport has no `viewport-fit=cover`, so the browser keeps the page inside the safe area. Not seen on a notched device.
 

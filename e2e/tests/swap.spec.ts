@@ -46,6 +46,10 @@ test("a nurse proposes a swap on her phone and the colleague in it accepts on th
   await theirs.context().close()
 
   await page.reload()
+  // Every column of the swap's cells is in view, "Becomes" too: the table wraps on a phone.
+  const cells = page.getByRole("region", { name: /^Your swap on .*, its cells$/ }).first()
+  await cells.scrollIntoViewIfNeeded()
+  await expect(cells.getByRole("columnheader", { name: "Becomes" })).toBeInViewport({ ratio: 1 })
   await expectThumbSized(withdraw)
   await withdraw.click()
   await confirm.click()
