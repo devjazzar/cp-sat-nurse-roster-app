@@ -152,8 +152,9 @@ export const reset = (on: Stack) => run("reset", on.project)
 export const moveClock = (on: Stack, days: number) => run("clock", on.project, String(days))
 /** e2e/stack.sh fire: a periodic job run now by the stack's own worker, and waited for. */
 export const fire = (on: Stack, task: string) => run("fire", on.project, task)
-/** e2e/stack.sh swap: a sound two-cell swap on a unit's approved month as the roster in force stands now. */
-export const soundSwap = (on: Stack, unit: string, month: string): Swap => JSON.parse(run("swap", on.project, unit, month))
+/** e2e/stack.sh swap: a sound two-cell swap on a unit's approved month as the roster in force stands now, from tomorrow or
+ *  from a later date. */
+export const soundSwap = (on: Stack, unit: string, month: string, from = ""): Swap => JSON.parse(run("swap", on.project, unit, month, from))
 /** A compose command on a stack, as e2e/stack.sh runs them: `compose(stack, "stop", "solver")`. */
 export function compose(on: Stack, ...args: string[]) {
   const here = new URL(".", import.meta.url).pathname

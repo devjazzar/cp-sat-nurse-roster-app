@@ -12,8 +12,9 @@
 #                                        worker alike (E2E_CLOCK_FILE, e2e/compose.e2e.yaml)
 #   e2e/stack.sh fire <project> <task>   a periodic job run now by the stack's own worker, once nothing of it is waiting or
 #                                        running, and waited for: e.g. swaps.tasks.expire_swaps
-#   e2e/stack.sh swap <project> <unit> <YYYY-MM>
-#                                        prints a sound two-cell swap on that approved month as it stands (e2e/sound_swap.py)
+#   e2e/stack.sh swap <project> <unit> <YYYY-MM> [<from YYYY-MM-DD>]
+#                                        prints a sound two-cell swap on that approved month as it stands (e2e/sound_swap.py),
+#                                        on the first day it finds from tomorrow, or from the date given if later
 #   e2e/stack.sh rebuild <project>       build the image again from this checkout and restart on it, keeping the data
 #   e2e/stack.sh redeploy <project>      a new deploy, as far as a browser can tell: a new marker in index.html and a changed
 #                                        service worker, then `web` restarted
@@ -136,7 +137,7 @@ raise SystemExit(0 if latest and latest.status == 'succeeded' else f'$task ended
     needs_stack
     unit=${3:?usage: $0 swap <project> <unit> <YYYY-MM>}
     month=${4:?usage: $0 swap <project> <unit> <YYYY-MM>}
-    in_web sound_swap.py E2E_SWAP -e UNIT="$unit" -e MONTH="$month"
+    in_web sound_swap.py E2E_SWAP -e UNIT="$unit" -e MONTH="$month" -e FROM="${5:-}"
     ;;
   rebuild)
     needs_stack

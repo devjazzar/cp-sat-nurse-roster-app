@@ -1,7 +1,7 @@
-import { expect, test, type Browser, type Page } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
-import { addDays, choose, longDay, dayBefore, hospitalToday, newBrowser, firstSignIn, go, journeyStack as on, monthAfter, monthName, Notebook, reset, shortDay, signIn, soundSwap } from "../../support"
-import { nameOf, people, type Journey, UNIT } from "./people"
+import { addDays, choose, dayBefore, firstSignIn, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, reset, shortDay, soundSwap } from "../../support"
+import { alongside, as, nameOf, notebook, openFromRosters, people, SOLVED, UNIT } from "./people"
 
 // Ticket 24: the hospital's first month, from an empty stack, as the hospital will use it. The System Admin logs in for the first
 // time and makes the CNO, the Deputy CNO and a unit manager; the CNO makes a unit and its four nurses; the manager sets the unit
@@ -16,16 +16,18 @@ import { nameOf, people, type Journey, UNIT } from "./people"
 // A step signs in several people, some for the first time, and waits for a real solve: more than the 30 s default.
 test.describe.configure({ mode: "serial", timeout: 120_000 })
 
-const notebook = new Notebook<Journey>(on, "journey")
 const today = hospitalToday()
 /** Next month, which the manager rosters; the month after, whose requests the nurses make. */
 const rostered = monthAfter(today, 1)
 const requested = monthAfter(today, 2)
 
+/** The window the nurses make their requests in: from today, for a few days, and over before the month it is for begins. */
+const windowCloses = [addDays(today, 3), dayBefore(requested)].sort()[0]
+
 test.beforeAll(() => {
   reset(on)
   notebook.clear()
-  notebook.write({ rostered, requested })
+  notebook.write({ rostered, requested, windowCloses })
 })
 
 /** The password dialog shown once after a creation: read it, then Done. */
@@ -36,15 +38,6 @@ async function givenPassword(page: Page, username: string): Promise<string> {
   await dialog.getByRole("button", { name: "Done" }).click()
   await expect(dialog).toBeHidden()
   return password
-}
-
-/** Signs in as one of the journey's people, the first time with the password they were given. */
-async function as(page: Page, username: string) {
-  const book = notebook.read()
-  const chosen = book.chosen?.[username]
-  if (chosen) return signIn(page, username, chosen)
-  const password = await firstSignIn(page, username, book.given[username])
-  notebook.write({ chosen: { ...book.chosen, [username]: password } })
 }
 
 test("the System Admin logs in for the first time, changes the password, and makes the CNO, the Deputy CNO and a manager", async ({ page }) => {
@@ -88,9 +81,6 @@ test("the CNO makes the unit with its manager, and its four nurses", async ({ pa
   for (const nurse of people.nurses) await expect(page.getByRole("cell", { name: nurse.name, exact: true })).toBeVisible()
 })
 
-/** A solve with the real solver and worker: the wait is for its draft, up to the time limit and the queue's turn. */
-const SOLVED = { timeout: 90_000 }
-
 test("the manager sets the unit rules, solves next month for real, and submits the draft", async ({ page }) => {
   await as(page, people.manager.username)
   await expect(page.getByText(`Your unit is ${UNIT}.`)).toBeVisible()
@@ -123,21 +113,6 @@ test("the manager sets the unit rules, solves next month for real, and submits t
   await expect(page.getByText("Submitted. The CNO and the Deputy CNO can now see it and decide. Nothing can change it until they do.")).toBeVisible()
 })
 
-/** Someone else of the journey on a browser of their own, signed in with the password they chose. */
-async function alongside(browser: Browser, page: Page, username: string) {
-  const theirs = await newBrowser(browser, page, on.baseURL)
-  await as(theirs, username)
-  return theirs
-}
-
-/** From the Rosters overview, as the CNO and the Deputy CNO reach a unit's month: its state's link in the unit's row. */
-async function openFromRosters(page: Page, state: string) {
-  await go(page, "Rosters")
-  const row = page.getByRole("row", { name: new RegExp(`^${UNIT}`) })
-  await row.locator(`a[href*="month=${rostered}"]`).filter({ hasText: state }).click()
-  await expect(page.getByRole("heading", { level: 1, name: `Roster of ${UNIT}` })).toBeVisible()
-}
-
 test("the Deputy CNO approves the roster, and the CNO, who had it open too, is told it already was", async ({ browser, page }) => {
   await as(page, people.cno.username)
   // Home lists what waits for a decision, for either approver.
@@ -159,8 +134,6 @@ test("the Deputy CNO approves the roster, and the CNO, who had it open too, is t
   await expect(dialog.getByText(`This roster has been approved already by ${people.deputy.name}.`)).toBeVisible()
 })
 
-/** The window the nurses make their requests in: from today, for a few days, and over before the month it is for begins. */
-const windowCloses = [addDays(today, 3), dayBefore(requested)].sort()[0]
 const requestDay = `${requested}-10`
 
 test("the manager opens a request window; a nurse reads the roster in force and makes a request, which the manager accepts", async ({ browser, page }) => {

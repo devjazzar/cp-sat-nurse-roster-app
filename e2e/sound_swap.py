@@ -1,9 +1,9 @@
 # A two-cell swap the app's own judging finds sound on a unit's approved month, on the roster in force now: run by
 # e2e/stack.sh (after the seed, and for a check whose unit a re-plan has changed since), never on an installation's own.
 #
-#   docker compose exec -T -e UNIT=ER -e MONTH=2026-12 web python manage.py shell < e2e/sound_swap.py
+#   docker compose exec -T -e UNIT=ER -e MONTH=2026-12 [-e FROM=2026-12-20] web python manage.py shell < e2e/sound_swap.py
 #
-# The first day, from tomorrow on the hospital's clock, on which one nurse works a shift and a colleague is off, and giving the
+# The first day, from tomorrow on the hospital's clock (or FROM, if later), on which one nurse works a shift and a colleague is off, and giving the
 # shift to the colleague breaks nothing: the proposer's cell first. Staff nurses only, since only they propose. One line,
 # `E2E_SWAP {...}`.
 import datetime as dt
@@ -25,7 +25,7 @@ ids = [nurse for nurse in grid if nurse in nurses]
 
 
 def a_sound_swap() -> dict:
-    first = max(membership.today() + dt.timedelta(days=1), month)
+    first = max(membership.today() + dt.timedelta(days=1), month, dt.date.fromisoformat(os.environ.get("FROM") or "2000-01-01"))
     for offset in range(31):
         day = first + dt.timedelta(days=offset)
         if day.month != month.month:
