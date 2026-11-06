@@ -196,3 +196,5 @@ What was NOT checked:
   - Migration `solves.0003` runs at `web`'s start.
   - On its first run the worker takes a backup within five minutes, since the dev stack has none.
   - **No new Python or npm dependency.**
+
+**Reviewed by the user (2026-11-06):** all ten points marked **Worth your review** are kept as built: the backup as a five-minute catch-up; the newest backup always kept; each download audited; the restore's backup-first, restore-beside-and-swap with `RESTORE` typed; ended queue rows kept 7 days and failed ones 30; `recover_lost_jobs` ending a dead periodic run as failed when its next run waits; the failure kinds and their words; hand-written gauges with no `prometheus_client`; Prometheus on the `frontend` network; Docker log rotation at 10 MB × 5.
