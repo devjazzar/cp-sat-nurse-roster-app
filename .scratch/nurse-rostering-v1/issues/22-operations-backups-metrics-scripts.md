@@ -22,3 +22,21 @@
 **From ticket 11 (2026-11-05): queue rows pile up.** Every run of a job leaves a row in `procrastinate_jobs` and its events, and nothing removes them. `recover_lost_jobs` runs every five minutes, so that is 288 rows a day beside the solves. Solves do not need theirs once ended, since the `Solve` row is the record and `queue_ahead` counts only active ones. Add retention here, with the worker's `delete_jobs` option or a job of its own. The health page's `waiting`, `running` and `failed` are unaffected by either.
 
 **From the scheduled-jobs design (2026-11-06, ADR 0009).** The worker runs at concurrency 4 and every job takes a lock. The backup can run for minutes, so it takes a lock of its own (`lock="backup"`), which `ops.queue._periodic` gives every periodic job under its name from ticket 21 on. It then holds one slot at most and never runs beside itself.
+
+**Decided by the user (2026-11-06), for this ticket.** From the review of tickets 01–20.
+
+- **The admin reset script also lifts a login lock** (`deploy/reset-admin-password.sh`, not built yet). Anyone can lock any account for 15 minutes with five wrong passwords, the System Admin's included, and the user kept that (ticket 02). So the script that resets the System Admin's password from the server also clears that account's failed-login count, as `accounts.provisioning.reset_password` already does for the accounts a person resets (`LoginAttempts` rows by username).
+- **Remove notifications older than a year**, in a scheduled job. Nothing deletes them today (ticket 15).
+- **Clear expired sessions daily** (Django's `clearsessions`, or the same in a job). Nothing clears them today (ticket 02).
+- **Why a solve failed, for the System Admin, in a few fixed words naming no one.** Today the history shows only `SolveFailure` (`solver`: crashed or unreachable; `refused`: the rules), and the worker's own words can name a nurse and a date, so they stay out (ticket 12). Add a few fixed kinds, such as the solver unreachable, the solver restarted and lost the job, the time limit overrun, a refused input, each with a sentence that holds no name, date or rule value.
+- **An install-notes line on the worker's log:** it can hold names and dates (a solver error, a refusal's words), so it is personal data, to be kept and rotated as such.
+- **Scheduled jobs and the worker's slot:** settled by ADR 0009 and the comment above; the jobs above are periodic jobs under its rules (a run lock under each job's own name).
+
+**The install checklist: what only the hospital's people can check, at first install.**
+
+- [ ] The roster's Excel file opened in Excel on Windows with a `;` list separator (a European locale), not only the default `,`.
+- [ ] The ward print page printed on a real printer: A4 landscape, a 31-day month on one page, the header row repeated.
+- [ ] One pass of the main pages with the keyboard alone and with a screen reader.
+- [ ] Caddy in a browser at the hospital's own address: the certificate (Let's Encrypt with `DOMAIN`, or the self-signed one), and the app through it.
+- [ ] Time a solve, a draft's read and a re-plan's comparison on a 60-nurse unit on the real server.
+- [ ] Time the audit log filtered by user on the real database.

@@ -75,3 +75,10 @@
 - **Tests:** (1) in `solves/tests/test_queue.py`, the real queue at concurrency 4 with a scripted solve held open by `on_read`: defer a scheduled job and assert it finished while the solve's row says `running`; no clock waits. (2) Two solves still run one after the other at concurrency 4. (3) A close against a solver stub whose `start_solve` raises. `run_the_queue` may need a concurrency argument.
 - **By hand, on a scratch compose project, never `nurse-roster`:** a real solve running and `recover_lost_jobs` completing in the worker's log meanwhile.
 - `recover_lost_jobs` needs no change: it requeues only the jobs of a worker silent for 30 s and fails a solve only when its job is neither waiting nor running.
+
+**Decided by the user (2026-11-06), for this ticket.**
+
+- **Requests still pending at the close end.** Each pending request of the month being closed takes a final state with a fixed reason (for example "The month closed before a decision."), the same words for everyone and naming no one, and its nurse is told, as for any other decision. This replaces the open question in ticket 19's note above ("decide whether the close should end those").
+- **A close stays out of the System Admin's solve history**, as a re-plan does: that history is a closed list of fields, and a close is about a roster.
+- **Scheduled jobs and the worker's single slot** (a solve of up to five minutes delays the hourly jobs, and the close cannot wait) are settled by ADR 0009 (`docs/adr/0009-scheduled-jobs-run-beside-a-solve.md`) and the scheduled-jobs comment above.
+- **A unit cannot stop working a shift its submitted or approved roster of a month not yet over holds** (review fixes, 2026-11-06: `rosters.drafts.frozen_cells_on_shifts_going`, refused in `units.rules_api`), because the solver refuses such a cell in the roster it is given. A month already over is not guarded, so a re-close of one whose unit has since dropped a shift its roster holds will meet the same refusal: decide what the close does then.
