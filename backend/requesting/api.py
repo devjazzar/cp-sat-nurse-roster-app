@@ -31,7 +31,7 @@ RequestStateText = Literal["pending", "accepted", "rejected", "withdrawn", "canc
 StepText = Literal["made", "withdrawn", "accepted", "rejected", "edited", "cancelled", "replaced_by_leave"]
 
 
-class StepRow(Schema):
+class RequestStepRow(Schema):
     step: StepText
     by: str
     at: dt.datetime
@@ -41,8 +41,8 @@ class StepRow(Schema):
                                           "for other steps.")
 
 
-def step_rows(steps: list[RequestStep]) -> list[StepRow]:
-    return [StepRow(step=step.step, by=step.by.full_name or step.by.username, at=timezone.localtime(step.at),
+def step_rows(steps: list[RequestStep]) -> list[RequestStepRow]:
+    return [RequestStepRow(step=step.step, by=step.by.full_name or step.by.username, at=timezone.localtime(step.at),
                     reason=step.reason, shift=(step.pin.code if step.pin else None)) for step in steps]
 
 
@@ -91,14 +91,14 @@ def request_windows(request: HttpRequest, unit_id: UUID) -> UnitWindows:
                        open_refusal=_open_refusal(unit, windows))
 
 
-class WindowBody(StrictSchema):
+class RequestWindowBody(StrictSchema):
     month: MonthText = Field(description="YYYY-MM, a month not yet begun.")
     opens_on: IsoDate = Field(description="Today or later. Nurses are told when it comes.")
     closes_on: IsoDate = Field(description="The last day requests can be made, before the month begins.")
 
 
 @router.post("/{unit_id}/request-windows", response={201: WindowRow}, auth=manager, operation_id="openRequestWindow")
-def open_request_window(request: HttpRequest, unit_id: UUID, body: WindowBody) -> Status:
+def open_request_window(request: HttpRequest, unit_id: UUID, body: RequestWindowBody) -> Status:
     """A window whose open date is today opens now, and the unit's nurses of the month are told; a later one opens on its date,
     by the hourly job or the next write, whichever comes first. At most one window of a unit is waiting or open."""
     with transaction.atomic():
@@ -130,7 +130,7 @@ class UnitRequestRow(Schema):
     accept_refusal: str | None = Field(description="Why it cannot be accepted now, while pending.")
     replaces_pin: str | None = Field(description="While pending, the shift's code, or empty for a day off, of the pin you "
                                                  "put on its cell, which accepting it replaces.")
-    steps: list[StepRow]
+    steps: list[RequestStepRow]
 
 
 def _unit_rows(unit: Unit, requests: list[Request]) -> list[UnitRequestRow]:
@@ -167,64 +167,64 @@ def window_requests(request: HttpRequest, unit_id: UUID, window_id: UUID) -> lis
     return _unit_rows(unit, list(with_steps(window.requests.all()).order_by("date", "made_at")))
 
 
-class AcceptBody(StrictSchema):
+class AcceptRequestBody(StrictSchema):
     reason: str = Field("", max_length=2000, description="Optional. The nurse reads it with her request.")
 
 
-class ReasonBody(StrictSchema):
+class RequestReasonBody(StrictSchema):
     reason: str = Field(min_length=1, max_length=2000, description="The nurse reads it with her request, and nobody but you and "
                                                                     "her: never a notification or the audit log.")
 
 
-class EditBody(ReasonBody):
+class EditRequestBody(RequestReasonBody):
     shift: str | None = Field(max_length=8, description="The shift's code it now promises, or null for a day off.")
 
 
-class Decided(Schema):
+class RequestDecided(Schema):
     request: UnitRequestRow
     version: int | None = Field(description="The roster version this made, now in force, when the roster is approved and a "
                                             "cell changed. The unit's nurses are told the roster changed, and not why.")
 
 
-def _decided(user: User, unit_id: UUID, request_id: UUID, act) -> Decided:
+def _decided(user: User, unit_id: UUID, request_id: UUID, act) -> RequestDecided:
     with transaction.atomic():
         locked = deciding.locked_for_decision(user, unit_id, request_id)
         version = act(locked)
     row = with_steps(Request.objects.filter(pk=request_id)).get()
-    return Decided(request=_unit_rows(locked.unit, [row])[0], version=version.number if version else None)
+    return RequestDecided(request=_unit_rows(locked.unit, [row])[0], version=version.number if version else None)
 
 
-def _reason(body: ReasonBody | AcceptBody) -> str:
+def _reason(body: RequestReasonBody | AcceptRequestBody) -> str:
     reason = body.reason.strip()
-    if isinstance(body, ReasonBody) and not reason:
+    if isinstance(body, RequestReasonBody) and not reason:
         refuse((("reason",), "Say why: the nurse reads it with her request."))
     return reason
 
 
-@router.post("/{unit_id}/requests/{request_id}/accept", response=Decided, auth=manager, operation_id="acceptRequest")
-def accept_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: AcceptBody) -> Decided:
+@router.post("/{unit_id}/requests/{request_id}/accept", response=RequestDecided, auth=manager, operation_id="acceptRequest")
+def accept_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: AcceptRequestBody) -> RequestDecided:
     """It becomes a pinned cell of origin `request`, refused where a pin would be. On an approved roster of a month not over,
     a new version with origin `request` when it changes a cell; a submitted roster takes it once decided."""
     reason = _reason(body)
     return _decided(request.user, unit_id, request_id, lambda locked: deciding.accept(locked, request.user, reason, request))
 
 
-@router.post("/{unit_id}/requests/{request_id}/reject", response=Decided, auth=manager, operation_id="rejectRequest")
-def reject_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: ReasonBody) -> Decided:
+@router.post("/{unit_id}/requests/{request_id}/reject", response=RequestDecided, auth=manager, operation_id="rejectRequest")
+def reject_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: RequestReasonBody) -> RequestDecided:
     reason = _reason(body)
     return _decided(request.user, unit_id, request_id, lambda locked: deciding.reject(locked, request.user, reason, request))
 
 
-@router.post("/{unit_id}/requests/{request_id}/edit", response=Decided, auth=manager, operation_id="editRequest")
-def edit_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: EditBody) -> Decided:
+@router.post("/{unit_id}/requests/{request_id}/edit", response=RequestDecided, auth=manager, operation_id="editRequest")
+def edit_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: EditRequestBody) -> RequestDecided:
     """An accepted request's promise changed, with a reason, as acceptance puts it on the roster."""
     reason = _reason(body)
     return _decided(request.user, unit_id, request_id,
                     lambda locked: deciding.edit(locked, body.shift, request.user, reason, request))
 
 
-@router.post("/{unit_id}/requests/{request_id}/cancel", response=Decided, auth=manager, operation_id="cancelRequest")
-def cancel_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: ReasonBody) -> Decided:
+@router.post("/{unit_id}/requests/{request_id}/cancel", response=RequestDecided, auth=manager, operation_id="cancelRequest")
+def cancel_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: RequestReasonBody) -> RequestDecided:
     """Its pin ends and no cell changes, so no version is made."""
     reason = _reason(body)
     return _decided(request.user, unit_id, request_id, lambda locked: deciding.cancel(locked, request.user, reason, request))

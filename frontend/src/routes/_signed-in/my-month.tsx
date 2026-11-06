@@ -1,10 +1,11 @@
 import { keepPreviousData } from "@tanstack/react-query"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router"
 import { z } from "zod"
 
 import { useGetMyLeave, useGetMyMonth } from "@/api/generated/endpoints"
 import { Role, type MyHours, type MyMonth } from "@/api/generated/model"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
+import { MyRequestsCard } from "@/components/my-requests"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { dayRange, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
@@ -80,6 +81,7 @@ function Hours({ answer }: { answer: MyMonth }) {
 }
 
 function MyMonthPage() {
+  const { user } = useRouteContext({ from: "/_signed-in" })
   const { month } = Route.useSearch()
   const params = month ? { month } : undefined
   const mine = useGetMyMonth(params, { query: { placeholderData: keepPreviousData } })
@@ -89,7 +91,7 @@ function MyMonthPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <h1 className="text-xl font-medium">My month</h1>
-      <p className="text-muted-foreground">Your hours and shifts in the approved roster, and your leave. Only you, your manager, the CNO and the Deputy CNO can see your leave's type: colleagues see a day off.</p>
+      <p className="text-muted-foreground">Your hours and shifts in the approved roster, {user.role === Role.staff_nurse ? "your requests " : ""}and your leave. Only you, your manager, the CNO and the Deputy CNO can see your leave's type: colleagues see a day off.</p>
       {shown && <MonthNav month={shown} link={(next, label) => <Link to="/my-month" search={{ month: next }} className={MONTH_LINK}>{label}</Link>} />}
       <Card>
         <CardHeader><CardTitle><h3>Hours and shifts</h3></CardTitle></CardHeader>
@@ -99,7 +101,7 @@ function MyMonthPage() {
           {mine.data && <Hours answer={mine.data} />}
         </CardContent>
       </Card>
-      {/* Ticket 19: the nurse's requests for this month and their outcomes go here, as a card of their own. */}
+      {user.role === Role.staff_nurse && <MyRequestsCard month={month} />}
       <Card>
         <CardHeader><CardTitle><h3>Leave</h3></CardTitle></CardHeader>
         <CardContent>

@@ -205,7 +205,11 @@ function shiftsTakenOff(taken: ShiftTakenOff[]): string {
 function pinsReplaced(pins: RemovedPin[]): string {
   if (pins.length === 0) return ""
   const each = pins.map((pin) => `${pin.shift || "a day off"} on ${dayRange(pin.date, pin.date)}`).join(", ")
-  return ` It replaced ${pins.length === 1 ? "a pin" : `${pins.length} pins`} on the draft: ${each}. A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again.`
+  const requests = pins.filter((pin) => pin.origin === "request")
+  const told = requests.length === 0 ? ""
+    : requests.length === 1 ? " One was an accepted request, which stays on record as replaced by leave; its nurse is told."
+    : ` ${requests.length} were accepted requests, which stay on record as replaced by leave; their nurses are told.`
+  return ` It replaced ${pins.length === 1 ? "a pin" : `${pins.length} pins`} on the draft: ${each}.${told} A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again.`
 }
 
 function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }: {

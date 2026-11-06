@@ -12,4 +12,6 @@ export const NotificationLinkPage = {
   roster: 'roster',
   my_roster: 'my_roster',
   unit_roster: 'unit_roster',
+  my_month: 'my_month',
+  requests: 'requests',
 } as const;

@@ -31,11 +31,12 @@ const ATTRIBUTES = { to: "/rostering-attributes", label: "Rostering attributes" 
 const ROSTER = { to: "/roster", label: "Roster" } as const
 const SOLVE_HISTORY = { to: "/solve-history", label: "Solve history" } as const
 const LEAVE = { to: "/leave", label: "Leave" } as const
+const REQUESTS = { to: "/requests", label: "Requests" } as const
 const MY_MONTH = { to: "/my-month", label: "My month" } as const
 const MY_ROSTER = { to: "/my-roster", label: "My roster" } as const
 const ROSTERS = { to: "/rosters", label: "Rosters" } as const
 const NURSE_PAGES = linkOptions([HOME, MY_MONTH, MY_ROSTER, ...CATALOGUE])
-const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
+const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, REQUESTS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
 const DEPUTY_PAGES = linkOptions([HOME, ROSTERS, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
 const CNO_PAGES = linkOptions([HOME, ROSTERS, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])
 

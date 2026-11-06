@@ -4,9 +4,12 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
+import type { RemovedPinOrigin } from './removedPinOrigin';
 
 export interface RemovedPin {
   date: string;
   /** The shift's code. Empty for a day off. */
   shift: string;
+  /** An accepted request's pin is the nurse's: the request stays on record, replaced by leave, and they are told. */
+  origin: RemovedPinOrigin;
 }

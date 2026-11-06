@@ -24,6 +24,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AcceptRequestBody,
   AllowedShiftsBody,
   AttributesBody,
   AuditFilterOptions,
@@ -35,11 +36,13 @@ import type {
   CorrectedNurse,
   CorrectionBody,
   DraftCheck,
+  EditRequestBody,
   EditsBody,
   EndDateBody,
   ExportRosterVersionParams,
   GetMyLeaveParams,
   GetMyMonthParams,
+  GetMyRequestsParams,
   GetMyRosterParams,
   GetMyRosterSheetParams,
   GetRosterMonthParams,
@@ -72,11 +75,14 @@ import type {
   MonthBody,
   MyLeaveMonth,
   MyMonth,
+  MyRequestRow,
+  MyRequests,
   MyRosterMonth,
   MyRosterSheet,
   NameCorrectionBody,
   NewLeaveBody,
   NewNurseBody,
+  NewRequestBody,
   NewUserBody,
   NewUserRefusal,
   NotificationList,
@@ -95,6 +101,9 @@ import type {
   ReactivateRefusal,
   RejectBody,
   ReplanPreview,
+  RequestDecided,
+  RequestReasonBody,
+  RequestWindowBody,
   RosterMonth,
   RosterSheet,
   SavedLeave,
@@ -112,15 +121,18 @@ import type {
   UnitHistory,
   UnitLeaveMonth,
   UnitName,
+  UnitRequestRow,
   UnitRulesBody,
   UnitRulesState,
   UnitSchema,
+  UnitWindows,
   Unread,
   UserWithPassword,
   VersionBody,
   VersionComparison,
   VersionRow,
-  WaitingRoster
+  WaitingRoster,
+  WindowRow
 } from './model';
 
 import { apiFetch } from '../fetcher';
@@ -6455,6 +6467,1027 @@ export const useRestoreSolveResult = <TError = unknown,
         TContext
       > => {
       return useMutation(getRestoreSolveResultMutationOptions(options), queryClient);
+    }
+
+export const getListRequestWindowsUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/request-windows`
+}
+
+/**
+ * @summary Request Windows
+ */
+export const listRequestWindows = async (unitId: string, options?: Parameters<typeof apiFetch>[1]): Promise<UnitWindows> => {
+
+  return apiFetch<UnitWindows>(getListRequestWindowsUrl(unitId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRequestWindowsQueryKey = (unitId: string,) => {
+    return [
+    `/api/units/${unitId}/request-windows`
+    ] as const;
+    }
+
+
+export const getListRequestWindowsQueryOptions = <TData = Awaited<ReturnType<typeof listRequestWindows>>, TError = unknown>(unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRequestWindows>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRequestWindowsQueryKey(unitId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRequestWindows>>> = ({ signal }) => listRequestWindows(unitId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRequestWindows>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListRequestWindowsQueryResult = NonNullable<Awaited<ReturnType<typeof listRequestWindows>>>
+export type ListRequestWindowsQueryError = unknown
+
+
+export function useListRequestWindows<TData = Awaited<ReturnType<typeof listRequestWindows>>, TError = unknown>(
+ unitId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRequestWindows>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRequestWindows>>,
+          TError,
+          Awaited<ReturnType<typeof listRequestWindows>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRequestWindows<TData = Awaited<ReturnType<typeof listRequestWindows>>, TError = unknown>(
+ unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRequestWindows>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRequestWindows>>,
+          TError,
+          Awaited<ReturnType<typeof listRequestWindows>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRequestWindows<TData = Awaited<ReturnType<typeof listRequestWindows>>, TError = unknown>(
+ unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRequestWindows>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Request Windows
+ */
+
+export function useListRequestWindows<TData = Awaited<ReturnType<typeof listRequestWindows>>, TError = unknown>(
+ unitId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRequestWindows>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListRequestWindowsQueryOptions(unitId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getOpenRequestWindowUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/request-windows`
+}
+
+/**
+ * A window whose open date is today opens now, and the unit's nurses of the month are told; a later one opens on its date,
+ * by the hourly job or the next write, whichever comes first. At most one window of a unit is waiting or open.
+ * @summary Open Request Window
+ */
+export const openRequestWindow = async (unitId: string,
+    requestWindowBody: RequestWindowBody, options?: Parameters<typeof apiFetch>[1]): Promise<WindowRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<WindowRow>(getOpenRequestWindowUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(requestWindowBody)
+  }
+);}
+
+
+
+
+
+export const getOpenRequestWindowMutationKey = () => ['openRequestWindow'] as const;
+
+export const getOpenRequestWindowMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openRequestWindow>>, TError,OpenRequestWindowMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof openRequestWindow>>, TError,OpenRequestWindowMutationVariables, TContext> => {
+
+const mutationKey = getOpenRequestWindowMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof openRequestWindow>>, OpenRequestWindowMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  openRequestWindow(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OpenRequestWindowMutationResult = NonNullable<Awaited<ReturnType<typeof openRequestWindow>>>
+    export type OpenRequestWindowMutationBody = RequestWindowBody
+    export type OpenRequestWindowMutationError = unknown
+    export type OpenRequestWindowMutationVariables = {unitId: string;data: RequestWindowBody}
+
+    /**
+ * @summary Open Request Window
+ */
+export const useOpenRequestWindow = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openRequestWindow>>, TError,OpenRequestWindowMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof openRequestWindow>>,
+        TError,
+        OpenRequestWindowMutationVariables,
+        TContext
+      > => {
+      return useMutation(getOpenRequestWindowMutationOptions(options), queryClient);
+    }
+
+export const getCloseRequestWindowUrl = (unitId: string,
+    windowId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/request-windows/${windowId}/close`
+}
+
+/**
+ * Before its close date. Its pending requests stay for the manager's decision.
+ * @summary Close Request Window
+ */
+export const closeRequestWindow = async (unitId: string,
+    windowId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WindowRow> => {
+
+  return apiFetch<WindowRow>(getCloseRequestWindowUrl(unitId,windowId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCloseRequestWindowMutationKey = () => ['closeRequestWindow'] as const;
+
+export const getCloseRequestWindowMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeRequestWindow>>, TError,CloseRequestWindowMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeRequestWindow>>, TError,CloseRequestWindowMutationVariables, TContext> => {
+
+const mutationKey = getCloseRequestWindowMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeRequestWindow>>, CloseRequestWindowMutationVariables> = (props) => {
+          const {unitId,windowId} = props ?? {};
+
+          return  closeRequestWindow(unitId,windowId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseRequestWindowMutationResult = NonNullable<Awaited<ReturnType<typeof closeRequestWindow>>>
+
+    export type CloseRequestWindowMutationError = unknown
+    export type CloseRequestWindowMutationVariables = {unitId: string;windowId: string}
+
+    /**
+ * @summary Close Request Window
+ */
+export const useCloseRequestWindow = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeRequestWindow>>, TError,CloseRequestWindowMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof closeRequestWindow>>,
+        TError,
+        CloseRequestWindowMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCloseRequestWindowMutationOptions(options), queryClient);
+    }
+
+export const getListWindowRequestsUrl = (unitId: string,
+    windowId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/request-windows/${windowId}/requests`
+}
+
+/**
+ * By date, then when they were made. A nurse transferred out of the month since keeps her request here: it can be
+ * rejected, and accepting it is refused, as a pin of hers would be.
+ * @summary Window Requests
+ */
+export const listWindowRequests = async (unitId: string,
+    windowId: string, options?: Parameters<typeof apiFetch>[1]): Promise<UnitRequestRow[]> => {
+
+  return apiFetch<UnitRequestRow[]>(getListWindowRequestsUrl(unitId,windowId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWindowRequestsQueryKey = (unitId: string,
+    windowId: string,) => {
+    return [
+    `/api/units/${unitId}/request-windows/${windowId}/requests`
+    ] as const;
+    }
+
+
+export const getListWindowRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listWindowRequests>>, TError = unknown>(unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowRequests>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWindowRequestsQueryKey(unitId,windowId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWindowRequests>>> = ({ signal }) => listWindowRequests(unitId,windowId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined && windowId !== null && windowId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWindowRequests>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListWindowRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listWindowRequests>>>
+export type ListWindowRequestsQueryError = unknown
+
+
+export function useListWindowRequests<TData = Awaited<ReturnType<typeof listWindowRequests>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowRequests>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listWindowRequests>>,
+          TError,
+          Awaited<ReturnType<typeof listWindowRequests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListWindowRequests<TData = Awaited<ReturnType<typeof listWindowRequests>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowRequests>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listWindowRequests>>,
+          TError,
+          Awaited<ReturnType<typeof listWindowRequests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListWindowRequests<TData = Awaited<ReturnType<typeof listWindowRequests>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowRequests>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Window Requests
+ */
+
+export function useListWindowRequests<TData = Awaited<ReturnType<typeof listWindowRequests>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowRequests>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListWindowRequestsQueryOptions(unitId,windowId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptRequestUrl = (unitId: string,
+    requestId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/requests/${requestId}/accept`
+}
+
+/**
+ * It becomes a pinned cell of origin `request`, refused where a pin would be. On an approved roster of a month not over,
+ * a new version with origin `request` when it changes a cell; a submitted roster takes it once decided.
+ * @summary Accept Request
+ */
+export const acceptRequest = async (unitId: string,
+    requestId: string,
+    acceptRequestBody: AcceptRequestBody, options?: Parameters<typeof apiFetch>[1]): Promise<RequestDecided> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RequestDecided>(getAcceptRequestUrl(unitId,requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(acceptRequestBody)
+  }
+);}
+
+
+
+
+
+export const getAcceptRequestMutationKey = () => ['acceptRequest'] as const;
+
+export const getAcceptRequestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptRequest>>, TError,AcceptRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptRequest>>, TError,AcceptRequestMutationVariables, TContext> => {
+
+const mutationKey = getAcceptRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptRequest>>, AcceptRequestMutationVariables> = (props) => {
+          const {unitId,requestId,data} = props ?? {};
+
+          return  acceptRequest(unitId,requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptRequestMutationResult = NonNullable<Awaited<ReturnType<typeof acceptRequest>>>
+    export type AcceptRequestMutationBody = AcceptRequestBody
+    export type AcceptRequestMutationError = unknown
+    export type AcceptRequestMutationVariables = {unitId: string;requestId: string;data: AcceptRequestBody}
+
+    /**
+ * @summary Accept Request
+ */
+export const useAcceptRequest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptRequest>>, TError,AcceptRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acceptRequest>>,
+        TError,
+        AcceptRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcceptRequestMutationOptions(options), queryClient);
+    }
+
+export const getRejectRequestUrl = (unitId: string,
+    requestId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/requests/${requestId}/reject`
+}
+
+/**
+ * @summary Reject Request
+ */
+export const rejectRequest = async (unitId: string,
+    requestId: string,
+    requestReasonBody: RequestReasonBody, options?: Parameters<typeof apiFetch>[1]): Promise<RequestDecided> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RequestDecided>(getRejectRequestUrl(unitId,requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(requestReasonBody)
+  }
+);}
+
+
+
+
+
+export const getRejectRequestMutationKey = () => ['rejectRequest'] as const;
+
+export const getRejectRequestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectRequest>>, TError,RejectRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectRequest>>, TError,RejectRequestMutationVariables, TContext> => {
+
+const mutationKey = getRejectRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectRequest>>, RejectRequestMutationVariables> = (props) => {
+          const {unitId,requestId,data} = props ?? {};
+
+          return  rejectRequest(unitId,requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectRequestMutationResult = NonNullable<Awaited<ReturnType<typeof rejectRequest>>>
+    export type RejectRequestMutationBody = RequestReasonBody
+    export type RejectRequestMutationError = unknown
+    export type RejectRequestMutationVariables = {unitId: string;requestId: string;data: RequestReasonBody}
+
+    /**
+ * @summary Reject Request
+ */
+export const useRejectRequest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectRequest>>, TError,RejectRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rejectRequest>>,
+        TError,
+        RejectRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRejectRequestMutationOptions(options), queryClient);
+    }
+
+export const getEditRequestUrl = (unitId: string,
+    requestId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/requests/${requestId}/edit`
+}
+
+/**
+ * An accepted request's promise changed, with a reason, as acceptance puts it on the roster.
+ * @summary Edit Request
+ */
+export const editRequest = async (unitId: string,
+    requestId: string,
+    editRequestBody: EditRequestBody, options?: Parameters<typeof apiFetch>[1]): Promise<RequestDecided> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RequestDecided>(getEditRequestUrl(unitId,requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(editRequestBody)
+  }
+);}
+
+
+
+
+
+export const getEditRequestMutationKey = () => ['editRequest'] as const;
+
+export const getEditRequestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editRequest>>, TError,EditRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof editRequest>>, TError,EditRequestMutationVariables, TContext> => {
+
+const mutationKey = getEditRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof editRequest>>, EditRequestMutationVariables> = (props) => {
+          const {unitId,requestId,data} = props ?? {};
+
+          return  editRequest(unitId,requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EditRequestMutationResult = NonNullable<Awaited<ReturnType<typeof editRequest>>>
+    export type EditRequestMutationBody = EditRequestBody
+    export type EditRequestMutationError = unknown
+    export type EditRequestMutationVariables = {unitId: string;requestId: string;data: EditRequestBody}
+
+    /**
+ * @summary Edit Request
+ */
+export const useEditRequest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editRequest>>, TError,EditRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof editRequest>>,
+        TError,
+        EditRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEditRequestMutationOptions(options), queryClient);
+    }
+
+export const getCancelRequestUrl = (unitId: string,
+    requestId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/requests/${requestId}/cancel`
+}
+
+/**
+ * Its pin ends and no cell changes, so no version is made.
+ * @summary Cancel Request
+ */
+export const cancelRequest = async (unitId: string,
+    requestId: string,
+    requestReasonBody: RequestReasonBody, options?: Parameters<typeof apiFetch>[1]): Promise<RequestDecided> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RequestDecided>(getCancelRequestUrl(unitId,requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(requestReasonBody)
+  }
+);}
+
+
+
+
+
+export const getCancelRequestMutationKey = () => ['cancelRequest'] as const;
+
+export const getCancelRequestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRequest>>, TError,CancelRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelRequest>>, TError,CancelRequestMutationVariables, TContext> => {
+
+const mutationKey = getCancelRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelRequest>>, CancelRequestMutationVariables> = (props) => {
+          const {unitId,requestId,data} = props ?? {};
+
+          return  cancelRequest(unitId,requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelRequestMutationResult = NonNullable<Awaited<ReturnType<typeof cancelRequest>>>
+    export type CancelRequestMutationBody = RequestReasonBody
+    export type CancelRequestMutationError = unknown
+    export type CancelRequestMutationVariables = {unitId: string;requestId: string;data: RequestReasonBody}
+
+    /**
+ * @summary Cancel Request
+ */
+export const useCancelRequest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRequest>>, TError,CancelRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelRequest>>,
+        TError,
+        CancelRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelRequestMutationOptions(options), queryClient);
+    }
+
+export const getGetMyRequestsUrl = (params?: GetMyRequestsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/requests/mine?${stringifiedParams}` : `/api/requests/mine`
+}
+
+/**
+ * @summary My Requests
+ */
+export const getMyRequests = async (params?: GetMyRequestsParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyRequests> => {
+
+  return apiFetch<MyRequests>(getGetMyRequestsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyRequestsQueryKey = (params?: GetMyRequestsParams,) => {
+    return [
+    `/api/requests/mine`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMyRequestsQueryOptions = <TData = Awaited<ReturnType<typeof getMyRequests>>, TError = unknown>(params?: GetMyRequestsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRequests>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyRequestsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyRequests>>> = ({ signal }) => getMyRequests(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyRequests>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyRequests>>>
+export type GetMyRequestsQueryError = unknown
+
+
+export function useGetMyRequests<TData = Awaited<ReturnType<typeof getMyRequests>>, TError = unknown>(
+ params: undefined |  GetMyRequestsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRequests>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyRequests>>,
+          TError,
+          Awaited<ReturnType<typeof getMyRequests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyRequests<TData = Awaited<ReturnType<typeof getMyRequests>>, TError = unknown>(
+ params?: GetMyRequestsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRequests>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyRequests>>,
+          TError,
+          Awaited<ReturnType<typeof getMyRequests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyRequests<TData = Awaited<ReturnType<typeof getMyRequests>>, TError = unknown>(
+ params?: GetMyRequestsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRequests>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Requests
+ */
+
+export function useGetMyRequests<TData = Awaited<ReturnType<typeof getMyRequests>>, TError = unknown>(
+ params?: GetMyRequestsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRequests>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyRequestsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMakeRequestUrl = () => {
+
+
+
+
+  return `/api/requests/mine`
+}
+
+/**
+ * Within an open window of the unit the date's month falls under for you, up to the unit's cap of requests pending or
+ * accepted, one a date. The audit log says that you made one, never what or why.
+ * @summary Make Request
+ */
+export const makeRequest = async (newRequestBody: NewRequestBody, options?: Parameters<typeof apiFetch>[1]): Promise<MyRequestRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MyRequestRow>(getMakeRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(newRequestBody)
+  }
+);}
+
+
+
+
+
+export const getMakeRequestMutationKey = () => ['makeRequest'] as const;
+
+export const getMakeRequestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makeRequest>>, TError,MakeRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof makeRequest>>, TError,MakeRequestMutationVariables, TContext> => {
+
+const mutationKey = getMakeRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof makeRequest>>, MakeRequestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  makeRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MakeRequestMutationResult = NonNullable<Awaited<ReturnType<typeof makeRequest>>>
+    export type MakeRequestMutationBody = NewRequestBody
+    export type MakeRequestMutationError = unknown
+    export type MakeRequestMutationVariables = {data: NewRequestBody}
+
+    /**
+ * @summary Make Request
+ */
+export const useMakeRequest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makeRequest>>, TError,MakeRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof makeRequest>>,
+        TError,
+        MakeRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMakeRequestMutationOptions(options), queryClient);
+    }
+
+export const getWithdrawRequestUrl = (requestId: string,) => {
+
+
+
+
+  return `/api/requests/mine/${requestId}/withdraw`
+}
+
+/**
+ * A pending one, while its window is open. Another nurse's is the same 404 as none.
+ * @summary Withdraw Request
+ */
+export const withdrawRequest = async (requestId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MyRequestRow> => {
+
+  return apiFetch<MyRequestRow>(getWithdrawRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getWithdrawRequestMutationKey = () => ['withdrawRequest'] as const;
+
+export const getWithdrawRequestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawRequest>>, TError,WithdrawRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawRequest>>, TError,WithdrawRequestMutationVariables, TContext> => {
+
+const mutationKey = getWithdrawRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawRequest>>, WithdrawRequestMutationVariables> = (props) => {
+          const {requestId} = props ?? {};
+
+          return  withdrawRequest(requestId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawRequestMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawRequest>>>
+
+    export type WithdrawRequestMutationError = unknown
+    export type WithdrawRequestMutationVariables = {requestId: string}
+
+    /**
+ * @summary Withdraw Request
+ */
+export const useWithdrawRequest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawRequest>>, TError,WithdrawRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawRequest>>,
+        TError,
+        WithdrawRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getWithdrawRequestMutationOptions(options), queryClient);
     }
 
 export const getGetRosterOverviewUrl = (params?: GetRosterOverviewParams,) => {

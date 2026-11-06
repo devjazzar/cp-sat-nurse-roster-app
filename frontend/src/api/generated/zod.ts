@@ -1495,7 +1495,8 @@ export const RecordLeaveResponse = zod.object({
   "outside_dates": zod.boolean().describe('A correction to the nurse\'s start or end date has left these days outside them, where they count for nothing. Its manager can remove them.'),
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
-  "shift": zod.string().describe('The shift\'s code. Empty for a day off.')
+  "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
+  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.')
 })).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
   "shifts_taken_off": zod.array(zod.object({
   "date": zod.iso.date(),
@@ -1542,7 +1543,8 @@ export const ChangeLeaveResponse = zod.object({
   "outside_dates": zod.boolean().describe('A correction to the nurse\'s start or end date has left these days outside them, where they count for nothing. Its manager can remove them.'),
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
-  "shift": zod.string().describe('The shift\'s code. Empty for a day off.')
+  "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
+  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.')
 })).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
   "shifts_taken_off": zod.array(zod.object({
   "date": zod.iso.date(),
@@ -3290,6 +3292,383 @@ export const RestoreSolveResultResponse = zod.object({
 
 
 /**
+ * @summary Request Windows
+ */
+export const ListRequestWindowsParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const ListRequestWindowsResponse = zod.object({
+  "request_cap": zod.int().describe('Requests per nurse per month.'),
+  "windows": zod.array(zod.object({
+  "id": zod.uuid(),
+  "month": zod.string().describe('YYYY-MM, the target month.'),
+  "opens_on": zod.iso.date(),
+  "closes_on": zod.iso.date().describe('The last day requests can be made, on the hospital\'s clock.'),
+  "state": zod.enum(['scheduled', 'open', 'closed']).describe('As the dates say today.'),
+  "closed_early_by": zod.union([zod.string(),zod.null()]),
+  "pending": zod.int(),
+  "requests": zod.int().describe('Every request made in it, whatever its state.')
+})).describe('Newest first.'),
+  "open_refusal": zod.union([zod.string(),zod.null()]).describe('Why a window cannot be opened now.')
+})
+
+
+/**
+ * A window whose open date is today opens now, and the unit's nurses of the month are told; a later one opens on its date,
+ * by the hourly job or the next write, whichever comes first. At most one window of a unit is waiting or open.
+ * @summary Open Request Window
+ */
+export const OpenRequestWindowParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const openRequestWindowBodyMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const OpenRequestWindowBody = zod.object({
+  "month": zod.string().regex(openRequestWindowBodyMonthRegExp).describe('YYYY-MM, a month not yet begun.'),
+  "opens_on": zod.iso.date().describe('Today or later. Nurses are told when it comes.'),
+  "closes_on": zod.iso.date().describe('The last day requests can be made, before the month begins.')
+})
+
+export const OpenRequestWindowResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string().describe('YYYY-MM, the target month.'),
+  "opens_on": zod.iso.date(),
+  "closes_on": zod.iso.date().describe('The last day requests can be made, on the hospital\'s clock.'),
+  "state": zod.enum(['scheduled', 'open', 'closed']).describe('As the dates say today.'),
+  "closed_early_by": zod.union([zod.string(),zod.null()]),
+  "pending": zod.int(),
+  "requests": zod.int().describe('Every request made in it, whatever its state.')
+})
+
+
+/**
+ * Before its close date. Its pending requests stay for the manager's decision.
+ * @summary Close Request Window
+ */
+export const CloseRequestWindowParams = zod.object({
+  "unit_id": zod.uuid(),
+  "window_id": zod.uuid()
+})
+
+export const CloseRequestWindowResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string().describe('YYYY-MM, the target month.'),
+  "opens_on": zod.iso.date(),
+  "closes_on": zod.iso.date().describe('The last day requests can be made, on the hospital\'s clock.'),
+  "state": zod.enum(['scheduled', 'open', 'closed']).describe('As the dates say today.'),
+  "closed_early_by": zod.union([zod.string(),zod.null()]),
+  "pending": zod.int(),
+  "requests": zod.int().describe('Every request made in it, whatever its state.')
+})
+
+
+/**
+ * By date, then when they were made. A nurse transferred out of the month since keeps her request here: it can be
+ * rejected, and accepting it is refused, as a pin of hers would be.
+ * @summary Window Requests
+ */
+export const ListWindowRequestsParams = zod.object({
+  "unit_id": zod.uuid(),
+  "window_id": zod.uuid()
+})
+
+export const ListWindowRequestsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+})
+export const ListWindowRequestsResponse = zod.array(ListWindowRequestsResponseItem)
+
+
+/**
+ * It becomes a pinned cell of origin `request`, refused where a pin would be. On an approved roster of a month not over,
+ * a new version with origin `request` when it changes a cell; a submitted roster takes it once decided.
+ * @summary Accept Request
+ */
+export const AcceptRequestParams = zod.object({
+  "unit_id": zod.uuid(),
+  "request_id": zod.uuid()
+})
+
+export const acceptRequestBodyReasonDefault = ``;
+export const acceptRequestBodyReasonMax = 2000;
+
+
+
+export const AcceptRequestBody = zod.object({
+  "reason": zod.string().max(acceptRequestBodyReasonMax).default(acceptRequestBodyReasonDefault).describe('Optional. The nurse reads it with her request.')
+})
+
+export const AcceptRequestResponse = zod.object({
+  "request": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+}),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version this made, now in force, when the roster is approved and a cell changed. The unit\'s nurses are told the roster changed, and not why.')
+})
+
+
+/**
+ * @summary Reject Request
+ */
+export const RejectRequestParams = zod.object({
+  "unit_id": zod.uuid(),
+  "request_id": zod.uuid()
+})
+
+export const rejectRequestBodyReasonMax = 2000;
+
+
+
+export const RejectRequestBody = zod.object({
+  "reason": zod.string().min(1).max(rejectRequestBodyReasonMax).describe('The nurse reads it with her request, and nobody but you and her: never a notification or the audit log.')
+})
+
+export const RejectRequestResponse = zod.object({
+  "request": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+}),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version this made, now in force, when the roster is approved and a cell changed. The unit\'s nurses are told the roster changed, and not why.')
+})
+
+
+/**
+ * An accepted request's promise changed, with a reason, as acceptance puts it on the roster.
+ * @summary Edit Request
+ */
+export const EditRequestParams = zod.object({
+  "unit_id": zod.uuid(),
+  "request_id": zod.uuid()
+})
+
+export const editRequestBodyReasonMax = 2000;
+
+export const editRequestBodyShiftOneMax = 8;
+
+
+
+export const EditRequestBody = zod.object({
+  "reason": zod.string().min(1).max(editRequestBodyReasonMax).describe('The nurse reads it with her request, and nobody but you and her: never a notification or the audit log.'),
+  "shift": zod.union([zod.string().max(editRequestBodyShiftOneMax),zod.null()]).describe('The shift\'s code it now promises, or null for a day off.')
+})
+
+export const EditRequestResponse = zod.object({
+  "request": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+}),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version this made, now in force, when the roster is approved and a cell changed. The unit\'s nurses are told the roster changed, and not why.')
+})
+
+
+/**
+ * Its pin ends and no cell changes, so no version is made.
+ * @summary Cancel Request
+ */
+export const CancelRequestParams = zod.object({
+  "unit_id": zod.uuid(),
+  "request_id": zod.uuid()
+})
+
+export const cancelRequestBodyReasonMax = 2000;
+
+
+
+export const CancelRequestBody = zod.object({
+  "reason": zod.string().min(1).max(cancelRequestBodyReasonMax).describe('The nurse reads it with her request, and nobody but you and her: never a notification or the audit log.')
+})
+
+export const CancelRequestResponse = zod.object({
+  "request": zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+}),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version this made, now in force, when the roster is approved and a cell changed. The unit\'s nurses are told the roster changed, and not why.')
+})
+
+
+/**
+ * @summary My Requests
+ */
+export const getMyRequestsQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetMyRequestsQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getMyRequestsQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.')
+})
+
+export const GetMyRequestsResponse = zod.object({
+  "month": zod.string().describe('YYYY-MM.'),
+  "window": zod.union([zod.object({
+  "unit": zod.string(),
+  "opens_on": zod.iso.date(),
+  "closes_on": zod.iso.date().describe('The last day requests can be made.'),
+  "state": zod.enum(['scheduled', 'open', 'closed']).describe('As the dates say today.'),
+  "closed_early": zod.boolean()
+}),zod.null()]).describe('The latest window for this month of the unit it falls under for you.'),
+  "request_cap": zod.union([zod.int(),zod.null()]).describe('Requests a nurse may have pending or accepted this month.'),
+  "counted": zod.int().describe('Yours pending or accepted this month, which count against the cap.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why you cannot make a request for this month now.'),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string()
+})).describe('The shifts you may ask for.'),
+  "first_day": zod.union([zod.iso.date(),zod.null()]).describe('The first day of the month you may ask about, within your dates.'),
+  "last_day": zod.union([zod.iso.date(),zod.null()]),
+  "requests": zod.array(zod.object({
+  "id": zod.uuid(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What you asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what is promised, which your manager may have changed.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+})).describe('Yours for this month, every state, by date.')
+})
+
+
+/**
+ * Within an open window of the unit the date's month falls under for you, up to the unit's cap of requests pending or
+ * accepted, one a date. The audit log says that you made one, never what or why.
+ * @summary Make Request
+ */
+export const makeRequestBodyShiftOneMax = 8;
+
+export const makeRequestBodyReasonDefault = ``;
+export const makeRequestBodyReasonMax = 500;
+
+
+
+export const MakeRequestBody = zod.object({
+  "date": zod.iso.date(),
+  "shift": zod.union([zod.string().max(makeRequestBodyShiftOneMax),zod.null()]).describe('The shift\'s code, or null for a day off.'),
+  "reason": zod.string().max(makeRequestBodyReasonMax).default(makeRequestBodyReasonDefault).describe('Optional. Only you and your manager read it.')
+})
+
+export const MakeRequestResponse = zod.object({
+  "id": zod.uuid(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What you asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what is promised, which your manager may have changed.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+})
+
+
+/**
+ * A pending one, while its window is open. Another nurse's is the same 404 as none.
+ * @summary Withdraw Request
+ */
+export const WithdrawRequestParams = zod.object({
+  "request_id": zod.uuid()
+})
+
+export const WithdrawRequestResponse = zod.object({
+  "id": zod.uuid(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('What you asked for: a shift\'s code, empty for a day off.'),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what is promised, which your manager may have changed.'),
+  "steps": zod.array(zod.object({
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
+  "by": zod.string(),
+  "at": zod.iso.datetime({"offset":true}),
+  "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
+  "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
+}))
+})
+
+
+/**
  * @summary Overview
  */
 export const getRosterOverviewQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
@@ -3888,7 +4267,7 @@ export const ListNotificationsResponse = zod.object({
   "event": zod.string(),
   "text": zod.string(),
   "link": zod.union([zod.object({
-  "page": zod.enum(['roster', 'my_roster', 'unit_roster']),
+  "page": zod.enum(['roster', 'my_roster', 'unit_roster', 'my_month', 'requests']),
   "month": zod.string(),
   "unit_id": zod.union([zod.uuid(),zod.null()]).optional()
 }),zod.null()]).describe('The reader\'s own page for it. Null when they no longer have one.'),

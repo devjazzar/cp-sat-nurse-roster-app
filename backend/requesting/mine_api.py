@@ -18,7 +18,7 @@ from hospital.models import Shift
 from nurses import membership
 from nurses.models import NurseProfile
 from requesting import making
-from requesting.api import RequestStateText, StepRow, step_rows, with_steps
+from requesting.api import RequestStateText, RequestStepRow, step_rows, with_steps
 from requesting.models import Request, WindowState
 from requesting.windows import state_today
 from solves.api import MonthFilter, chosen_month
@@ -46,7 +46,7 @@ class MyRequestRow(Schema):
     shift: str = Field(description="What you asked for: a shift's code, empty for a day off.")
     state: RequestStateText
     promised: str | None = Field(description="While accepted, what is promised, which your manager may have changed.")
-    steps: list[StepRow]
+    steps: list[RequestStepRow]
 
 
 class MyRequests(Schema):

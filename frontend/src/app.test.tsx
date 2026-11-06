@@ -62,6 +62,12 @@ const session = (user: unknown) => ({ "GET /api/auth/session": { body: { user } 
 const NO_ROSTER_YET = { month: "2026-12", first_month: "2026-11", unit: "ER", roster: null }
 /** A nurse's own month with no approved roster yet. */
 const NO_HOURS_YET = { month: "2026-11", first_month: "2026-11", unit: "ER", roster: null }
+/** A nurse's requests for a month with no window. */
+const NO_WINDOW = {
+  month: "2026-11", window: null, request_cap: null, counted: 0, refusal: "No request window is open for November 2026.",
+  shifts: [], first_day: null, last_day: null, requests: [],
+}
+const NO_REQUESTS = { "GET /api/requests/mine": { body: NO_WINDOW } }
 const nurseHome = (unitId = "u1", extra = {}) => ({
   ...session(NURSE),
   "GET /api/nurses/my-unit": { body: { id: unitId, name: "ER" } },
@@ -129,14 +135,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/requests", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/requests"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -804,7 +810,7 @@ describe("each role's navigation and home", () => {
   it.each([
     ["cno", "CNO", /under Hospital rules/, ["Home", "Rosters", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted", "/api/units"]],
     ["deputy_cno", "Deputy CNO", "No roster is waiting for a decision.", ["Home", "Rosters", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted"]],
-    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Solve history", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
+    ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Solve history", "Requests", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["staff_nurse", "Staff Nurse", "No roster yet for December 2026.", ["Home", "My month", "My roster", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit", "/api/rosters/mine"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
     const { router, calls } = start("/", {
@@ -3672,7 +3678,7 @@ describe("the leave pages", () => {
   })
 
   it("says which pins on the draft the leave replaced, as leave wins over a pin", async () => {
-    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N" }, { date: "2026-11-11", shift: "" }] }
+    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "manager" }, { date: "2026-11-11", shift: "", origin: "manager" }] }
     const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
 
     await user.click(await screen.findByRole("button", { name: "Record leave" }))
@@ -3683,6 +3689,20 @@ describe("the leave pages", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "It replaced 2 pins on the draft: N on 10 Nov 2026, a day off on 11 Nov 2026. A shift the draft still holds on a day of leave can be taken off on the Roster page, or solve again.")
+  })
+
+  it("says an accepted request's pin it replaced stays on record and its nurse is told", async () => {
+    const replaced = { ...SAVED, pins_removed: [{ date: "2026-11-10", shift: "N", origin: "request" }] }
+    const { user } = start("/leave", pageOf({ "POST /api/units/er/leave": { status: 201, body: replaced } }))
+
+    await user.click(await screen.findByRole("button", { name: "Record leave" }))
+    await user.selectOptions(await screen.findByLabelText("Nurse"), "n1")
+    await user.selectOptions(screen.getByLabelText("Leave type"), "sick")
+    await user.type(screen.getByLabelText("First day"), "2026-11-10")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "It replaced a pin on the draft: N on 10 Nov 2026. One was an accepted request, which stays on record as replaced by leave; its nurse is told.")
   })
 
   it("changes leave, naming the ids it replaces, with focus on the button that stays", async () => {
@@ -3841,7 +3861,7 @@ describe("the leave pages", () => {
 
   it("a nurse reads their own leave with its type", async () => {
     const { user, router } = start("/my-month", {
-      ...session(NURSE),
+      ...session(NURSE), ...NO_REQUESTS,
       "GET /api/rosters/mine/month": { body: NO_HOURS_YET },
       "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [{ first: "2026-11-10", last: "2026-11-12", days: 3, leave_type: "Annual" }] } },
     })
@@ -3868,13 +3888,13 @@ describe("the leave pages", () => {
   })
 
   it("a nurse with none in a month is told so", async () => {
-    start("/my-month", { ...session(NURSE), "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
+    start("/my-month", { ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
 
     expect(await screen.findByText("You have no leave recorded in November 2026.")).toBeInTheDocument()
   })
 
   it("a failed read says so", async () => {
-    start("/my-month", { ...session(NURSE), "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { status: 500 } })
+    start("/my-month", { ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { status: 500 } })
 
     expect((await screen.findByRole("alert")).textContent).toMatch(/leave could not be read/)
   })
@@ -5630,7 +5650,7 @@ describe("a nurse's own month", () => {
     },
   }
   const mine = (month: unknown, leave: unknown = LEAVE) => ({
-    ...session(NURSE), "GET /api/rosters/mine/month": { body: month }, "GET /api/nurses/my-leave": { body: leave },
+    ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: month }, "GET /api/nurses/my-leave": { body: leave },
   })
   const terms = () => Object.fromEntries(screen.getAllByRole("term").map((term) => [term.textContent, term.nextElementSibling?.textContent]))
 
@@ -5779,5 +5799,262 @@ describe("printing and downloading a roster version", () => {
 
       expect(await screen.findByRole("link", { name: "Print this roster" })).toHaveAttribute("href", "/my-roster/print?month=2026-06")
     })
+  })
+})
+
+describe("requests", () => {
+  const MANAGER = { ...ME, username: "mona", full_name: "Mona Ali", role: "unit_manager" }
+  const UNIT = { id: "u1", name: "ER", archived: false, manager: null, nurse_count: 4 }
+  const DAY = { id: "s1", code: "D", display_name: "Day", hours: 12, start_time: "07:00", end_time: "19:00", colour: "#ffcc00", active: true, renames: [] }
+  const NIGHT = { ...DAY, id: "s2", code: "N", display_name: "Night", start_time: "19:00", end_time: "07:00" }
+  const made = (at = "2026-11-10T09:00:00+03:00", reason = "") => ({ step: "made", by: "Amal Saleh", at, reason, shift: null })
+  const MY_OPEN = {
+    month: "2026-12", window: { unit: "ER", opens_on: "2026-11-05", closes_on: "2026-11-20", state: "open", closed_early: false },
+    request_cap: 3, counted: 1, refusal: null, shifts: [{ code: "D", display_name: "Day" }, { code: "N", display_name: "Night" }],
+    first_day: "2026-12-01", last_day: "2026-12-31",
+    requests: [
+      { id: "r1", date: "2026-12-03", shift: "", state: "pending", promised: null, steps: [made("2026-11-10T09:00:00+03:00", "A family wedding.")] },
+      { id: "r2", date: "2026-12-05", shift: "N", state: "rejected", promised: null, steps: [
+        made(), { step: "rejected", by: "Mona Ali", at: "2026-11-11T09:00:00+03:00", reason: "Two others are off that day.", shift: null }] },
+      { id: "r3", date: "2026-12-07", shift: "N", state: "accepted", promised: "D", steps: [
+        made(), { step: "accepted", by: "Mona Ali", at: "2026-11-11T09:00:00+03:00", reason: "", shift: "N" },
+        { step: "edited", by: "Mona Ali", at: "2026-11-12T09:00:00+03:00", reason: "Night is full.", shift: "D" }] },
+    ],
+  }
+  const myMonth = (requests: Handler | Answer, extra = {}) => ({
+    ...session(NURSE), "GET /api/rosters/mine/month": { body: { ...NO_HOURS_YET, month: "2026-12" } },
+    "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": requests, ...extra,
+  })
+
+  it("a nurse reads the window, her requests and every outcome with the manager's reason", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: MY_OPEN }))
+
+    expect(await screen.findByText("Requests for December 2026 are open until the end of 20 Nov 2026. You have 1 of 3 pending or accepted.")).toBeInTheDocument()
+    const rows = within(screen.getByRole("region", { name: "Your requests for December 2026" })).getAllByRole("row").slice(1)
+    expect(rows.map((row) => within(row).getAllByRole("cell").slice(0, 3).map((cell) => cell.textContent))).toEqual([
+      ["3 Dec 2026", "A day offA family wedding.", "Waiting for a decision"],
+      ["5 Dec 2026", "Night (N)", "RejectedMona Ali: Two others are off that day."],
+      ["7 Dec 2026", "Night (N)", "AcceptedNow promised: Day (D)Mona Ali: Night is full."],
+    ])
+    expect(screen.getAllByRole("button", { name: /^Withdraw/ }).map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Withdraw your request for 3 Dec 2026"])
+  })
+
+  it("a nurse makes a request and is told it is made", async () => {
+    let made_: unknown = null
+    const { user } = start("/my-month?month=2026-12", myMonth(() => ({ body: MY_OPEN }), {
+      "POST /api/requests/mine": ({ body }: { body: unknown }) => { made_ = body; return { status: 201, body: MY_OPEN.requests[0] } },
+    }))
+
+    await user.type(await screen.findByLabelText("Date"), "2026-12-09")
+    await user.selectOptions(screen.getByLabelText("What you ask for"), "N")
+    await user.type(screen.getByLabelText("Reason (optional)"), "Exam on the 10th.")
+    await user.click(screen.getByRole("button", { name: "Make the request" }))
+
+    const status = await screen.findByText("Your request for night (n) on 9 Dec 2026 is made. Your manager decides it.")
+    expect(made_).toEqual({ date: "2026-12-09", shift: "N", reason: "Exam on the 10th." })
+    await waitFor(() => expect(status).toHaveFocus())
+  })
+
+  it("shows a refusal beside the date it is about", async () => {
+    const { user } = start("/my-month?month=2026-12", myMonth({ body: MY_OPEN }, {
+      "POST /api/requests/mine": { status: 422, body: { detail: [{ loc: ["body", "body", "date"], msg: "You are on leave on 9 December 2026, so there is nothing to request that day." }] } },
+    }))
+
+    await user.type(await screen.findByLabelText("Date"), "2026-12-09")
+    await user.click(screen.getByRole("button", { name: "Make the request" }))
+
+    expect(await screen.findByText("You are on leave on 9 December 2026, so there is nothing to request that day.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText("Date")).toHaveFocus())
+  })
+
+  it("a nurse withdraws a pending request", async () => {
+    let withdrawn = false
+    const { user } = start("/my-month?month=2026-12", myMonth(() => ({ body: withdrawn
+      ? { ...MY_OPEN, counted: 0, requests: [{ ...MY_OPEN.requests[0], state: "withdrawn" }] } : MY_OPEN }), {
+      "POST /api/requests/mine/r1/withdraw": () => { withdrawn = true; return { body: { ...MY_OPEN.requests[0], state: "withdrawn" } } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw your request for 3 Dec 2026" }))
+
+    const status = await screen.findByText("Your request for a day off on 3 Dec 2026 is withdrawn.")
+    await waitFor(() => expect(status).toHaveFocus())
+    expect(await screen.findByText("Withdrawn")).toBeInTheDocument()
+  })
+
+  it("at the cap, or with the window closed, there is no form", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: { ...MY_OPEN, counted: 3, refusal: "You have 3 requests for December 2026, the most this unit allows. Withdraw a pending one to make another." } }))
+
+    expect(await screen.findByText(/the most this unit allows/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Make the request" })).not.toBeInTheDocument()
+    cleanup()
+
+    start("/my-month?month=2026-12", myMonth({ body: { ...MY_OPEN, window: { ...MY_OPEN.window, state: "closed", closed_early: true } } }))
+
+    expect(await screen.findByText("The request window for December 2026 has closed early. Your manager decides any request still waiting.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Make the request" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Withdraw/ })).not.toBeInTheDocument()
+  })
+
+  it("a manager with a nurse profile reads My month without a requests card", async () => {
+    const { calls } = start("/my-month?month=2026-12", {
+      ...session(MANAGER), "GET /api/rosters/mine/month": { body: { ...NO_HOURS_YET, month: "2026-12" } },
+      "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } },
+    })
+
+    expect(await screen.findByText("You have no leave recorded in December 2026.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Requests" })).not.toBeInTheDocument()
+    expect(pageReads(calls)).not.toContain("/api/requests/mine?month=2026-12")
+  })
+
+  const WINDOWS = {
+    request_cap: 3, open_refusal: null, windows: [
+      { id: "w1", month: "2026-12", opens_on: "2026-11-05", closes_on: "2026-11-20", state: "open", closed_early_by: null, pending: 1, requests: 2 },
+    ],
+  }
+  const ROW = {
+    id: "r1", hospital_id: "Amal", full_name: "Amal Saleh", date: "2026-12-03", shift: "N", state: "pending", promised: null,
+    set_aside: null, accept_refusal: null, replaces_pin: "D", steps: [made("2026-11-10T09:00:00+03:00", "Exam on the 4th.")],
+  }
+  const REFUSED = { ...ROW, id: "r2", hospital_id: "Badr", full_name: "Badr Harbi", date: "2026-12-04", shift: "", replaces_pin: null,
+    accept_refusal: "Badr Harbi is on leave on 4 December 2026, and leave wins over a pin.", steps: [made()] }
+  const manager = (extra = {}) => ({
+    ...session(MANAGER), "GET /api/units": { body: [UNIT] }, "GET /api/hospital/shifts": { body: [DAY, NIGHT] },
+    "GET /api/units/u1/request-windows": { body: WINDOWS }, "GET /api/units/u1/request-windows/w1/requests": { body: [ROW, REFUSED] },
+    ...extra,
+  })
+
+  it("the manager opens a window", async () => {
+    let sent: unknown = null
+    const { user } = start("/requests", manager({
+      "GET /api/units/u1/request-windows": { body: { ...WINDOWS, windows: [] } },
+      "POST /api/units/u1/request-windows": ({ body }: { body: unknown }) => { sent = body; return { status: 201, body: WINDOWS.windows[0] } },
+    }))
+
+    expect(await screen.findByText("No request window has been opened yet.")).toBeInTheDocument()
+    expect(document.title).toBe("Requests · Nurse roster")
+    fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-12" } })
+    await user.type(screen.getByLabelText("First day"), "2026-11-05")
+    await user.type(screen.getByLabelText("Last day"), "2026-11-20")
+    await user.click(screen.getByRole("button", { name: "Open the window" }))
+
+    const status = await screen.findByText("Requests for December 2026 are open until the end of 20 Nov 2026. The unit's nurses of that month are told.")
+    expect(sent).toEqual({ month: "2026-12", opens_on: "2026-11-05", closes_on: "2026-11-20" })
+    await waitFor(() => expect(status).toHaveFocus())
+  })
+
+  it("the manager reads why a window cannot be opened", async () => {
+    start("/requests", manager({ "GET /api/units/u1/request-windows": { body: { ...WINDOWS, open_refusal: "A unit has one request window at a time: close this one first." } } }))
+
+    expect(await screen.findByText("A unit has one request window at a time: close this one first.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open the window" })).not.toBeInTheDocument()
+  })
+
+  it("the manager reads each request, and one that cannot be accepted says why", async () => {
+    start("/requests", manager())
+
+    const table = await screen.findByRole("region", { name: "Requests for December 2026, by date" })
+    const rows = within(table).getAllByRole("row").slice(1)
+    expect(within(rows[0]).getAllByRole("cell").slice(0, 4).map((cell) => cell.textContent)).toEqual([
+      "Amal Saleh", "3 Dec 2026", "Night (N)Exam on the 4th.", "Waiting for a decision"])
+    expect(within(rows[1]).getByText("Cannot be accepted: Badr Harbi is on leave on 4 December 2026, and leave wins over a pin.")).toBeInTheDocument()
+    expect(within(rows[1]).queryByRole("button", { name: /^Accept/ })).not.toBeInTheDocument()
+    expect(within(rows[1]).getByRole("button", { name: "Reject Badr Harbi's request for 4 Dec 2026" })).toBeInTheDocument()
+  })
+
+  it("the manager accepts a request, told first that it replaces their pin, and is told a version was made", async () => {
+    let sent: unknown = null
+    const { user } = start("/requests", manager({
+      "POST /api/units/u1/requests/r1/accept": ({ body }: { body: unknown }) => {
+        sent = body
+        return { body: { request: { ...ROW, state: "accepted", promised: "N", replaces_pin: null }, version: 2 } }
+      },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Accept Amal Saleh's request for 3 Dec 2026" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByText(/replaces your pin of day \(d\) on that day/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Accept the request" }))
+
+    const status = await screen.findByText("Accepted Amal Saleh's request for night (n) on 3 Dec 2026. Amal Saleh is told. Version 2 of the roster is now in force, and the unit's nurses are told it changed, not why.")
+    expect(sent).toEqual({ reason: "" })
+    await waitFor(() => expect(status).toHaveFocus())
+  })
+
+  it("the manager rejects only with a reason", async () => {
+    let sent: unknown = null
+    const { user } = start("/requests", manager({
+      "POST /api/units/u1/requests/r2/reject": ({ body }: { body: unknown }) => { sent = body; return { body: { request: { ...REFUSED, state: "rejected" }, version: null } } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Reject Badr Harbi's request for 4 Dec 2026" }))
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Reject the request" }))
+    expect(await within(dialog).findByText("Say why: the nurse reads it with her request.")).toBeInTheDocument()
+    expect(sent).toBeNull()
+
+    await user.type(within(dialog).getByLabelText("Why"), "Two others are off that day.")
+    await user.click(within(dialog).getByRole("button", { name: "Reject the request" }))
+
+    expect(await screen.findByText("Rejected Badr Harbi's request for a day off on 4 Dec 2026. Badr Harbi is told.")).toBeInTheDocument()
+    expect(sent).toEqual({ reason: "Two others are off that day." })
+  })
+
+  it("the manager changes what an accepted request promises, and a refusal stays in the dialog", async () => {
+    const accepted = { ...ROW, state: "accepted", promised: "N", replaces_pin: null }
+    const { user } = start("/requests", manager({
+      "GET /api/units/u1/request-windows/w1/requests": { body: [accepted] },
+      "POST /api/units/u1/requests/r1/edit": { status: 409, body: { detail: "The request already promises Night (N). Choose something else, or leave it as it is." } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Change Amal Saleh's request for 3 Dec 2026" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByLabelText("It now promises")).toHaveValue("N")
+    await user.type(within(dialog).getByLabelText("Why"), "Same.")
+    await user.click(within(dialog).getByRole("button", { name: "Change what it promises" }))
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The request already promises Night (N).")
+  })
+
+  it("the manager closes a window early after being asked", async () => {
+    let closed = false
+    const { user } = start("/requests", manager({
+      "GET /api/units/u1/request-windows": () => ({ body: closed ? { ...WINDOWS, windows: [{ ...WINDOWS.windows[0], state: "closed", closed_early_by: "Mona Ali" }] } : WINDOWS }),
+      "POST /api/units/u1/request-windows/w1/close": () => { closed = true; return { body: { ...WINDOWS.windows[0], state: "closed" } } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Close early" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByText(/The nurses told it opened are told it closed early/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Close the window" }))
+
+    expect(await screen.findByText("The request window for December 2026 is closed.")).toBeInTheDocument()
+    expect(await screen.findByText("Closed, early by Mona Ali")).toBeInTheDocument()
+  })
+
+  it("is not for other roles", async () => {
+    const { router } = start("/requests", { ...nurseHome() })
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+  })
+
+  it("a nurse's notification leads to My month and the manager's to the requests", async () => {
+    const note = (id: string, page: string) => ({ id, event: "x", text: id, link: { page, month: "2026-12", unit_id: null }, created_at: "2026-11-10T09:00:00+03:00", read: true })
+    start("/notifications", { ...session(NURSE), "GET /api/notifications": { body: { unread: 0, items: [note("a", "my_month"), note("b", "requests")] } } })
+
+    expect(await screen.findByRole("link", { name: "Open My month" })).toHaveAttribute("href", "/my-month?month=2026-12")
+    expect(screen.getByRole("link", { name: "Open the requests" })).toHaveAttribute("href", "/requests?month=2026-12")
+  })
+
+  it("the audit log names what was done to requests", async () => {
+    const entry = (id: number, action: string) => ({ id, action, actor: "mona", target: "Amal", at: "2026-11-05T07:00:00+03:00", ip: null, before: null, after: null })
+    start("/audit-log", admin({
+      "GET /api/audit/entries": { body: { entries: [entry(1, "request.made"), entry(2, "request.accepted"), entry(3, "request_window.opened")], next_before: null } },
+      "GET /api/audit/filter-options": { body: { users: [], actions: [] } },
+    }))
+
+    expect(await screen.findByText("Made a request")).toBeInTheDocument()
+    expect(screen.getByText("Accepted a nurse's request")).toBeInTheDocument()
+    expect(screen.getByText("Opened a request window")).toBeInTheDocument()
   })
 })

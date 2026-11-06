@@ -3153,7 +3153,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WindowBody"
+                "$ref": "#/components/schemas/RequestWindowBody"
               }
             }
           },
@@ -3300,7 +3300,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Decided"
+                  "$ref": "#/components/schemas/RequestDecided"
                 }
               }
             }
@@ -3314,7 +3314,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AcceptBody"
+                "$ref": "#/components/schemas/AcceptRequestBody"
               }
             }
           },
@@ -3359,7 +3359,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Decided"
+                  "$ref": "#/components/schemas/RequestDecided"
                 }
               }
             }
@@ -3372,7 +3372,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReasonBody"
+                "$ref": "#/components/schemas/RequestReasonBody"
               }
             }
           },
@@ -3417,7 +3417,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Decided"
+                  "$ref": "#/components/schemas/RequestDecided"
                 }
               }
             }
@@ -3431,7 +3431,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EditBody"
+                "$ref": "#/components/schemas/EditRequestBody"
               }
             }
           },
@@ -3476,7 +3476,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Decided"
+                  "$ref": "#/components/schemas/RequestDecided"
                 }
               }
             }
@@ -3490,7 +3490,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReasonBody"
+                "$ref": "#/components/schemas/RequestReasonBody"
               }
             }
           },
@@ -8581,11 +8581,25 @@
       "EditBody": {
         "additionalProperties": false,
         "properties": {
-          "reason": {
-            "description": "The nurse reads it with her request, and nobody but you and her: never a notification or the audit log.",
-            "maxLength": 2000,
+          "hospital_id": {
+            "maxLength": 150,
             "minLength": 1,
-            "title": "Reason",
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "action": {
+            "description": "Pin a shift, pin a day off, or clear the cell's pin.",
+            "enum": [
+              "shift",
+              "off",
+              "clear"
+            ],
+            "title": "Action",
             "type": "string"
           },
           "shift": {
@@ -8598,13 +8612,14 @@
                 "type": "null"
               }
             ],
-            "description": "The shift's code it now promises, or null for a day off.",
+            "description": "The shift's code, with `shift`.",
             "title": "Shift"
           }
         },
         "required": [
-          "reason",
-          "shift"
+          "hospital_id",
+          "date",
+          "action"
         ],
         "title": "EditBody",
         "type": "object"
@@ -10144,7 +10159,7 @@
         "title": "WindowRow",
         "type": "object"
       },
-      "WindowBody": {
+      "RequestWindowBody": {
         "additionalProperties": false,
         "properties": {
           "month": {
@@ -10174,10 +10189,10 @@
           "opens_on",
           "closes_on"
         ],
-        "title": "WindowBody",
+        "title": "RequestWindowBody",
         "type": "object"
       },
-      "StepRow": {
+      "RequestStepRow": {
         "properties": {
           "step": {
             "enum": [
@@ -10226,7 +10241,7 @@
           "reason",
           "shift"
         ],
-        "title": "StepRow",
+        "title": "RequestStepRow",
         "type": "object"
       },
       "UnitRequestRow": {
@@ -10323,7 +10338,7 @@
           },
           "steps": {
             "items": {
-              "$ref": "#/components/schemas/StepRow"
+              "$ref": "#/components/schemas/RequestStepRow"
             },
             "title": "Steps",
             "type": "array"
@@ -10345,7 +10360,7 @@
         "title": "UnitRequestRow",
         "type": "object"
       },
-      "Decided": {
+      "RequestDecided": {
         "properties": {
           "request": {
             "$ref": "#/components/schemas/UnitRequestRow"
@@ -10367,10 +10382,10 @@
           "request",
           "version"
         ],
-        "title": "Decided",
+        "title": "RequestDecided",
         "type": "object"
       },
-      "AcceptBody": {
+      "AcceptRequestBody": {
         "additionalProperties": false,
         "properties": {
           "reason": {
@@ -10381,10 +10396,10 @@
             "type": "string"
           }
         },
-        "title": "AcceptBody",
+        "title": "AcceptRequestBody",
         "type": "object"
       },
-      "ReasonBody": {
+      "RequestReasonBody": {
         "additionalProperties": false,
         "properties": {
           "reason": {
@@ -10398,7 +10413,38 @@
         "required": [
           "reason"
         ],
-        "title": "ReasonBody",
+        "title": "RequestReasonBody",
+        "type": "object"
+      },
+      "EditRequestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "The nurse reads it with her request, and nobody but you and her: never a notification or the audit log.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "shift": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The shift's code it now promises, or null for a day off.",
+            "title": "Shift"
+          }
+        },
+        "required": [
+          "reason",
+          "shift"
+        ],
+        "title": "EditRequestBody",
         "type": "object"
       },
       "MyRequestRow": {
@@ -10444,7 +10490,7 @@
           },
           "steps": {
             "items": {
-              "$ref": "#/components/schemas/StepRow"
+              "$ref": "#/components/schemas/RequestStepRow"
             },
             "title": "Steps",
             "type": "array"

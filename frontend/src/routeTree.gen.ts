@@ -24,6 +24,7 @@ import { Route as SignedInMyMonthRouteImport } from './routes/_signed-in/my-mont
 import { Route as SignedInMyRosterRouteImport } from './routes/_signed-in/my-roster'
 import { Route as SignedInNotificationsRouteImport } from './routes/_signed-in/notifications'
 import { Route as SignedInNursesRouteImport } from './routes/_signed-in/nurses'
+import { Route as SignedInRequestsRouteImport } from './routes/_signed-in/requests'
 import { Route as SignedInRosterRouteImport } from './routes/_signed-in/roster'
 import { Route as SignedInRosteringAttributesRouteImport } from './routes/_signed-in/rostering-attributes'
 import { Route as SignedInRostersRouteImport } from './routes/_signed-in/rosters'
@@ -111,6 +112,11 @@ const SignedInNotificationsRoute = SignedInNotificationsRouteImport.update({
 const SignedInNursesRoute = SignedInNursesRouteImport.update({
   id: '/nurses',
   path: '/nurses',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInRequestsRoute = SignedInRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInRosterRoute = SignedInRosterRouteImport.update({
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/my-roster': typeof SignedInMyRosterRoute
   '/notifications': typeof SignedInNotificationsRoute
   '/nurses': typeof SignedInNursesRoute
+  '/requests': typeof SignedInRequestsRoute
   '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/rosters': typeof SignedInRostersRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByTo {
   '/my-roster': typeof SignedInMyRosterRoute
   '/notifications': typeof SignedInNotificationsRoute
   '/nurses': typeof SignedInNursesRoute
+  '/requests': typeof SignedInRequestsRoute
   '/roster': typeof SignedInRosterRoute
   '/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/rosters': typeof SignedInRostersRoute
@@ -262,6 +270,7 @@ export interface FileRoutesById {
   '/_signed-in/my-roster': typeof SignedInMyRosterRoute
   '/_signed-in/notifications': typeof SignedInNotificationsRoute
   '/_signed-in/nurses': typeof SignedInNursesRoute
+  '/_signed-in/requests': typeof SignedInRequestsRoute
   '/_signed-in/roster': typeof SignedInRosterRoute
   '/_signed-in/rostering-attributes': typeof SignedInRosteringAttributesRoute
   '/_signed-in/rosters': typeof SignedInRostersRoute
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
     | '/my-roster'
     | '/notifications'
     | '/nurses'
+    | '/requests'
     | '/roster'
     | '/rostering-attributes'
     | '/rosters'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/my-roster'
     | '/notifications'
     | '/nurses'
+    | '/requests'
     | '/roster'
     | '/rostering-attributes'
     | '/rosters'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/_signed-in/my-roster'
     | '/_signed-in/notifications'
     | '/_signed-in/nurses'
+    | '/_signed-in/requests'
     | '/_signed-in/roster'
     | '/_signed-in/rostering-attributes'
     | '/_signed-in/rosters'
@@ -485,6 +497,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInNursesRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/requests': {
+      id: '/_signed-in/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof SignedInRequestsRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/roster': {
       id: '/_signed-in/roster'
       path: '/roster'
@@ -598,6 +617,7 @@ interface SignedInRouteChildren {
   SignedInMyRosterRoute: typeof SignedInMyRosterRoute
   SignedInNotificationsRoute: typeof SignedInNotificationsRoute
   SignedInNursesRoute: typeof SignedInNursesRoute
+  SignedInRequestsRoute: typeof SignedInRequestsRoute
   SignedInRosterRoute: typeof SignedInRosterRoute
   SignedInRosteringAttributesRoute: typeof SignedInRosteringAttributesRoute
   SignedInRostersRoute: typeof SignedInRostersRoute
@@ -627,6 +647,7 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInMyRosterRoute: SignedInMyRosterRoute,
   SignedInNotificationsRoute: SignedInNotificationsRoute,
   SignedInNursesRoute: SignedInNursesRoute,
+  SignedInRequestsRoute: SignedInRequestsRoute,
   SignedInRosterRoute: SignedInRosterRoute,
   SignedInRosteringAttributesRoute: SignedInRosteringAttributesRoute,
   SignedInRostersRoute: SignedInRostersRoute,
