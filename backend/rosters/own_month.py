@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from nurse_roster.request import load_request
 
 from hospital.models import Shift
+from rosters.drafts import current_code
 from solves.input import assemble
 from units.models import Unit
 
@@ -48,3 +49,19 @@ def own_hours(unit: Unit, month: dt.date, hospital_id: str, row: dict[str, str])
                     overtime=max(0, worked - owed) if counted else 0,
                     carried=problem.carry_over(nurse, worked) if counted else None,
                     shifts={code: codes.count(code) for code in dict.fromkeys(codes)})
+
+
+def closed_hours(close, hospital_id: str) -> OwnHours | None:
+    """A closed month's figures for one nurse, as its close stored them (`closing.models.MonthClose`): fact, whatever has been
+    corrected since. Its shifts under their codes now. None when the close did not have them in the month."""
+    row = close.result["nurses"].get(hospital_id)
+    if row is None:
+        return None
+    counted = close.input["general"]["hours_rule_enabled"]
+    shifts: dict[str, int] = {}
+    for code, count in row["shifts"].items():
+        if count:
+            now = current_code(code)
+            shifts[now] = shifts.get(now, 0) + count
+    return OwnHours(worked=row["hours_worked"], leave_credit=row["leave_credit"], owed=row["required"] if counted else None,
+                    overtime=row["overtime"], carried=row["carry_over"]["hours_balance"] if counted else None, shifts=shifts)

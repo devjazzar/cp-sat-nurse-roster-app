@@ -95,11 +95,18 @@ def window_closed(window: "RequestWindow") -> None:
     notify([window.unit.manager], Event.WINDOW_CLOSED, **_about(window.unit, window.month), window_id=str(window.pk))
 
 
-def request_decided(request: "Request", step: str, by: User) -> None:
+def request_decided(request: "Request", step: str, by: User | None) -> None:
     """To the nurse who made it, and nobody else. Never its date, shift or either reason: the words read them from the request
-    when shown, and only she reads them."""
+    when shown, and only she reads them. `by` is None when the month's close ended it (`expired`)."""
     notify([request.nurse.user], Event.REQUEST_DECIDED, **_about(request.window.unit, request.window.month),
-           request_id=str(request.pk), step=str(step), by=str(by.pk))
+           request_id=str(request.pk), step=str(step), **({"by": str(by.pk)} if by is not None else {}))
+
+
+def month_closed(unit: Unit, month: dt.date, close_id: UUID) -> None:
+    """To the unit's manager, when the schedule closes its month: how many hard rules the recorded facts broke is read from the
+    close when shown, never kept here, since a broken rule can be a nurse's leave. A manager who closes it again sees it there and
+    then, so is not told."""
+    notify([unit.manager], Event.MONTH_CLOSED, **_about(unit, month), close_id=str(close_id))
 
 
 class SwapStep(TextChoices):

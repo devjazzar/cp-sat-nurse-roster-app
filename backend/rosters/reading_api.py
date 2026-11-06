@@ -20,11 +20,12 @@ from hospital.models import Shift
 from nurses import membership
 from nurses.api import MonthText
 from nurses.models import Leave, NurseProfile
+from closing.models import CarryOver, CarrySource, MonthClose
 from rosters import review
 from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names
 from rosters.models import Roster, RosterState, RosterVersion
-from rosters.own_month import OwnHours, own_hours
+from rosters.own_month import OwnHours, closed_hours, own_hours
 from rosters.sheets import MyDay, RosterSheet, as_schema, days_of, sheet_of
 from units.models import Unit
 
@@ -34,7 +35,7 @@ approver = SignedIn(Role.CNO, Role.DEPUTY_CNO)
 nurse_reader = SignedIn(Role.STAFF_NURSE, Role.UNIT_MANAGER)
 OVERVIEW_MONTHS = 4
 
-State = Literal["none", "draft", "submitted", "approved"]
+State = Literal["none", "draft", "submitted", "approved", "closed"]
 
 
 class OverviewFilter(Schema):
@@ -45,7 +46,8 @@ class OverviewUnit(Schema):
     id: UUID
     name: str
     archived: bool
-    states: list[State] = Field(description="One for each of `months`, in order.")
+    states: list[State] = Field(description="One for each of `months`, in order. `closed` is an approved roster whose month has "
+                                            "closed.")
 
 
 class Overview(Schema):
@@ -66,6 +68,7 @@ def overview(request: HttpRequest, filters: Query[OverviewFilter]) -> Overview:
     months = _months_from(first, OVERVIEW_MONTHS)
     states = {(unit_id, month): state for unit_id, month, state in
               Roster.objects.filter(month__in=months).values_list("unit_id", "month", "state")}
+    states |= {pair: "closed" for pair in MonthClose.objects.filter(month__in=months).values_list("unit_id", "month")}
     with_rosters = {unit_id for unit_id, _ in states}
     units = Unit.objects.filter(Q(archived=False) | Q(pk__in=with_rosters))
     return Overview(months=[month.strftime("%Y-%m") for month in months], units=[
@@ -122,7 +125,8 @@ class NurseRoster(Schema):
 
 class MyRosterMonth(Schema):
     month: str
-    first_month: str = Field(description="The earliest month shown here: this one. Earlier months are not.")
+    first_month: str = Field(description="The earliest month shown here: this one, or the earliest of theirs that has closed. An "
+                                         "earlier month shows once it has closed, as its close read it.")
     unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
                                          "their first placement.")
     roster: NurseRoster | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
@@ -148,13 +152,15 @@ class MyRosterFilter(Schema):
 
 @dataclass
 class _InForce:
-    """The month a nurse reads, the unit it falls under for them and the version in force there, if any."""
+    """The month a nurse reads, the unit it falls under for them and the version in force there, if any. A month before this one
+    is read once it has closed, as its close read it: the version it closed and the figures it stored (ticket 21)."""
     month: dt.date
     first: dt.date
     nurse: NurseProfile | None
     unit: Unit | None
     roster: Roster | None = None
     version: RosterVersion | None = None
+    close: MonthClose | None = None
 
     @property
     def grid(self) -> dict[str, dict[str, str]]:
@@ -170,18 +176,35 @@ class _InForce:
                 "unit": self.unit.name if self.unit else None}
 
 
+def _first_month(nurse: NurseProfile | None) -> dt.date:
+    """This month, or the earliest of theirs that has closed, which they read as it closed."""
+    this_month = membership.this_month()
+    if nurse is None:
+        return this_month
+    earliest = CarryOver.objects.filter(nurse=nurse, source=CarrySource.CLOSED).order_by("month").values_list("month", flat=True).first()
+    return min(earliest, this_month) if earliest else this_month
+
+
 def _in_force(user: User, chosen: str | None) -> _InForce:
     """The unit is the one the month falls under for them, so across a transfer each month shows its own unit's roster, and a
-    nurse due to start sees their unit's with no row of their own. Nothing before this month."""
+    nurse due to start sees their unit's with no row of their own. A month before this one only once it has closed."""
     month = dt.date.fromisoformat(f"{chosen}-01") if chosen else membership.this_month()
     nurse = NurseProfile.objects.filter(user=user).select_related("user").first()
     placement = membership.placement_in(nurse, month) if nurse else None
-    found = _InForce(month=month, first=membership.this_month(), nurse=nurse, unit=placement.unit if placement else None)
+    found = _InForce(month=month, first=_first_month(nurse), nurse=nurse, unit=placement.unit if placement else None)
     if found.unit is None or month < found.first:
         return found
     found.roster = Roster.objects.filter(unit=found.unit, month=month, state=RosterState.APPROVED).first()
-    if found.roster is not None:
-        found.version = found.roster.versions.first()  # The latest, by `RosterVersion.Meta.ordering`: the one in force.
+    if found.roster is None:
+        return found
+    if month < membership.this_month():
+        found.close = MonthClose.objects.filter(unit=found.unit, month=month).first()
+        if found.close is None:
+            found.roster = None
+            return found
+        found.version = found.roster.versions.get(number=found.close.version)
+        return found
+    found.version = found.roster.versions.first()  # The latest, by `RosterVersion.Meta.ordering`: the one in force.
     return found
 
 
@@ -210,7 +233,8 @@ def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterM
 
 class MyRosterSheet(Schema):
     month: str
-    first_month: str = Field(description="The earliest month shown here: this one. Earlier months are not.")
+    first_month: str = Field(description="The earliest month shown here: this one, or the earliest of theirs that has closed. An "
+                                         "earlier month shows once it has closed, as its close read it.")
     unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
                                          "their first placement.")
     sheet: RosterSheet | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
@@ -253,13 +277,15 @@ class MyHours(Schema):
 class MyMonthInForce(Schema):
     version: int
     approved_at: dt.datetime
+    closed: bool = Field(description="The month has closed: `hours` are its close's figures, fact, and `carried` is what it "
+                                     "handed on.")
     hours: MyHours | None = Field(description="Null when the reader has no row on it, such as a nurse due to start, or when "
                                               "the month as it stands no longer has them.")
 
 
 class MyMonth(Schema):
     month: str
-    first_month: str = Field(description="The earliest month with hours here: this one.")
+    first_month: str = Field(description="The earliest month with hours here: this one, or the earliest of theirs that has closed.")
     unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
                                          "their first placement.")
     roster: MyMonthInForce | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
@@ -277,8 +303,11 @@ def my_month(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyMonth:
         return answer
     mine = found.nurse.user.username
     grid = found.grid
-    hours = own_hours(found.unit, found.month, mine, grid[mine]) if mine in grid else None
-    answer.roster = MyMonthInForce(version=found.version.number, approved_at=found.approved_at,
+    if found.close is not None:
+        hours = closed_hours(found.close, mine)
+    else:
+        hours = own_hours(found.unit, found.month, mine, grid[mine]) if mine in grid else None
+    answer.roster = MyMonthInForce(version=found.version.number, approved_at=found.approved_at, closed=found.close is not None,
                                    hours=_my_hours(hours) if hours else None)
     return answer
 

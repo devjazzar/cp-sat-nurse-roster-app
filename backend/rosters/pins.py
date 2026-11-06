@@ -80,12 +80,15 @@ class MonthPins:
     rows: list[PinnedCell] = field(default_factory=list)
 
 
-def month_pins(unit: Unit, month: dt.date) -> MonthPins:
+def month_pins(unit: Unit, month: dt.date, *, facts: bool = False) -> MonthPins:
+    """`facts` for a month that is over, which its close makes fact (ticket 21): a pin set aside because of its day (the nurse not
+    in the month, outside her dates, on leave) still counts for nothing, but one on a shift the unit has stopped working, or the
+    nurse may no longer work, since it was set was worked, and counts, under the shift's code now."""
     judge = Judge(unit, month)
     pins = MonthPins()
     rows = PinnedCell.objects.current().in_month(month).filter(unit=unit).select_related("shift", "nurse__user")
     for pin in rows.order_by("nurse__user__username", "date"):
-        pin.aside = judge.why(pin.nurse_id, pin.date, pin.shift)
+        pin.aside = judge.day_why(pin.nurse_id, pin.date) if facts else judge.why(pin.nurse_id, pin.date, pin.shift)
         pins.rows.append(pin)
         if pin.aside is None:
             pins.counted.setdefault(pin.nurse.user.username, {})[pin.date.isoformat()] = pin.code

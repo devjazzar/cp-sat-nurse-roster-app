@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from procrastinate.contrib.django import app
 from procrastinate.contrib.django.models import ProcrastinateJob, ProcrastinateWorker
+from procrastinate.exceptions import AlreadyEnqueued
 
 from ops.status import WORKER_SILENCE
 
@@ -17,9 +19,11 @@ _HOSPITAL_WIDE_SOLVE = "solve"
 
 
 def _periodic(cron: str) -> Callable:
-    """A job that takes the time it was due, as `timestamp`, and at most one of which waits at a time."""
+    """A job that takes the time it was due, as `timestamp`. At most one of it waits at a time (its queueing lock), and it never
+    runs beside its own previous run (its lock), both under its own name (ADR 0009): at the worker's concurrency of 4, a periodic
+    job runs beside a solve, but never beside itself."""
     def schedule(job: Callable) -> Callable:
-        return app.periodic(cron=cron)(app.task(queueing_lock=job.__name__)(job))
+        return app.periodic(cron=cron)(app.task(queueing_lock=job.__name__, lock=job.__name__)(job))
     return schedule
 
 
@@ -32,6 +36,21 @@ every_five_minutes = _periodic("*/5 * * * *")
 
 def one_at_a_time_across_the_hospital(job: Callable) -> Callable:
     return app.task(lock=_HOSPITAL_WIDE_SOLVE)(job)
+
+
+def under_its_own_lock(job: Callable) -> Callable:
+    """A job run on demand that may not run beside itself (ADR 0009's rule 1)."""
+    return app.task(lock=job.__name__)(job)
+
+
+def enqueue_once(job: Callable, key: str, **arguments) -> int | None:
+    """As `enqueue`, but no second copy waits while one with this key does: None then. In a savepoint of its own, so the copy
+    already waiting fails only this and not the caller's transaction."""
+    try:
+        with transaction.atomic():
+            return job.configure(queueing_lock=key).defer(**arguments)
+    except AlreadyEnqueued:
+        return None
 
 
 def enqueue(job: Callable, **arguments) -> int:

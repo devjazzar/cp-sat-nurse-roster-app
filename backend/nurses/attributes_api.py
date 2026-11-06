@@ -16,6 +16,7 @@ from pydantic import AfterValidator, Field
 from accounts.authz import SignedIn
 from accounts.models import Role, User
 from audit.log import record
+from closing.chain import has_closed
 from hospital.api import StrictSchema, differing, refuse
 from hospital.models import HospitalSettings
 from nurses import membership
@@ -69,6 +70,9 @@ class NurseAttributesRow(Schema):
     friday_balance: float
     allowed_shifts: list[str] | None = Field(description="In this unit. Empty for any shift it works.")
     allowed_shifts_to_check: bool = Field(description="A transfer emptied the list, as none of its shifts are worked here.")
+    opening_values_locked: bool = Field(description="Their first month has closed: the opening values (`ytd_overtime`, "
+                                                    "`hours_balance`, `night_balance`, `friday_balance`) can no longer change, "
+                                                    "as the carry-over comes from the closes now.")
 
 
 def _row(nurse: NurseProfile, unit: Unit) -> NurseAttributesRow:
@@ -83,7 +87,20 @@ def _row(nurse: NurseProfile, unit: Unit) -> NurseAttributesRow:
         team_leader=nurse.team_leader, score=nurse.score, ramadan_reduced=nurse.ramadan_reduced,
         breastfeeding=nurse.breastfeeding, ytd_overtime=nurse.ytd_overtime, hours_balance=nurse.hours_balance,
         night_balance=nurse.night_balance, friday_balance=nurse.friday_balance,
-        allowed_shifts=here.allowed_shifts, allowed_shifts_to_check=here.allowed_shifts_to_check)
+        allowed_shifts=here.allowed_shifts, allowed_shifts_to_check=here.allowed_shifts_to_check,
+        opening_values_locked=has_closed(nurse))
+
+
+OPENING_VALUES = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance")
+
+
+def _refuse_opening_values(nurse: NurseProfile, changing: dict) -> None:
+    """Editable until her first month closes (ticket 21). They travel in one body with the attributes, so a save that leaves them
+    as they are goes through, and only a field that changes is refused."""
+    locked = [name for name in OPENING_VALUES if name in changing]
+    if locked and has_closed(nurse):
+        refuse(*[((name,), f"{nurse.user.full_name}'s first month has closed, so their opening values can no longer change: "
+                           "each month now starts from the carry-over of the one before.") for name in locked])
 
 
 def _row_as_saved(nurse_id: UUID, unit: Unit) -> NurseAttributesRow:
@@ -123,8 +140,8 @@ def list_nurse_attributes(request, unit_id: UUID) -> list[NurseAttributesRow]:
             operation_id="updateNurseAttributes")
 def update_nurse_attributes(request, unit_id: UUID, nurse_id: UUID, body: AttributesBody) -> NurseAttributesRow:
     """A manager with a nurse profile sets their own, because nobody else may and a nurse has to have them. The CNO and the
-    Deputy CNO can read the values, and the log shows whose hand changed them. Ticket 21 refuses the opening values here
-    once the nurse's first month has closed."""
+    Deputy CNO can read the values, and the log shows whose hand changed them. The opening values are refused, on their fields
+    alone, once the nurse's first month has closed."""
     with transaction.atomic():
         HospitalSettings.load(for_update=True)
         unit, nurse = _nurse_to_change(request.user, unit_id, nurse_id)
@@ -133,6 +150,7 @@ def update_nurse_attributes(request, unit_id: UUID, nurse_id: UUID, body: Attrib
         _refuse_shifts_outside(unit, nurse, body.allowed_shifts)
         fields = body.model_dump(exclude={"allowed_shifts"})
         _, changing = differing({name: getattr(nurse, name) for name in fields}, fields)
+        _refuse_opening_values(nurse, changing)
         for name, value in changing.items():
             setattr(nurse, name, value)
         nurse.attributes_saved = True  # A save that changes nothing still says someone looked: see ticket 11.

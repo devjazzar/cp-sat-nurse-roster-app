@@ -52,7 +52,9 @@ NOT_APPROVED = "This roster is not approved yet, so its changes are saved as pin
 class DraftChange(Schema):
     hospital_id: str
     full_name: str
-    what: Literal["gender", "leave", "joined", "left", "pins"]
+    what: Literal["gender", "leave", "joined", "left", "pins", "closed"] = Field(
+        description="`closed`: the month before closed after this was solved, so the carry-over it started from was projected and "
+                    "the close's is the one that holds now (ticket 21).")
 
 
 class GridViolation(Schema):
@@ -284,7 +286,7 @@ def _roster_month(unit: Unit, month: dt.date, user: User) -> RosterMonth:
                            submit_refusal=ONLY_THE_MANAGER if approving else none or None,
                            approve_refusal=review.why_not_decide(roster) if approving else ONLY_APPROVERS,
                            reject_refusal=review.why_not_decide(roster) if approving else ONLY_APPROVERS)
-    changes = changes_since(roster.solve.input, unit, month)
+    changes = changes_since(roster.solve.input, unit, month, since=roster.solve.requested_at)
     checked = _checked(roster, changes)
     return RosterMonth(
         month=label, state=roster.state, submitted=_waiting(roster), last_rejection=_rejection(roster),

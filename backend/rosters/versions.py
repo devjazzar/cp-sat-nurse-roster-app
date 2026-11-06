@@ -28,6 +28,7 @@ def make_version(roster: Roster, grid: Grid, origin: str, by: User, reason: str 
     """The next number, with `grid` in today's codes, which becomes `Roster.grid` too. Hold the roster's row lock, so that two
     changes at once each get their own number in the order they commit. A live swap one of whose cells this changes expires here
     (ticket 20), whatever made the version, and its people are told it expired, never why."""
+    from closing.tasks import project  # The month close reads rosters, so not at the top.
     from swaps.expiring import on_new_version  # swaps reads rosters, so not at the top.
 
     latest = roster.versions.first()
@@ -37,6 +38,7 @@ def make_version(roster: Roster, grid: Grid, origin: str, by: User, reason: str 
                                            solve=solve, created_by=by, reason=reason)
     if latest is not None:
         on_new_version(roster, latest.grid, grid)  # Not `roster.grid`, which a direct edit has written already.
+    project(roster.unit, roster.month)
     return version
 
 

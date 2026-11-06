@@ -24,6 +24,7 @@ from ninja.errors import HttpError
 from accounts.authz import SignedIn
 from accounts.models import Role, User
 from audit.log import record
+from closing import closing
 from hospital.api import refuse
 from hospital.catalogue_api import IsoDate
 from hospital.models import LeaveType
@@ -98,6 +99,9 @@ class UnitLeaveMonth(Schema):
     month: str = Field(description="YYYY-MM.")
     nurses: list[LeaveNurse] = Field(description="Who may have leave recorded this month, and anyone who has some.")
     runs: list[LeaveRun]
+    closed: Literal["open", "closed", "fixed"] = Field(
+        description="`closed`: the month has closed, and leave changed here is taken in when its manager closes it again. "
+                    "`fixed`: the month after has closed too, so its leave can no longer change. `open` otherwise.")
 
 
 class RemovedPin(Schema):
@@ -224,7 +228,20 @@ def _rows_to_change(user: User, unit_id: UUID, ids: list[UUID]) -> tuple[Unit, N
         raise refused
     if any(row.removed_at for row in rows):
         raise HttpError(409, "This leave has changed since the page was opened. Reload the page to see it as it is.")
+    _refuse_fixed_months(unit, [row.date for row in rows], "leave_ids")
     return unit, nurse, rows
+
+
+def _months(days: Iterable[dt.date]) -> list[dt.date]:
+    return sorted({day.replace(day=1) for day in days})
+
+
+def _refuse_fixed_months(unit: Unit, days: Iterable[dt.date], field: str) -> None:
+    """A closed month is a fact. Leave stays open while it can be closed again, since late facts are what that is for; once the
+    month after it has closed, its leave is fixed for good (ticket 21)."""
+    fixed = next((month for month in _months(days) if closing.fixed_for_good(unit, month)), None)
+    if fixed is not None:
+        refuse(((field,), f"{fixed:%B %Y} has closed, and so has the month after it, so its leave can no longer change."))
 
 
 def _not_in_unit(nurse: NurseProfile, unit: Unit, day: dt.date) -> bool:
@@ -255,6 +272,7 @@ def _refuse_dates(nurse: NurseProfile, unit: Unit, first: dt.date, last: dt.date
         refuse((("first",), f"{name} starts on {_long_date(nurse.start_date)}, so this is before they do."))
     if nurse.end_date is not None and last > nurse.end_date:
         refuse((("last",), f"The last day of {name} is {_long_date(nurse.end_date)}."))
+    _refuse_fixed_months(unit, _days(first, last), "first")
     taken = list(Leave.objects.current().filter(nurse=nurse, date__range=(first, last)).exclude(pk__in=replacing)
                  .values_list("date", flat=True))
     if taken:
@@ -309,7 +327,8 @@ def _as_saved(nurse: NurseProfile, first: dt.date, last: dt.date) -> LeaveRun:
 # Every write below goes through `_refuse_dates`, `_rows_to_change` or both, then writes leave and one audit entry. A date added
 # ends any pin on it and takes the shift off an approved roster of a month not over (`_begin`). Leave under a submitted roster is
 # allowed, and the approval checks the month again (ticket 14); a draft keeps its shift until a solve or a hand edit (ticket 13).
-# Removing leave puts nothing back. Tickets 19 and 21 have what they must add.
+# Removing leave puts nothing back. A closed month's leave stays open while the month can be closed again, and is fixed once the
+# month after has closed (`_refuse_fixed_months`).
 @unit_leave_router.get("/{unit_id}/leave", response=UnitLeaveMonth, auth=reader, operation_id="listUnitLeave")
 def unit_leave(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) -> UnitLeaveMonth:
     """The unit's month, for its manager and, to read, for the CNO and the Deputy CNO. A nurse's month in another unit is
@@ -321,7 +340,8 @@ def unit_leave(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter])
                 .order_by(Lower("nurse__user__full_name"), "nurse_id", "date"))
     nurses = {nurse.pk: nurse for nurse in membership.rostered_in(unit, month).select_related("user")}
     nurses |= {row.nurse_id: row.nurse for row in rows}
-    return UnitLeaveMonth(month=month.strftime("%Y-%m"), runs=[_leave_run(run) for run in _runs(rows)],
+    closed = "fixed" if closing.fixed_for_good(unit, month) else "closed" if closing.is_closed(unit, month) else "open"
+    return UnitLeaveMonth(month=month.strftime("%Y-%m"), runs=[_leave_run(run) for run in _runs(rows)], closed=closed,
                           nurses=[_leave_nurse(nurse) for nurse in
                                   sorted(nurses.values(), key=lambda nurse: (nurse.user.full_name.lower(), nurse.pk))])
 

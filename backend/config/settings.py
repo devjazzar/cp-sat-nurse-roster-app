@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "notifications",
     "requesting",
     "swaps",
+    "closing",
 ]
 
 MIDDLEWARE = [

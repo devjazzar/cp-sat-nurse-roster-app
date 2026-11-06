@@ -201,3 +201,19 @@ def replaced_by_leave(nurse: NurseProfile, days: Iterable[dt.date], ended: Itera
         nurse_request.save(update_fields=["state", "pin"])
         RequestStep.objects.create(request=nurse_request, step=Step.REPLACED_BY_LEAVE, by=by)
     return rows
+
+
+MONTH_CLOSED = "The month closed before a decision."
+
+
+def expire_at_close(unit: Unit, month: dt.date) -> list[Request]:
+    """Each request of the unit's month still pending when it closes takes its final state, `expired`, with the same words for
+    everyone and naming no one (the user's decision, 2026-11-06). Its nurse is told, as of any decision: the close's caller tells
+    them after its own audit entry. No audit entry of its own, as for leave replacing a request."""
+    rows = list(Request.objects.select_for_update(of=("self",)).select_related("window__unit", "nurse__user", "shift")
+                .filter(window__unit=unit, window__month=month, state=RequestState.PENDING).order_by("date", "made_at"))
+    for nurse_request in rows:
+        nurse_request.state = RequestState.EXPIRED
+        nurse_request.save(update_fields=["state"])
+        RequestStep.objects.create(request=nurse_request, step=Step.EXPIRED, by=None, reason=MONTH_CLOSED)
+    return rows

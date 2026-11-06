@@ -53,8 +53,10 @@ def test_the_solvers_own_sample_as_this_app_holds_it_comes_out_as_the_sample(er,
     for row in expected["nurses"]:
         row.setdefault("leave", [])
         row.setdefault("allowed_shifts", None)
+        # No month before has a roster, so the carry-over is the opening values with no history (ticket 21).
+        row["previous"] = []
         # Nothing in this app holds these yet: pins arrive with ticket 13, and there are no soft preferences in v1.
-        for absent in ("undesired_days", "desired_days", "pinned", "previous"):
+        for absent in ("undesired_days", "desired_days", "pinned"):
             row.pop(absent, None)
     assert solve_input["nurses"] == expected["nurses"]
     assert (solve_input["version"], solve_input["month"], solve_input["ramadan_days"]) == (1, MONTH, [])

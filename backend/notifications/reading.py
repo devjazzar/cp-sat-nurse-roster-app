@@ -11,6 +11,7 @@ from uuid import UUID
 from django.db.models import Count, Q
 
 from accounts.models import Role, User
+from closing.models import MonthClose
 from notifications.models import Event, Notification, SolveOutcome
 from notifications.sending import SwapStep
 from requesting.models import Request, RequestState, RequestWindow, Step
@@ -42,6 +43,8 @@ class Names:
         self.windows = {str(window.pk): window for window in RequestWindow.objects.filter(pk__in=window_ids).annotate(
             waiting=Count("requests", filter=Q(requests__state=RequestState.PENDING)))}
         self.requests = {str(row.pk): row for row in Request.objects.filter(pk__in=request_ids).select_related("shift")}
+        close_ids = {note.payload.get("close_id") for note in notes} - {None}
+        self.closes = {str(close.pk): close for close in MonthClose.objects.filter(pk__in=close_ids)}
         swap_ids = {note.payload.get("swap_id") for note in notes} - {None}
         self.swaps = {str(row.pk): row for row in Swap.objects.filter(pk__in=swap_ids).select_related("proposer__user")}
 
@@ -125,6 +128,8 @@ def _decision_words(note: Notification, names: Names, by: str) -> str:
             return f"{by} cancelled your accepted request for {what} on {on}. The reason is on My month."
         case Step.REPLACED_BY_LEAVE:
             return f"Leave recorded on {on} replaced your request for {what}, as leave wins."
+        case Step.EXPIRED:
+            return f"Your request for {what} on {on} has ended: the month closed before a decision."
     return f"Your request for {what} on {on} has moved."
 
 
@@ -154,6 +159,16 @@ def _swap_words(note: Notification, names: Names, roster: str, by: str) -> str:
     return f"A swap on the {roster} has moved."
 
 
+def _close_words(note: Notification, names: Names, roster: str) -> str:
+    """How many hard rules the facts broke, read from the close; never which, since one can be a nurse's leave."""
+    close = names.closes.get(note.payload.get("close_id"))
+    broken = len(close.result["elapsed_violations"]) if close else 0
+    if not broken:
+        return f"The {roster} has closed. Its recorded facts broke no hard rule."
+    return (f"The {roster} has closed. Its recorded facts broke {broken} hard rule{'' if broken == 1 else 's'}, listed with the "
+            "roster.")
+
+
 def text_of(note: Notification, names: Names) -> str:
     payload = note.payload
     unit = names.units.get(payload.get("unit_id"))
@@ -174,6 +189,8 @@ def text_of(note: Notification, names: Names) -> str:
             return _window_words(note, names, roster, by)
         case Event.REQUEST_DECIDED:
             return _decision_words(note, names, by)
+        case Event.MONTH_CLOSED:
+            return _close_words(note, names, roster)
         case Event.SWAP_STEP:
             return _swap_words(note, names, roster, by)
     return "Something has changed."

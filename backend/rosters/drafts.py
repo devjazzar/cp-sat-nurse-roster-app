@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING, Iterable
 
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from hospital.models import Shift, ShiftRename
@@ -139,6 +140,13 @@ def frozen_cells_on_shifts_going(unit: Unit, going: set[str],
 
 
 def using_shift(code: str) -> list[Roster]:
-    """The rosters of open months whose grid holds this shift, oldest first. Until month close exists (ticket 21) every month
-    is open, and it narrows this."""
-    return [roster for roster in Roster.objects.select_related("unit").order_by("month", "unit__name") if _uses(roster, code)]
+    """The rosters of open months whose grid holds this shift, oldest first: those of a month not over, and an approved one of a
+    month over that has not closed, whose close will read it as worked. A closed month holds nothing: its close stored the hours
+    it read, and closing it again reads those (`closing.closing`). Nor does a draft or a submitted roster of a month over, which
+    can never be approved and so never closes."""
+    from closing.models import MonthClose  # The close reads rosters.
+
+    closed = MonthClose.objects.filter(unit=OuterRef("unit"), month=OuterRef("month"))
+    open_months = (Roster.objects.select_related("unit").exclude(Exists(closed))
+                   .filter(Q(month__gte=membership.this_month()) | Q(state=RosterState.APPROVED)))
+    return [roster for roster in open_months.order_by("month", "unit__name") if _uses(roster, code)]

@@ -58,6 +58,7 @@ class RequestState(models.TextChoices):
     WITHDRAWN = "withdrawn"
     CANCELLED = "cancelled"
     REPLACED_BY_LEAVE = "replaced_by_leave"
+    EXPIRED = "expired", "Still pending when its month closed (ticket 21)."
 
 
 # A request that still asks for something: the only ones that count against the cap, and one a date.
@@ -110,6 +111,7 @@ class Step(models.TextChoices):
     EDITED = "edited"
     CANCELLED = "cancelled"
     REPLACED_BY_LEAVE = "replaced_by_leave"
+    EXPIRED = "expired"
 
 
 class RequestStep(models.Model):
@@ -119,7 +121,8 @@ class RequestStep(models.Model):
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     request = models.ForeignKey(Request, on_delete=models.PROTECT, related_name="steps")
     step = models.CharField(max_length=17, choices=Step)
-    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+",
+                           help_text="Null only for `expired`, which the month's close takes, with no hand in it.")
     at = models.DateTimeField(auto_now_add=True)
     reason = models.TextField(blank=True)
     pin = models.ForeignKey("rosters.PinnedCell", on_delete=models.PROTECT, null=True, blank=True, related_name="+",
