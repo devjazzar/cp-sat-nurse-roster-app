@@ -10,9 +10,9 @@
 - Events emitted:
   - [x] roster submitted, approved, rejected
   - [x] solve finished
-  - [ ] roster changed: ticket 16 calls it (comment there)
+  - [x] roster changed: ticket 16 calls it (comment there)
   - [x] window opened, request decided: ticket 19 (comment there)
-  - [ ] swap step reached: ticket 20 (comment there)
+  - [x] swap step reached: ticket 20 (comment there)
 - Nurse's own summary from the result in force:
   - [x] hours, overtime, what is carried, shift counts (with My leave taken in)
   - [x] requests and their status: ticket 19 (a slot on My month, comment there)
