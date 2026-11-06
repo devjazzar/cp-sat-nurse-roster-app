@@ -3,6 +3,7 @@ manager's reasons. Nothing here takes a nurse, so nobody reads a colleague's req
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Iterable
 from typing import Literal
 from uuid import UUID
 
@@ -22,6 +23,7 @@ from requesting.api import RequestStateText, RequestStepRow, step_rows, with_ste
 from requesting.models import Request, WindowState
 from requesting.windows import state_today
 from solves.api import MonthFilter, chosen_month
+from units.models import Unit
 
 router = Router(tags=["requests"])
 nurse_only = SignedIn(Role.STAFF_NURSE)
@@ -61,12 +63,12 @@ class MyRequests(Schema):
     requests: list[MyRequestRow] = Field(description="Yours for this month, every state, by date.")
 
 
-def my_rows(requests) -> list[MyRequestRow]:
+def my_rows(requests: Iterable[Request]) -> list[MyRequestRow]:
     return [MyRequestRow(id=row.pk, date=row.date, shift=row.code, state=row.state, promised=row.pin.code if row.pin else None,
                          steps=step_rows(list(row.steps.all()))) for row in requests]
 
 
-def _shifts(nurse: NurseProfile, month: dt.date, unit) -> list[RequestableShift]:
+def _shifts(nurse: NurseProfile, month: dt.date, unit: Unit) -> list[RequestableShift]:
     allowed = membership.placement_in(nurse, month).allowed_shifts
     shifts = Shift.objects.filter(active=True, code__in=unit.rules.get("shifts", [])).order_by("start_time", "code")
     return [RequestableShift(code=shift.code, display_name=shift.display_name) for shift in shifts
@@ -80,13 +82,13 @@ def my_requests(request: HttpRequest, filters: Query[MonthFilter]) -> MyRequests
     rows = my_rows(with_steps(Request.objects.filter(nurse=nurse, date__year=month.year, date__month=month.month)))
     window = making.window_for(nurse, month) if nurse else None
     answer = MyRequests(month=month.strftime("%Y-%m"), window=None, request_cap=None, counted=0, shifts=[], first_day=None,
-                        last_day=None, requests=rows, refusal=f"No request window is open for {month:%B %Y}.")
+                        last_day=None, requests=rows, refusal=f"No request window is open for {making.month_name(month)}.")
     if window is None:
         return answer
     state = state_today(window)
     answer.window = MyWindow(unit=window.unit.name, opens_on=window.opens_on, closes_on=window.closes_on, state=state,
                              closed_early=window.closed_by_id is not None)
-    answer.request_cap, answer.counted = window.unit.request_cap, making.live_in(nurse, month).count()
+    answer.request_cap, answer.counted = window.unit.request_cap, making.live_in(nurse, month, window.unit).count()
     first, last = max(month, nurse.start_date), min(membership.last_day_of(month), nurse.end_date or dt.date.max)
     if first <= last:
         answer.first_day, answer.last_day = first, last
@@ -94,10 +96,9 @@ def my_requests(request: HttpRequest, filters: Query[MonthFilter]) -> MyRequests
     if state != WindowState.OPEN:
         return answer
     if first > last:
-        answer.refusal = f"You have no days on the {window.unit.name} roster in {month:%B %Y}."
+        answer.refusal = f"You have no days on the {window.unit.name} roster in {making.month_name(month)}."
     elif answer.counted >= answer.request_cap:
-        answer.refusal = (f"You have {answer.counted} requests for {month:%B %Y}, the most this unit allows. Withdraw a pending "
-                          "one to make another.")
+        answer.refusal = making.at_the_cap(answer.counted, month)
     else:
         answer.refusal = None
     return answer

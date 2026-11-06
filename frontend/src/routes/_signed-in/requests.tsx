@@ -26,7 +26,7 @@ import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { useChosenUnit } from "@/components/unit-picker"
-import { askedFor, herReason, lastDecision, UNIT_STATE } from "@/lib/request-words"
+import { askedFor, herReason, lastDecision, NO_CONNECTION, shiftNames, UNIT_STATE } from "@/lib/request-words"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
 import { monthName, scrollableRegion, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"
@@ -44,7 +44,6 @@ export const Route = createFileRoute("/_signed-in/requests")({
 const LINK = "underline underline-offset-3"
 const STATUS = "requests-status"
 const WINDOW_STATE = { scheduled: "Opens later", open: "Open", closed: "Closed" } as const
-const NO_CONNECTION = "That did not work. Check your connection and try again."
 
 const windowSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "Choose a month."),
@@ -116,7 +115,7 @@ function DecisionDialog({ unitId, windowId, deciding, shifts, focusAfter, onDone
   const form = useForm<z.infer<ReturnType<typeof decisionSchema>>>({
     resolver: zodResolver(decisionSchema(required)), defaultValues: { reason: "", shift: row.promised ?? "" },
   })
-  const names = Object.fromEntries(shifts.map((shift) => [shift.code, shift.display_name]))
+  const names = shiftNames(shifts)
   const asked = askedFor(row.shift, names).toLowerCase()
   const whose = `${row.full_name}'s request for ${asked} on ${shortDay(row.date)}`
   const reasonError = form.formState.errors.reason
@@ -208,7 +207,7 @@ function WindowRequests({ unitId, window, onDone }: { unitId: string; window: Wi
   const [deciding, setDeciding] = useState<Deciding | null>(null)
   const focusAfter = useRef<string | null>(null)
   const shifts = (catalogue.data ?? []).filter((shift) => shift.active)
-  const names = Object.fromEntries(shifts.map((shift) => [shift.code, shift.display_name]))
+  const names = shiftNames(shifts)
   const month = monthName(window.month)
   const begin = (row: UnitRequestRow, what: Deciding["what"]) => {
     focusAfter.current = `decide-${what}-${row.id}`

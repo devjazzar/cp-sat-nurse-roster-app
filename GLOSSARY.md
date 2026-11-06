@@ -120,11 +120,11 @@ _Avoid_: absence type, leave category
 ### Requests
 
 **Request**:
-A nurse's wish about one date of a coming month, made during a request window and accepted or rejected by her unit manager: either a day off or a specific shift. Accepted, it is a promise the roster keeps; rejected, it stays on record and never reaches the solver.
+A nurse's wish about one date of a coming month, made during a request window and accepted or rejected by her unit manager: either a day off or a specific shift. Accepted, it is a promise the roster keeps, as a pinned cell; rejected, withdrawn, cancelled or replaced by leave recorded on its date, it stays on record and never reaches the solver. Only she and her unit manager read it and its reasons.
 _Avoid_: solve request, preference, wish, day request
 
 **Request window**:
-The period, from an open date to a close date, that a unit manager opens for the unit's nurses to make requests for one target month. A unit has at most one open at a time.
+The days, from an open date to a close date on the hospital's clock, that a unit manager opens for the unit's nurses to make requests for one target month. A unit has at most one waiting to open or open at a time.
 _Avoid_: request period, submission window
 
 **Swap**:
@@ -132,8 +132,8 @@ A nurse's proposal to change a set of cells on her unit's approved roster: her o
 _Avoid_: exchange, trade, shift change, cover
 
 **Notification**:
-Something a user is told in the application, about a roster's submit, approval, rejection or change, a solve's end, and
-later a request window, a request or a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
+Something a user is told in the application, about a roster's submit, approval, rejection or change, a solve's end, a
+request window opening or closing, a decision on a request, and later a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
 rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 

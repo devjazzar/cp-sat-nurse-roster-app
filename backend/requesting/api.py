@@ -3,11 +3,12 @@ decides them (docs/ARCHITECTURE.md section 3): a request's reasons can be about 
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from typing import Literal
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, QuerySet
 from django.http import Http404, HttpRequest
 from django.utils import timezone
 from ninja import Field, Router, Schema, Status
@@ -19,7 +20,7 @@ from nurses.api import MonthText
 from requesting import deciding, making
 from requesting.models import Request, RequestState, RequestStep, RequestWindow, WindowState
 from requesting.windows import state_today
-from rosters.models import PinnedCell, PinOrigin, Roster
+from rosters.models import PinnedCell, PinOrigin, Roster, RosterVersion
 from rosters.pins import AsideWhy, Judge
 from solves.api import manager
 from units.models import Unit
@@ -46,7 +47,7 @@ def step_rows(steps: list[RequestStep]) -> list[RequestStepRow]:
                     reason=step.reason, shift=(step.pin.code if step.pin else None)) for step in steps]
 
 
-def with_steps(requests):
+def with_steps(requests: QuerySet[Request]) -> QuerySet[Request]:
     return requests.select_related("shift", "pin__shift", "window__unit", "nurse__user").prefetch_related(
         "steps__by", "steps__pin__shift")
 
@@ -68,12 +69,19 @@ class UnitWindows(Schema):
     open_refusal: str | None = Field(description="Why a window cannot be opened now.")
 
 
+def with_counts(windows: QuerySet[RequestWindow]) -> QuerySet[RequestWindow]:
+    # A grouped query drops the model's ordering, so it is said again.
+    return windows.select_related("closed_by").annotate(
+        made=Count("requests"), pending=Count("requests", filter=Q(requests__state=RequestState.PENDING))
+    ).order_by("-opens_on", "-created_at")
+
+
 def window_row(window: RequestWindow) -> WindowRow:
-    counts = window.requests.aggregate(all=Count("pk"), pending=Count("pk", filter=Q(state=RequestState.PENDING)))
+    """`window` from `with_counts`."""
     closer = window.closed_by
     return WindowRow(id=window.pk, month=window.month.strftime("%Y-%m"), opens_on=window.opens_on, closes_on=window.closes_on,
                      state=state_today(window), closed_early_by=(closer.full_name or closer.username) if closer else None,
-                     pending=counts["pending"], requests=counts["all"])
+                     pending=window.pending, requests=window.made)
 
 
 def _open_refusal(unit: Unit, windows: list[RequestWindow]) -> str | None:
@@ -86,7 +94,7 @@ def _open_refusal(unit: Unit, windows: list[RequestWindow]) -> str | None:
 @router.get("/{unit_id}/request-windows", response=UnitWindows, auth=manager, operation_id="listRequestWindows")
 def request_windows(request: HttpRequest, unit_id: UUID) -> UnitWindows:
     unit = unit_in_scope(request.user, unit_id)
-    windows = list(RequestWindow.objects.filter(unit=unit).select_related("closed_by"))
+    windows = list(with_counts(RequestWindow.objects.filter(unit=unit)))
     return UnitWindows(request_cap=unit.request_cap, windows=[window_row(window) for window in windows],
                        open_refusal=_open_refusal(unit, windows))
 
@@ -105,7 +113,7 @@ def open_request_window(request: HttpRequest, unit_id: UUID, body: RequestWindow
         unit = unit_in_scope(request.user, unit_id, for_update=True)
         window = making.open_window(unit, dt.date.fromisoformat(f"{body.month}-01"), body.opens_on, body.closes_on,
                                     request.user, request)
-        return Status(201, window_row(window))
+        return Status(201, window_row(with_counts(RequestWindow.objects.filter(pk=window.pk)).get()))
 
 
 @router.post("/{unit_id}/request-windows/{window_id}/close", response=WindowRow, auth=manager,
@@ -114,7 +122,8 @@ def close_request_window(request: HttpRequest, unit_id: UUID, window_id: UUID) -
     """Before its close date. Its pending requests stay for the manager's decision."""
     with transaction.atomic():
         unit = unit_in_scope(request.user, unit_id, for_update=True)
-        return window_row(making.close_window(unit, window_id, request.user, request))
+        window = making.close_window(unit, window_id, request.user, request)
+        return window_row(with_counts(RequestWindow.objects.filter(pk=window.pk)).get())
 
 
 class UnitRequestRow(Schema):
@@ -141,14 +150,14 @@ def _unit_rows(unit: Unit, requests: list[Request]) -> list[UnitRequestRow]:
         unit=unit, nurse__in={row.nurse_id for row in requests}, date__in={row.date for row in requests})}
     rows = []
     for row in requests:
-        judge, locked = judges[row.window.month], deciding.Locked(unit, row.nurse, row, rosters.get(row.window.month))
+        judge, decision = judges[row.window.month], deciding.Decision(unit, row.nurse, row, rosters.get(row.window.month))
         pending = row.state == RequestState.PENDING
         mine = held.get((row.nurse_id, row.date))
         rows.append(UnitRequestRow(
             id=row.pk, hospital_id=row.nurse.user.username, full_name=row.nurse.user.full_name, date=row.date, shift=row.code,
             state=row.state, promised=row.pin.code if row.pin else None,
             set_aside=judge.why(row.nurse_id, row.date, row.pin.shift) if row.pin else None,
-            accept_refusal=deciding.refusal_to_pin(locked, row.shift, row.shift.code if row.shift else None, judge)
+            accept_refusal=deciding.refusal_to_pin(decision, row.shift, row.shift.code if row.shift else None, judge)
             if pending else None,
             replaces_pin=mine.code if pending and mine is not None and mine.origin == PinOrigin.MANAGER else None,
             steps=step_rows(list(row.steps.all()))))
@@ -186,12 +195,13 @@ class RequestDecided(Schema):
                                             "cell changed. The unit's nurses are told the roster changed, and not why.")
 
 
-def _decided(user: User, unit_id: UUID, request_id: UUID, act) -> RequestDecided:
+def _decided(user: User, unit_id: UUID, request_id: UUID,
+             act: Callable[[deciding.Decision], RosterVersion | None]) -> RequestDecided:
     with transaction.atomic():
-        locked = deciding.locked_for_decision(user, unit_id, request_id)
-        version = act(locked)
+        decision = deciding.locked_for_decision(user, unit_id, request_id)
+        version = act(decision)
     row = with_steps(Request.objects.filter(pk=request_id)).get()
-    return RequestDecided(request=_unit_rows(locked.unit, [row])[0], version=version.number if version else None)
+    return RequestDecided(request=_unit_rows(decision.unit, [row])[0], version=version.number if version else None)
 
 
 def _reason(body: RequestReasonBody | AcceptRequestBody) -> str:
@@ -206,13 +216,13 @@ def accept_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: 
     """It becomes a pinned cell of origin `request`, refused where a pin would be. On an approved roster of a month not over,
     a new version with origin `request` when it changes a cell; a submitted roster takes it once decided."""
     reason = _reason(body)
-    return _decided(request.user, unit_id, request_id, lambda locked: deciding.accept(locked, request.user, reason, request))
+    return _decided(request.user, unit_id, request_id, lambda decision: deciding.accept(decision, request.user, reason, request))
 
 
 @router.post("/{unit_id}/requests/{request_id}/reject", response=RequestDecided, auth=manager, operation_id="rejectRequest")
 def reject_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: RequestReasonBody) -> RequestDecided:
     reason = _reason(body)
-    return _decided(request.user, unit_id, request_id, lambda locked: deciding.reject(locked, request.user, reason, request))
+    return _decided(request.user, unit_id, request_id, lambda decision: deciding.reject(decision, request.user, reason, request))
 
 
 @router.post("/{unit_id}/requests/{request_id}/edit", response=RequestDecided, auth=manager, operation_id="editRequest")
@@ -220,11 +230,11 @@ def edit_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: Ed
     """An accepted request's promise changed, with a reason, as acceptance puts it on the roster."""
     reason = _reason(body)
     return _decided(request.user, unit_id, request_id,
-                    lambda locked: deciding.edit(locked, body.shift, request.user, reason, request))
+                    lambda decision: deciding.edit(decision, body.shift, request.user, reason, request))
 
 
 @router.post("/{unit_id}/requests/{request_id}/cancel", response=RequestDecided, auth=manager, operation_id="cancelRequest")
 def cancel_request(request: HttpRequest, unit_id: UUID, request_id: UUID, body: RequestReasonBody) -> RequestDecided:
     """Its pin ends and no cell changes, so no version is made."""
     reason = _reason(body)
-    return _decided(request.user, unit_id, request_id, lambda locked: deciding.cancel(locked, request.user, reason, request))
+    return _decided(request.user, unit_id, request_id, lambda decision: deciding.cancel(decision, request.user, reason, request))

@@ -7,6 +7,8 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from django.db.models import QuerySet
+
 from accounts.models import Role, User
 from notifications.models import Event, Notification, SolveOutcome
 from nurses import membership
@@ -68,7 +70,7 @@ def solve_ended(unit_id: UUID, month: dt.date, solve_id: UUID, outcome: SolveOut
            **({"replan": True} if replan else {}))
 
 
-def _window_nurses(window: "RequestWindow"):
+def _window_nurses(window: "RequestWindow") -> QuerySet[User]:
     """The staff nurses of the unit's target month, a nurse due to join included, as an approval's are. A manager with a nurse
     profile makes no requests."""
     return User.objects.filter(role=Role.STAFF_NURSE, nurse_profile__in=membership.placed_in(window.unit, window.month))

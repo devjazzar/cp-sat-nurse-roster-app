@@ -595,7 +595,8 @@ class TestLeaveOnAPinnedDay:
         response = record_leave(mona, er, "Amal", 3, 5)
 
         assert response.status_code == 201, response.content
-        assert response.json()["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "manager"}, {"date": "2026-06-04", "shift": "", "origin": "manager"}]
+        assert response.json()["pins_removed"] == [{"date": "2026-06-03", "shift": "N", "origin": "manager"},
+                                                   {"date": "2026-06-04", "shift": "", "origin": "manager"}]
         draft = month_of(mona, er)["draft"]
         assert pins_of(draft) == {("Amal", "2026-06-09"): "N"}
         ended = PinnedCell.objects.exclude(removed_at=None).get(date="2026-06-03")

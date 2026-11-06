@@ -1,4 +1,4 @@
-import type { RequestStepRow } from "@/api/generated/model"
+import type { MyRequestRowState, RequestStepRow } from "@/api/generated/model"
 
 /** What a request asked for, or promises: a shift's code, or "" for a day off. */
 export function askedFor(code: string, names: Record<string, string> = {}): string {
@@ -7,7 +7,7 @@ export function askedFor(code: string, names: Record<string, string> = {}): stri
 }
 
 /** Said to the nurse whose request it is. */
-export const MY_STATE: Record<string, string> = {
+export const MY_STATE: Record<MyRequestRowState, string> = {
   pending: "Waiting for a decision",
   accepted: "Accepted",
   rejected: "Rejected",
@@ -17,15 +17,20 @@ export const MY_STATE: Record<string, string> = {
 }
 
 /** Said to the unit's manager. */
-export const UNIT_STATE: Record<string, string> = {
+export const UNIT_STATE: Record<MyRequestRowState, string> = {
   ...MY_STATE,
   replaced_by_leave: "Replaced by leave",
 }
 
-/** The latest step with a reason the manager gave: the decision a nurse wants to read. */
+/** The manager's latest step on it (a decision, an edit, a cancel) or leave replacing it, whose reason is the one to read. */
 export function lastDecision(steps: RequestStepRow[]): RequestStepRow | undefined {
   return [...steps].reverse().find((step) => step.step !== "made" && step.step !== "withdrawn")
 }
 
 /** The nurse's own reason, given when she made it. */
 export const herReason = (steps: RequestStepRow[]) => steps.find((step) => step.step === "made")?.reason ?? ""
+
+export const shiftNames = (shifts: { code: string; display_name: string }[]): Record<string, string> =>
+  Object.fromEntries(shifts.map((shift) => [shift.code, shift.display_name]))
+
+export const NO_CONNECTION = "That did not work. Check your connection and try again."

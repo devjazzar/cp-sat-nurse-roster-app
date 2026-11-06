@@ -99,7 +99,9 @@ def on_top(grid: dict[str, dict[str, str]], pins: MonthPins) -> dict[str, dict[s
 
 
 def end(rows: Iterable[PinnedCell], why: PinEnded, by: User) -> None:
-    PinnedCell.objects.filter(pk__in=[row.pk for row in rows]).update(removed_at=timezone.now(), removed_by=by, removed_why=why)
+    """Only those still current: one already ended keeps who ended it, when and why."""
+    PinnedCell.objects.current().filter(pk__in=[row.pk for row in rows]).update(removed_at=timezone.now(), removed_by=by,
+                                                                                removed_why=why)
 
 
 def pin_cell(unit: Unit, nurse: NurseProfile, day: dt.date, shift: Shift | None, origin: str, by: User) -> PinnedCell:

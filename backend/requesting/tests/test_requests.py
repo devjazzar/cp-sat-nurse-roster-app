@@ -19,10 +19,11 @@ from requesting.deciding import MONTH_OVER
 from requesting.making import NO_CAP
 from requesting.models import RequestWindow
 from requesting.tasks import open_and_close_request_windows
-from requesting.tests.conftest import (MONTH, ask, asked, decide, decided, mine, ok, open_window, opened, refused, requests_in, url,
-                                       windows)
+from requesting.tests.conftest import (MONTH, ask, asked, decide, decided, mine, ok, open_window, opened, refused,
+                                       requests_in, url, windows)
 from rosters.drafts import FROZEN
 from rosters.models import PinEnded, PinnedCell, PinOrigin, RosterState, VersionOrigin
+from rosters.pins import pin_cell
 from rosters.tests.test_pins import grid, input_row, month_of, pin, profile, save, saved, solved
 from rosters.tests.test_review import approved, roster, submit
 from rosters.tests.test_review import solved as review_solved
@@ -359,7 +360,8 @@ class TestWhatANurseMayRequest:
         amal = as_user("Amal")
         first = asked(amal, 3)
 
-        assert refused(ask(amal, 3, "N"), 422) == "You already have a request on 3 June 2026. Withdraw it to ask for something else."
+        assert refused(ask(amal, 3, "N"), 422) == (
+            "You already have a request on 3 June 2026. Withdraw it to ask for something else.")
         decided(mona, er, first["id"], "reject", reason="Short of staff.")
         asked(amal, 3, "N")
 
@@ -367,7 +369,8 @@ class TestWhatANurseMayRequest:
         opened(mona, er)
         ok(leave_for(mona, er, "Amal", 3), 201)
 
-        assert refused(ask(as_user("Amal"), 3), 422) == "You are on leave on 3 June 2026, so there is nothing to request that day."
+        assert refused(ask(as_user("Amal"), 3), 422) == (
+            "You are on leave on 3 June 2026, so there is nothing to request that day.")
 
     def test_a_manager_with_a_nurse_profile_and_other_roles_make_none(self, mona, er, carla):
         opened(mona, er)
@@ -436,7 +439,8 @@ class TestDeciding:
         amal = as_user("Amal")
         made = asked(amal, 3)
 
-        assert refused(decide(mona, er, made["id"], "reject", reason="  "), 422) == "Say why: the nurse reads it with her request."
+        assert refused(decide(mona, er, made["id"], "reject", reason="  "), 422) == (
+            "Say why: the nurse reads it with her request.")
         decided(mona, er, made["id"], "reject", reason="Two others are off that day.")
 
         assert texts(amal, "request_decided") == [
@@ -517,16 +521,16 @@ class TestDeciding:
         assert refused(decide(mona, er, made["id"], "accept")) == words
 
     def test_accepting_is_refused_in_the_words_a_pin_gets(self, mona, er, solver):
-        """Leave recorded after the request was made: `Judge` refuses it as it refuses pinning there."""
+        """Her end date corrected after she asked: `Judge` refuses it as it refuses pinning there."""
         solved(mona, er, solver)
         opened(mona, er)
-        made = asked(as_user("Amal"), 3, "N")
-        ok(leave_for(mona, er, "Amal", 3), 201)
+        made = asked(as_user("Amal"), 21, "N")
+        NurseProfile.objects.filter(user__username="Amal").update(end_date=dt.date(2026, 6, 20))
 
-        words = "Amal is on leave on 3 June 2026, and leave wins over a pin."
+        words = "21 June 2026 is outside Amal's dates, so there is nothing to pin."
         assert row_of(mona, er, made["id"])["accept_refusal"] == words
         assert refused(decide(mona, er, made["id"], "accept")) == words
-        assert refused(save(mona, er, pin("Amal", 3, "N")), 422) == words
+        assert refused(save(mona, er, pin("Amal", 21, "N")), 422) == words
 
     def test_a_nurse_transferred_out_after_requesting_keeps_it_on_record_and_it_cannot_be_accepted(self, mona, er):
         opened(mona, er)
@@ -538,6 +542,38 @@ class TestDeciding:
         assert refused(decide(mona, er, made["id"], "accept")) == words
         decided(mona, er, made["id"], "reject", reason="You have moved to ICU.")
 
+    def test_a_request_left_behind_by_a_transfer_counts_against_its_own_units_cap_only(self, mona, er, client_of):
+        opened(mona, er)
+        amal = as_user("Amal")
+        for day in (3, 4, 5):
+            asked(amal, day)
+        omar = client_of("omar", Role.UNIT_MANAGER)
+        icu = make_unit("ICU", User.objects.get(username="omar"))
+        Unit.objects.filter(pk=icu.pk).update(rules=er.rules)
+        Placement.objects.create(nurse=profile("Amal"), unit=icu, from_month=dt.date(2026, 6, 1))
+
+        opened(omar, icu)
+
+        assert mine(amal)["counted"] == 0
+        asked(amal, 6)
+        assert refused(ask(amal, 3), 422) == "You already have a request on 3 June 2026. Withdraw it to ask for something else."
+
+    def test_cancelling_a_request_whose_pin_another_unit_replaced_keeps_that_pins_history(self, mona, er, client_of):
+        opened(mona, er)
+        made = asked(as_user("Amal"), 3)
+        decided(mona, er, made["id"], "accept")
+        omar = client_of("omar", Role.UNIT_MANAGER)
+        icu = make_unit("ICU", User.objects.get(username="omar"))
+        Placement.objects.create(nurse=profile("Amal"), unit=icu, from_month=dt.date(2026, 6, 1))
+        pin_cell(icu, profile("Amal"), dt.date(2026, 6, 3), None, PinOrigin.MANAGER, User.objects.get(username="omar"))
+        ended = PinnedCell.objects.get(origin=PinOrigin.REQUEST)
+        assert (ended.removed_why, ended.removed_by.username) == (PinEnded.REPLACED, "omar")
+
+        decided(mona, er, made["id"], "cancel", reason="Amal has moved to ICU.")
+
+        ended.refresh_from_db()
+        assert (ended.removed_why, ended.removed_by.username) == (PinEnded.REPLACED, "omar")
+
     def test_a_draft_takes_the_accepted_cell_at_once_and_warns_the_solve_lacked_it(self, mona, er, solver):
         solved(mona, er, solver)
         opened(mona, er)
@@ -548,7 +584,8 @@ class TestDeciding:
         assert grid(er)["Amal"]["2026-06-03"] == ""
         draft = month_of(mona, er)["draft"]
         assert {"hospital_id": "Amal", "full_name": "Amal", "what": "pins"} in draft["changes"]
-        assert ("Amal", "2026-06-03", "", "request") in {(p["hospital_id"], p["date"], p["shift"], p["origin"]) for p in draft["pins"]}
+        shown = {(p["hospital_id"], p["date"], p["shift"], p["origin"]) for p in draft["pins"]}
+        assert ("Amal", "2026-06-03", "", "request") in shown
 
     def test_a_solve_keeps_an_accepted_request(self, mona, er, solver):
         opened(mona, er)
@@ -665,10 +702,23 @@ class TestLeaveOverAnAcceptedRequest:
         seen = mine(amal)["requests"][0]
         assert (seen["state"], seen["promised"], seen["steps"][-1]["step"]) == ("replaced_by_leave", None, "replaced_by_leave")
         assert texts(amal, "request_decided")[0] == (
-            "Leave recorded on 3 June 2026 replaced your accepted request for Night (N), as leave wins.")
+            "Leave recorded on 3 June 2026 replaced your request for Night (N), as leave wins.")
         assert current_pin("Amal", 3) is None
         assert [entry.action for entry in AuditEntry.objects.order_by("at")][-1] == "leave.recorded"
         assert mine(amal)["counted"] == 0
+
+    def test_leave_over_a_pending_one_replaces_it_too_and_frees_its_place(self, mona, er):
+        opened(mona, er)
+        amal = as_user("Amal")
+        made = [asked(amal, day) for day in (3, 4, 5)]
+
+        ok(leave_for(mona, er, "Amal", 4), 201)
+
+        assert [row["state"] for row in mine(amal)["requests"]] == ["pending", "replaced_by_leave", "pending"]
+        assert texts(amal, "request_decided") == [
+            "Leave recorded on 4 June 2026 replaced your request for a day off, as leave wins."]
+        asked(amal, 6)
+        assert refused(decide(mona, er, made[1]["id"], "accept")) == "This request is replaced by leave already."
 
     def test_on_an_approved_roster_the_leave_takes_the_shift_off_and_ends_the_request(self, mona, carla, er, solver):
         approved(mona, carla, er, solver)
@@ -741,6 +791,9 @@ class TestWhatStaysPrivate:
         # The edit to Day changed Amal's cell, so version 2 is in force: Badr's own hours and everything else are as they were.
         assert month_after["roster"].pop("version") == 2 and month_before["roster"].pop("version") == 1
         assert month_after == month_before
+        exported = mona.get(url(er, "/roster/export"), {"month": MONTH, "version": 2, "format": "csv"})
+        assert exported.status_code == 200
+        assert not any(word in exported.content.decode("utf-8-sig").lower() for word in ("request", "chemotherapy", "treatment"))
         sheet = ok(badr.get("/api/rosters/mine/sheet", {"month": MONTH}))
         assert "request" not in str(sheet).lower()
         for secret in (*self.REASONS, "request_id"):

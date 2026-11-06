@@ -15,7 +15,7 @@ import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
-import { askedFor, herReason, lastDecision, MY_STATE } from "@/lib/request-words"
+import { askedFor, herReason, lastDecision, MY_STATE, NO_CONNECTION, shiftNames } from "@/lib/request-words"
 import { monthName, scrollableRegion, shortDay } from "@/lib/utils"
 
 const STATUS = "my-requests-status"
@@ -46,7 +46,7 @@ function RequestForm({ answer, onMade }: { answer: MyRequests; onMade: (message:
   const queryClient = useQueryClient()
   const make = useMakeRequest()
   const form = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { date: "", shift: "", reason: "" } })
-  const names = Object.fromEntries(answer.shifts.map((shift) => [shift.code, shift.display_name]))
+  const names = shiftNames(answer.shifts)
   const reasonError = form.formState.errors.reason
   const refusal = plainRefusal(make.error)
 
@@ -80,7 +80,7 @@ function RequestForm({ answer, onMade }: { answer: MyRequests; onMade: (message:
       </Field>
       {refusal && <p role="alert" className="text-sm text-destructive">{refusal}</p>}
       {make.isError && !(make.error instanceof ApiError) && (
-        <p role="alert" className="text-sm text-destructive">That did not work. Check your connection and try again.</p>
+        <p role="alert" className="text-sm text-destructive">{NO_CONNECTION}</p>
       )}
       <div><Button type="submit" disabled={make.isPending}>Make the request</Button></div>
     </form>
@@ -107,7 +107,7 @@ export function MyRequestsCard({ month }: { month: string | undefined }) {
   const [said, setSaid] = useState("")
   const status = useRef<HTMLParagraphElement>(null)
   const answer = mine.data
-  const names = Object.fromEntries((answer?.shifts ?? []).map((shift) => [shift.code, shift.display_name]))
+  const names = shiftNames(answer?.shifts ?? [])
   const open = answer?.window?.state === "open"
 
   const tell = (message: string) => {
@@ -121,7 +121,7 @@ export function MyRequestsCard({ month }: { month: string | undefined }) {
         await queryClient.invalidateQueries({ queryKey: getGetMyRequestsQueryKey() })
         tell(`Your request for ${askedFor(row.shift, names).toLowerCase()} on ${shortDay(row.date)} is withdrawn.`)
       },
-      onError: (error) => tell(plainRefusal(error) ?? "That did not work. Check your connection and try again."),
+      onError: (error) => tell(plainRefusal(error) ?? NO_CONNECTION),
     })
   }
 

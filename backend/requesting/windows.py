@@ -4,7 +4,7 @@ in `catch_up`, which the hourly job runs for every unit and each write runs firs
 does it, under the window's row lock, and the other finds it done."""
 from __future__ import annotations
 
-import datetime as dt
+from uuid import UUID
 
 from django.db.models import QuerySet
 from django.utils import timezone
@@ -44,10 +44,6 @@ def catch_up(windows: QuerySet[RequestWindow]) -> list[RequestWindow]:
     return rows
 
 
-def not_closed(unit_id=None) -> QuerySet[RequestWindow]:
+def not_closed(unit_id: UUID | None = None) -> QuerySet[RequestWindow]:
     windows = RequestWindow.objects.exclude(state=WindowState.CLOSED)
     return windows.filter(unit_id=unit_id) if unit_id is not None else windows
-
-
-def next_month(month: dt.date) -> dt.date:
-    return (month + dt.timedelta(days=32)).replace(day=1)

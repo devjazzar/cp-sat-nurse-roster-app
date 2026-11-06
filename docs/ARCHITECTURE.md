@@ -206,12 +206,21 @@ nurse no longer in the unit's month, a day outside their dates or on leave, a sh
 not work) is set aside, not removed: it reaches no solve and the draft says why, and it counts again if that changes. A shift's
 hours, a unit's shifts and a nurse's allowed shifts cannot change under a pin that counts in a month not yet over.
 
-**Request window**: unit, target month, open date, close date, state. At most one open per unit.
+**Request window**: unit, target month (one not yet begun), open date, close date (the last day requests are taken, before
+the month begins; both days on the hospital's clock), state (`scheduled`, `open`, `closed`), who closed it early. The dates
+decide whether it is open, for every page and every write; the stored state and who is told follow them in the hourly job or the
+next write about the unit, whichever comes first (`requesting.windows`). At most one window of a unit is scheduled or open; once
+one has closed, another may target any month, the same one included. A unit whose request cap is 0 opens none.
 
-**Request**: nurse, window, date, kind (`day_off` or `shift` with a shift), state
-(`pending`, `accepted`, `rejected`, `withdrawn`, `cancelled`), decided by, reason. Only an
-accepted request reaches the solver, as a pinned cell. Nothing is deleted: a request the
-manager cancels after acceptance becomes `cancelled`.
+**Request**: nurse, window, date, a shift or a day off, state (`pending`, `accepted`, `rejected`, `withdrawn`, `cancelled`,
+`replaced_by_leave`), and its steps: who made, withdrew, accepted, rejected, edited or cancelled it, when, and the reason given
+(the nurse's when she made it, the manager's for a decision), which only she and the unit's manager read. At most one request a
+nurse and date is pending or accepted, and those two states count against the unit's cap a nurse a month, across the month's
+windows; a cap lowered later stops new requests and leaves those made. Only an accepted request reaches the solver, as a pinned
+cell of origin `request`, judged as any pin is (`rosters.pins.Judge`): a manager's pin on its cell is replaced, a swap's refuses
+it. An edit changes what the pin promises and keeps what was asked. Leave recorded over an accepted request ends its pin and
+makes it `replaced_by_leave`, and its nurse is told. Nothing is deleted: a request the manager cancels after acceptance becomes
+`cancelled`, its pin ends and no cell changes.
 
 **Swap**: unit, the roster version it was proposed on, proposer, the set of cell changes
 (nurse, date, new shift or off), the participants with their acceptance, state (`pending`,
@@ -300,12 +309,19 @@ backup time and retention, close time.
 ### Requests
 
 1. The unit manager opens a request window for a target month (open and close dates; may
-   close early).
+   close early). Its nurses of that month, one due to join included, are told when it opens, and
+   again if it closes early.
 2. Nurses make requests (day off, or a specific shift on a date), up to the unit's cap, and
-   may withdraw while the window is open.
-3. The manager accepts or rejects each one, with a reason. Rejected requests stay on record.
+   may withdraw a pending one while the window is open. A request that could never be accepted (a
+   day on their leave or outside their dates, a shift the unit does not work or they may not) is
+   refused as it is made.
+3. The manager accepts or rejects each one, with a reason, required to reject. Rejected requests stay on record. A window
+   that closes by its date with requests waiting tells the manager once, how many still wait worked out when read.
 4. An accepted request is a pinned cell in that month's solve input (ADR 0005). The manager
-   may edit or cancel it later; cancelled requests stay on record and reach no solve.
+   may edit or cancel it later; cancelled requests stay on record and reach no solve. Accepting or editing puts the pin's
+   cell on a draft at once; a submitted roster takes neither, nor a cancel, until its decision; on an approved roster of a
+   month not over, a changed cell is a new version with origin `request`, telling the unit's nurses, and one that changes no
+   cell makes no version. Each decision tells the nurse who made the request, and nobody else.
 
 ### Swaps
 
@@ -377,6 +393,9 @@ Jobs:
   demand.
 - `backup` (cron, 02:00) and backup retention.
 - `expire_swaps` (hourly).
+- `open_and_close_request_windows` (hourly): opens each request window whose open date has come and closes each whose close
+  date has passed, telling whoever that tells. Every write about a unit's windows does the same first, so a worker that is down
+  delays only the notifications.
 - `close_ended_nurses` (hourly): deactivates staff nurses whose last day is over. An end date of
   today or earlier deactivates at once. A manager's account stays the System Admin's.
 
@@ -389,8 +408,8 @@ be replaced without touching the API, the solver client or the solver.
 
 Django 6.1 (to 6.2 LTS in April 2027), Django Ninja for the JSON API with an OpenAPI
 document, PostgreSQL 18, cookie sessions, CSRF. Django's admin site is not exposed. Apps, one
-per domain area: accounts, hospital, units, nurses, rosters, requests, swaps, solves, closes,
-notifications, audit, ops. A `solve input` assembler builds the solver JSON from the database
+per domain area: accounts, hospital, units, nurses, rosters, requests (`requesting`, since `requests` is a well-known
+library's import name), swaps, solves, closes, notifications, audit, ops. A `solve input` assembler builds the solver JSON from the database
 and stores it verbatim with every solve; a `result` reader stores and interprets results.
 
 ### Frontend (ADR 0008)
@@ -444,7 +463,10 @@ already read, so it is not logged. Nurses see colleagues' names and shifts only.
 changed and by whom, without its value or even which one, since a change to a two-way flag gives its value away. Unit
 rules are logged with their values, as hospital rules are: they say nothing about a person. Attributes also stay off
 the staff list, a file that leaves the system. Leave is logged the same way, as whose changed and by whom: not its type, its
-dates or how many, since a long run gives the type away and a date is part of a roster.
+dates or how many, since a long run gives the type away and a date is part of a roster. So is a request: whose it is, who moved it and how (made, withdrawn,
+accepted, rejected, edited, cancelled), never its date, its shift or either reason, which can be about someone's health. A
+request that leave replaced, and a version a request made, have no entry of their own, since one beside the leave's or the
+request's would date it.
 
 ### Nurse import and the staff list
 

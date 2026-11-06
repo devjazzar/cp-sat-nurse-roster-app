@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
+from django.db.models import Count, Q
+
 from accounts.models import Role, User
 from notifications.models import Event, Notification, SolveOutcome
 from requesting.models import Request, RequestState, RequestWindow, Step
@@ -34,7 +36,9 @@ class Names:
         self.users = {str(user.pk): user.full_name or user.username for user in User.objects.filter(pk__in=user_ids)}
         window_ids = {note.payload.get("window_id") for note in notes} - {None}
         request_ids = {note.payload.get("request_id") for note in notes} - {None}
-        self.windows = {str(window.pk): window for window in RequestWindow.objects.filter(pk__in=window_ids)}
+        # How many of each window's requests still wait, counted here rather than once a notification.
+        self.windows = {str(window.pk): window for window in RequestWindow.objects.filter(pk__in=window_ids).annotate(
+            waiting=Count("requests", filter=Q(requests__state=RequestState.PENDING)))}
         self.requests = {str(row.pk): row for row in Request.objects.filter(pk__in=request_ids).select_related("shift")}
 
 
@@ -91,7 +95,7 @@ def _window_words(note: Notification, names: Names, roster: str, by: str) -> str
         case Event.WINDOW_CLOSED_EARLY:
             return (f"{by} closed the request window for the {roster} early. Any request you made in it waits for a "
                     "decision.")
-    waiting = window.requests.filter(state=RequestState.PENDING).count() if window else 0
+    waiting = window.waiting if window else 0
     if waiting == 0:
         return f"The request window for the {roster} has closed. Every request made in it has been decided."
     many = f"{waiting} requests wait" if waiting > 1 else "1 request waits"
@@ -104,7 +108,7 @@ def _decision_words(note: Notification, names: Names, by: str) -> str:
     row = names.requests.get(note.payload.get("request_id"))
     if row is None:
         return "One of your requests has moved."
-    what = f"{row.shift.display_name} ({row.shift.code})" if row.shift else "a day off"
+    what = row.what
     on = long_date(row.date)
     match note.payload.get("step"):
         case Step.ACCEPTED:
@@ -116,7 +120,7 @@ def _decision_words(note: Notification, names: Names, by: str) -> str:
         case Step.CANCELLED:
             return f"{by} cancelled your accepted request for {what} on {on}. The reason is on My month."
         case Step.REPLACED_BY_LEAVE:
-            return f"Leave recorded on {on} replaced your accepted request for {what}, as leave wins."
+            return f"Leave recorded on {on} replaced your request for {what}, as leave wins."
     return f"Your request for {what} on {on} has moved."
 
 

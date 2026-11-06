@@ -283,7 +283,7 @@ def _begin(nurse: NurseProfile, unit: Unit, leave_type: LeaveType, days: list[dt
     pin's or of the version's beside it would tell the System Admin the month of this leave."""
     Leave.objects.bulk_create([Leave(nurse=nurse, date=day, leave_type=leave_type, recorded_by=user) for day in days])
     ended = sorted(end_for_leave(nurse, days, user), key=lambda pin: pin.date)
-    replaced = replaced_by_leave(ended, user)
+    replaced = replaced_by_leave(nurse, days, ended, user)
     return _Begun([RemovedPin(date=pin.date, shift=pin.code, origin=pin.origin) for pin in ended if pin.unit_id == unit.pk],
                   take_off_for_leave(nurse, unit, days, user), replaced)
 

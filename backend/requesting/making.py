@@ -4,8 +4,10 @@ what a request asked for, its date or a reason, since a reason can be about some
 from __future__ import annotations
 
 import datetime as dt
+from uuid import UUID
 
-from django.http import Http404
+from django.db.models import QuerySet
+from django.http import Http404, HttpRequest
 from django.utils import timezone
 from ninja.errors import HttpError
 
@@ -26,11 +28,17 @@ NO_CAP = ("This unit's request cap is 0, so its nurses could make no requests. R
           "window.")
 
 
-def _month_name(month: dt.date) -> str:
+def month_name(month: dt.date) -> str:
     return f"{month:%B %Y}"
 
 
-def open_window(unit: Unit, month: dt.date, opens_on: dt.date, closes_on: dt.date, by: User, request) -> RequestWindow:
+def at_the_cap(count: int, month: dt.date) -> str:
+    return (f"You have {count} requests for {month_name(month)}, the most this unit allows. Withdraw a pending one to make "
+            "another.")
+
+
+def open_window(unit: Unit, month: dt.date, opens_on: dt.date, closes_on: dt.date, by: User,
+                request: HttpRequest) -> RequestWindow:
     """Hold the unit's lock. A window whose open date is today opens now, and its nurses are told at once; a later one opens,
     and tells them, when the hourly job or the next write finds its date has come."""
     today = membership.today()
@@ -44,13 +52,13 @@ def open_window(unit: Unit, month: dt.date, opens_on: dt.date, closes_on: dt.dat
         refuse((("closes_on",), "The close date cannot be before the open date."))
     if closes_on >= month:
         last = month - dt.timedelta(days=1)
-        refuse((("closes_on",), f"Requests have to close before {_month_name(month)} begins, so that its roster can be made: "
+        refuse((("closes_on",), f"Requests have to close before {month_name(month)} begins, so that its roster can be made: "
                                 f"choose {long_date(last)} or earlier."))
     waiting = next(iter(catch_up(not_closed(unit.pk))), None)
     if waiting is not None and waiting.state != WindowState.CLOSED:
         when = (f"opens on {long_date(waiting.opens_on)}" if waiting.state == WindowState.SCHEDULED
                 else f"is open until {long_date(waiting.closes_on)}")
-        raise HttpError(409, f"The request window for {_month_name(waiting.month)} {when}. A unit has one window at a time: "
+        raise HttpError(409, f"The request window for {month_name(waiting.month)} {when}. A unit has one window at a time: "
                              "close it first.")
     window = RequestWindow.objects.create(unit=unit, month=month, opens_on=opens_on, closes_on=closes_on, created_by=by)
     record("request_window.opened", actor=by, target=window.audit_target, request=request,
@@ -58,7 +66,7 @@ def open_window(unit: Unit, month: dt.date, opens_on: dt.date, closes_on: dt.dat
     return catch_up(RequestWindow.objects.filter(pk=window.pk))[0]
 
 
-def close_window(unit: Unit, window_id, by: User, request) -> RequestWindow:
+def close_window(unit: Unit, window_id: UUID, by: User, request: HttpRequest) -> RequestWindow:
     """Early, by its manager, under the unit's lock. Nurses told it opened are told it closed; nobody, if it never opened."""
     window = next(iter(catch_up(RequestWindow.objects.filter(unit=unit, pk=window_id))), None)
     if window is None:
@@ -91,7 +99,7 @@ def nurse_refusal(judge: Judge, nurse: NurseProfile, day: dt.date, asked: str | 
     could never be accepted is refused here."""
     match judge.day_why(nurse.pk, day):
         case "not_in_month":
-            return "date", f"You have no days on the {judge.unit.name} roster in {_month_name(judge.month)}."
+            return "date", f"You have no days on the {judge.unit.name} roster in {month_name(judge.month)}."
         case "outside_dates":
             return "date", f"{long_date(day)} is outside your dates on the roster."
         case "leave":
@@ -114,48 +122,49 @@ def window_for(nurse: NurseProfile, month: dt.date) -> RequestWindow | None:
     return RequestWindow.objects.filter(unit_id=placement.unit_id, month=month).select_related("unit").first()
 
 
-def live_in(nurse: NurseProfile, month: dt.date):
-    return Request.objects.filter(nurse=nurse, date__year=month.year, date__month=month.month, state__in=LIVE)
+def live_in(nurse: NurseProfile, month: dt.date, unit: Unit) -> QuerySet[Request]:
+    """Those that count against this unit's cap: one left behind in another unit by a transfer is that unit's to decide."""
+    return Request.objects.filter(nurse=nurse, window__unit=unit, date__year=month.year, date__month=month.month,
+                                  state__in=LIVE)
 
 
-def make(user: User, day: dt.date, asked: str | None, reason: str, request) -> Request:
+def make(user: User, day: dt.date, asked: str | None, reason: str, request: HttpRequest) -> Request:
     nurse = locked_nurse(user)
     month = day.replace(day=1)
-    found = window_for(nurse, month)
-    window = catch_up(RequestWindow.objects.filter(pk=found.pk))[0] if found else None
+    latest = window_for(nurse, month)
+    window = catch_up(RequestWindow.objects.filter(pk=latest.pk))[0] if latest else None
     if window is None or window.state != WindowState.OPEN:
-        raise HttpError(409, f"No request window is open for {_month_name(month)}.")
+        raise HttpError(409, f"No request window is open for {month_name(month)}.")
     unit = Unit.objects.get(pk=window.unit_id)
     code = current_code(asked) if asked else None
     shift = Shift.objects.filter(code=code, active=True).first() if code else None
     refusal = nurse_refusal(Judge(unit, month), nurse, day, code, shift)
     if refusal:
         refuse(((refusal[0],), refusal[1]))
-    live = list(live_in(nurse, month))
-    if any(row.date == day for row in live):
+    live = list(live_in(nurse, month, unit))
+    # Any unit's: a request a transfer left behind still holds its date until its manager decides it.
+    if Request.objects.filter(nurse=nurse, date=day, state__in=LIVE).exists():
         refuse((("date",), f"You already have a request on {long_date(day)}. Withdraw it to ask for something else."))
     if len(live) >= unit.request_cap:
-        raise HttpError(409, f"You have {len(live)} requests for {_month_name(month)}, the most this unit allows. Withdraw a "
-                             "pending one to make another.")
+        raise HttpError(409, at_the_cap(len(live), month))
     made = Request.objects.create(window=window, nurse=nurse, date=day, shift=shift)
     RequestStep.objects.create(request=made, step=Step.MADE, by=user, reason=reason)
     record("request.made", actor=user, target=user.username, request=request)
     return made
 
 
-def withdraw(user: User, request_id, request) -> Request:
+def withdraw(user: User, request_id: UUID, request: HttpRequest) -> Request:
     nurse = locked_nurse(user)
-    found = Request.objects.select_for_update(of=("self",)).filter(pk=request_id, nurse=nurse).first()
-    if found is None:
+    mine = Request.objects.select_for_update(of=("self",)).filter(pk=request_id, nurse=nurse).first()
+    if mine is None:
         raise Http404("You have no such request.")
-    if found.state != RequestState.PENDING:
-        raise HttpError(409, f"This request is {found.get_state_display().lower().replace('_', ' ')}, so it cannot be "
-                             "withdrawn.")
-    window = catch_up(RequestWindow.objects.filter(pk=found.window_id))[0]
+    if mine.state != RequestState.PENDING:
+        raise HttpError(409, f"This request is {mine.state_words}, so it cannot be withdrawn.")
+    window = catch_up(RequestWindow.objects.filter(pk=mine.window_id))[0]
     if state_today(window) != WindowState.OPEN:
         raise HttpError(409, "The request window has closed, so this request waits for your manager's decision.")
-    found.state = RequestState.WITHDRAWN
-    found.save(update_fields=["state"])
-    RequestStep.objects.create(request=found, step=Step.WITHDRAWN, by=user)
+    mine.state = RequestState.WITHDRAWN
+    mine.save(update_fields=["state"])
+    RequestStep.objects.create(request=mine, step=Step.WITHDRAWN, by=user)
     record("request.withdrawn", actor=user, target=user.username, request=request)
-    return found
+    return mine

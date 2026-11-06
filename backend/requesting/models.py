@@ -46,6 +46,11 @@ class RequestWindow(models.Model):
         return f"{self.unit.name}, {self.month:%Y-%m}"
 
 
+def what_of(shift) -> str:
+    """What a request asks for or promises, in the words every page and notification uses."""
+    return f"{shift.display_name} ({shift.code})" if shift else "a day off"
+
+
 class RequestState(models.TextChoices):
     PENDING = "pending"
     ACCEPTED = "accepted"
@@ -86,6 +91,15 @@ class Request(models.Model):
     @property
     def code(self) -> str:
         return self.shift.code if self.shift else ""
+
+    @property
+    def what(self) -> str:
+        return what_of(self.shift)
+
+    @property
+    def state_words(self) -> str:
+        """"pending", "replaced by leave": for a sentence."""
+        return self.state.replace("_", " ")
 
 
 class Step(models.TextChoices):
