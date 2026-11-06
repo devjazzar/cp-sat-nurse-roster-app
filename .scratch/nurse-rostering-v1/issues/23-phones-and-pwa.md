@@ -169,3 +169,5 @@ What was NOT checked:
   - **No new dependency in `frontend/` or the backend;** Playwright is `e2e/`'s alone.
   - The first visit after it registers the worker on `localhost:5173`. It handles no request, so it does not get in Vite's way.
 
+
+**Reviewed by the user (2026-11-07):** all eleven points marked **Worth your review** are kept as built: a service worker with no `fetch` listener; browser checks against `web` over HTTP on localhost; the Menu button below 640 px; 44 px controls on every touch screen for every role; `no-cache` on every fixed-name file and `immutable` hashed assets; one reload of a tab from before a deploy; light only for now; no `viewport-fit=cover`; `e2e/` at the repo root with its own `package.json`; the Users page's actions sticky only from 640 px; the icon.
