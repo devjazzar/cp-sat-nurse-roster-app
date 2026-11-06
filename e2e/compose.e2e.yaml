@@ -4,6 +4,14 @@
 # treats http://localhost as secure, so the service worker registers there, while it refuses to register one behind Caddy's
 # self-signed certificate whatever Playwright's ignoreHTTPSErrors says. Caddy stays in front on its own port, for checks of
 # what passes through it (headers, /metrics refused).
+#
+# The checks' clock (ticket 24): E2E_CLOCK_FILE names a file of a number of days that moves the hospital's date for `web` and
+# the worker alike (nurses.membership.today). It is on a volume of its own, mounted here only, written as root in `web` by
+# `e2e/stack.sh clock` and read by the app's user; nothing over HTTP reads or writes it. deploy/compose.yaml passes no such
+# variable, which deploy/tests/operations.sh checks, so an installation cannot switch it on from its .env.
+x-clock: &clock
+  E2E_CLOCK_FILE: /e2e-clock/days
+
 services:
   caddy:
     ports: !override
@@ -13,3 +21,15 @@ services:
     networks: [frontend, backend, solver, public]
     ports:
       - "127.0.0.1:${E2E_PORT:-18080}:8000"
+    environment: *clock
+    # Writable for root alone, who owns the volume: `e2e/stack.sh clock` writes it here. The app's user only reads it.
+    volumes:
+      - e2e_clock:/e2e-clock
+
+  worker:
+    environment: *clock
+    volumes:
+      - e2e_clock:/e2e-clock:ro
+
+volumes:
+  e2e_clock: {}

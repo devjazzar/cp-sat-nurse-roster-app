@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+from pathlib import Path
 from uuid import UUID
 
+from django.conf import settings
 from django.db.models import Exists, F, OuterRef, Q, QuerySet, Subquery
 from django.utils import timezone
 
@@ -15,7 +17,20 @@ from units.models import Unit
 
 
 def today() -> dt.date:
-    return timezone.localdate()
+    """The hospital's date. Under the browser checks' clock (`settings.E2E_CLOCK_FILE`, never set in an installation) it is
+    moved by the file's number of days, read afresh each time, since every process reads it."""
+    day = timezone.localdate()
+    if settings.E2E_CLOCK_FILE:
+        day += dt.timedelta(days=_clock_days(Path(settings.E2E_CLOCK_FILE)))
+    return day
+
+
+def _clock_days(clock: Path) -> int:
+    try:
+        written = clock.read_text().strip()
+    except FileNotFoundError:
+        return 0
+    return int(written) if written else 0
 
 
 def this_month() -> dt.date:

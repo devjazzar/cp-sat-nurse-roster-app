@@ -104,7 +104,8 @@ test("nothing reaches the page from the worker or a cache: the API, a roster's f
   expect(ours.filter((response) => response.url.includes("/roster/export"))).toHaveLength(3)
   expect(ours.filter((response) => response.url.includes("/roster/sheet"))).toHaveLength(2)
   expect(ours.filter((response) => response.url.endsWith("/metrics"))).toHaveLength(1)
-  expect(ours.filter((response) => response.url.endsWith("/api/ops/health"))).toHaveLength(2)
+  // The System Admin's home is the Health page, which reads it too, before or after the watch began: at least our two.
+  expect(ours.filter((response) => response.url.endsWith("/api/ops/health")).length).toBeGreaterThanOrEqual(2)
   expect(ours.filter((response) => response.url.includes("/api/ops/backups/"))).toHaveLength(2)
   expect(ours.filter((response) => response.fromServiceWorker || response.fromDiskCache)).toEqual([])
   for (const response of ours.filter((response) => /\/roster\/export|\/api\/ops\/backups\//.test(response.url))) {

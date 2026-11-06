@@ -109,6 +109,12 @@ FILE_UPLOAD_HANDLERS = ["django.core.files.uploadhandler.MemoryFileUploadHandler
 
 BACKUPS_DIR = Path(os.environ.get("BACKUPS_DIR", "/backups"))
 
+# The browser checks' clock (ticket 24): a file holding a number of days that moves the hospital's date
+# (`nurses.membership.today`), so a check can let a swap's date pass or a request window open and close. Only
+# e2e/compose.e2e.yaml sets it; an installation's compose file passes no such variable to any service, and nothing over
+# HTTP reads or writes the file. Off, the file is never read.
+E2E_CLOCK_FILE = os.environ.get("E2E_CLOCK_FILE") or None
+
 # The compiled SPA, copied into the image at build time. Absent in development, where Vite
 # serves it. WhiteNoise serves its files; config.urls answers every other path with index.html.
 # Only the build's hashed assets are cached for good. Every file with a fixed name (index.html, the service worker, the web
