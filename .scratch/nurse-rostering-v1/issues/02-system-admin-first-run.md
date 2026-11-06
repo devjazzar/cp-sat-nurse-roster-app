@@ -49,3 +49,5 @@ Things a later ticket should know:
 - **Tokens:** `--ring` (4.73:1 on white) and `--input` (3.36:1) now meet 3:1, and destructive fills use `--destructive-foreground` (4.76:1). The dark values are computed only, because nothing can switch the theme yet.
 
 **Reviewed by the user (2026-11-05).** Both open points are decided, not kept: solve progress polling does not count as activity (ticket 11's last comment), and the public `/api/health` is to be trimmed (ticket 22's comment).
+
+**Reviewed by the user (2026-11-06).** From the review of every unsettled item across tickets 01–20, answered as recommended. Kept: anyone can lock any account for 15 minutes with wrong passwords, the System Admin's included (L34); ticket 22's admin reset script will also lift such a lock. Decided: expired sessions are cleared daily by ticket 22 ("Expired sessions" above).

@@ -214,3 +214,5 @@ What was NOT checked:
 - a reason is optional to accept, and required to reject, change or cancel;
 - leave over a pending request replaces it too, as over an accepted one;
 - the CNO and the Deputy CNO read a request's version reason in the version list, which carries neither person's reason.
+
+**Reviewed by the user (2026-11-06).** From the review of every unsettled item across tickets 01–20, answered as recommended. Kept as built: a window whose span passed while the worker was down tells nobody (L131); the window date rules (L133–137); cap counting and lowering (L139); a leave date refused at the request form (L144); a transferred nurse's request (L147); a submitted roster refusing accept, edit and cancel (L151); editing an accepted request (L154); the code judgement calls (L186). Fixed (review fixes, 2026-11-06): the Leave page names the roster a replaced pin was on ("on the roster in force", "on the submitted roster", "on the draft", or "in a month with no roster yet") (L204); the Cancel dialog now has a page test (L123). Decided for ticket 21: pending requests end at the close with a fixed reason and the nurse is told.

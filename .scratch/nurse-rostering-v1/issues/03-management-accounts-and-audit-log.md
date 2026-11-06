@@ -48,3 +48,5 @@ Things a later ticket should know:
 - **A user's `full_name` and `username` cannot be edited yet.** No ticket asked for it. Later: ticket 07b let the System Admin correct `full_name` on the users they manage; `username` still cannot be changed.
 
 **Interface review (2026-11-05).** The `better-*` review blocked on the dialog's zoom ignoring reduced motion and on tables a keyboard could not scroll. Those and its smaller findings are fixed: voice-control labels, the blocker, hospital time, the selectable password box, no repeated "Loading…" on a window-focus refetch, dropping hand-edited bad dates from the address, and text size on selects.
+
+**Reviewed by the user (2026-11-06).** From the review of every unsettled item across tickets 01–20, answered as recommended. Kept as built: one CNO means one active CNO (L31); usernames unique in any case, with limited characters (L33); the audit log's user filter is an exact username (L34), which ticket 22 times on the real database at first install; times shown in hospital time (L35).

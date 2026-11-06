@@ -192,3 +192,5 @@ All fixed. Kept as judgement calls: each new event touches `Event`, `sending` an
 - A nurse sees the hours the month asks of them, which a Ramadan or breastfeeding reduction lowers, without the reduction being named.
 - "Mark all as read" also marks notifications beyond the 50 shown.
 - A manager with a nurse profile has no link to My month in their header.
+
+**Reviewed by the user (2026-11-06).** From the review of every unsettled item across tickets 01–20, answered as recommended. Kept as built: a solve's end told to the unit's current manager (L129); no manager, nobody told (L133); the System Admin's empty bell (L139); stopping a queued solve sends nothing (L140); the code judgement calls (L178). Decided: ticket 22 removes notifications older than a year (L116). The "roster changed" and "swap step reached" boxes are now ticked: tickets 16 and 20 built them.

@@ -105,3 +105,5 @@ What was NOT checked:
 - a day of leave is a day off in every file and on every print page, for every role, and only a nurse's own row on their own print page says "L";
 - "Shift hours" counts only the hours of the shifts on the row;
 - a draft has no export.
+
+**Reviewed by the user (2026-11-06).** From the review of every unsettled item across tickets 01–20, answered as recommended. Kept as built: any version exportable (L82); the audit entry names the format (L84); the print page in the signed-in layout (L85); names are today's (L86); the code judgement calls (L91).
