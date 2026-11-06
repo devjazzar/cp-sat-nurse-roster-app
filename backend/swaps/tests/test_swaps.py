@@ -423,7 +423,9 @@ class TestTheManagersDecision:
         swap = awaiting(nurse)
 
         assert [c["replaces_pin"] for c in decision(mona, er, swap["id"])["cells"]] == ["D", None]
-        decided(mona, er, swap["id"], "approve")
+        answer = decided(mona, er, swap["id"], "approve")
+
+        assert [c["replaces_pin"] for c in answer["cells"]] == [None, None], "an ended swap replaces nothing"
 
         ended = PinnedCell.objects.get(origin=PinOrigin.MANAGER)
         assert ended.removed_why == PinEnded.REPLACED

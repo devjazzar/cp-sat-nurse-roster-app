@@ -73,7 +73,7 @@ def unit_swaps(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter])
 class DecisionCell(SwapCellRow):
     now: str = Field(description="The cell in the roster in force now.")
     replaces_pin: str | None = Field(description="The shift's code, or empty for a day off, of your pin on this cell, which "
-                                                 "approving replaces. Null when you pinned none there.")
+                                                 "approving replaces. Null when you pinned none there, or the swap has ended.")
 
 
 class SwapDecision(Schema):
@@ -95,8 +95,9 @@ def _decision(request: HttpRequest, unit_id: UUID, swap_id: UUID) -> SwapDecisio
     if swap is None:
         raise Http404("There is no such swap in your unit.")
     roster = Roster.objects.select_related("unit").get(pk=swap.roster_id)
+    # Only while it may still be approved: once it has ended, no approval will replace anything.
     pins = {(pin.nurse_id, pin.date): pin for pin in PinnedCell.objects.current().filter(
-        unit=unit, origin=PinOrigin.MANAGER, nurse__in=[cell.nurse_id for cell in swap.cells.all()])}
+        unit=unit, origin=PinOrigin.MANAGER, nurse__in=[cell.nurse_id for cell in swap.cells.all()])} if swap.waiting else {}
     cells = [DecisionCell(**row.dict(), now=roster.grid.get(row.hospital_id, {}).get(row.date.isoformat(), ""),
                           replaces_pin=pins[(cell.nurse_id, cell.date)].code if (cell.nurse_id, cell.date) in pins else None)
              for row, cell in zip(swap_cells(swap), swap.cells.all())]

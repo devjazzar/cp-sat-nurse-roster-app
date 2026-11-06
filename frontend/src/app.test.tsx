@@ -6096,8 +6096,12 @@ describe("swaps", () => {
 
     expect(await screen.findByText("In the roster in force: Day (D).")).toBeInTheDocument()
     expect(document.title).toBe("Swaps · Nurse roster")
+    await user.selectOptions(screen.getByLabelText("Date"), "2026-12-10")
     await user.click(screen.getByRole("button", { name: "Add a cell" }))
     expect(screen.getAllByLabelText("Nurse")[1]).toHaveValue("h2")
+    expect(screen.getAllByLabelText("Date")[1]).toHaveValue("2026-12-10")
+    await user.selectOptions(screen.getAllByLabelText("Date")[0], "2026-12-09")
+    await user.selectOptions(screen.getAllByLabelText("Date")[1], "2026-12-09")
     await user.selectOptions(screen.getAllByLabelText("Becomes")[1], "D")
     await user.type(screen.getByLabelText("Note (optional)"), "My daughter's school play.")
     await user.click(screen.getByRole("button", { name: "Propose the swap" }))
@@ -6145,14 +6149,14 @@ describe("swaps", () => {
   it("a nurse reads her swaps, with each cell, each answer and the note", async () => {
     start("/swaps?month=2026-12", nurse({ body: [SWAP, THEIRS] }))
 
-    expect(await screen.findByRole("heading", { name: "Your swap, December 2026: Waiting for its colleagues" })).toBeInTheDocument()
-    const table = screen.getByRole("region", { name: "Your swap, its cells" })
+    expect(await screen.findByRole("heading", { name: "Your swap on 9 Dec 2026: Waiting for its colleagues" })).toBeInTheDocument()
+    const table = screen.getByRole("region", { name: "Your swap on 9 Dec 2026, its cells" })
     expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
       ["Hana Ali", "9 Dec 2026", "Day (D)", "Off"], ["Emad Nasser", "9 Dec 2026", "Off", "Day (D)"]])
     expect(screen.getByText("Emad Nasser: not answered yet.")).toBeInTheDocument()
     expect(screen.getByText("Hana Ali: My daughter's school play.")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Withdraw" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Accept Emad Nasser's swap" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Withdraw your swap on 9 Dec 2026" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Accept Emad Nasser's swap on 9 Dec 2026" })).toBeInTheDocument()
   })
 
   it("a colleague accepts and is told what comes next", async () => {
@@ -6161,11 +6165,11 @@ describe("swaps", () => {
       "POST /api/swaps/mine/w2/accept": () => { accepted = true; return { body: { ...THEIRS, state: "awaiting_manager", my_answer: "accepted" } } },
     }))
 
-    await user.click(await screen.findByRole("button", { name: "Accept Emad Nasser's swap" }))
+    await user.click(await screen.findByRole("button", { name: "Accept Emad Nasser's swap on 9 Dec 2026" }))
 
     const status = await screen.findByText("You accepted Emad Nasser's swap. Everyone in it has now accepted, so it waits for the manager.")
     await waitFor(() => expect(status).toHaveFocus())
-    expect(await screen.findByRole("heading", { name: "Emad Nasser's swap, December 2026: Waiting for the manager" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Emad Nasser's swap on 9 Dec 2026: Waiting for the manager" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Accept/ })).not.toBeInTheDocument()
   })
 
@@ -6176,13 +6180,13 @@ describe("swaps", () => {
       "POST /api/swaps/mine/w1/withdraw": () => { posted.push("withdraw"); return { body: { ...SWAP, state: "withdrawn" } } },
     }))
 
-    await user.click(await screen.findByRole("button", { name: "Reject Emad Nasser's swap" }))
-    const dialog = await screen.findByRole("alertdialog", { name: "Reject Emad Nasser's swap?" })
+    await user.click(await screen.findByRole("button", { name: "Reject Emad Nasser's swap on 9 Dec 2026" }))
+    const dialog = await screen.findByRole("alertdialog", { name: "Reject Emad Nasser's swap on 9 Dec 2026?" })
     await user.click(within(dialog).getByRole("button", { name: "Reject the swap" }))
     expect(await screen.findByText("You rejected Emad Nasser's swap. Everyone in it is told.")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "Withdraw" }))
-    await user.click(within(await screen.findByRole("alertdialog", { name: "Withdraw your swap?" })).getByRole("button", { name: "Withdraw the swap" }))
+    await user.click(screen.getByRole("button", { name: "Withdraw your swap on 9 Dec 2026" }))
+    await user.click(within(await screen.findByRole("alertdialog", { name: "Withdraw your swap on 9 Dec 2026?" })).getByRole("button", { name: "Withdraw the swap" }))
     expect(await screen.findByText("You withdrew your swap. Everyone in it is told.")).toBeInTheDocument()
     expect(posted).toEqual(["reject", "withdraw"])
   })
@@ -6244,6 +6248,19 @@ describe("swaps", () => {
 
     expect(await within(dialog).findByText("Say why: everyone in the swap reads it.")).toBeInTheDocument()
     await waitFor(() => expect(within(dialog).getByLabelText("Why")).toHaveFocus())
+  })
+
+  it("an ended swap says who did not answer, and offers no decision and no pin to replace", async () => {
+    const ended = { ...UNIT_ROW, state: "expired", expired_why: "cell_changed", colleagues: [{ hospital_id: "h2", full_name: "Emad Nasser", answer: "pending" }] }
+    start("/unit-swaps?month=2026-12&swap=w1", manager({
+      "GET /api/units/u1/swaps": { body: { month: "2026-12", swaps: [ended] } },
+      "GET /api/units/u1/swaps/w1": { body: { ...DECISION, swap: ended, check: null, approve_refusal: "This swap is expired, so it cannot be decided." } },
+    }))
+
+    expect(await screen.findByText("Emad Nasser: did not answer.")).toBeInTheDocument()
+    expect(screen.getByText(/It expired because a new version changed one of its cells\./)).toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Your pin" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
   })
 
   it("says when a month has no swap, and leads to the next", async () => {

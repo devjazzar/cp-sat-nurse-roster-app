@@ -11184,7 +11184,7 @@
                 "type": "null"
               }
             ],
-            "description": "The shift's code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.",
+            "description": "The shift's code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there, or the swap has ended.",
             "title": "Replaces Pin"
           }
         },

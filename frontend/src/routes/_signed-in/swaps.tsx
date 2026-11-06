@@ -20,8 +20,8 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { NO_CONNECTION, shiftNames } from "@/lib/request-words"
 import { plainRefusal, serverErrors } from "@/lib/server-errors"
-import { ANSWER, cellWords, WAITING, SWAP_STATE } from "@/lib/swap-words"
-import { hospitalTime, monthName, shortDay } from "@/lib/utils"
+import { answersWords, cellWords, swapDays, SWAP_STATE, WAITING } from "@/lib/swap-words"
+import { hospitalTime, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress })
@@ -56,7 +56,7 @@ function Composer({ composer, onProposed }: { composer: SwapComposer; onProposed
   const propose = useProposeSwap()
   const me = composer.nurses.find((nurse) => nurse.me)
   const first = composer.days[0]?.date ?? ""
-  const blank = (hospital_id = me?.hospital_id ?? ""): Cell => ({ hospital_id, date: first, shift: "" })
+  const blank = (hospital_id = me?.hospital_id ?? "", date = first): Cell => ({ hospital_id, date, shift: "" })
   const form = useForm<FormValues>({ defaultValues: { cells: [blank()], note: "" } })
   const cells = useFieldArray({ control: form.control, name: "cells" })
   const values = form.watch("cells")
@@ -143,7 +143,7 @@ function Composer({ composer, onProposed }: { composer: SwapComposer; onProposed
         })}
       </ol>
       <div>
-        <Button type="button" variant="outline" size="sm" onClick={() => cells.append(blank(composer.nurses.find((nurse) => !nurse.me)?.hospital_id))}>
+        <Button type="button" variant="outline" size="sm" onClick={() => cells.append(blank(composer.nurses.find((nurse) => !nurse.me)?.hospital_id, values.at(-1)?.date))}>
           Add a cell
         </Button>
       </div>
@@ -169,8 +169,8 @@ type Asking = { swap: MySwapRow; what: "reject" | "withdraw" }
 
 function question(asking: Asking): Question {
   return asking.what === "reject"
-    ? { title: `Reject ${asking.swap.proposer}'s swap?`, body: "It ends for everyone in it, who are told. Nothing on the roster changes.", confirm: "Reject the swap" }
-    : { title: "Withdraw your swap?", body: "It ends for everyone in it, who are told. Nothing on the roster changes.", confirm: "Withdraw the swap" }
+    ? { title: `Reject ${asking.swap.proposer}'s swap on ${swapDays(asking.swap.cells)}?`, body: "It ends for everyone in it, who are told. Nothing on the roster changes.", confirm: "Reject the swap" }
+    : { title: `Withdraw your swap on ${swapDays(asking.swap.cells)}?`, body: "It ends for everyone in it, who are told. Nothing on the roster changes.", confirm: "Withdraw the swap" }
 }
 
 function SwapItem({ swap, names, onAccept, onAsk, pending }: {
@@ -183,30 +183,32 @@ function SwapItem({ swap, names, onAccept, onAsk, pending }: {
   const waiting = WAITING.includes(swap.state)
   const heading = swap.proposed_by_me ? "Your swap" : `${swap.proposer}'s swap`
   const answering = swap.state === "pending" && swap.my_answer === "pending"
+  const which = `${swap.proposed_by_me ? "your" : `${swap.proposer}'s`} swap on ${swapDays(swap.cells)}`
   return (
     <li className="flex flex-col gap-2 border-b py-3 last:border-b-0">
-      <h3 className="font-medium">{heading}, {monthName(swap.month)}: {SWAP_STATE[swap.state]}</h3>
+      <h3 className="font-medium">{heading} on {swapDays(swap.cells)}: {SWAP_STATE[swap.state]}</h3>
       <p className="text-sm text-muted-foreground">
         Proposed {hospitalTime(swap.proposed_at)}.
         {swap.ended_by && swap.ended_at ? ` ${SWAP_STATE[swap.state]} by ${swap.ended_by}, ${hospitalTime(swap.ended_at)}.` : ""}
       </p>
       {swap.note && <p className="text-sm">{swap.proposer}: {swap.note}</p>}
-      <SwapCells cells={swap.cells} names={names} label={`${heading}, its cells`} />
+      <SwapCells cells={swap.cells} names={names} label={`${heading} on ${swapDays(swap.cells)}, its cells`} />
       {swap.colleagues.length > 0 && (
         <p className="text-sm">
-          {swap.colleagues.map((colleague) => `${colleague.full_name || colleague.hospital_id}: ${ANSWER[colleague.answer]}`).join(". ")}.
+          {answersWords(swap.colleagues, swap.state)}
         </p>
       )}
       {swap.reason && <p className="text-sm">The manager's reason: {swap.reason}</p>}
       {(answering || (swap.proposed_by_me && waiting)) && (
         <div className="flex flex-wrap gap-2">
-          {answering && <Button size="sm" disabled={pending} onClick={onAccept} aria-label={`Accept ${swap.proposer}'s swap`}>Accept</Button>}
+          {answering && <Button size="sm" disabled={pending} onClick={onAccept} aria-label={`Accept ${which}`}>Accept</Button>}
           {answering && (
             <Button id={`reject-${swap.id}`} variant="outline" size="sm" disabled={pending} onClick={() => onAsk("reject")}
-              aria-label={`Reject ${swap.proposer}'s swap`}>Reject</Button>
+              aria-label={`Reject ${which}`}>Reject</Button>
           )}
           {swap.proposed_by_me && waiting && (
-            <Button id={`withdraw-${swap.id}`} variant="outline" size="sm" disabled={pending} onClick={() => onAsk("withdraw")}>Withdraw</Button>
+            <Button id={`withdraw-${swap.id}`} variant="outline" size="sm" disabled={pending} onClick={() => onAsk("withdraw")}
+              aria-label={`Withdraw ${which}`}>Withdraw</Button>
           )}
         </div>
       )}

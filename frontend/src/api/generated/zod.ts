@@ -3651,7 +3651,7 @@ export const GetSwapDecisionResponse = zod.object({
   "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
   "after": zod.string().describe('What the swap makes it. Empty for a day off.'),
   "now": zod.string().describe('The cell in the roster in force now.'),
-  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.')
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there, or the swap has ended.')
 })),
   "check": zod.union([zod.object({
   "reason": zod.union([zod.string(),zod.null()]).describe('Why this could not be worked out: the solver\'s code cannot read the month as it stands.'),
@@ -3725,7 +3725,7 @@ export const ApproveUnitSwapResponse = zod.object({
   "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
   "after": zod.string().describe('What the swap makes it. Empty for a day off.'),
   "now": zod.string().describe('The cell in the roster in force now.'),
-  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.')
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there, or the swap has ended.')
 })),
   "check": zod.union([zod.object({
   "reason": zod.union([zod.string(),zod.null()]).describe('Why this could not be worked out: the solver\'s code cannot read the month as it stands.'),
@@ -3796,7 +3796,7 @@ export const RejectUnitSwapResponse = zod.object({
   "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
   "after": zod.string().describe('What the swap makes it. Empty for a day off.'),
   "now": zod.string().describe('The cell in the roster in force now.'),
-  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.')
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there, or the swap has ended.')
 })),
   "check": zod.union([zod.object({
   "reason": zod.union([zod.string(),zod.null()]).describe('Why this could not be worked out: the solver\'s code cannot read the month as it stands.'),

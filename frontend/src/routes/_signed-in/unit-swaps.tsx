@@ -10,7 +10,7 @@ import {
   getGetRosterMonthQueryKey, getGetSwapDecisionQueryKey, getListRosterVersionsQueryKey, getListUnitSwapsQueryKey,
   useApproveUnitSwap, useGetSwapDecision, useListShifts, useListUnitSwaps, useRejectUnitSwap,
 } from "@/api/generated/endpoints"
-import { Role, type SwapDecision, type UnitSwapRow } from "@/api/generated/model"
+import { Role, type DecisionCell, type SwapDecision, type UnitSwapRow } from "@/api/generated/model"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { SwapCells } from "@/components/swap-cells"
 import {
@@ -24,8 +24,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useChosenUnit } from "@/components/unit-picker"
 import { NO_CONNECTION, shiftNames } from "@/lib/request-words"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
-import { ANSWER, cellWords, SWAP_STATE } from "@/lib/swap-words"
-import { hospitalTime, monthName, scrollableRegion, shortDay } from "@/lib/utils"
+import { answersWords, cellWords, swapDays, SWAP_STATE, WAITING } from "@/lib/swap-words"
+import { hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress, swap: z.string().optional().catch(undefined) })
@@ -42,7 +42,7 @@ const LINK = "underline underline-offset-3"
 const STATUS = "unit-swaps-status"
 const EXPIRED_WHY = { date_passed: "one of its dates passed", cell_changed: "a new version changed one of its cells" } as const
 
-const days = (swap: UnitSwapRow) => [...new Set(swap.cells.map((cell) => shortDay(cell.date)))].join(", ")
+const days = (swap: UnitSwapRow) => swapDays(swap.cells)
 
 const DECIDING = {
   approve: {
@@ -169,10 +169,12 @@ function Deciding({ unitId, swapId, names, onDone }: { unitId: string; swapId: s
           {answer.swap.note && <p className="text-sm">{answer.swap.proposer}: {answer.swap.note}</p>}
           <SwapCells cells={answer.cells} names={names} label={`${answer.swap.proposer}'s swap, before and after`} extra={[
             { heading: "In force now", cell: (row) => cellWords(row.now, names) },
-            { heading: "Your pin", cell: (row) => (row.replaces_pin === null ? "" : `${cellWords(row.replaces_pin, names)}, which approving replaces`) },
+            ...(WAITING.includes(answer.swap.state)
+              ? [{ heading: "Your pin", cell: (row: DecisionCell) => (row.replaces_pin === null ? "" : `${cellWords(row.replaces_pin, names)}, which approving replaces`) }]
+              : []),
           ]} />
           {answer.swap.colleagues.length > 0 && (
-            <p className="text-sm">{answer.swap.colleagues.map((colleague) => `${colleague.full_name || colleague.hospital_id}: ${ANSWER[colleague.answer]}`).join(". ")}.</p>
+            <p className="text-sm">{answersWords(answer.swap.colleagues, answer.swap.state)}</p>
           )}
           {answer.swap.reason && <p className="text-sm">Your reason: {answer.swap.reason}</p>}
           <Check decision={answer} />

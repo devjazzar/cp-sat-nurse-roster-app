@@ -15,6 +15,6 @@ export interface DecisionCell {
   after: string;
   /** The cell in the roster in force now. */
   now: string;
-  /** The shift's code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there. */
+  /** The shift's code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there, or the swap has ended. */
   replaces_pin: string | null;
 }
