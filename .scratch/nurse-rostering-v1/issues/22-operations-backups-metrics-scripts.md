@@ -40,3 +40,5 @@
 - [ ] Caddy in a browser at the hospital's own address: the certificate (Let's Encrypt with `DOMAIN`, or the self-signed one), and the app through it.
 - [ ] Time a solve, a draft's read and a re-plan's comparison on a 60-nurse unit on the real server.
 - [ ] Time the audit log filtered by user on the real database.
+
+**From ticket 21 (2026-11-06).** The worker runs at `--concurrency 4` and every periodic job takes a lock under its own name (`ops.queue._periodic`). The backup is a job that can run longer than a minute: give it a lock of its own (`ops.queue.under_its_own_lock` for an on-demand job, or `_periodic` for the cron). `solves.tests.conftest.run_the_queue(concurrency=4)` runs the real queue at that concurrency for its test. Procrastinate's job rows now include `project_carry_over`, one after each roster version and each close: their retention is yours with the rest.

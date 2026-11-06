@@ -23,3 +23,5 @@
 - **320 px** for every page, the Users page's row buttons over names included (ticket 23), and 375 px for the manager's Requests and Swaps pages and the re-plan result.
 - **Dark mode**, once it can be switched to.
 - **A large unit:** a roster grid long enough to be windowed, edited with the arrow keys; a 60-nurse unit's draft, re-plan comparison and swap check (timing belongs to ticket 22's install checklist).
+
+**From ticket 21 (2026-11-06).** Month close exists. The manager's journey can end on the Roster page's "Carry-over and month close" card: a month over closes on its own (the hourly catch-up), and a late leave then "Close … again". The nurse's journey can read My month of a closed month. The real clock must be past a month's end for either: seed an approved past month, as `nr-t21`'s seed script did (ticket 21's comment).
