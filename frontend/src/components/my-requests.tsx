@@ -15,7 +15,7 @@ import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
-import { askedFor, herReason, lastDecision, MY_STATE, NO_CONNECTION, shiftNames } from "@/lib/request-words"
+import { askedFor, inSentence, herReason, lastDecision, MY_STATE, NO_CONNECTION, shiftNames } from "@/lib/request-words"
 import { monthName, scrollableRegion, shortDay } from "@/lib/utils"
 
 const STATUS = "my-requests-status"
@@ -54,7 +54,7 @@ function RequestForm({ answer, onMade }: { answer: MyRequests; onMade: (message:
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: getGetMyRequestsQueryKey() })
       form.reset()
-      onMade(`Your request for ${askedFor(shift, names).toLowerCase()} on ${shortDay(date)} is made. Your manager decides it.`)
+      onMade(`Your request for ${inSentence(shift, names)} on ${shortDay(date)} is made. Your manager decides it.`)
     },
     onError: (error) => showServerErrors(form, error),
   }))
@@ -119,7 +119,7 @@ export function MyRequestsCard({ month }: { month: string | undefined }) {
     withdraw.mutate({ requestId: row.id }, {
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: getGetMyRequestsQueryKey() })
-        tell(`Your request for ${askedFor(row.shift, names).toLowerCase()} on ${shortDay(row.date)} is withdrawn.`)
+        tell(`Your request for ${inSentence(row.shift, names)} on ${shortDay(row.date)} is withdrawn.`)
       },
       onError: (error) => tell(plainRefusal(error) ?? NO_CONNECTION),
     })

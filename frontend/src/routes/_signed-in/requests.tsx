@@ -26,7 +26,7 @@ import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { useChosenUnit } from "@/components/unit-picker"
-import { askedFor, herReason, lastDecision, NO_CONNECTION, shiftNames, UNIT_STATE } from "@/lib/request-words"
+import { askedFor, inSentence, herReason, lastDecision, NO_CONNECTION, shiftNames, UNIT_STATE } from "@/lib/request-words"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
 import { monthName, scrollableRegion, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"
@@ -116,7 +116,7 @@ function DecisionDialog({ unitId, windowId, deciding, shifts, focusAfter, onDone
     resolver: zodResolver(decisionSchema(required)), defaultValues: { reason: "", shift: row.promised ?? "" },
   })
   const names = shiftNames(shifts)
-  const asked = askedFor(row.shift, names).toLowerCase()
+  const asked = inSentence(row.shift, names)
   const whose = `${row.full_name}'s request for ${asked} on ${shortDay(row.date)}`
   const reasonError = form.formState.errors.reason
   const refusal = plainRefusal(mutation.error)
@@ -145,7 +145,7 @@ function DecisionDialog({ unitId, windowId, deciding, shifts, focusAfter, onDone
 
   const body = {
     accept: row.replaces_pin !== null
-      ? `It becomes a pinned cell every solve keeps, and replaces your pin of ${askedFor(row.replaces_pin, names).toLowerCase()} on that day.`
+      ? `It becomes a pinned cell every solve keeps, and replaces your pin of ${inSentence(row.replaces_pin, names)} on that day.`
       : "It becomes a pinned cell every solve keeps. On an approved roster, a changed cell is a new version.",
     reject: "It stays on record, and the nurse reads your reason on My month.",
     edit: "The request keeps what she asked for; its pin holds what you choose here.",
@@ -194,7 +194,7 @@ function Decision({ row, names }: { row: UnitRequestRow; names: Record<string, s
   return (
     <div className="flex flex-col gap-0.5">
       <span>{UNIT_STATE[row.state]}</span>
-      {changed && <span className="text-sm">Now promises {askedFor(row.promised ?? "", names).toLowerCase()}</span>}
+      {changed && <span className="text-sm">Now promises {inSentence(row.promised ?? "", names)}</span>}
       {row.set_aside && <span className="text-sm">Its pin is set aside: it no longer fits the nurse's month, so no solve takes it.</span>}
       {decision?.reason && <span className="text-sm text-muted-foreground">{decision.by}: {decision.reason}</span>}
     </div>

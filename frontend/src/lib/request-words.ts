@@ -6,6 +6,9 @@ export function askedFor(code: string, names: Record<string, string> = {}): stri
   return names[code] ? `${names[code]} (${code})` : code
 }
 
+/** The same within a sentence: "a day off", or the shift's name as it is ("Night (N)"). */
+export const inSentence = (code: string, names: Record<string, string> = {}) => (code ? askedFor(code, names) : "a day off")
+
 /** Said to the nurse whose request it is. */
 export const MY_STATE: Record<MyRequestRowState, string> = {
   pending: "Waiting for a decision",

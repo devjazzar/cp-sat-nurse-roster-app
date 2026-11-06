@@ -5851,7 +5851,7 @@ describe("requests", () => {
     await user.type(screen.getByLabelText("Reason (optional)"), "Exam on the 10th.")
     await user.click(screen.getByRole("button", { name: "Make the request" }))
 
-    const status = await screen.findByText("Your request for night (n) on 9 Dec 2026 is made. Your manager decides it.")
+    const status = await screen.findByText("Your request for Night (N) on 9 Dec 2026 is made. Your manager decides it.")
     expect(made_).toEqual({ date: "2026-12-09", shift: "N", reason: "Exam on the 10th." })
     await waitFor(() => expect(status).toHaveFocus())
   })
@@ -5973,10 +5973,10 @@ describe("requests", () => {
 
     await user.click(await screen.findByRole("button", { name: "Accept Amal Saleh's request for 3 Dec 2026" }))
     const dialog = await screen.findByRole("alertdialog")
-    expect(within(dialog).getByText(/replaces your pin of day \(d\) on that day/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/replaces your pin of Day \(D\) on that day/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole("button", { name: "Accept the request" }))
 
-    const status = await screen.findByText("Accepted Amal Saleh's request for night (n) on 3 Dec 2026. Amal Saleh is told. Version 2 of the roster is now in force, and the unit's nurses are told it changed, not why.")
+    const status = await screen.findByText("Accepted Amal Saleh's request for Night (N) on 3 Dec 2026. Amal Saleh is told. Version 2 of the roster is now in force, and the unit's nurses are told it changed, not why.")
     expect(sent).toEqual({ reason: "" })
     await waitFor(() => expect(status).toHaveFocus())
   })
