@@ -24,7 +24,7 @@ from ninja.errors import HttpError
 from accounts.authz import SignedIn
 from accounts.models import Role, User
 from audit.log import record
-from closing import closing
+from closes import making
 from hospital.api import refuse
 from hospital.catalogue_api import IsoDate
 from hospital.models import LeaveType
@@ -239,7 +239,7 @@ def _months(days: Iterable[dt.date]) -> list[dt.date]:
 def _refuse_fixed_months(unit: Unit, days: Iterable[dt.date], field: str) -> None:
     """A closed month is a fact. Leave stays open while it can be closed again, since late facts are what that is for; once the
     month after it has closed, its leave is fixed for good (ticket 21)."""
-    fixed = next((month for month in _months(days) if closing.fixed_for_good(unit, month)), None)
+    fixed = next((month for month in _months(days) if making.fixed_for_good(unit, month)), None)
     if fixed is not None:
         refuse(((field,), f"{fixed:%B %Y} has closed, and so has the month after it, so its leave can no longer change."))
 
@@ -340,7 +340,7 @@ def unit_leave(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter])
                 .order_by(Lower("nurse__user__full_name"), "nurse_id", "date"))
     nurses = {nurse.pk: nurse for nurse in membership.rostered_in(unit, month).select_related("user")}
     nurses |= {row.nurse_id: row.nurse for row in rows}
-    closed = "fixed" if closing.fixed_for_good(unit, month) else "closed" if closing.is_closed(unit, month) else "open"
+    closed = "fixed" if making.fixed_for_good(unit, month) else "closed" if making.is_closed(unit, month) else "open"
     return UnitLeaveMonth(month=month.strftime("%Y-%m"), runs=[_leave_run(run) for run in _runs(rows)], closed=closed,
                           nurses=[_leave_nurse(nurse) for nurse in
                                   sorted(nurses.values(), key=lambda nurse: (nurse.user.full_name.lower(), nurse.pk))])

@@ -13,9 +13,9 @@ from solver_service.grid import month_facts, nurses_of
 
 from accounts.models import Role
 from audit.models import AuditEntry
-from closing import closing
-from closing.chain import CARRIED, Chain
-from closing.models import CarryOver, CarrySource, MonthClose
+from closes import making
+from closes.chain import CARRIED, Chain
+from closes.models import CarryOver, CarrySource, MonthClose
 from conftest import post
 from hospital.models import Shift
 from notifications.models import Event, Notification
@@ -84,12 +84,16 @@ def close_again(client, unit, month="2026-06"):
     return post(client, url(unit, "/close"), {"month": month})
 
 
+def closing_due(now):
+    return making.due(now)
+
+
 class TestTheSchedule:
     def test_it_closes_an_approved_month_once_its_close_time_has_passed(self, june, er, on):
         on(dt.date(2026, 7, 1))
-        assert closing.due(at(dt.date(2026, 7, 1), 0, 29)) == []
+        assert making.due(at(dt.date(2026, 7, 1), 0, 29)) == []
 
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 0, 30))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 0, 30))
 
         assert (close.unit, close.month, close.closed_by, close.version) == (er, JUNE, None, 1)
         assert close.result["facts"] == IN_FORCE
@@ -97,12 +101,12 @@ class TestTheSchedule:
         assert close.result["nurses"] == nurses_of(close.input, month_facts(close.input))
         assert carried(close) == {nurse: row["carry_over"] for nurse, row in close.result["nurses"].items()}
         assert {row.source for row in close.carry_overs.all()} == {CarrySource.CLOSED}
-        assert closing.due(at(dt.date(2026, 7, 1), 1, 30)) == []
-        assert closing.catch_up(at(dt.date(2026, 7, 1), 1, 30)) == []
+        assert making.due(at(dt.date(2026, 7, 1), 1, 30)) == []
+        assert making.catch_up(at(dt.date(2026, 7, 1), 1, 30)) == []
 
     def test_the_manager_is_told_and_the_log_says_only_which_version(self, june, er, on):
         on(dt.date(2026, 7, 1))
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         [note] = Notification.objects.filter(event=Event.MONTH_CLOSED)
         assert note.user.username == "mona"
@@ -110,18 +114,22 @@ class TestTheSchedule:
         [entry] = AuditEntry.objects.filter(action="month.closed")
         assert (entry.actor, entry.target, entry.before, entry.after) == (None, "ER, 2026-06", None, {"version": 1, "again": False})
 
+    def test_a_missed_close_is_due_all_day_after_the_first(self, june, er, on):
+        on(dt.date(2026, 7, 2))
+        assert closing_due(at(dt.date(2026, 7, 2), 0, 5)) == [(er, JUNE)]
+
     def test_a_unit_with_no_approved_roster_is_skipped(self, mona, er, solver, on):
         solved(mona, er, solver)
         ok(submit(mona, er))
         on(dt.date(2026, 7, 2))
 
-        assert closing.catch_up(at(dt.date(2026, 7, 2), 9)) == []
+        assert making.catch_up(at(dt.date(2026, 7, 2), 9)) == []
         assert not MonthClose.objects.exists()
 
     def test_a_missed_close_is_caught_up_oldest_month_first(self, june_and_july, er, on):
         on(dt.date(2026, 8, 3))
 
-        closes = closing.catch_up(at(dt.date(2026, 8, 3), 9))
+        closes = making.catch_up(at(dt.date(2026, 8, 3), 9))
 
         assert [close.month for close in closes] == [JUNE, JULY]
         june, july = closes
@@ -136,7 +144,7 @@ class TestTheSchedule:
         on(dt.date(2026, 7, 1))
 
         with CaptureQueriesContext(connection) as queries:
-            closing.catch_up(at(dt.date(2026, 7, 1), 1))
+            making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         locks = [query["sql"] for query in queries.captured_queries if " FOR " in query["sql"]]
         tables = [next(table for table in ("hospital_hospitalsettings", "nurses_nurseprofile", "units_unit", "rosters_roster",
@@ -151,7 +159,7 @@ class TestTheSchedule:
         before = ok(admin.get("/api/solve-history"))
         on(dt.date(2026, 7, 1))
 
-        closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         assert ok(admin.get("/api/solve-history")) == before
 
@@ -162,7 +170,7 @@ class TestTheSchedule:
         monkeypatch.setattr(solver_client, "precheck", refuse_to_solve)
         on(dt.date(2026, 7, 1))
 
-        assert [close.month for close in closing.catch_up(at(dt.date(2026, 7, 1), 1))] == [JUNE]
+        assert [close.month for close in making.catch_up(at(dt.date(2026, 7, 1), 1))] == [JUNE]
 
 
 class TestTheFacts:
@@ -172,7 +180,7 @@ class TestTheFacts:
         assert record_leave(mona, er, "Amal", 2).status_code == 201
         assert Roster.objects.get(unit=er).grid["Amal"]["2026-06-02"] == "N"  # A month that is over makes no version.
 
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         assert close.result["facts"]["Amal"]["2026-06-02"] == ""
         assert close.result["nurses"]["Amal"]["leave"] == ["2026-06-02"]
@@ -187,7 +195,7 @@ class TestTheFacts:
         record_leave(mona, er, "Amal", 3)  # Leave wins over a pin, which it ends: one left behind would be set aside.
         PinnedCell.objects.create(unit=er, nurse=amal, date=dt.date(2026, 6, 3), shift=Shift.objects.get(code="D"), pinned_by=user)
 
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         assert close.result["facts"]["Badr"]["2026-06-03"] == "D"
         assert close.result["facts"]["Amal"]["2026-06-03"] == ""
@@ -196,7 +204,7 @@ class TestTheFacts:
         NurseProfile.objects.filter(user__username="Dana").update(end_date=dt.date(2026, 6, 20))
         on(dt.date(2026, 7, 1))
 
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         dana = close.result["facts"]["Dana"]
         assert all(dana[f"2026-06-{day}"] == "" for day in range(21, 31))
@@ -206,7 +214,7 @@ class TestTheFacts:
         on(dt.date(2026, 7, 1))
         assert change_shift(carla, "N", code="NT").status_code == 200
 
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         assert close.result["facts"]["Amal"]["2026-06-01"] == "NT"
         assert "NT" in close.input["department"]["shifts"]
@@ -224,7 +232,7 @@ class TestTheFacts:
         assert "A" not in er.rules["shifts"]
         Shift.objects.filter(code="A").update(active=False)
 
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         assert close.result["facts"]["Emad"]["2026-06-02"] == "A"
         assert close.result["nurses"]["Emad"]["shifts"]["A"] == 1
@@ -234,7 +242,7 @@ class TestTheFacts:
 class TestClosingAgain:
     def test_late_leave_then_closing_again_keeps_the_first_close_as_it_was(self, june, mona, er, on):
         on(dt.date(2026, 7, 1))
-        [first] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [first] = making.catch_up(at(dt.date(2026, 7, 1), 1))
         stored = copy.deepcopy(first.result)
         assert close_view(mona, er)["closed"]["changed_since"] is False
         assert ok(mona.get(url(er, "/leave"), {"month": "2026-06"}))["closed"] == "closed"
@@ -255,7 +263,7 @@ class TestClosingAgain:
 
     def test_it_is_refused_once_the_month_after_has_closed(self, june_and_july, mona, er, on):
         on(dt.date(2026, 8, 3))
-        closing.catch_up(at(dt.date(2026, 8, 3), 9))
+        making.catch_up(at(dt.date(2026, 8, 3), 9))
 
         assert refused(close_again(mona, er)) == "July 2026 has closed, so June 2026 can no longer be closed again."
         assert close_view(mona, er)["close_refusal"] == "July 2026 has closed, so June 2026 can no longer be closed again."
@@ -292,7 +300,7 @@ class TestTheChain:
 
     def test_once_closed_the_next_month_starts_from_the_closed_carry_over(self, june, er, on):
         on(dt.date(2026, 7, 1))
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         july = assemble(er, JULY)
 
@@ -305,7 +313,7 @@ class TestTheChain:
         draft = ok(mona.get(url(er, "/roster"), {"month": "2026-07"}))["draft"]
         assert not [change for change in draft["changes"] if change["what"] == "closed"]
 
-        closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         draft = ok(mona.get(url(er, "/roster"), {"month": "2026-07"}))["draft"]
         assert {change["what"] for change in draft["changes"]} == {"closed"}
@@ -322,6 +330,19 @@ class TestTheChain:
 
         assert {key: row[key] for key in CARRIED} == values | {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0}
 
+    def test_opening_values_entered_the_year_before_reset_in_january(self, er):
+        """A nurse added in December whose first month in this application is January: her opening values were last year's."""
+        from nurses.models import Placement
+        amal = NurseProfile.objects.get(user__username="Amal")
+        NurseProfile.objects.filter(pk=amal.pk).update(ytd_overtime=30, night_balance=2.0, hours_balance=5)
+        Placement.objects.filter(nurse=amal).update(from_month=dt.date(2026, 12, 1))
+
+        row = next(row for row in assemble(er, dt.date(2027, 1, 1)).nurses if row["id"] == "Amal")
+        december = next(row for row in assemble(er, dt.date(2026, 12, 1)).nurses if row["id"] == "Amal")
+
+        assert (row["ytd_overtime"], row["night_balance"], row["hours_balance"]) == (0, 0.0, 5)
+        assert (december["ytd_overtime"], december["night_balance"]) == (30, 2.0)
+
     def test_a_transferred_nurse_carries_hers_into_the_new_unit(self, june, er, on, client_of, make_user):
         from solves.tests.conftest import make_sample_unit
         client_of("omar", Role.UNIT_MANAGER)
@@ -330,7 +351,7 @@ class TestTheChain:
         amal = NurseProfile.objects.get(user__username="Amal")
         membership.transfer(amal, icu, JULY)
         on(dt.date(2026, 7, 1))
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         july = assemble(icu, JULY)
 
@@ -340,7 +361,7 @@ class TestTheChain:
 
     def test_a_history_naming_a_shift_renamed_since_maps_it(self, june, er, on, carla):  # noqa: F811
         on(dt.date(2026, 7, 1))
-        closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        making.catch_up(at(dt.date(2026, 7, 1), 1))
         assert change_shift(carla, "N", code="NT").status_code == 200
         er.refresh_from_db()
 
@@ -373,7 +394,7 @@ class TestThreeMonths:
         projected = {month: Chain().carry_out(Roster.objects.get(unit=er, month=month)) for month in (JUNE, JULY, AUGUST)}
         on(dt.date(2026, 9, 1))
 
-        june, july, august = closing.catch_up(at(dt.date(2026, 9, 1), 1))
+        june, july, august = making.catch_up(at(dt.date(2026, 9, 1), 1))
 
         assert [close.month for close in (june, july, august)] == [JUNE, JULY, AUGUST]
         assert self.starts(july) == carried(june) and self.starts(august) == carried(july)
@@ -385,7 +406,7 @@ class TestThreeMonths:
 
     def test_a_late_fact_closed_again_in_the_middle_moves_what_the_next_month_starts_from(self, three, mona, er, on):
         on(dt.date(2026, 8, 3))
-        june, july = closing.catch_up(at(dt.date(2026, 8, 3), 1))
+        june, july = making.catch_up(at(dt.date(2026, 8, 3), 1))
         worked = next(day for day in range(1, 32) if SOUND["2026-07"]["roster"]["Badr"][f"2026-07-{day:02d}"])
         before = assemble(er, AUGUST).carried["Badr"]
 
@@ -395,4 +416,4 @@ class TestThreeMonths:
         after = assemble(er, AUGUST).carried["Badr"]
         assert before.source == after.source == CarrySource.CLOSED
         assert after.values["previous"] != before.values["previous"]
-        assert self.starts(closing.latest_close(er, JULY)) == self.starts(july) == carried(june)  # The same start: June's close.
+        assert self.starts(making.latest_close(er, JULY)) == self.starts(july) == carried(june)  # The same start: June's close.

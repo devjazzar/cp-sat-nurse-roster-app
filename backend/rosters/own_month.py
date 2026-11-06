@@ -52,7 +52,7 @@ def own_hours(unit: Unit, month: dt.date, hospital_id: str, row: dict[str, str])
 
 
 def closed_hours(close, hospital_id: str) -> OwnHours | None:
-    """A closed month's figures for one nurse, as its close stored them (`closing.models.MonthClose`): fact, whatever has been
+    """A closed month's figures for one nurse, as its close stored them (`closes.models.MonthClose`): fact, whatever has been
     corrected since. Its shifts under their codes now. None when the close did not have them in the month."""
     row = close.result["nurses"].get(hospital_id)
     if row is None:

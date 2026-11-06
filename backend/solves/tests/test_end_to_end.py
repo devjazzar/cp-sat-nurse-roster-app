@@ -210,7 +210,7 @@ def test_a_real_month_closes_with_the_carry_over_its_real_solve_worked_out(mona,
     `nurses` block: the close's no-search computation (`solver_service.grid.nurses_of`) is the solver's."""
     from django.utils import timezone
 
-    from closing import closing
+    from closes import making
     from nurses import membership
     from rosters.tests.test_review import approve, submit
     carla = client_of("carla", Role.CNO, full_name="Carla CNO")
@@ -221,10 +221,10 @@ def test_a_real_month_closes_with_the_carry_over_its_real_solve_worked_out(mona,
     assert submit(mona, er).status_code == 200 and approve(carla, er).status_code == 200
     monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 7, 1))
 
-    [close] = closing.catch_up(timezone.make_aware(dt.datetime(2026, 7, 1, 0, 30)))
+    [close] = making.catch_up(timezone.make_aware(dt.datetime(2026, 7, 1, 0, 30)))
 
     assert close.result["facts"] == stored.result["roster"]
     accounting = ("leave", "contract", "leave_credit", "required", "hours_worked", "overtime", "shortfall", "shifts", "carry_over")
     assert {nurse: {key: row[key] for key in accounting} for nurse, row in close.result["nurses"].items()} == {
         nurse: {key: row[key] for key in accounting} for nurse, row in stored.result["nurses"].items()}
-    assert close.result["elapsed_violations"] == []
+    assert close.result["facts_broke"] == []

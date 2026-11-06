@@ -126,8 +126,8 @@ def test_a_scheduled_job_runs_beside_a_solve_and_a_close_never_waits_for_one(mon
     count, with no close."""
     import datetime as dt
 
-    from closing.models import MonthClose
-    from closing.tasks import close_month
+    from closes.models import MonthClose
+    from closes.tasks import close_month
     from nurses import membership
     from rosters.tests.test_review import approve, ok, solved, submit
     from solves.tests.conftest import result_of

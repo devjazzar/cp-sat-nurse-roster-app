@@ -5,9 +5,10 @@ import datetime as dt
 
 from django.db import transaction
 
-from closing import closing
-from closing.chain import Chain, next_month
-from closing.models import CarryOver, CarrySource
+from closes import making
+from closes.chain import Chain, next_month
+from closes.models import CarryOver, CarrySource
+from nurses import membership
 from nurses.models import NurseProfile
 from ops.queue import enqueue_once, hourly, under_its_own_lock
 from rosters.models import Roster, RosterState
@@ -19,7 +20,7 @@ def close_month(timestamp: int) -> None:
     """Closes every unit's month whose close time (00:30 by default, on the hospital's clock) has passed and that is not closed,
     so a worker that was down catches up. The schedule is fixed at import and in UTC, so this runs hourly and reads the time
     itself: the close comes at its time where the hospital's offset from UTC is a whole hour, and within the hour otherwise."""
-    closing.catch_up()
+    making.catch_up()
 
 
 @under_its_own_lock
@@ -32,7 +33,7 @@ def project_carry_over(unit_id: str, month: str) -> None:
     with transaction.atomic():
         while True:
             roster = Roster.objects.filter(unit=unit, month=step, state=RosterState.APPROVED).select_related("unit").first()
-            if roster is None or closing.is_closed(unit, step):
+            if roster is None or making.is_closed(unit, step):
                 return
             carried = chain.carry_out(roster)
             for nurse in NurseProfile.objects.filter(user__username__in=list(carried)).select_related("user"):
@@ -51,7 +52,8 @@ def project(unit: Unit, month: dt.date) -> None:
 def project_later_months(unit: Unit, month: dt.date) -> None:
     """After a close: the approved months after it, in this unit and in those its nurses are in then, start from it now."""
     after = next_month(month)
-    units = {unit.pk} | set(CarryOver.objects.filter(close__unit=unit, close__month=month)
-                            .values_list("nurse__placements__unit", flat=True))
+    nurses = NurseProfile.objects.filter(carry_overs__close__unit=unit, carry_overs__close__month=month).distinct()
+    units = {unit.pk} | {placement.unit_id for placement in map(lambda nurse: membership.placement_in(nurse, after), nurses)
+                         if placement is not None}
     for roster in Roster.objects.filter(unit_id__in=units, month=after, state=RosterState.APPROVED).select_related("unit"):
         project(roster.unit, after)

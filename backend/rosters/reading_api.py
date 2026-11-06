@@ -20,7 +20,7 @@ from hospital.models import Shift
 from nurses import membership
 from nurses.api import MonthText
 from nurses.models import Leave, NurseProfile
-from closing.models import CarryOver, CarrySource, MonthClose
+from closes.models import CarryOver, CarrySource, MonthClose
 from rosters import review
 from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names

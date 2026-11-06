@@ -142,9 +142,9 @@ def frozen_cells_on_shifts_going(unit: Unit, going: set[str],
 def using_shift(code: str) -> list[Roster]:
     """The rosters of open months whose grid holds this shift, oldest first: those of a month not over, and an approved one of a
     month over that has not closed, whose close will read it as worked. A closed month holds nothing: its close stored the hours
-    it read, and closing it again reads those (`closing.closing`). Nor does a draft or a submitted roster of a month over, which
+    it read, and closing it again reads those (`closes.making`). Nor does a draft or a submitted roster of a month over, which
     can never be approved and so never closes."""
-    from closing.models import MonthClose  # The close reads rosters.
+    from closes.models import MonthClose  # The close reads rosters.
 
     closed = MonthClose.objects.filter(unit=OuterRef("unit"), month=OuterRef("month"))
     open_months = (Roster.objects.select_related("unit").exclude(Exists(closed))

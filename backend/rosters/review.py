@@ -116,7 +116,7 @@ def submit(roster: Roster, by: User) -> Submission:
 def new_since(submission: Submission) -> list[dict]:
     """`changes_since` against the month as it stood at the submit."""
     roster = submission.roster
-    return changes_since({"nurses": submission.month_at_submit}, roster.unit, roster.month)
+    return changes_since({"nurses": submission.month_at_submit}, roster.unit, roster.month, since=submission.submitted_at)
 
 
 def _decide(roster: Roster, decision: Decision, by: User, comment: str = "") -> Submission:

@@ -28,7 +28,7 @@ class Assembled:
     leave_days: int = 0
     pins: int = 0
     outside_days: dict[str, list[str]] = field(default_factory=dict)
-    # {hospital ID: closing.chain.Carried}: what each nurse's month starts from, and where that comes from.
+    # {hospital ID: making.chain.Carried}: what each nurse's month starts from, and where that comes from.
     carried: dict = field(default_factory=dict)
 
     @property
@@ -54,10 +54,10 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
     row can come to hold, so that none reaches the solver as a failed solve. `facts` is a close's, of a month that is over
     (`rosters.pins.month_pins`).
 
-    Each nurse starts from her carry-over (`closing.chain`): the latest closed month's, projected forward through the approved
+    Each nurse starts from her carry-over (`closes.chain`): the latest closed month's, projected forward through the approved
     rosters in between, or her opening values. `chain` is the reading to share, a close's among them, which takes no projection.
     A history naming a shift since renamed is read under its code now (`renamed_shifts`)."""
-    from closing.chain import CARRIED, Chain  # The chain assembles the months before, through this.
+    from closes.chain import CARRIED, Chain  # The chain assembles the months before, through this.
 
     chain = chain or Chain()
     pins = month_pins(unit, month, facts=facts)
@@ -155,7 +155,7 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
     who is in the month, or the pins that count. Start and end dates count through their credited days, so a correction
     that moves nothing in this month does not warn. Other attributes are outside what the user asked for here.
 
-    With `since`, when the input was stored, also each nurse whose month before has closed since (ticket 21): the input started
+    With `since`, when the input was stored, also each nurse a month before whom has closed since (ticket 21): the input started
     from a projected carry-over, and the close worked out the real one. A re-plan's end does not ask this, so a close never makes
     a re-plan outdated (ADR 0009)."""
     solved = {row["id"]: row for row in solve_input["nurses"]}
@@ -181,10 +181,12 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
 
 
 def _closed_since(hospital_id: str, carried, since: dt.datetime) -> bool:
-    from closing.chain import CarrySource
-    from closing.models import CarryOver
+    """Whether a month her carry-over comes through has closed after `since`: the month before, or an earlier one projected
+    forward from."""
+    from closes.chain import CarrySource
+    from closes.models import CarryOver
 
-    if carried.source != CarrySource.CLOSED or carried.out_of is None:
+    if carried.source == CarrySource.OPENING:
         return False
-    return CarryOver.objects.filter(source=CarrySource.CLOSED, month=carried.out_of, close__closed_at__gt=since,
+    return CarryOver.objects.filter(source=CarrySource.CLOSED, month__lte=carried.out_of, close__closed_at__gt=since,
                                     nurse__user__username=hospital_id).exists()

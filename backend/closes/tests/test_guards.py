@@ -8,8 +8,8 @@ import datetime as dt
 import pytest
 from django.test import Client
 
-from closing import closing
-from closing.tests.test_close import JUNE, approved, at, close_view, june, june_and_july, on  # noqa: F401
+from closes import making
+from closes.tests.test_close import JUNE, approved, at, close_view, june, june_and_july, on  # noqa: F401
 from conftest import PASSWORD, post
 from hospital.models import Shift
 from notifications.models import Event, Notification
@@ -29,12 +29,12 @@ def _scene(before_june, solver):
 
 def close_june(on):  # noqa: F811
     on(dt.date(2026, 7, 2))
-    return closing.catch_up(at(dt.date(2026, 7, 2), 9))
+    return making.catch_up(at(dt.date(2026, 7, 2), 9))
 
 
 def close_june_and_july(on):  # noqa: F811
     on(dt.date(2026, 8, 3))
-    return closing.catch_up(at(dt.date(2026, 8, 3), 9))
+    return making.catch_up(at(dt.date(2026, 8, 3), 9))
 
 
 def nurse(hospital_id) -> NurseProfile:
@@ -90,6 +90,14 @@ class TestDates:
 
         assert close_view(mona, er)["closed"]["changed_since"] is True
 
+    def test_an_end_date_moved_to_the_last_day_before_a_fixed_month_changes_none_of_its_days(self, june_and_july, carla, on):  # noqa: F811
+        close_june_and_july(on)
+        NurseProfile.objects.filter(user__username="Dana").update(end_date=dt.date(2026, 8, 1))
+
+        response = carla.put(f"/api/nurses/{nurse('Dana').pk}/end-date", {"end_date": "2026-07-31"}, content_type="application/json")
+
+        assert response.status_code == 200, response.content
+
     def test_an_end_date_into_a_month_fixed_for_good_is_refused(self, june_and_july, carla, on):  # noqa: F811
         close_june_and_july(on)
         response = carla.put(f"/api/nurses/{nurse('Dana').pk}/end-date", {"end_date": "2026-06-20"},
@@ -104,20 +112,20 @@ class TestAShiftsHours:
         refusal = field_errors(change_shift(carla, "N", hours=10))["hours"]
         assert "ER, June 2026" in refusal
 
-        closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         assert change_shift(carla, "N", hours=10).status_code == 200
         assert Shift.objects.get(code="N").hours == 10
 
     def test_closing_again_reads_the_hours_the_first_close_read(self, june, mona, er, carla, on):  # noqa: F811
         on(dt.date(2026, 7, 1))
-        [first] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [first] = making.catch_up(at(dt.date(2026, 7, 1), 1))
         assert change_shift(carla, "N", hours=10).status_code == 200
 
         again = ok(post(mona, url(er, "/close"), {"month": "2026-06"}))
 
         assert again["closed"]["closed_by"] == "Mona Ali"
-        latest = closing.latest_close(er, JUNE)
+        latest = making.latest_close(er, JUNE)
         assert latest.input["general"]["shift_hours"]["N"] == 12
         assert latest.result["nurses"] == first.result["nurses"]
 
@@ -156,7 +164,7 @@ class TestWhatPeopleSee:
         before = ok(amal.get("/api/rosters/mine/month", {"month": "2026-06"}))
         assert before["roster"] is None and before["first_month"] == "2026-07"
 
-        [close] = closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         answer = ok(amal.get("/api/rosters/mine/month", {"month": "2026-06"}))
         row = close.result["nurses"]["Amal"]
@@ -172,7 +180,7 @@ class TestWhatPeopleSee:
         on(dt.date(2026, 7, 1))
         assert ok(carla.get("/api/rosters/overview", {"month": "2026-06"}))["units"][0]["states"][0] == "approved"
 
-        closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         assert ok(carla.get("/api/rosters/overview", {"month": "2026-06"}))["units"][0]["states"][0] == "closed"
 
@@ -198,7 +206,7 @@ class TestWhatPeopleSee:
         from rosters.tests.test_review import record_leave
         for hospital_id in ("Emad",):  # Emad works the only Day on the 1st: leave leaves it uncovered.
             assert record_leave(mona, er, hospital_id, 1).status_code == 201
-        closing.catch_up(at(dt.date(2026, 7, 1), 1))
+        making.catch_up(at(dt.date(2026, 7, 1), 1))
 
         broke = close_view(mona, er)["closed"]["facts_broke"]
 

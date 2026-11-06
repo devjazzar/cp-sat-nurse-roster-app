@@ -15,9 +15,9 @@ from ninja.errors import HttpError
 
 from accounts.authz import SignedIn
 from accounts.models import Role, User
-from closing import closing
-from closing.chain import Carried, Chain, month_before
-from closing.models import CarrySource, MonthClose
+from closes import making
+from closes.chain import Carried, Chain, month_before
+from closes.models import CarrySource, MonthClose
 from nurses import membership
 from nurses.api import MonthText
 from rosters.grids import by_name, full_names
@@ -26,7 +26,7 @@ from solves.result import in_dates
 from units.models import Unit
 from units.scope import unit_in_scope
 
-router = Router(tags=["closing"])
+router = Router(tags=["closes"])
 reader = SignedIn(Role.UNIT_MANAGER, Role.CNO, Role.DEPUTY_CNO)
 manager = SignedIn(Role.UNIT_MANAGER)
 
@@ -111,7 +111,7 @@ def _carry_over(unit: Unit, month: dt.date, close: MonthClose | None) -> list[Nu
 
 
 def _broken(close: MonthClose) -> list[BrokenFact]:
-    rows = close.result["elapsed_violations"]
+    rows = close.result["facts_broke"]
     names = full_names(row["nurse"] for row in rows if row["nurse"])
     return [BrokenFact(rule=row["rule"], hospital_id=row["nurse"], full_name=names.get(row["nurse"] or "", ""),
                        date=row["date"], text=in_dates(row["text"], close.month)) for row in rows]
@@ -120,16 +120,16 @@ def _broken(close: MonthClose) -> list[BrokenFact]:
 def _close_refusal(unit: Unit, month: dt.date, user: User) -> str | None:
     if user.role != Role.UNIT_MANAGER:
         return "Only the unit's manager closes its month again."
-    return closing.why_not_close(unit, month, Roster.objects.filter(unit=unit, month=month).first())
+    return making.why_not_close(unit, month, Roster.objects.filter(unit=unit, month=month).first())
 
 
 def _view(unit: Unit, month: dt.date, user: User) -> MonthCloseView:
-    close = closing.latest_close(unit, month)
+    close = making.latest_close(unit, month)
     closed = None
     if close is not None:
         by = close.closed_by
         closed = ClosedMonth(closed_at=timezone.localtime(close.closed_at), closed_by=(by.full_name or by.username) if by else None,
-                             version=close.version, facts_broke=_broken(close), changed_since=closing.changed_since(close))
+                             version=close.version, facts_broke=_broken(close), changed_since=making.changed_since(close))
     return MonthCloseView(month=month.strftime("%Y-%m"), closed=closed, close_refusal=_close_refusal(unit, month, user),
                           carry_over=_carry_over(unit, month, close))
 
@@ -148,13 +148,13 @@ def month_close(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]
 @router.post("/{unit_id}/close", response=MonthCloseView, auth=manager, operation_id="closeMonth")
 def close_month(request: HttpRequest, unit_id: UUID, body: CloseBody) -> MonthCloseView:
     """Closes a month that is over, or closes it again to take late facts in, until the month after it has closed. The schedule
-    closes each month on its own (`closing.tasks.close_month`); this is for a manager who has recorded something since."""
+    closes each month on its own (`closes.tasks.close_month`); this is for a manager who has recorded something since."""
     unit = unit_in_scope(request.user, unit_id)
     month = _month(body.month)
     with transaction.atomic():
         try:
-            closing.close(unit, month, request.user)
-        except closing.Refused as refused:
+            making.close(unit, month, request.user)
+        except making.Refused as refused:
             raise HttpError(409, str(refused)) from None
         except ValueError as e:
             raise HttpError(409, f"The solver's code cannot read this month as it stands, so it cannot close: {in_dates(str(e), month)}")

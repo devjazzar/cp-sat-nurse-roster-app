@@ -1,7 +1,7 @@
 """Closing a unit's month (docs/ARCHITECTURE.md section 5, ADR 0004 and 0009). The roster in force, with every recorded leave and
 pin, becomes fact: the solver package's own code makes every day a fact (`solves.input.assemble_replan` with the first day after
 the month), reports what the facts broke, and works out each nurse's carry-over, all in this process and with no search. The
-close takes the previous closed month's carry-over, never a projection (`closing.chain.Chain(project=False)`).
+close takes the previous closed month's carry-over, never a projection (`closes.chain.Chain(project=False)`).
 
 Nothing here calls the solver service: `run_solve` is its only caller (ADR 0009), so a close neither waits for a running solve nor
 stops one, and a solve of a later month in flight is left to end as usual, its draft warned of as older than the close."""
@@ -16,8 +16,8 @@ from solver_service.grid import month_facts, nurses_of, validate_grid
 
 from accounts.models import User
 from audit.log import record
-from closing.chain import Chain, month_before, next_month
-from closing.models import CarryOver, CarrySource, MonthClose
+from closes.chain import Chain, month_before, next_month
+from closes.models import CarryOver, CarrySource, MonthClose
 from hospital.models import HospitalSettings, Shift
 from notifications import sending
 from nurses import membership
@@ -59,11 +59,6 @@ def next_month_closed(unit: Unit, month: dt.date) -> bool:
             or CarryOver.objects.filter(source=CarrySource.CLOSED, month=after, nurse__in=nurses).exists())
 
 
-def can_close_again(unit: Unit, month: dt.date) -> bool:
-    """A closed month may be closed again, to take late facts in, until the month after it has closed."""
-    return is_closed(unit, month) and not next_month_closed(unit, month)
-
-
 def fixed_for_good(unit: Unit, month: dt.date) -> bool:
     """Closed, and no longer to be closed again: what it says is fact, and nothing may change what it read."""
     return is_closed(unit, month) and next_month_closed(unit, month)
@@ -83,14 +78,17 @@ def fixed_month_between(nurse: NurseProfile, first: dt.date, last: dt.date, unit
     return None
 
 
-def days_between(one: dt.date | None, other: dt.date | None) -> tuple[dt.date, dt.date] | None:
-    """The days whose side of a date moves when it changes from `one` to `other`, None standing for no date at all."""
-    if one == other:
+def days_moved(was: dt.date | None, now: dt.date | None, *, end: bool) -> tuple[dt.date, dt.date] | None:
+    """The first and last day whose side of a nurse's start date (`end` False) or end date moves when it changes from `was` to
+    `now`, None standing for no end date. A start date counts from its day; an end date to its day."""
+    if was == now:
         return None
-    if one is None or other is None:
-        moved = one or other
-        return moved, membership.this_month()
-    return min(one, other), max(one, other)
+    day = dt.timedelta(days=1)
+    if not end:
+        return min(was, now), max(was, now) - day
+    if was is None or now is None:
+        return (was or now) + day, membership.today()
+    return min(was, now) + day, max(was, now)
 
 
 def why_not_close(unit: Unit, month: dt.date, roster: Roster | None) -> str | None:
@@ -108,7 +106,7 @@ def why_not_close(unit: Unit, month: dt.date, roster: Roster | None) -> str | No
     return None
 
 
-def closing_input(unit: Unit, month: dt.date, in_force: dict[str, dict[str, str]], *, chain: Chain) -> Assembled:
+def close_input(unit: Unit, month: dt.date, in_force: dict[str, dict[str, str]], *, chain: Chain) -> Assembled:
     """The month as a solve input with every day a fact: the roster in force as `published` and the first day after the month as
     `replan_from`. A month that is over takes its pins as facts (`rosters.pins.month_pins`) and the shifts its roster and pins hold
     as worked, whatever the unit and the catalogue say now (`_as_it_was_worked`)."""
@@ -157,13 +155,13 @@ def close(unit: Unit, month: dt.date, by: User | None = None) -> MonthClose:
     if refusal:
         raise Refused(refusal)
     again = is_closed(unit, month)
-    solve_input = closing_input(unit, month, roster.grid, chain=Chain(project=False)).input
+    solve_input = close_input(unit, month, roster.grid, chain=Chain(project=False)).input
     facts = month_facts(solve_input)
     accounts = nurses_of(solve_input, facts)
     checked = validate_grid(solve_input, facts)
     closed = MonthClose.objects.create(
         unit=unit, month=month, closed_by=by, version=roster.versions.first().number, input=solve_input,
-        result={"facts": facts, "elapsed_violations": checked["elapsed_violations"] + checked["violations"],
+        result={"facts": facts, "facts_broke": checked["elapsed_violations"] + checked["violations"],
                 "cost": checked["cost"], "nurses": accounts})
     nurses = NurseProfile.objects.filter(user__username__in=list(accounts)).select_related("user")
     CarryOver.objects.bulk_create([CarryOver(nurse=nurse, unit=unit, month=month, source=CarrySource.CLOSED, close=closed,
@@ -175,7 +173,7 @@ def close(unit: Unit, month: dt.date, by: User | None = None) -> MonthClose:
         sending.request_decided(request, Step.EXPIRED, None)
     if by is None:
         sending.month_closed(unit, month, closed.pk)
-    from closing.tasks import project_later_months  # The tasks module closes months through this one.
+    from closes.tasks import project_later_months  # The tasks module closes months through this one.
     project_later_months(unit, month)
     return closed
 
@@ -188,7 +186,7 @@ def changed_since(close_in_force: MonthClose) -> bool:
     if roster is None:
         return False
     try:
-        now = closing_input(unit, month, roster.grid, chain=Chain(project=False)).input
+        now = close_input(unit, month, roster.grid, chain=Chain(project=False)).input
         facts = month_facts(now)
     except ValueError:
         return True
@@ -205,7 +203,8 @@ def due(now: dt.datetime | None = None) -> list[tuple[Unit, dt.date]]:
     first, across units, as a transferred nurse's month before can be another unit's."""
     now = timezone.localtime(now)
     this_month = now.date().replace(day=1)
-    latest = month_before(this_month) if now.time() >= TechnicalSettings.load().close_time else month_before(month_before(this_month))
+    on_time = now.day > 1 or now.time() >= TechnicalSettings.load().close_time
+    latest = month_before(this_month) if on_time else month_before(month_before(this_month))
     closed = {(unit_id, month) for unit_id, month in MonthClose.objects.values_list("unit_id", "month")}
     rosters = (Roster.objects.filter(state=RosterState.APPROVED, month__lte=latest).select_related("unit")
                .order_by("month", "unit__name", "unit_id"))

@@ -9,7 +9,7 @@ from accounts.api import router as accounts_router
 from accounts.api import users_router
 from accounts.authz import SignedIn
 from audit.api import router as audit_router
-from closing.api import router as closing_router
+from closes.api import router as closes_router
 from hospital.api import router as hospital_router
 from hospital.catalogue_api import router as catalogue_router
 from notifications.api import router as notifications_router
@@ -48,7 +48,7 @@ api.add_router("/units", roster_exports_router)
 api.add_router("/units", solve_history_router)
 api.add_router("/units", requesting_router)
 api.add_router("/units", swaps_router)
-api.add_router("/units", closing_router)
+api.add_router("/units", closes_router)
 api.add_router("/requests", my_requests_router)
 api.add_router("/swaps", my_swaps_router)
 api.add_router("/rosters", rosters_reading_router)

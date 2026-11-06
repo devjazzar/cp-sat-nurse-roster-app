@@ -16,7 +16,7 @@ from pydantic import AfterValidator, Field
 from accounts.authz import SignedIn
 from accounts.models import Role, User
 from audit.log import record
-from closing.chain import has_closed
+from closes.chain import has_closed
 from hospital.api import StrictSchema, differing, refuse
 from hospital.models import HospitalSettings
 from nurses import membership

@@ -14,11 +14,10 @@ from dataclasses import dataclass
 
 from solver_service.grid import month_facts, nurses_of
 
-from closing.models import CarryOver, CarrySource, MonthClose
+from closes.models import CarryOver, CarrySource, MonthClose
 from nurses import membership
 from nurses.models import NurseProfile
 from rosters.models import Roster, RosterState
-from units.models import Unit
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +37,26 @@ def month_before(month: dt.date) -> dt.date:
 
 @dataclass(frozen=True)
 class Carried:
-    """What a month hands to the next: `values` in the solve input's field names, where they come from, and the month they are
-    carried out of (None for the opening values)."""
+    """What a month hands to the next: `values` in the solve input's field names, where they come from, the month they are
+    carried out of (None for the opening values), and the year they are of."""
     values: dict
     source: CarrySource
     out_of: dt.date | None
+    year: int
 
     def into(self, month: dt.date) -> dict:
-        """The values as `month` starts from them. The year turns only between December and January: opening values, entered as
-        they stand the day a nurse is added, are this year's already."""
-        if month.month == 1 and self.out_of is not None and self.out_of.month == 12:
+        """The values as `month` starts from them: overtime-to-date and both fairness balances start again in a later year, the
+        carry-over into January, from December or across months with no roster, and opening values entered the year before."""
+        if month.year > self.year:
             return self.values | NEW_YEAR
         return dict(self.values)
+
+
+def _added(nurse: NurseProfile) -> dt.date:
+    """The month a nurse's opening values stand at: her first placement's, which is the month she was added, or her start's if
+    that was earlier (`membership.place_new_nurse`)."""
+    first = nurse.placements.order_by("from_month").first()
+    return first.from_month if first else nurse.start_date.replace(day=1)
 
 
 def opening(nurse: NurseProfile) -> dict:
@@ -58,7 +65,7 @@ def opening(nurse: NurseProfile) -> dict:
 
 
 def closes_in_force(**filters) -> dict[tuple, MonthClose]:
-    """The latest close of each unit's month: a re-close replaces what the one before it said, without rewriting it."""
+    """The latest close of each unit's month: closing again replaces what the one before it said, without rewriting it."""
     found = {}
     for close in MonthClose.objects.filter(**filters).order_by("unit_id", "month", "-closed_at", "-id"):
         found.setdefault((close.unit_id, close.month), close)
@@ -95,18 +102,19 @@ class Chain:
         holds her, or her start: the months before had no roster in this application to carry anything."""
         closed = latest_closed(nurse, month)
         if closed is not None:
-            carried, step = Carried(closed.values, CarrySource.CLOSED, closed.month), next_month(closed.month)
+            carried, step = Carried(closed.values, CarrySource.CLOSED, closed.month, closed.month.year), next_month(closed.month)
         else:
-            carried, step = Carried(opening(nurse), CarrySource.OPENING, None), self._first_roster(nurse, month)
+            carried, step = Carried(opening(nurse), CarrySource.OPENING, None, _added(nurse).year), self._first_roster(nurse, month)
         while step is not None and step < month:
             carried = self._through(nurse, step, carried)
             step = next_month(step)
         return carried
 
     def _first_roster(self, nurse: NurseProfile, month: dt.date) -> dt.date | None:
-        first = (Roster.objects.filter(state=RosterState.APPROVED, month__lt=month, month__gte=nurse.start_date.replace(day=1),
+        if not self.project:
+            return None
+        return (Roster.objects.filter(state=RosterState.APPROVED, month__lt=month, month__gte=nurse.start_date.replace(day=1),
                                        grid__has_key=nurse.user.username).order_by("month").values_list("month", flat=True).first())
-        return first if self.project else None
 
     def _approved(self, unit_id, month: dt.date) -> Roster | None:
         key = (unit_id, month)
@@ -123,19 +131,19 @@ class Chain:
         roster = self._approved(placement.unit_id, month) if placement and self.project else None
         out = self.carry_out(roster).get(nurse.user.username) if roster else None
         if out is None:
-            return Carried(into | NO_HISTORY, carried.source, month)
-        return Carried({key: out[key] for key in CARRIED}, CarrySource.PROJECTED, month)
+            return Carried(into | NO_HISTORY, carried.source, month, month.year)
+        return Carried({key: out[key] for key in CARRIED}, CarrySource.PROJECTED, month, month.year)
 
     def carry_out(self, roster: Roster) -> dict[str, dict]:
         """Each nurse's carry-over out of an approved roster's month, projected from its roster in force as a close would work it
         out. Empty when the solver's code cannot read the month, as a close would be refused: her chain then carries on as through
         a month with no roster."""
-        from closing.closing import closing_input  # It assembles a month, which reads this chain.
+        from closes.making import close_input  # It assembles a month, which reads this chain.
 
         key = (roster.unit_id, roster.month)
         if key not in self._out:
             try:
-                solve_input = closing_input(roster.unit, roster.month, roster.grid, chain=self).input
+                solve_input = close_input(roster.unit, roster.month, roster.grid, chain=self).input
                 self._out[key] = {hospital_id: row["carry_over"]
                                   for hospital_id, row in nurses_of(solve_input, month_facts(solve_input)).items()}
             except ValueError as e:
@@ -143,9 +151,3 @@ class Chain:
                 self._out[key] = {}
         return self._out[key]
 
-
-def unit_carry_in(unit: Unit, month: dt.date) -> dict[str, Carried]:
-    """Each nurse of the unit's month, by hospital ID, with what the month starts from."""
-    chain = Chain()
-    return {nurse.user.username: chain.carry_in(nurse, month)
-            for nurse in membership.rostered_in(unit, month).select_related("user")}

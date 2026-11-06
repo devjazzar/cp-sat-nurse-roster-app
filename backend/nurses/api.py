@@ -19,7 +19,7 @@ from accounts.authz import SignedIn
 from accounts.models import Role, User
 from accounts.provisioning import UsernameTaken, create_user, deactivate, reactivate, reset_password
 from audit.log import record
-from closing import closing
+from closes import making
 from hospital.api import differing, refuse
 from hospital.catalogue_api import MONTH_PATTERN, IsoDate, iso_date
 from hospital.models import HospitalSettings
@@ -281,7 +281,7 @@ def set_end_date(request: HttpRequest, nurse_id: UUID, body: EndDateBody) -> Nur
             return _row_as_saved(nurse_id)
         if end is not None and not membership.end_date_fits(nurse.start_date, end):
             refuse((("end_date",), "The end date cannot be before the start date."))
-        fixed = _closed_for_good(nurse, nurse.end_date, end)
+        fixed = _closed_for_good(nurse, nurse.end_date, end, end=True)
         if fixed:
             refuse((("end_date",), fixed))
         before = nurse.end_date
@@ -306,19 +306,19 @@ def set_end_date(request: HttpRequest, nurse_id: UUID, body: EndDateBody) -> Nur
     return _row_as_saved(nurse_id)
 
 
-def _closed_for_good(nurse: NurseProfile, was: dt.date | None, now: dt.date | None, *, first_placement: bool = False) -> str | None:
+def _closed_for_good(nurse: NurseProfile, was: dt.date | None, now: dt.date | None, *, end: bool) -> str | None:
     """A closed month is a fact (ticket 21): a start or end date that would change which of its days counted is refused once the
     month after it has closed too. While it can still be closed again, the change is allowed, and the month's manager sees on the
     Roster page that its facts changed since the close, which closing it again takes in, as for leave recorded late. A start date
     reaching back before the first placement moves that placement into the months before (`membership.reach_back_to_start_date`):
     those may not be fixed months of its unit either."""
-    moved = closing.days_between(was, now)
+    moved = making.days_moved(was, now, end=end)
     if moved is None:
         return None
-    fixed = closing.fixed_month_between(nurse, *moved)
+    fixed = making.fixed_month_between(nurse, *moved)
     first = nurse.placements.select_related("unit").first()
-    if fixed is None and first_placement and now is not None and now.replace(day=1) < first.from_month:
-        fixed = closing.fixed_month_between(nurse, now, first.from_month - dt.timedelta(days=1), unit=first.unit)
+    if fixed is None and not end and first is not None and now.replace(day=1) < first.from_month:
+        fixed = making.fixed_month_between(nurse, now, first.from_month - dt.timedelta(days=1), unit=first.unit)
     if fixed is None:
         return None
     return (f"{fixed:%B %Y} has closed, and so has the month after it, so a date that changes which of its days {nurse.user.full_name} "
@@ -347,7 +347,7 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
         if start_changes and nurse.end_date and not membership.start_date_fits(nurse.start_date, body.start_date, nurse.end_date):
             refusals.append((("start_date",), "The start date cannot be after the end date. Change the end date first."))
         elif start_changes:
-            fixed = _closed_for_good(nurse, nurse.start_date, body.start_date, first_placement=True)
+            fixed = _closed_for_good(nurse, nurse.start_date, body.start_date, end=False)
             if fixed:
                 refusals.append((("start_date",), fixed))
         if refusals:
