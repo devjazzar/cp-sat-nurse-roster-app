@@ -9,6 +9,7 @@ import pytest
 from django.db import connection
 from django.test import Client
 
+from config.settings import allowed_hosts
 from ops import backups
 
 pytestmark = pytest.mark.django_db
@@ -90,7 +91,7 @@ def test_nothing_caddy_passed_on_is_answered():
 
 
 def test_a_scraper_on_the_internal_network_names_the_web_service(settings):
-    settings.ALLOWED_HOSTS = __import__("config.settings", fromlist=["hosts"]).hosts("hospital.example")
+    settings.ALLOWED_HOSTS = allowed_hosts("hospital.example")
 
     assert Client().get("/metrics", HTTP_HOST="web:8000").status_code == 200
 

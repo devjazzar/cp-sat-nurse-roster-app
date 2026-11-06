@@ -37,7 +37,7 @@ export const GetInstallationHealthResponse = zod.object({
   "queue": zod.object({
   "waiting": zod.int(),
   "running": zod.int(),
-  "failed": zod.int(),
+  "failed": zod.int().describe('Failed jobs kept: those of the last 30 days (`ops.queue.ENDED_JOBS_KEPT`).'),
   "workers": zod.int()
 }),
   "last_backup": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('When the newest backup was taken. Null before the first.'),

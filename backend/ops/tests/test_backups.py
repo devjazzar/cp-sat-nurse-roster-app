@@ -1,6 +1,6 @@
 """The nightly backup (ticket 22): due at the System Admin's backup time on the hospital's clock, kept for their number of days,
 listed on the health page and taken only by the System Admin. `pg_dump` itself is the compose-level test's
-(`deploy/tests/operations.sh`): here the dump is replaced, since the suite's PostgreSQL client may be older than the server."""
+(`deploy/tests/operations.sh`): here `pg_dump` is replaced, since the suite's PostgreSQL client may be older than the server."""
 import datetime as dt
 import os
 from zoneinfo import ZoneInfo
@@ -31,15 +31,15 @@ def backups_dir(settings):
 
 
 @pytest.fixture
-def dumps(monkeypatch):
-    """Every dump taken, as what it was written to. Each writes a few bytes, as `pg_dump` writes the database."""
-    taken = []
+def dump_calls(monkeypatch):
+    """Every call to `pg_dump`'s stand-in, as the file it wrote. Each writes a few bytes, as `pg_dump` writes the database."""
+    calls = []
 
     def dump(out):
         out.write(b"PGDMP-custom-format")
-        taken.append(out.name)
+        calls.append(out.name)
     monkeypatch.setattr(backups, "dump_database", dump)
-    return taken
+    return calls
 
 
 def backup_from(backups_dir, moment, size=10):
@@ -57,43 +57,43 @@ class TestTheNightlyBackup:
     def test_its_name_says_when_in_utc(self):
         assert backups.name_for(at(6, 2, 0)) == "nurse-roster-20261105T230000Z.dump"
 
-    def test_the_first_is_taken_at_once(self, backups_dir, dumps):
+    def test_the_first_is_taken_at_once(self, backups_dir, dump_calls):
         taken = backups.back_up_if_due(at(6, 14, 5))
 
         assert taken.name == "nurse-roster-20261106T110500Z.dump"
         assert names(backups_dir) == [taken.name]
         assert (backups_dir / taken.name).read_bytes() == b"PGDMP-custom-format"
 
-    def test_none_is_due_before_the_backup_time_once_one_was_taken_since_the_last(self, backups_dir, dumps):
+    def test_none_is_due_before_the_backup_time_once_one_was_taken_since_the_last(self, backups_dir, dump_calls):
         backup_from(backups_dir, at(5, 2, 0))
 
         assert backups.back_up_if_due(at(6, 1, 55)) is None
-        assert dumps == []
+        assert dump_calls == []
 
-    def test_one_is_due_once_the_backup_time_has_passed(self, backups_dir, dumps):
+    def test_one_is_due_once_the_backup_time_has_passed(self, backups_dir, dump_calls):
         backup_from(backups_dir, at(5, 2, 0))
 
         taken = backups.back_up_if_due(at(6, 2, 0))
 
         assert taken.taken_at == at(6, 2, 0)
 
-    def test_it_follows_the_system_admins_time(self, backups_dir, dumps):
+    def test_it_follows_the_system_admins_time(self, backups_dir, dump_calls):
         TechnicalSettings.objects.update_or_create(pk=1, defaults={"backup_time": dt.time(3, 30)})
         backup_from(backups_dir, at(5, 3, 30))
 
         assert backups.back_up_if_due(at(6, 3, 25)) is None
         assert backups.back_up_if_due(at(6, 3, 30)) is not None
 
-    def test_a_worker_that_was_down_catches_up_once(self, backups_dir, dumps):
+    def test_a_worker_that_was_down_catches_up_once(self, backups_dir, dump_calls):
         backup_from(backups_dir, at(4, 2, 0))
 
         assert backups.back_up_if_due(at(6, 9, 0)) is not None
         assert backups.back_up_if_due(at(6, 9, 5)) is None
-        assert len(dumps) == 1
+        assert len(dump_calls) == 1
 
     def test_the_file_is_written_whole_or_not_at_all(self, backups_dir, monkeypatch):
         def broken(out):
-            out.write(b"half a dump")
+            out.write(b"half a backup")
             raise backups.BackupFailed("pg_dump: error: connection to server failed")
         monkeypatch.setattr(backups, "dump_database", broken)
         kept = backup_from(backups_dir, at(1, 2, 0))
@@ -103,13 +103,13 @@ class TestTheNightlyBackup:
 
         assert names(backups_dir) == [kept.name]
 
-    def test_only_the_system_admin_and_the_worker_can_read_one(self, backups_dir, dumps):
+    def test_only_the_system_admin_and_the_worker_can_read_one(self, backups_dir, dump_calls):
         taken = backups.back_up_if_due(at(6, 2, 0))
 
         assert os.stat(backups_dir / taken.name).st_mode & 0o777 == 0o600
 
 
-    def test_one_taken_in_the_same_second_is_never_overwritten(self, backups_dir, dumps):
+    def test_one_taken_in_the_same_second_is_never_overwritten(self, backups_dir, dump_calls):
         earlier = backup_from(backups_dir, at(6, 2, 0), size=3)
 
         with pytest.raises(backups.BackupFailed, match="exists already"):
@@ -119,7 +119,7 @@ class TestTheNightlyBackup:
 
 
 class TestRetention:
-    def test_backups_older_than_the_days_kept_go_after_a_new_one(self, backups_dir, dumps):
+    def test_backups_older_than_the_days_kept_go_after_a_new_one(self, backups_dir, dump_calls):
         TechnicalSettings.objects.update_or_create(pk=1, defaults={"backup_retention_days": 2})
         old = backup_from(backups_dir, at(3, 2, 0))
         kept = backup_from(backups_dir, at(4, 2, 0))
@@ -137,7 +137,19 @@ class TestRetention:
 
         assert names(backups_dir) == [only.name]
 
-    def test_what_is_not_a_backup_is_left_alone(self, backups_dir, dumps):
+    def test_a_file_a_killed_backup_left_half_written_goes_a_day_on(self, backups_dir, dump_calls):
+        stale = backups_dir / ".nurse-roster-20261101T230000Z.dump.part"
+        fresh = backups_dir / ".nurse-roster-20261105T110000Z.dump.part"
+        for path, age_days in ((stale, 1.1), (fresh, 0.5)):
+            path.write_bytes(b"half")
+            moment = at(6, 2, 0).timestamp() - age_days * 86400
+            os.utime(path, (moment, moment))
+
+        taken = backups.back_up_if_due(at(6, 2, 0))
+
+        assert names(backups_dir) == sorted([fresh.name, taken.name])
+
+    def test_what_is_not_a_backup_is_left_alone(self, backups_dir, dump_calls):
         TechnicalSettings.objects.update_or_create(pk=1, defaults={"backup_retention_days": 1})
         (backups_dir / "copied-off-site.dump").write_bytes(b"theirs")
         os.utime(backups_dir / "copied-off-site.dump", (0, 0))

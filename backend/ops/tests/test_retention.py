@@ -1,5 +1,6 @@
 """What the queue keeps (ticket 22): every run of a job leaves a row and its events, and nothing else removed them. A row that
-ended well is removed a week on; a failed one stays, as the health page counts it, and nothing waiting or running is touched."""
+ended well is removed a week on; a failed one a month on, so the health page counts the failures of the last month, and a backup
+that keeps failing every five minutes cannot pile them up for good. Nothing waiting or running is touched."""
 import datetime as dt
 
 import pytest
@@ -43,8 +44,8 @@ def test_a_job_that_ended_well_a_week_ago_goes_with_its_events():
     assert not ProcrastinateEvent.objects.filter(job_id__in=old).exists()
 
 
-def test_failed_waiting_and_running_jobs_stay_so_the_health_page_says_the_same():
-    kept = {a_job("close_month", "failed", ended_days_ago=40), a_job("run_solve", "todo"), a_job("backup", "doing")}
+def test_waiting_and_running_jobs_and_a_months_failures_stay_so_the_health_page_says_the_same():
+    kept = {a_job("close_month", "failed", ended_days_ago=29), a_job("run_solve", "todo"), a_job("backup", "doing")}
     a_job("recover_lost_jobs", "succeeded", ended_days_ago=8)
     before = queue_state()
 
@@ -52,6 +53,14 @@ def test_failed_waiting_and_running_jobs_stay_so_the_health_page_says_the_same()
 
     assert left() == kept
     assert queue_state() == before
+
+
+def test_a_failure_goes_a_month_on():
+    kept = a_job("backup", "failed", ended_days_ago=29.9)
+    a_job("backup", "failed", ended_days_ago=30.1)
+
+    assert queue.remove_ended_jobs() == 1
+    assert left() == {kept}
 
 
 def test_the_job_runs_daily_under_a_lock_of_its_own():

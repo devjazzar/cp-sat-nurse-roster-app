@@ -1,5 +1,5 @@
 """A periodic job whose worker died with it, while its next run already waits (ticket 22, found by a restore: the backup that
-was running when its dump was taken comes back as `doing`). Put back on the queue it would collide with the waiting copy's
+job that was running as that backup was taken comes back as `doing`). Put back on the queue it would collide with the waiting copy's
 queueing lock, failing `recover_lost_jobs` every five minutes, while the waiting copy never runs behind the dead one's lock."""
 import pytest
 from django.db import connection

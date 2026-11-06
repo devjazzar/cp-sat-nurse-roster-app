@@ -55,7 +55,7 @@ These cannot be proven anywhere but on the hospital's own server.
 ### The install checklist: what only the hospital's people can check
 
 - [ ] The roster's Excel file opened in Excel on Windows with a `;` list separator (a European locale), not only the default `,`.
-- [ ] The ward print page printed on a real printer: A4 landscape, a 31-day month on one page, the header row repeated.
+- [ ] The roster's print page printed on a real printer: A4 landscape, a 31-day month on one page, the header row repeated.
 - [ ] One pass of the main pages with the keyboard alone and with a screen reader.
 - [ ] Caddy in a browser at the hospital's own address: the certificate (Let's Encrypt with `DOMAIN`, or the self-signed one), and the app through it.
 - [ ] Time a solve, a draft's read and a re-plan's comparison on a 60-nurse unit on the real server.
@@ -107,11 +107,18 @@ off-site copy. It asks you to type `RESTORE`, then:
 
 1. stops `web` and `worker`, so nothing writes (Caddy stays up and answers 502 meanwhile);
 2. takes a backup of the database as it stands, kept beside the others, so a wrong choice can be undone by restoring that one;
-3. restores into a new database, and only once that has worked puts it in place of the old one;
+3. restores into a new database, and only once that has worked puts it in place of the old one: the old one is renamed
+   aside, the restored one renamed in, and the old one dropped last;
 4. starts `web` and `worker` again. A backup from an older version is migrated forward as `web` starts.
 
-If it fails before step 3 ends, the database is as it was and the application starts again on it. Everything done since the
-backup is gone: solves running then start again from the queue, and anything a user did since must be done again.
+If it fails, or is stopped, before step 3 ends, the database is as it was and the application starts again on it. Everything
+done since the backup is gone: solves running then start again from the queue, and anything a user did since must be done
+again.
+
+Should the server itself go down in the middle of step 3, a database called `nurse_roster_replaced` may be left, holding the
+data as it was before the restore, and the script refuses to run again while it exists. If `nurse_roster` is missing, rename it
+back (`docker compose exec db psql -U nurse_roster -d postgres -c "ALTER DATABASE nurse_roster_replaced RENAME TO nurse_roster"`);
+if both exist, check the application, then drop the old one (`… -c "DROP DATABASE nurse_roster_replaced"`).
 
 ## Reset the System Admin's password
 
@@ -123,12 +130,13 @@ cause one):
 ```
 
 It prints a new password once, which must be changed at the next login, ends the account's sessions and lifts the lock. The
-audit log records it as done from the server. `--username <name>` resets another System Admin account. Other accounts'
+audit log records it as done from the server. It needs the `db` service running; `web` may be down. `--username <name>` resets another System Admin account. Other accounts'
 passwords are reset in the application.
 
 ## Logs
 
-Every container logs to standard output, `web`, `worker` and `solver` as one JSON object a line (Caddy's are JSON too):
+Every container logs to standard output: `web`, `worker` and `solver` as one JSON object a line, Caddy as JSON of its own,
+and PostgreSQL in its own plain format:
 
 ```bash
 docker compose logs -f worker
@@ -160,5 +168,7 @@ the time of the last one (`nurse_roster_last_backup_timestamp_seconds`, worth an
 
 ## What the queue keeps
 
-The worker removes, every day: queue rows of jobs that ended well or were stopped more than seven days ago (a failed job stays
-until looked at, and the health page counts it); notifications older than a year; sessions past their twelve idle hours.
+The worker removes, every day: queue rows of jobs that ended well or were stopped more than seven days ago, and of failed jobs
+more than thirty days ago (so the health page's failed jobs are the last month's); notifications older than a year; sessions
+past their twelve idle hours. A backup that cannot be taken is tried again every five minutes, each try a failed job, until it
+works: a failed count that climbs by twelve an hour says so, and `docker compose logs worker` says why.

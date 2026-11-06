@@ -8,6 +8,7 @@
 export interface Queue {
   waiting: number;
   running: number;
+  /** Failed jobs kept: those of the last 30 days (`ops.queue.ENDED_JOBS_KEPT`). */
   failed: number;
   workers: number;
 }

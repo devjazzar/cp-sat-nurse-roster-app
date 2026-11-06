@@ -18,8 +18,9 @@ ACTIVE_STATES = (SolveState.QUEUED, SolveState.RUNNING)
 
 class SolveFailure(models.TextChoices):
     """Why a solve gave no answer, as one of a few fixed kinds the System Admin reads in place of `Solve.error`, whose words
-    can name a nurse and a date. A label holds no name, date or rule value, and neither may a kind added later."""
-    REFUSED = "refused", "The solver refused the solve input, which is a matter of the rules and not of the solver."
+    can name a nurse and a date. A label holds no name, date or rule value, and neither may a kind added later. The page's
+    words are these, in `frontend/src/lib/solve-words.ts`: change both together."""
+    REFUSED = "refused", "The solver refused the rules it was given: the unit's or the hospital's rules need review."
     UNREACHABLE = "unreachable", "The solver could not be reached."
     LOST = "lost", "The solver restarted and lost the solve."
     OVERRUN = "overrun", "The solver ran well past the time limit and was given up on."
@@ -28,7 +29,7 @@ class SolveFailure(models.TextChoices):
     WORKER_LOST = "worker_lost", "The worker stopped during the solve and could not take it up again."
     UNEXPECTED = "unexpected", "The worker met an error of its own."
     # Before ticket 22 every failure but a refusal was this one.
-    SOLVER = "solver", "The solver crashed or could not be reached (recorded before the kinds were told apart)."
+    SOLVER = "solver", "The solver failed or could not be reached (from before the kinds were told apart)."
 
 
 # How the API types a `SolveFailure`.

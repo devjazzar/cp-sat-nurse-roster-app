@@ -67,10 +67,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
-          },
-          "200": {
-            "description": "The backup, as `pg_dump`'s custom format.",
+            "description": "The backup, in `pg_dump`'s custom format.",
             "content": {
               "application/octet-stream": {
                 "schema": {
@@ -5405,6 +5402,7 @@
             "type": "integer"
           },
           "failed": {
+            "description": "Failed jobs kept: those of the last 30 days (`ops.queue.ENDED_JOBS_KEPT`).",
             "title": "Failed",
             "type": "integer"
           },

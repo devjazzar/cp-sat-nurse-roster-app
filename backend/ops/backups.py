@@ -26,6 +26,9 @@ _PREFIX = "nurse-roster-"
 _STAMP = "%Y%m%dT%H%M%SZ"
 # The name says when, in UTC, so it means one moment whatever the hospital's clock does. Only these are listed, served or removed.
 _NAME = re.compile(r"^nurse-roster-(\d{8}T\d{6}Z)\.dump$")
+# What `take` writes to until a backup is whole. One a killed backup left behind goes after a day, never one still being written.
+_PARTIAL = re.compile(r"^\.nurse-roster-\d{8}T\d{6}Z\.dump\.part$")
+_PARTIAL_KEPT = dt.timedelta(days=1)
 
 
 class BackupFailed(Exception):
@@ -66,6 +69,12 @@ def list_backups() -> list[Backup]:
     return sorted(found, key=lambda backup: backup.taken_at, reverse=True)
 
 
+def newest(kept: list[Backup] | None = None) -> Backup | None:
+    """The newest of `kept`, as `list_backups` orders them, or of every backup when not given."""
+    kept = list_backups() if kept is None else kept
+    return kept[0] if kept else None
+
+
 def file_of(name: str) -> Path | None:
     """The file of a finished backup by that name, or None: nothing else in or outside the directory is ever served."""
     if not _NAME.match(name):
@@ -85,8 +94,8 @@ def last_due(now: dt.datetime, at: dt.time) -> dt.datetime:
 def is_due(now: dt.datetime) -> bool:
     """None since the backup time last came round, so a worker that was down catches up once. With none at all, one is due at
     once: a new installation has a backup from its first hour."""
-    newest = next(iter(list_backups()), None)
-    return newest is None or newest.taken_at < last_due(now, TechnicalSettings.load().backup_time)
+    latest = newest()
+    return latest is None or latest.taken_at < last_due(now, TechnicalSettings.load().backup_time)
 
 
 def dump_database(out: BinaryIO) -> None:
@@ -124,12 +133,16 @@ def take(now: dt.datetime) -> Backup:
 
 def remove_expired(now: dt.datetime, *, days: int) -> list[str]:
     """Backups taken more than `days` ago, except the newest, which stays whatever its age: a backup that keeps failing must
-    not leave none."""
+    not leave none. Also a half-written file a killed backup left, a day on."""
     removed = []
     for backup in list_backups()[1:]:
         if backup.taken_at < now - dt.timedelta(days=days):
             (_directory() / backup.name).unlink(missing_ok=True)
             removed.append(backup.name)
+    for entry in os.scandir(_directory()):
+        if _PARTIAL.match(entry.name) and entry.stat().st_mtime < (now - _PARTIAL_KEPT).timestamp():
+            Path(entry.path).unlink(missing_ok=True)
+            removed.append(entry.name)
     if removed:
         logger.info("backups removed", extra={"backups": removed})
     return removed

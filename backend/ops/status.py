@@ -11,6 +11,8 @@ from django.db.models import Count
 from django.utils import timezone
 from procrastinate.contrib.django.models import ProcrastinateJob, ProcrastinateWorker
 
+from ops.solver_client import SolverUnreachable, solver_health
+
 # Procrastinate's workers beat every 10 s and it treats one silent for 30 s as stalled.
 WORKER_SILENCE = timedelta(seconds=30)
 
@@ -28,6 +30,14 @@ def disk_usage() -> DiskUsage | None:
     except OSError:
         return None
     return DiskUsage(total_bytes=usage.total, free_bytes=usage.free)
+
+
+def solver_state() -> dict | None:
+    """What the solver says of itself (its version and threads), or None when it does not answer."""
+    try:
+        return solver_health()
+    except SolverUnreachable:
+        return None
 
 
 def database_reachable() -> bool:

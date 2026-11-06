@@ -30,7 +30,7 @@ export function solveStatus({ state, failure, found_roster }: Pick<SolveRow, "st
 }
 
 /** Why a solve failed, in fixed words naming no one: what the System Admin reads in place of the solver's or the worker's
- * own, which can name a nurse and a date. */
+ * own, which can name a nurse and a date. The labels of `SolveFailure` in backend/solves/models.py: change both together. */
 const FAILED_BECAUSE: Record<NonNullable<SolveRow["failure"]>, string> = {
   refused: "The solver refused the rules it was given: the unit's or the hospital's rules need review.",
   unreachable: "The solver could not be reached.",

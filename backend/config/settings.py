@@ -19,7 +19,7 @@ SECRET_KEY = required("SECRET_KEY")
 
 
 
-def hosts(domain: str) -> list[str]:
+def allowed_hosts(domain: str) -> list[str]:
     """With a domain only that name is served. Without one the hospital reaches the server by whatever IP or name it has,
     behind Caddy's self-signed certificate. Loopback is always allowed for the container's own health check, and `web` for a
     Prometheus scraping `/metrics` on the internal network (`ops.metrics`)."""
@@ -27,7 +27,7 @@ def hosts(domain: str) -> list[str]:
 
 
 DOMAIN = os.environ.get("DOMAIN", "")
-ALLOWED_HOSTS = hosts(DOMAIN)
+ALLOWED_HOSTS = allowed_hosts(DOMAIN)
 CSRF_TRUSTED_ORIGINS = [f"https://{DOMAIN}"] if DOMAIN else []
 if DEBUG:  # Vite's proxy does not pass the browser's Host on, so Django cannot match the Origin itself
     CSRF_TRUSTED_ORIGINS.append("http://localhost:5173")

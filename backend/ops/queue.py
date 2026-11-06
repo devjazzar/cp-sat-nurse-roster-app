@@ -81,7 +81,7 @@ def requeue_stalled() -> list[int]:
 def _requeue(job_id: int, queueing_lock: str | None) -> bool:
     """Back on the queue, unless its next run waits already: then it could not take its queueing lock back, and while it held
     its lock the waiting one could never run. So it ends as failed, which the health page counts, and the next run does its
-    work (a restore brings back the backup that was running when the dump was taken, for one)."""
+    work (a restore brings back the backup job that was running as that backup was taken, for one)."""
     if queueing_lock is None or not ProcrastinateJob.objects.filter(queueing_lock=queueing_lock, status="todo").exists():
         try:
             with transaction.atomic():
@@ -94,18 +94,22 @@ def _requeue(job_id: int, queueing_lock: str | None) -> bool:
     return False
 
 
-# Long enough to look into a week's runs; failed jobs stay until someone has looked, as the health page counts them.
-ENDED_JOBS_KEPT = timedelta(days=7)
+# Long enough to look into a week's runs. A failure is kept a month, which is what the health page's count of failed jobs then
+# covers, so a backup failing every five minutes cannot pile its rows up for good.
+ENDED_JOBS_KEPT = {("succeeded", "cancelled", "aborted"): timedelta(days=7), ("failed",): timedelta(days=30)}
 
 
-def remove_ended_jobs(older_than: timedelta = ENDED_JOBS_KEPT) -> int:
-    """Removes the rows, with their events, of jobs that ended well or were stopped longer ago than `older_than`: every periodic
-    run, every `project_carry_over` and every ended solve, whose `Solve` row is its record. A failed job, and one waiting or
-    running, stays. The library's own query, whose call is async only, as `requeue_stalled` does."""
+def remove_ended_jobs() -> int:
+    """Removes the rows, with their events, of jobs that ended longer ago than `ENDED_JOBS_KEPT` says for their status: every
+    periodic run, every `project_carry_over` and every ended solve, whose `Solve` row is its record. A job waiting or running
+    stays. The library's own query, whose call is async only, as `requeue_stalled` does."""
+    removed = 0
     with connection.cursor() as cursor:
-        cursor.execute(sql.queries["delete_old_jobs"], {"nb_hours": int(older_than.total_seconds() // 3600), "queue": None,
-                                                        "statuses": ["succeeded", "cancelled", "aborted"]})
-        return cursor.rowcount
+        for statuses, kept in ENDED_JOBS_KEPT.items():
+            cursor.execute(sql.queries["delete_old_jobs"], {"nb_hours": int(kept.total_seconds() // 3600), "queue": None,
+                                                            "statuses": list(statuses)})
+            removed += cursor.rowcount
+    return removed
 
 
 def still_on_the_queue(job_ids: list[int]) -> set[int]:

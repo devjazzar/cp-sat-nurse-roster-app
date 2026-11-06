@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 logger = logging.getLogger("ops.prepare")
 
 
-class _Lines(io.TextIOBase):
+class _EachLineLogged(io.TextIOBase):
     """What a command prints, as one log line each, so a container's output stays JSON (ticket 22)."""
 
     def write(self, text: str) -> int:
@@ -21,5 +21,5 @@ class Command(BaseCommand):
     help = "What `web` does before it serves: the migrations, then the first start's seeding (`bootstrap`), both logged."
 
     def handle(self, *args, **options):
-        call_command("migrate", interactive=False, stdout=_Lines(), no_color=True)
-        call_command("bootstrap", stdout=_Lines())
+        call_command("migrate", interactive=False, stdout=_EachLineLogged(), no_color=True)
+        call_command("bootstrap", stdout=_EachLineLogged())

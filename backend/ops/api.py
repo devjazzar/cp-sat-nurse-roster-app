@@ -11,8 +11,7 @@ from accounts.models import Role
 from audit.log import record
 from ops import backups
 from ops.models import TechnicalSettings
-from ops.solver_client import SolverUnreachable, solver_health
-from ops.status import database_reachable, database_size_bytes, disk_usage, queue_state
+from ops.status import database_reachable, database_size_bytes, disk_usage, queue_state, solver_state
 
 router = Router()
 system_admin = SignedIn(Role.SYSTEM_ADMIN)
@@ -37,9 +36,8 @@ class Health(Schema):
 
 
 def _solver() -> SolverHealth:
-    try:
-        health = solver_health()
-    except SolverUnreachable:
+    health = solver_state()
+    if health is None:
         return SolverHealth(reachable=False)
     return SolverHealth(reachable=True, version=health.get("version"), workers=health.get("workers"))
 
@@ -60,7 +58,7 @@ class Disk(Schema):
 class Queue(Schema):
     waiting: int
     running: int
-    failed: int
+    failed: int = Field(description="Failed jobs kept: those of the last 30 days (`ops.queue.ENDED_JOBS_KEPT`).")
     workers: int
 
 
@@ -89,19 +87,21 @@ class InstallationHealth(Schema):
 @router.get("/ops/health", response=InstallationHealth, auth=system_admin, operation_id="getInstallationHealth")
 def installation_health(request) -> InstallationHealth:
     kept = backups.list_backups()
+    newest = backups.newest(kept)
     technical = TechnicalSettings.load()
     return InstallationHealth(database=database_reachable(), solver=_solver(),
                               database_size_bytes=database_size_bytes(), disk=disk_usage(), queue=queue_state(),
-                              last_backup=kept[0].taken_at if kept else None,
+                              last_backup=newest.taken_at if newest else None,
                               backups=[BackupRow(name=b.name, size_bytes=b.size_bytes, taken_at=b.taken_at) for b in kept],
                               backup_schedule=BackupSchedule(time=technical.backup_time.strftime("%H:%M"),
                                                              retention_days=technical.backup_retention_days))
 
 
-@router.get("/ops/backups/{name}", auth=system_admin, operation_id="downloadBackup",
-            response={200: None}, openapi_extra={"responses": {"200": {
-                "description": "The backup, as `pg_dump`'s custom format.",
-                "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}}})
+_A_BACKUP_FILE = {"responses": {200: {"description": "The backup, in `pg_dump`'s custom format.", "content": {
+    "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}}}
+
+
+@router.get("/ops/backups/{name}", auth=system_admin, operation_id="downloadBackup", openapi_extra=_A_BACKUP_FILE)
 def download_backup(request: HttpRequest, name: str) -> FileResponse:
     """A backup holds everything: password hashes and every nurse's leave. So only the System Admin takes one, each taking is
     logged with its name and nothing else, and no copy is kept by a browser's cache."""

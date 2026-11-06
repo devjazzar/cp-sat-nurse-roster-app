@@ -436,7 +436,7 @@ describe("the health page", () => {
     expect(screen.getByText("0.1.0")).toBeInTheDocument()
     expect(screen.getByText("Jobs waiting").nextSibling).toHaveTextContent("2")
     expect(screen.getByText("Jobs running").nextSibling).toHaveTextContent("1")
-    expect(screen.getByText("Jobs failed").nextSibling).toHaveTextContent("3")
+    expect(screen.getByText("Jobs failed, last 30 days").nextSibling).toHaveTextContent("3")
     expect(screen.getByText("Workers alive").nextSibling).toHaveTextContent("1")
     expect(screen.getByText("Database size").nextSibling).toHaveTextContent("5.0 MB")
     expect(screen.getByText("Disk free").nextSibling).toHaveTextContent("60.0 GB")

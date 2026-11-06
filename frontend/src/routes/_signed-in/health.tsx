@@ -114,7 +114,7 @@ function HealthPage() {
                 <Row name="Workers alive">{health.data.queue.workers}</Row>
                 <Row name="Jobs waiting">{health.data.queue.waiting}</Row>
                 <Row name="Jobs running">{health.data.queue.running}</Row>
-                <Row name="Jobs failed">{health.data.queue.failed}</Row>
+                <Row name="Jobs failed, last 30 days">{health.data.queue.failed}</Row>
               </dl>
             </CardContent>
           </Card>

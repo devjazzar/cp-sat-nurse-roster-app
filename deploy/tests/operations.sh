@@ -102,6 +102,16 @@ done
 
 # ---- a restore ---------------------------------------------------------------------------------------------------------------
 sql "CREATE TABLE written_after_the_backup (id int)" >/dev/null
+# A file that is no backup, named relative to another directory: refused by pg_restore, so nothing changes.
+echo "not a backup" > "$work/not-a-backup.dump"
+deploy=$PWD
+if (cd "$work" && "$deploy/restore.sh" --yes not-a-backup.dump); then fail "a file that is no backup was restored"; fi
+[[ -n $(sql "SELECT to_regclass('written_after_the_backup')") ]] && pass "a failed restore leaves the database as it was" \
+  || fail "a failed restore changed the database"
+[[ $(sql "SELECT datname FROM pg_database WHERE datname LIKE 'nurse_roster%' ORDER BY 1" | tr '\n' ' ') == "nurse_roster " ]] \
+  && pass "and leaves no database behind" || fail "databases left: $(sql "SELECT datname FROM pg_database")"
+wait_for 60 curl -sfk "$base/api/health" && pass "the application answers again after the failed restore" || fail "no answer"
+
 before=$(backups | wc -l | tr -d ' ')
 ./restore.sh --yes "$backup"
 [[ -z $(sql "SELECT to_regclass('written_after_the_backup')") ]] && pass "the restore took back what was written after the backup" \
@@ -114,7 +124,7 @@ after=$(backups | wc -l | tr -d ' ')
 wait_for 60 curl -sfk "$base/api/health" && pass "the application answers again after the restore" || fail "no answer after the restore"
 [[ $(sql "SELECT datname FROM pg_database WHERE datname LIKE 'nurse_roster%' ORDER BY 1" | tr '\n' ' ') == "nurse_roster " ]] \
   && pass "no database is left over" || fail "databases left: $(sql "SELECT datname FROM pg_database")"
-# The backup that was running when its dump was taken comes back as running, under a worker long gone.
+# The backup job that was running as that backup was taken comes back as running, under a worker long gone.
 last=$(sql "SELECT coalesce(max(id), 0) FROM procrastinate_jobs")
 compose exec -T worker python manage.py queue defer --ignore-already-enqueued solves.tasks.recover_lost_jobs '{"timestamp": 1}' >/dev/null
 recovered() { [[ -n $(sql "SELECT 1 FROM procrastinate_jobs WHERE id > $last AND task_name = 'solves.tasks.recover_lost_jobs' AND status = 'succeeded'") ]]; }

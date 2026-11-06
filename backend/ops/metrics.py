@@ -11,17 +11,8 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.views.decorators.http import require_GET
 
 from ops import backups
-from ops.solver_client import SolverUnreachable, solver_health
-from ops.status import database_reachable, database_size_bytes, disk_usage, queue_state
+from ops.status import database_reachable, database_size_bytes, disk_usage, queue_state, solver_state
 from solves.models import Solve, SolveState
-
-
-def _solver_up() -> bool:
-    try:
-        solver_health()
-    except SolverUnreachable:
-        return False
-    return True
 
 
 class _Exposition:
@@ -40,7 +31,7 @@ class _Exposition:
 def _exposition() -> str:
     out = _Exposition()
     out.gauge("database_up", "Whether the application reaches its database.", int(database_reachable()))
-    out.gauge("solver_up", "Whether the application reaches the solver service.", int(_solver_up()))
+    out.gauge("solver_up", "Whether the application reaches the solver service.", int(solver_state() is not None))
     queue = queue_state()
     out.gauge("queue_jobs", "Jobs on the queue by status: waiting, running, and failed and still kept.",
               {'{status="waiting"}': queue.waiting, '{status="running"}': queue.running, '{status="failed"}': queue.failed})
@@ -55,9 +46,10 @@ def _exposition() -> str:
     kept = backups.list_backups()
     out.gauge("backups", "Backups kept.", len(kept))
     out.gauge("backups_size_bytes", "The size of every backup kept, together.", sum(backup.size_bytes for backup in kept))
-    if kept:
+    newest = backups.newest(kept)
+    if newest:
         out.gauge("last_backup_timestamp_seconds", "When the newest backup was taken, in seconds since the epoch.",
-                  kept[0].taken_at.timestamp())
+                  newest.taken_at.timestamp())
     return out.text()
 
 
