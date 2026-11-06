@@ -100,3 +100,8 @@ What was NOT checked:
 - `nurses/spreadsheets.py` now has `xlsx_response` beside `csv_response`, and `looks_like_a_formula`.
 
 **The dev stack was not touched:** no restart, no migration, no login. There is no migration. When this reaches `main`, rebuild the image (or `uv sync`) for XlsxWriter, a new dependency, and restart `web` and `worker`; without it the backend fails to import `xlsxwriter` at start.
+
+**Reviewed by the user (2026-11-06), and kept as built:**
+- a day of leave is a day off in every file and on every print page, for every role, and only a nurse's own row on their own print page says "L";
+- "Shift hours" counts only the hours of the shifts on the row;
+- a draft has no export.
