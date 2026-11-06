@@ -90,9 +90,11 @@ Seams:
 - **The database then held:** swap payloads with `unit_id`, `month`, `swap_id`, `step` and `by` only (no `by` on an expiry); `swap.proposed|withdrawn|accepted|rejected|approved` entries targeting the proposer, with no before or after; `roster.changed` `{"version": 2, "pins": 2, "cells": 2}`; two pins of origin `swap`; `Roster.grid` equal to version 3.
 - At 375 px, Swaps had no sideways page scroll.
 - **That run found three things, all fixed with tests:** two swaps' buttons had the same names ("Withdraw", "Accept Emad Nasser's swap"), so each now names its dates; an expired swap's view said a pin "which approving replaces"; and an ended swap said a colleague had "not answered yet" (now "did not answer"). The rebuilt image was checked again on the nurse's page.
+- **The real worker's registry** lists `swaps.tasks.expire_swaps` at `15 * * * *`.
+- Everything of `nr-t20` has been removed since: containers, volumes, networks and image, and my PostgreSQL container for the tests.
 
 What was NOT checked:
-- **Expiry by a passing date, in the browser.** The real clock could not reach a December date; the API tests move the hospital's clock (`membership.today` patched) and call the job directly, and the job's registration was not read from the real worker.
+- **Expiry by a passing date, in the browser, and the hourly job firing in the real worker.** The real clock could not reach a December date; the API tests move the hospital's clock (`membership.today` patched) and call the job directly. The job's registration was read from the real worker.
 - **Expiry by leave, a re-plan or an accepted request, in the browser.** API tests only, and the re-plan race on its own.
 - **Ramadan reduction, breastfeeding and contract hours as hidden facts, by test.** They reach the swap only through the solver's `hours_bounds` rule for that colleague, which is hidden by the same branch the overtime test covers. I found no swap of the sample that newly breaks them. A score is a soft rule and never refuses a swap, and the proposer reads no cost.
 - **The Deputy CNO, the CNO and the System Admin reading swaps in the browser.** The authorization walk holds them to 403.
