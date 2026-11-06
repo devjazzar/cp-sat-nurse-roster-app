@@ -6073,6 +6073,43 @@ describe("requests", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("The request already promises Night (N).")
   })
 
+  it("the manager cancels an accepted request only with a reason, after being told its pin ends and no cell changes", async () => {
+    const accepted = { ...ROW, state: "accepted", promised: "N", replaces_pin: null }
+    let sent: unknown = null
+    const { user } = start("/requests", manager({
+      "GET /api/units/u1/request-windows/w1/requests": () => ({ body: [sent ? { ...accepted, state: "cancelled", promised: null } : accepted] }),
+      "POST /api/units/u1/requests/r1/cancel": ({ body }: { body: unknown }) => {
+        sent = body
+        return { body: { request: { ...accepted, state: "cancelled", promised: null }, version: null } }
+      },
+    }))
+
+    const opener = await screen.findByRole("button", { name: "Cancel Amal Saleh's request for 3 Dec 2026" })
+    expect(screen.queryByRole("button", { name: /^Accept/ })).not.toBeInTheDocument()
+    await user.click(opener)
+    let dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByRole("heading", { name: "Cancel Amal Saleh's request for Night (N) on 3 Dec 2026?" })).toBeInTheDocument()
+    expect(within(dialog).getByText("Its pin ends and no cell changes: the next solve, or your own edit, may change it.")).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole("button", { name: "Back" }))
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
+    expect(sent).toBeNull()
+
+    await user.click(screen.getByRole("button", { name: "Cancel Amal Saleh's request for 3 Dec 2026" }))
+    dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Cancel the request" }))
+    expect(await within(dialog).findByText("Say why: the nurse reads it with her request.")).toBeInTheDocument()
+    expect(sent).toBeNull()
+
+    await user.type(within(dialog).getByLabelText("Why"), "The ward is short that night.")
+    await user.click(within(dialog).getByRole("button", { name: "Cancel the request" }))
+
+    const status = await screen.findByText("Cancelled Amal Saleh's request for Night (N) on 3 Dec 2026. Amal Saleh is told.")
+    expect(sent).toEqual({ reason: "The ward is short that night." })
+    expect(status).not.toHaveTextContent(/Version/)
+    await waitFor(() => expect(status).toHaveFocus())
+  })
+
   it("the manager closes a window early after being asked", async () => {
     let closed = false
     const { user } = start("/requests", manager({
