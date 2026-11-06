@@ -33,7 +33,7 @@ from rosters.versions import cells_changed, differences, make_version
 from solves.api import MonthFilter, SolveProgress, chosen_month, manager, progress_of
 from solves.input import assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve, SolveState
-from solves.result import in_dates
+from solves.result import has_a_roster_to_keep, in_dates
 from units.models import Unit
 from units.scope import HOSPITAL_WIDE, unit_in_scope
 
@@ -206,10 +206,12 @@ def _editor(roster: Roster, solve_input: dict, user: User) -> DraftEditor:
 
 
 def _lost_to_leave(roster: Roster) -> list[PinLostToLeave]:
-    # A newer solve than the draft's took that leave in, even if an older result has been restored since.
-    ended = Solve.objects.filter(unit=roster.unit, month=roster.month).exclude(state__in=ACTIVE_STATES)
-    newest = ended.order_by("-requested_at").first()
-    rows = lost_to_leave(roster.unit, roster.month, max(roster.solve.requested_at, newest.requested_at))
+    # A newer solve than the draft's took that leave in, even if an older result has been restored since. Only one that kept a
+    # roster did: a failed solve, or one that found none, left the draft holding the pin's shift on the leave day.
+    ended = (Solve.objects.filter(unit=roster.unit, month=roster.month).exclude(state__in=[*ACTIVE_STATES, SolveState.FAILED])
+             .filter(requested_at__gt=roster.solve.requested_at).order_by("-requested_at").only("requested_at", "result"))
+    newest = next((solve for solve in ended.iterator() if has_a_roster_to_keep(solve.result)), roster.solve)
+    rows = lost_to_leave(roster.unit, roster.month, newest.requested_at)
     return [PinLostToLeave(hospital_id=row.nurse.user.username, full_name=row.nurse.user.full_name, date=row.date, shift=row.code,
                            by=row.removed_by.full_name or row.removed_by.username) for row in rows]
 

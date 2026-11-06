@@ -662,6 +662,30 @@ class TestLeaveOnAPinnedDay:
 
         assert month_of(mona, er)["draft"]["pins_lost_to_leave"] == []
 
+    def test_a_solve_that_failed_after_it_does_not_end_that_notice(self, mona, er, solver):
+        """The failed solve kept no roster, so the draft still holds the shift the pin promised on the leave day."""
+        from ops.solver_client import SolverUnreachable
+        from solves.models import SolveState
+        solved(mona, er, solver)
+        saved(mona, er, pin("Amal", 3, "N"))
+        record_leave(mona, er, "Amal", 3)
+
+        solver.script(SolverUnreachable("down"), SolverUnreachable("down"))
+        failed = started(mona, er, MONTH)
+        running.run(failed["id"])
+        assert Solve.objects.get(pk=failed["id"]).state == SolveState.FAILED
+
+        assert [row["date"] for row in month_of(mona, er)["draft"]["pins_lost_to_leave"]] == ["2026-06-03"]
+
+    def test_a_solve_that_found_no_roster_after_it_does_not_end_that_notice(self, mona, er, solver):
+        solved(mona, er, solver)
+        saved(mona, er, pin("Amal", 3, "N"))
+        record_leave(mona, er, "Amal", 3)
+
+        solved(mona, er, solver, job("finished", result=result_of(None, ok=False, cost=None)))
+
+        assert [row["date"] for row in month_of(mona, er)["draft"]["pins_lost_to_leave"]] == ["2026-06-03"]
+
     def test_removing_that_leave_does_not_bring_the_pin_back(self, mona, er, solver):
         solved(mona, er, solver)
         saved(mona, er, pin("Amal", 3, "N"))
