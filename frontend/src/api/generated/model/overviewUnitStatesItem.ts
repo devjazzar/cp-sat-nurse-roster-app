@@ -13,4 +13,5 @@ export const OverviewUnitStatesItem = {
   draft: 'draft',
   submitted: 'submitted',
   approved: 'approved',
+  closed: 'closed',
 } as const;

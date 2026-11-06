@@ -16,7 +16,7 @@ from ninja.errors import HttpError
 from accounts.authz import SignedIn
 from accounts.models import Role, User
 from closing import closing
-from closing.chain import Carried, Chain
+from closing.chain import Carried, Chain, month_before
 from closing.models import CarrySource, MonthClose
 from nurses import membership
 from nurses.api import MonthText
@@ -34,7 +34,8 @@ Source = Literal["opening", "projected", "closed"]
 
 
 class MonthFilter(Schema):
-    month: MonthText = Field(description="YYYY-MM.")
+    month: MonthText | None = Field(None, description="YYYY-MM. The month before the hospital's current one when left out: the "
+                                                       "latest to have closed, or to close.")
 
 
 class CloseBody(Schema):
@@ -140,7 +141,8 @@ def _month(text: str) -> dt.date:
 @router.get("/{unit_id}/close", response=MonthCloseView, auth=reader, operation_id="getMonthClose")
 def month_close(request: HttpRequest, unit_id: UUID, filters: Query[MonthFilter]) -> MonthCloseView:
     unit = unit_in_scope(request.user, unit_id)
-    return _view(unit, _month(filters.month), request.user)
+    month = _month(filters.month) if filters.month else month_before(membership.this_month())
+    return _view(unit, month, request.user)
 
 
 @router.post("/{unit_id}/close", response=MonthCloseView, auth=manager, operation_id="closeMonth")

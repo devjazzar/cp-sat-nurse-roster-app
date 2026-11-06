@@ -28,7 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UnitPicker, useChosenUnit } from "@/components/unit-picker"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
-import { dayRange, monthName, scrollableRegion } from "@/lib/utils"
+import { dayRange, monthAfter, monthName, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({
@@ -304,6 +304,12 @@ function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }
                   }} />
               </CardContent>
             </Card>
+          )}
+          {answer.closed === "closed" && (
+            <p className="text-sm">{monthName(answer.month)} has closed. Leave recorded or changed here is taken in when {mayChange ? "you close it again on the Roster page" : "its manager closes it again"}, which can be done until {monthName(monthAfter(answer.month, 1))} closes.</p>
+          )}
+          {answer.closed === "fixed" && (
+            <p className="text-sm">{monthName(answer.month)} has closed, and so has the month after it, so its leave can no longer change.</p>
           )}
           {nurseId && !chosenNurse && (
             <p>The nurse you chose is not in {unit.name} in {monthName(answer.month)}, so this shows everyone.</p>

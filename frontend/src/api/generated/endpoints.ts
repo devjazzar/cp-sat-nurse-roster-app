@@ -32,6 +32,7 @@ import type {
   AuditPage,
   ChangePasswordBody,
   ChangePasswordRefusal,
+  CloseBody,
   CompareRosterVersionsParams,
   ConfirmNurseImportBody,
   CorrectedNurse,
@@ -41,6 +42,7 @@ import type {
   EditsBody,
   EndDateBody,
   ExportRosterVersionParams,
+  GetMonthCloseParams,
   GetMyLeaveParams,
   GetMyMonthParams,
   GetMyRequestsParams,
@@ -77,6 +79,7 @@ import type {
   ManagerToPlace,
   Me,
   MonthBody,
+  MonthCloseView,
   MyLeaveMonth,
   MyMonth,
   MyRequestRow,
@@ -3865,8 +3868,8 @@ export const getUpdateNurseAttributesUrl = (unitId: string,
 
 /**
  * A manager with a nurse profile sets their own, because nobody else may and a nurse has to have them. The CNO and the
- * Deputy CNO can read the values, and the log shows whose hand changed them. Ticket 21 refuses the opening values here
- * once the nurse's first month has closed.
+ * Deputy CNO can read the values, and the log shows whose hand changed them. The opening values are refused, on their fields
+ * alone, once the nurse's first month has closed.
  * @summary Update Nurse Attributes
  */
 export const updateNurseAttributes = async (unitId: string,
@@ -7637,6 +7640,213 @@ export const useRejectUnitSwap = <TError = unknown,
       return useMutation(getRejectUnitSwapMutationOptions(options), queryClient);
     }
 
+export const getGetMonthCloseUrl = (unitId: string,
+    params?: GetMonthCloseParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/close?${stringifiedParams}` : `/api/units/${unitId}/close`
+}
+
+/**
+ * @summary Month Close
+ */
+export const getMonthClose = async (unitId: string,
+    params?: GetMonthCloseParams, options?: Parameters<typeof apiFetch>[1]): Promise<MonthCloseView> => {
+
+  return apiFetch<MonthCloseView>(getGetMonthCloseUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMonthCloseQueryKey = (unitId: string,
+    params?: GetMonthCloseParams,) => {
+    return [
+    `/api/units/${unitId}/close`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMonthCloseQueryOptions = <TData = Awaited<ReturnType<typeof getMonthClose>>, TError = unknown>(unitId: string,
+    params?: GetMonthCloseParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMonthClose>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMonthCloseQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMonthClose>>> = ({ signal }) => getMonthClose(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMonthClose>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMonthCloseQueryResult = NonNullable<Awaited<ReturnType<typeof getMonthClose>>>
+export type GetMonthCloseQueryError = unknown
+
+
+export function useGetMonthClose<TData = Awaited<ReturnType<typeof getMonthClose>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  GetMonthCloseParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMonthClose>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMonthClose>>,
+          TError,
+          Awaited<ReturnType<typeof getMonthClose>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMonthClose<TData = Awaited<ReturnType<typeof getMonthClose>>, TError = unknown>(
+ unitId: string,
+    params?: GetMonthCloseParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMonthClose>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMonthClose>>,
+          TError,
+          Awaited<ReturnType<typeof getMonthClose>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMonthClose<TData = Awaited<ReturnType<typeof getMonthClose>>, TError = unknown>(
+ unitId: string,
+    params?: GetMonthCloseParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMonthClose>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Month Close
+ */
+
+export function useGetMonthClose<TData = Awaited<ReturnType<typeof getMonthClose>>, TError = unknown>(
+ unitId: string,
+    params?: GetMonthCloseParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMonthClose>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMonthCloseQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCloseMonthUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/close`
+}
+
+/**
+ * Closes a month that is over, or closes it again to take late facts in, until the month after it has closed. The schedule
+ * closes each month on its own (`closing.tasks.close_month`); this is for a manager who has recorded something since.
+ * @summary Close Month
+ */
+export const closeMonth = async (unitId: string,
+    closeBody: CloseBody, options?: Parameters<typeof apiFetch>[1]): Promise<MonthCloseView> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MonthCloseView>(getCloseMonthUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(closeBody)
+  }
+);}
+
+
+
+
+
+export const getCloseMonthMutationKey = () => ['closeMonth'] as const;
+
+export const getCloseMonthMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeMonth>>, TError,CloseMonthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeMonth>>, TError,CloseMonthMutationVariables, TContext> => {
+
+const mutationKey = getCloseMonthMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeMonth>>, CloseMonthMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  closeMonth(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseMonthMutationResult = NonNullable<Awaited<ReturnType<typeof closeMonth>>>
+    export type CloseMonthMutationBody = CloseBody
+    export type CloseMonthMutationError = unknown
+    export type CloseMonthMutationVariables = {unitId: string;data: CloseBody}
+
+    /**
+ * @summary Close Month
+ */
+export const useCloseMonth = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeMonth>>, TError,CloseMonthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof closeMonth>>,
+        TError,
+        CloseMonthMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCloseMonthMutationOptions(options), queryClient);
+    }
+
 export const getGetMyRequestsUrl = (params?: GetMyRequestsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9770,7 +9980,9 @@ export const getCorrectNurseDetailsUrl = (nurseId: string,) => {
 
 /**
  * Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and
- * an ended nurse stays ended. Ticket 21 adds the guard for a closed month here, and ticket 11 warns of a solved one.
+ * an ended nurse stays ended. A closed month refuses a start date that rewrites it (`_closed_for_good`), and ticket 11 warns of a
+ * solved one. A gender changes no hours or carry-over: it applies from the next solve on, and a closed month keeps what its
+ * stored input says.
  * @summary Correct Details
  */
 export const correctNurseDetails = async (nurseId: string,

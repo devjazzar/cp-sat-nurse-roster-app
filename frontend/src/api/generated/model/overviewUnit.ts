@@ -10,6 +10,6 @@ export interface OverviewUnit {
   id: string;
   name: string;
   archived: boolean;
-  /** One for each of `months`, in order. */
+  /** One for each of `months`, in order. `closed` is an approved roster whose month has closed. */
   states: OverviewUnitStatesItem[];
 }

@@ -196,7 +196,7 @@ function Decision({ row, names }: { row: UnitRequestRow; names: Record<string, s
       <span>{UNIT_STATE[row.state]}</span>
       {changed && <span className="text-sm">Now promises {inSentence(row.promised ?? "", names)}</span>}
       {row.set_aside && <span className="text-sm">Its pin is set aside: it no longer fits the nurse's month, so no solve takes it.</span>}
-      {decision?.reason && <span className="text-sm text-muted-foreground">{decision.by}: {decision.reason}</span>}
+      {decision?.reason && <span className="text-sm text-muted-foreground">{decision.by ? `${decision.by}: ` : ""}{decision.reason}</span>}
     </div>
   )
 }

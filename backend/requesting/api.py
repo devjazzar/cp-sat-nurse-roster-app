@@ -28,13 +28,13 @@ from units.scope import unit_in_scope
 
 router = Router(tags=["requests"])
 
-RequestStateText = Literal["pending", "accepted", "rejected", "withdrawn", "cancelled", "replaced_by_leave"]
-StepText = Literal["made", "withdrawn", "accepted", "rejected", "edited", "cancelled", "replaced_by_leave"]
+RequestStateText = Literal["pending", "accepted", "rejected", "withdrawn", "cancelled", "replaced_by_leave", "expired"]
+StepText = Literal["made", "withdrawn", "accepted", "rejected", "edited", "cancelled", "replaced_by_leave", "expired"]
 
 
 class RequestStepRow(Schema):
     step: StepText
-    by: str
+    by: str | None = Field(description="Null for `expired`: the month's close ended it, with no one's hand in it.")
     at: dt.datetime
     reason: str = Field(description="The nurse's, when she made it; the manager's, for a decision. Read only by her and the "
                                     "unit's manager.")
@@ -43,7 +43,7 @@ class RequestStepRow(Schema):
 
 
 def step_rows(steps: list[RequestStep]) -> list[RequestStepRow]:
-    return [RequestStepRow(step=step.step, by=step.by.full_name or step.by.username, at=timezone.localtime(step.at),
+    return [RequestStepRow(step=step.step, by=(step.by.full_name or step.by.username) if step.by else None, at=timezone.localtime(step.at),
                     reason=step.reason, shift=(step.pin.code if step.pin else None)) for step in steps]
 
 

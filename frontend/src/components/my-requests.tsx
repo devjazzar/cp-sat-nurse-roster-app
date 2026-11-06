@@ -94,7 +94,7 @@ function Outcome({ row, names }: { row: MyRequestRow; names: Record<string, stri
     <div className="flex flex-col gap-0.5">
       <span>{MY_STATE[row.state]}</span>
       {changed && <span className="text-sm">Now promised: {askedFor(row.promised ?? "", names)}</span>}
-      {decision?.reason && <span className="text-sm text-muted-foreground">{decision.by}: {decision.reason}</span>}
+      {decision?.reason && <span className="text-sm text-muted-foreground">{decision.by ? `${decision.by}: ` : ""}{decision.reason}</span>}
     </div>
   )
 }

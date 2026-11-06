@@ -1614,7 +1614,7 @@
             }
           }
         },
-        "description": "A manager with a nurse profile sets their own, because nobody else may and a nurse has to have them. The CNO and the\nDeputy CNO can read the values, and the log shows whose hand changed them. Ticket 21 refuses the opening values here\nonce the nurse's first month has closed.",
+        "description": "A manager with a nurse profile sets their own, because nobody else may and a nurse has to have them. The CNO and the\nDeputy CNO can read the values, and the log shows whose hand changed them. The opening values are refused, on their fields\nalone, once the nurse's first month has closed.",
         "tags": [
           "nurses"
         ],
@@ -3729,6 +3729,113 @@
         ]
       }
     },
+    "/api/units/{unit_id}/close": {
+      "get": {
+        "operationId": "getMonthClose",
+        "summary": "Month Close",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month before the hospital's current one when left out: the latest to have closed, or to close.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month before the hospital's current one when left out: the latest to have closed, or to close."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthCloseView"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "closing"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "closeMonth",
+        "summary": "Close Month",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthCloseView"
+                }
+              }
+            }
+          }
+        },
+        "description": "Closes a month that is over, or closes it again to take late facts in, until the month after it has closed. The schedule\ncloses each month on its own (`closing.tasks.close_month`); this is for a manager who has recorded something since.",
+        "tags": [
+          "closing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/requests/mine": {
       "get": {
         "operationId": "getMyRequests",
@@ -4697,7 +4804,7 @@
             }
           }
         },
-        "description": "Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and\nan ended nurse stays ended. Ticket 21 adds the guard for a closed month here, and ticket 11 warns of a solved one.",
+        "description": "Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and\nan ended nurse stays ended. A closed month refuses a start date that rewrites it (`_closed_for_good`), and ticket 11 warns of a\nsolved one. A gender changes no hours or carry-over: it applies from the next solve on, and a closed month keeps what its\nstored input says.",
         "tags": [
           "nurses"
         ],
@@ -7128,6 +7235,11 @@
             "description": "A transfer emptied the list, as none of its shifts are worked here.",
             "title": "Allowed Shifts To Check",
             "type": "boolean"
+          },
+          "opening_values_locked": {
+            "description": "Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.",
+            "title": "Opening Values Locked",
+            "type": "boolean"
           }
         },
         "required": [
@@ -7147,7 +7259,8 @@
           "night_balance",
           "friday_balance",
           "allowed_shifts",
-          "allowed_shifts_to_check"
+          "allowed_shifts_to_check",
+          "opening_values_locked"
         ],
         "title": "NurseAttributesRow",
         "type": "object"
@@ -7399,12 +7512,23 @@
             },
             "title": "Runs",
             "type": "array"
+          },
+          "closed": {
+            "description": "`closed`: the month has closed, and leave changed here is taken in when its manager closes it again. `fixed`: the month after has closed too, so its leave can no longer change. `open` otherwise.",
+            "enum": [
+              "open",
+              "closed",
+              "fixed"
+            ],
+            "title": "Closed",
+            "type": "string"
           }
         },
         "required": [
           "month",
           "nurses",
-          "runs"
+          "runs",
+          "closed"
         ],
         "title": "UnitLeaveMonth",
         "type": "object"
@@ -8348,12 +8472,14 @@
             "type": "string"
           },
           "what": {
+            "description": "`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21).",
             "enum": [
               "gender",
               "leave",
               "joined",
               "left",
-              "pins"
+              "pins",
+              "closed"
             ],
             "title": "What",
             "type": "string"
@@ -10706,14 +10832,23 @@
               "rejected",
               "edited",
               "cancelled",
-              "replaced_by_leave"
+              "replaced_by_leave",
+              "expired"
             ],
             "title": "Step",
             "type": "string"
           },
           "by": {
-            "title": "By",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for `expired`: the month's close ended it, with no one's hand in it.",
+            "title": "By"
           },
           "at": {
             "format": "date-time",
@@ -10780,7 +10915,8 @@
               "rejected",
               "withdrawn",
               "cancelled",
-              "replaced_by_leave"
+              "replaced_by_leave",
+              "expired"
             ],
             "title": "State",
             "type": "string"
@@ -11340,6 +11476,254 @@
         "title": "RejectSwapBody",
         "type": "object"
       },
+      "BrokenFact": {
+        "properties": {
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "hospital_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hospital Id"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "hospital_id",
+          "full_name",
+          "date",
+          "text"
+        ],
+        "title": "BrokenFact",
+        "type": "object"
+      },
+      "CarryValues": {
+        "properties": {
+          "hours_balance": {
+            "description": "Hours still owed (+) or worked ahead (-).",
+            "title": "Hours Balance",
+            "type": "integer"
+          },
+          "ytd_overtime": {
+            "description": "Overtime hours this year.",
+            "title": "Ytd Overtime",
+            "type": "integer"
+          },
+          "night_balance": {
+            "title": "Night Balance",
+            "type": "number"
+          },
+          "friday_balance": {
+            "title": "Friday Balance",
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "opening",
+              "projected",
+              "closed"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "out_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM: the month these come out of. Null for opening values.",
+            "title": "Out Of"
+          }
+        },
+        "required": [
+          "hours_balance",
+          "ytd_overtime",
+          "night_balance",
+          "friday_balance",
+          "source",
+          "out_of"
+        ],
+        "title": "CarryValues",
+        "type": "object"
+      },
+      "ClosedMonth": {
+        "properties": {
+          "closed_at": {
+            "format": "date-time",
+            "title": "Closed At",
+            "type": "string"
+          },
+          "closed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The manager who closed it again. Null when the schedule closed it.",
+            "title": "Closed By"
+          },
+          "version": {
+            "description": "The roster version in force that was closed.",
+            "title": "Version",
+            "type": "integer"
+          },
+          "facts_broke": {
+            "description": "The hard rules the recorded facts broke: reported, never refused.",
+            "items": {
+              "$ref": "#/components/schemas/BrokenFact"
+            },
+            "title": "Facts Broke",
+            "type": "array"
+          },
+          "changed_since": {
+            "description": "Whether leave or a nurse's dates read now differ from what the close read, which closing it again takes in.",
+            "title": "Changed Since",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "closed_at",
+          "closed_by",
+          "version",
+          "facts_broke",
+          "changed_since"
+        ],
+        "title": "ClosedMonth",
+        "type": "object"
+      },
+      "MonthCloseView": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "closed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClosedMonth"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The close in force: the latest. Null while the month has not closed."
+          },
+          "close_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the manager cannot close the month, or close it again, now.",
+            "title": "Close Refusal"
+          },
+          "carry_over": {
+            "description": "Each nurse of the unit's month, by name.",
+            "items": {
+              "$ref": "#/components/schemas/NurseCarryOver"
+            },
+            "title": "Carry Over",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "closed",
+          "close_refusal",
+          "carry_over"
+        ],
+        "title": "MonthCloseView",
+        "type": "object"
+      },
+      "NurseCarryOver": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "into": {
+            "$ref": "#/components/schemas/CarryValues",
+            "description": "What the month starts from: January's with overtime and both balances reset."
+          },
+          "out": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CarryValues"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What it hands to the month after: closed once it has, projected from the roster in force while approved, and null with no approved roster."
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "into",
+          "out"
+        ],
+        "title": "NurseCarryOver",
+        "type": "object"
+      },
+      "CloseBody": {
+        "properties": {
+          "month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "title": "CloseBody",
+        "type": "object"
+      },
       "MyRosterFilter": {
         "properties": {
           "month": {
@@ -11386,7 +11770,8 @@
               "rejected",
               "withdrawn",
               "cancelled",
-              "replaced_by_leave"
+              "replaced_by_leave",
+              "expired"
             ],
             "title": "State",
             "type": "string"
@@ -12021,13 +12406,14 @@
             "type": "boolean"
           },
           "states": {
-            "description": "One for each of `months`, in order.",
+            "description": "One for each of `months`, in order. `closed` is an approved roster whose month has closed.",
             "items": {
               "enum": [
                 "none",
                 "draft",
                 "submitted",
-                "approved"
+                "approved",
+                "closed"
               ],
               "type": "string"
             },
@@ -12120,7 +12506,7 @@
             "type": "string"
           },
           "first_month": {
-            "description": "The earliest month shown here: this one. Earlier months are not.",
+            "description": "The earliest month shown here: this one, or the earliest of theirs that has closed. An earlier month shows once it has closed, as its close read it.",
             "title": "First Month",
             "type": "string"
           },
@@ -12252,7 +12638,7 @@
             "type": "string"
           },
           "first_month": {
-            "description": "The earliest month shown here: this one. Earlier months are not.",
+            "description": "The earliest month shown here: this one, or the earliest of theirs that has closed. An earlier month shows once it has closed, as its close read it.",
             "title": "First Month",
             "type": "string"
           },
@@ -12356,7 +12742,7 @@
             "type": "string"
           },
           "first_month": {
-            "description": "The earliest month with hours here: this one.",
+            "description": "The earliest month with hours here: this one, or the earliest of theirs that has closed.",
             "title": "First Month",
             "type": "string"
           },
@@ -12404,6 +12790,11 @@
             "title": "Approved At",
             "type": "string"
           },
+          "closed": {
+            "description": "The month has closed: `hours` are its close's figures, fact, and `carried` is what it handed on.",
+            "title": "Closed",
+            "type": "boolean"
+          },
           "hours": {
             "anyOf": [
               {
@@ -12419,6 +12810,7 @@
         "required": [
           "version",
           "approved_at",
+          "closed",
           "hours"
         ],
         "title": "MyMonthInForce",

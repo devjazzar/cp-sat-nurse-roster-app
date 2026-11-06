@@ -1316,15 +1316,16 @@ export const ListNurseAttributesResponseItem = zod.object({
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
-  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.')
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.')
 })
 export const ListNurseAttributesResponse = zod.array(ListNurseAttributesResponseItem)
 
 
 /**
  * A manager with a nurse profile sets their own, because nobody else may and a nurse has to have them. The CNO and the
- * Deputy CNO can read the values, and the log shows whose hand changed them. Ticket 21 refuses the opening values here
- * once the nurse's first month has closed.
+ * Deputy CNO can read the values, and the log shows whose hand changed them. The opening values are refused, on their fields
+ * alone, once the nurse's first month has closed.
  * @summary Update Nurse Attributes
  */
 export const UpdateNurseAttributesParams = zod.object({
@@ -1379,7 +1380,8 @@ export const UpdateNurseAttributesResponse = zod.object({
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
-  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.')
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.')
 })
 
 
@@ -1417,7 +1419,8 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
-  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.')
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.')
 })
 
 
@@ -1460,7 +1463,8 @@ export const ListUnitLeaveResponse = zod.object({
   "last": zod.iso.date(),
   "days": zod.int(),
   "outside_dates": zod.boolean().describe('A correction to the nurse\'s start or end date has left these days outside them, where they count for nothing. Its manager can remove them.')
-}).describe('Consecutive days of one nurse and one type in the month asked for, which is what a manager thinks of as one leave.'))
+}).describe('Consecutive days of one nurse and one type in the month asked for, which is what a manager thinks of as one leave.')),
+  "closed": zod.enum(['open', 'closed', 'fixed']).describe('`closed`: the month has closed, and leave changed here is taken in when its manager closes it again. `fixed`: the month after has closed too, so its leave can no longer change. `open` otherwise.')
 })
 
 
@@ -1829,7 +1833,7 @@ export const GetRosterMonthResponse = zod.object({
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
   "last_rejection": zod.union([zod.object({
@@ -1959,7 +1963,7 @@ export const GetRosterMonthResponse = zod.object({
   "changes": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
 })
@@ -2053,7 +2057,7 @@ export const SaveDraftPinsResponse = zod.object({
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
   "last_rejection": zod.union([zod.object({
@@ -2183,7 +2187,7 @@ export const SaveDraftPinsResponse = zod.object({
   "changes": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
 })
@@ -2233,7 +2237,7 @@ export const SaveRosterVersionResponse = zod.object({
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
   "last_rejection": zod.union([zod.object({
@@ -2363,7 +2367,7 @@ export const SaveRosterVersionResponse = zod.object({
   "changes": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
 })
@@ -2455,7 +2459,7 @@ export const SubmitRosterResponse = zod.object({
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
   "last_rejection": zod.union([zod.object({
@@ -2585,7 +2589,7 @@ export const SubmitRosterResponse = zod.object({
   "changes": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
 })
@@ -2617,7 +2621,7 @@ export const ApproveRosterResponse = zod.object({
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
   "last_rejection": zod.union([zod.object({
@@ -2747,7 +2751,7 @@ export const ApproveRosterResponse = zod.object({
   "changes": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
 })
@@ -2781,7 +2785,7 @@ export const RejectRosterResponse = zod.object({
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
   "last_rejection": zod.union([zod.object({
@@ -2911,7 +2915,7 @@ export const RejectRosterResponse = zod.object({
   "changes": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins'])
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'closed']).describe('`closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).')
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
 })
@@ -3386,14 +3390,14 @@ export const ListWindowRequestsResponseItem = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -3428,14 +3432,14 @@ export const AcceptRequestResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -3468,14 +3472,14 @@ export const RejectRequestResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -3512,14 +3516,14 @@ export const EditRequestResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -3553,14 +3557,14 @@ export const CancelRequestResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -3824,6 +3828,114 @@ export const RejectUnitSwapResponse = zod.object({
 
 
 /**
+ * @summary Month Close
+ */
+export const GetMonthCloseParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const getMonthCloseQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetMonthCloseQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getMonthCloseQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month before the hospital\'s current one when left out: the latest to have closed, or to close.')
+})
+
+export const GetMonthCloseResponse = zod.object({
+  "month": zod.string(),
+  "closed": zod.union([zod.object({
+  "closed_at": zod.iso.datetime({"offset":true}),
+  "closed_by": zod.union([zod.string(),zod.null()]).describe('The manager who closed it again. Null when the schedule closed it.'),
+  "version": zod.int().describe('The roster version in force that was closed.'),
+  "facts_broke": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('The hard rules the recorded facts broke: reported, never refused.'),
+  "changed_since": zod.boolean().describe('Whether leave or a nurse\'s dates read now differ from what the close read, which closing it again takes in.')
+}),zod.null()]).describe('The close in force: the latest. Null while the month has not closed.'),
+  "close_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot close the month, or close it again, now.'),
+  "carry_over": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "into": zod.object({
+  "hours_balance": zod.int().describe('Hours still owed (+) or worked ahead (-).'),
+  "ytd_overtime": zod.int().describe('Overtime hours this year.'),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "source": zod.enum(['opening', 'projected', 'closed']),
+  "out_of": zod.union([zod.string(),zod.null()]).describe('YYYY-MM: the month these come out of. Null for opening values.')
+}).describe('What the month starts from: January\'s with overtime and both balances reset.'),
+  "out": zod.union([zod.object({
+  "hours_balance": zod.int().describe('Hours still owed (+) or worked ahead (-).'),
+  "ytd_overtime": zod.int().describe('Overtime hours this year.'),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "source": zod.enum(['opening', 'projected', 'closed']),
+  "out_of": zod.union([zod.string(),zod.null()]).describe('YYYY-MM: the month these come out of. Null for opening values.')
+}),zod.null()]).describe('What it hands to the month after: closed once it has, projected from the roster in force while approved, and null with no approved roster.')
+})).describe('Each nurse of the unit\'s month, by name.')
+})
+
+
+/**
+ * Closes a month that is over, or closes it again to take late facts in, until the month after it has closed. The schedule
+ * closes each month on its own (`closing.tasks.close_month`); this is for a manager who has recorded something since.
+ * @summary Close Month
+ */
+export const CloseMonthParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const closeMonthBodyMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const CloseMonthBody = zod.object({
+  "month": zod.string().regex(closeMonthBodyMonthRegExp)
+})
+
+export const CloseMonthResponse = zod.object({
+  "month": zod.string(),
+  "closed": zod.union([zod.object({
+  "closed_at": zod.iso.datetime({"offset":true}),
+  "closed_by": zod.union([zod.string(),zod.null()]).describe('The manager who closed it again. Null when the schedule closed it.'),
+  "version": zod.int().describe('The roster version in force that was closed.'),
+  "facts_broke": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('The hard rules the recorded facts broke: reported, never refused.'),
+  "changed_since": zod.boolean().describe('Whether leave or a nurse\'s dates read now differ from what the close read, which closing it again takes in.')
+}),zod.null()]).describe('The close in force: the latest. Null while the month has not closed.'),
+  "close_refusal": zod.union([zod.string(),zod.null()]).describe('Why the manager cannot close the month, or close it again, now.'),
+  "carry_over": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "into": zod.object({
+  "hours_balance": zod.int().describe('Hours still owed (+) or worked ahead (-).'),
+  "ytd_overtime": zod.int().describe('Overtime hours this year.'),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "source": zod.enum(['opening', 'projected', 'closed']),
+  "out_of": zod.union([zod.string(),zod.null()]).describe('YYYY-MM: the month these come out of. Null for opening values.')
+}).describe('What the month starts from: January\'s with overtime and both balances reset.'),
+  "out": zod.union([zod.object({
+  "hours_balance": zod.int().describe('Hours still owed (+) or worked ahead (-).'),
+  "ytd_overtime": zod.int().describe('Overtime hours this year.'),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "source": zod.enum(['opening', 'projected', 'closed']),
+  "out_of": zod.union([zod.string(),zod.null()]).describe('YYYY-MM: the month these come out of. Null for opening values.')
+}),zod.null()]).describe('What it hands to the month after: closed once it has, projected from the roster in force while approved, and null with no approved roster.')
+})).describe('Each nurse of the unit\'s month, by name.')
+})
+
+
+/**
  * The hospital's current month when none is given, as the rest of My month.
  * @summary My Requests
  */
@@ -3856,11 +3968,11 @@ export const GetMyRequestsResponse = zod.object({
   "id": zod.uuid(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What you asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what is promised, which your manager may have changed.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -3891,11 +4003,11 @@ export const MakeRequestResponse = zod.object({
   "id": zod.uuid(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What you asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what is promised, which your manager may have changed.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -3915,11 +4027,11 @@ export const WithdrawRequestResponse = zod.object({
   "id": zod.uuid(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('What you asked for: a shift\'s code, empty for a day off.'),
-  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave']),
+  "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what is promised, which your manager may have changed.'),
   "steps": zod.array(zod.object({
-  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave']),
-  "by": zod.string(),
+  "step": zod.enum(['made', 'withdrawn', 'accepted', 'rejected', 'edited', 'cancelled', 'replaced_by_leave', 'expired']),
+  "by": zod.union([zod.string(),zod.null()]).describe('Null for `expired`: the month\'s close ended it, with no one\'s hand in it.'),
   "at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
@@ -4181,7 +4293,7 @@ export const GetRosterOverviewResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string(),
   "archived": zod.boolean(),
-  "states": zod.array(zod.enum(['none', 'draft', 'submitted', 'approved'])).describe('One for each of `months`, in order.')
+  "states": zod.array(zod.enum(['none', 'draft', 'submitted', 'approved', 'closed'])).describe('One for each of `months`, in order. `closed` is an approved roster whose month has closed.')
 })).describe('Every unit not archived, and an archived one with a roster in these months.')
 })
 
@@ -4214,7 +4326,7 @@ export const GetMyRosterQueryParams = zod.object({
 
 export const GetMyRosterResponse = zod.object({
   "month": zod.string(),
-  "first_month": zod.string().describe('The earliest month shown here: this one. Earlier months are not.'),
+  "first_month": zod.string().describe('The earliest month shown here: this one, or the earliest of theirs that has closed. An earlier month shows once it has closed, as its close read it.'),
   "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
   "roster": zod.union([zod.object({
   "approved_at": zod.iso.datetime({"offset":true}),
@@ -4258,7 +4370,7 @@ export const GetMyRosterSheetQueryParams = zod.object({
 
 export const GetMyRosterSheetResponse = zod.object({
   "month": zod.string(),
-  "first_month": zod.string().describe('The earliest month shown here: this one. Earlier months are not.'),
+  "first_month": zod.string().describe('The earliest month shown here: this one, or the earliest of theirs that has closed. An earlier month shows once it has closed, as its close read it.'),
   "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
   "sheet": zod.union([zod.object({
   "unit": zod.string(),
@@ -4306,11 +4418,12 @@ export const GetMyMonthQueryParams = zod.object({
 
 export const GetMyMonthResponse = zod.object({
   "month": zod.string(),
-  "first_month": zod.string().describe('The earliest month with hours here: this one.'),
+  "first_month": zod.string().describe('The earliest month with hours here: this one, or the earliest of theirs that has closed.'),
   "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
   "roster": zod.union([zod.object({
   "version": zod.int(),
   "approved_at": zod.iso.datetime({"offset":true}),
+  "closed": zod.boolean().describe('The month has closed: `hours` are its close\'s figures, fact, and `carried` is what it handed on.'),
   "hours": zod.union([zod.object({
   "worked": zod.int().describe('Hours of the shifts on the reader\'s row.'),
   "leave_credit": zod.int().describe('Hours their leave and any days outside their dates count as worked.'),
@@ -4577,7 +4690,9 @@ export const SetNurseEndDateResponse = zod.object({
 
 /**
  * Nothing here changes who belongs where, now or to come, nor an account's state, so no unit's row is locked and
- * an ended nurse stays ended. Ticket 21 adds the guard for a closed month here, and ticket 11 warns of a solved one.
+ * an ended nurse stays ended. A closed month refuses a start date that rewrites it (`_closed_for_good`), and ticket 11 warns of a
+ * solved one. A gender changes no hours or carry-over: it applies from the next solve on, and a closed month keeps what its
+ * stored input says.
  * @summary Correct Details
  */
 export const CorrectNurseDetailsParams = zod.object({

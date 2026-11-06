@@ -63,17 +63,18 @@ function HoursList({ mine }: { mine: MyHours }) {
 
 function Hours({ answer }: { answer: MyMonth }) {
   const month = monthName(answer.month)
-  if (answer.month < answer.first_month) return <p>Hours are shown from this month on. Months already over are not shown here.</p>
+  if (answer.month < answer.first_month) return <p>Hours are shown from this month on, and for a month already over once it has closed.</p>
   if (!answer.unit) return <p>You are on no unit's roster in {month}.</p>
   if (!answer.roster) return <p>No roster yet for {month}. Your hours show here once it is approved.</p>
   return (
     <>
       <p className="text-sm text-muted-foreground">
         From version {answer.roster.version} of the {answer.unit} roster, approved {hospitalTime(answer.roster.approved_at)}.{" "}
+        {answer.roster.closed && "The month has closed: these are what really happened, with your leave. "}
         <Link to="/my-roster" search={{ month: answer.month }} className={LINK}>See it under My roster</Link>
       </p>
       {answer.roster.hours ? <HoursList mine={answer.roster.hours} /> : <p>You are not on this roster.</p>}
-      {answer.roster.hours?.carried != null && (
+      {!answer.roster.closed && answer.roster.hours?.carried != null && (
         <p className="text-sm text-muted-foreground">What is carried is worked out again when the month closes, from what really happened.</p>
       )}
     </>

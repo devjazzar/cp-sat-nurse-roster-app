@@ -53,7 +53,7 @@ function MyRosterPage() {
           <MonthNav month={answer.month} link={(shown, label) => shown < answer.first_month ? null : (
             <Link to="/my-roster" search={{ month: shown }} className={MONTH_LINK}>{label}</Link>
           )} />
-          {answer.month < answer.first_month && <p>Months already over are not shown here.</p>}
+          {answer.month < answer.first_month && <p>A month already over shows here once it has closed.</p>}
           {answer.month >= answer.first_month && !answer.unit && <p>You are on no unit's roster in {monthName(answer.month)}.</p>}
           {answer.month >= answer.first_month && answer.unit && !answer.roster && <p>No roster yet for {monthName(answer.month)}.</p>}
           {answer.roster && (

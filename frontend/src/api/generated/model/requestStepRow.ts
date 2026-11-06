@@ -8,7 +8,8 @@ import type { RequestStepRowStep } from './requestStepRowStep';
 
 export interface RequestStepRow {
   step: RequestStepRowStep;
-  by: string;
+  /** Null for `expired`: the month's close ended it, with no one's hand in it. */
+  by: string | null;
   at: string;
   /** The nurse's, when she made it; the manager's, for a decision. Read only by her and the unit's manager. */
   reason: string;

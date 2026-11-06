@@ -137,6 +137,10 @@ class TestRequestsStillPending:
         [note] = Notification.objects.filter(event=Event.REQUEST_DECIDED)
         assert note.user == badr.user and "by" not in note.payload
         assert text_of(note, Names([note])) == "Your request for a day off on 3 June 2026 has ended: the month closed before a decision."
+        mine = ok(signed_in("Badr").get("/api/requests/mine", {"month": "2026-06"}))
+        [row] = mine["requests"]
+        assert row["state"] == "expired" and row["steps"][-1] == row["steps"][-1] | {"step": "expired", "by": None,
+                                                                                    "reason": "The month closed before a decision."}
 
 
 def signed_in(hospital_id) -> Client:

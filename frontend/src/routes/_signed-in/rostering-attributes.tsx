@@ -108,6 +108,7 @@ function AttributesForm({ unitId, nurse, shifts, isOwn, onCancel, onDone }: Form
     },
   })
   const { errors } = form.formState
+  const locked = nurse.opening_values_locked
   const asNumber = { valueAsNumber: true }
 
   useEffect(() => { form.setFocus("team_leader") }, [form])
@@ -137,16 +138,20 @@ function AttributesForm({ unitId, nurse, shifts, isOwn, onCancel, onDone }: Form
       </FieldGroup>
       <FieldSet className="gap-4">
         <FieldLegend variant="legend" className="mb-0">Opening values</FieldLegend>
-        <p className="text-sm text-muted-foreground">Where this nurse stands on the day they were added. Later months carry on from these.</p>
+        <p className="text-sm text-muted-foreground">
+          {locked
+            ? "Where this nurse stood on the day they were added. Their first month has closed, so these can no longer change: each month now starts from the carry-over of the one before, on the Roster page."
+            : "Where this nurse stands on the day they were added. Later months carry on from these, until their first month closes."}
+        </p>
         <FieldGroup>
           <FormField label="Overtime this year (hours)" type="number" inputMode="numeric" description="Overtime already worked this year, which counts towards the yearly cap."
-            registration={form.register("ytd_overtime", asNumber)} error={errors.ytd_overtime} />
+            readOnly={locked} registration={form.register("ytd_overtime", asNumber)} error={errors.ytd_overtime} />
           <FormField label="Hours balance (hours)" type="number" inputMode="numeric" description="Hours still owed from earlier months, or below zero, hours worked ahead."
-            registration={form.register("hours_balance", asNumber)} error={errors.hours_balance} />
+            readOnly={locked} registration={form.register("hours_balance", asNumber)} error={errors.hours_balance} />
           <FormField label="Night fairness balance (shifts)" type="number" inputMode="decimal" step="any" description="Night shifts above their fair share so far this year, or below zero, under it."
-            registration={form.register("night_balance", asNumber)} error={errors.night_balance} />
+            readOnly={locked} registration={form.register("night_balance", asNumber)} error={errors.night_balance} />
           <FormField label="Weekend fairness balance (shifts)" type="number" inputMode="decimal" step="any" description="Weekend days above their fair share so far this year, or below zero, under it."
-            registration={form.register("friday_balance", asNumber)} error={errors.friday_balance} />
+            readOnly={locked} registration={form.register("friday_balance", asNumber)} error={errors.friday_balance} />
         </FieldGroup>
       </FieldSet>
       <Unexpected error={update.error} />

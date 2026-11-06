@@ -14,6 +14,7 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   joined: "is now in this month but not in this draft",
   left: "is no longer in this month but still in this draft",
   pins: "pinned cells changed",
+  closed: "the month before has closed since, so this month starts from its closed carry-over, not the projected one",
 }
 
 const shiftWord = (code: string) => (code ? code : "a day off")

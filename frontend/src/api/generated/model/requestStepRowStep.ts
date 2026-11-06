@@ -16,4 +16,5 @@ export const RequestStepRowStep = {
   edited: 'edited',
   cancelled: 'cancelled',
   replaced_by_leave: 'replaced_by_leave',
+  expired: 'expired',
 } as const;

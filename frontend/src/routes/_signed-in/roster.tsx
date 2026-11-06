@@ -36,6 +36,7 @@ import {
 } from "@/api/generated/model"
 import { type EditableCellState, CellEditor } from "@/components/cell-editor"
 import { FormField } from "@/components/form-field"
+import { MonthCloseCard } from "@/components/month-close"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { LeavePageDialog } from "@/components/password-dialog"
 import { type CellMarks, GridLegend, RosterGrid } from "@/components/roster-grid"
@@ -733,6 +734,7 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
           {!answer.draft && !active && !answer.last_solve && <p>No draft yet for {monthName(answer.month)}.</p>}
           {!active && answer.state === "approved" && <ReplanCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} unsaved={unsaved} />}
           {!active && !frozen && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} unsaved={unsaved} />}
+          <MonthCloseCard key={`close-${answer.month}`} unitId={unit.id} month={answer.month} />
         </>
       )}
     </>

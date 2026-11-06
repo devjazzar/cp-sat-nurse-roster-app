@@ -8,7 +8,7 @@ import type { NurseRoster } from './nurseRoster';
 
 export interface MyRosterMonth {
   month: string;
-  /** The earliest month shown here: this one. Earlier months are not. */
+  /** The earliest month shown here: this one, or the earliest of theirs that has closed. An earlier month shows once it has closed, as its close read it. */
   first_month: string;
   /** The unit this month falls under for the reader. Null with no nurse profile, or before their first placement. */
   unit: string | null;

@@ -3386,7 +3386,7 @@ describe("the rostering attributes page", () => {
   const AMAL = {
     id: "n1", hospital_id: "h1", full_name: "Amal Saleh", is_active: true, gender: "F", joins_from: null, leaves_from: null,
     team_leader: true, score: 0.9, ramadan_reduced: false, breastfeeding: true, ytd_overtime: 12, hours_balance: -3, night_balance: 1.5, friday_balance: -0.5,
-    allowed_shifts: ["D"], allowed_shifts_to_check: false,
+    allowed_shifts: ["D"], allowed_shifts_to_check: false, opening_values_locked: false,
   }
   const BADR = {
     ...AMAL, id: "n2", hospital_id: "h2", full_name: "Badr Omar", gender: "M", joins_from: "2030-01", team_leader: false, score: 0.8, breastfeeding: false,
@@ -3413,6 +3413,20 @@ describe("the rostering attributes page", () => {
     expect(badr.getByText("Any")).toBeInTheDocument()
     expect(badr.getByText("To check")).toBeInTheDocument()
     expect(screen.getByText(/Badr Omar came with allowed shifts this unit does not work/)).toBeInTheDocument()
+  })
+
+  it("keeps the opening values as they are once a nurse's first month has closed", async () => {
+    const locked = { ...AMAL, opening_values_locked: true }
+    const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [locked], { "PUT /api/units/er/nurses/n1/attributes": { body: locked } }))
+
+    await user.click(await screen.findByRole("button", { name: "Set attributes of Amal Saleh" }))
+    expect(screen.getByText(/Their first month has closed, so these can no longer change/)).toBeInTheDocument()
+    expect(screen.getByLabelText("Hours balance (hours)")).toHaveAttribute("readonly")
+    await user.type(screen.getByLabelText("Hours balance (hours)"), "9")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("The rostering attributes of Amal Saleh are saved.")
+    expect(put(calls).body).toMatchObject({ ytd_overtime: 12, hours_balance: -3, night_balance: 1.5, friday_balance: -0.5 })
   })
 
   it("saves everything, with focus returning to the row's button", async () => {
@@ -3562,6 +3576,15 @@ describe("the leave pages", () => {
     ...extra,
   })
   const refused = (field: string, msg: string) => ({ status: 422, body: { detail: [{ loc: ["body", "body", field], msg }] } })
+
+  it("says a closed month's leave is taken in by closing it again, and when it is fixed for good", async () => {
+    start("/leave?month=2026-11", pageOf({ "GET /api/units/er/leave": { body: { ...MONTH, closed: "closed" } } }))
+    expect(await screen.findByText("November 2026 has closed. Leave recorded or changed here is taken in when you close it again on the Roster page, which can be done until December 2026 closes.")).toBeInTheDocument()
+    cleanup()
+
+    start("/leave?month=2026-11", pageOf({ "GET /api/units/er/leave": { body: { ...MONTH, closed: "fixed" } } }))
+    expect(await screen.findByText("November 2026 has closed, and so has the month after it, so its leave can no longer change.")).toBeInTheDocument()
+  })
 
   it("lists the unit's month with what a manager can do to each leave", async () => {
     start("/leave", pageOf())
@@ -4031,6 +4054,12 @@ describe("the roster page", () => {
   }
   /** A month with a draft that can be submitted. */
   const DRAFTED = { ...EMPTY, state: "draft", submit_refusal: null }
+  const OPENING = { hours_balance: 0, ytd_overtime: 0, night_balance: 0, friday_balance: 0, source: "opening", out_of: null }
+  /** The month's carry-over before anything has closed: every nurse starts from their opening values. */
+  const NOT_CLOSED = {
+    month: "2026-06", closed: null, close_refusal: "June 2026 is not over yet, so it cannot close.",
+    carry_over: [{ hospital_id: "h1", full_name: "Amal Saleh", into: OPENING, out: null }],
+  }
 
   const manager = (extra = {}) => ({
     ...session(MANAGER),
@@ -4039,6 +4068,7 @@ describe("the roster page", () => {
     [`GET ${UNIT}/solves/preview`]: { body: PREVIEW },
     [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: RESULT },
     [`GET ${UNIT}/roster/versions`]: { body: [] },
+    [`GET ${UNIT}/close`]: { body: NOT_CLOSED },
     ...extra,
   })
 
@@ -5413,13 +5443,14 @@ describe("the roster page", () => {
     it("gives the approvers every unit's state per month, linking only what they may read", async () => {
       start("/rosters", approver({
         "GET /api/rosters/overview": { body: { months: ["2026-05", "2026-06", "2026-07", "2026-08"], units: [
-          { id: "u1", name: "ER", archived: false, states: ["none", "approved", "draft", "none"] },
+          { id: "u1", name: "ER", archived: false, states: ["closed", "approved", "draft", "none"] },
           { id: "u2", name: "ICU", archived: false, states: ["none", "submitted", "none", "none"] },
         ] } },
       }))
 
       const er = (await screen.findByRole("rowheader", { name: "ER" })).closest("tr") as HTMLElement
-      expect(within(er).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["No roster", "Approved", "Draft", "No roster"])
+      expect(within(er).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Closed", "Approved", "Draft", "No roster"])
+      expect(within(er).getByRole("link", { name: "Closed" })).toHaveAttribute("href", "/unit-roster?unit=u1&month=2026-05")
       expect(within(er).getByRole("link", { name: "Approved" })).toHaveAttribute("href", "/unit-roster?unit=u1&month=2026-06")
       expect(within(er).queryByRole("link", { name: "Draft" })).not.toBeInTheDocument()
       const icu = screen.getByRole("rowheader", { name: "ICU" }).closest("tr") as HTMLElement
@@ -5510,6 +5541,72 @@ describe("the roster page", () => {
 
       await screen.findByText(/No unit is assigned to you yet/)
       expect(router.state.location.pathname).toBe("/")
+    })
+  })
+
+  describe("its month close", () => {
+    const PROJECTED = { hours_balance: 4, ytd_overtime: 12, night_balance: 0.33, friday_balance: -0.5, source: "projected", out_of: "2026-06" }
+    const CLOSED_OUT = { ...PROJECTED, hours_balance: -3, source: "closed" }
+    const CLOSED = {
+      month: "2026-06", close_refusal: null,
+      closed: {
+        closed_at: "2026-07-01T00:30:04+03:00", closed_by: null, version: 2, changed_since: true,
+        facts_broke: [{ rule: "headcount", hospital_id: null, full_name: "", date: "2026-06-03", text: "headcount: D on 2026-06-03 has 0, needs 1" }],
+      },
+      carry_over: [{ hospital_id: "h1", full_name: "Amal Saleh", into: OPENING, out: CLOSED_OUT }],
+    }
+
+    it("shows each nurse's carry-over, where it comes from, and nothing to close before the month is over", async () => {
+      start("/roster", manager({
+        [`GET ${UNIT}/close`]: { body: { ...NOT_CLOSED, carry_over: [{ hospital_id: "h1", full_name: "Amal Saleh", into: OPENING, out: { ...PROJECTED, out_of: "2026-06" } }] } },
+      }))
+
+      const card = await screen.findByRole("region", { name: "Carry-over and month close" })
+      const table = await within(card).findByRole("region", { name: "Carry-over, June 2026" })
+      const amal = within(table).getByRole("rowheader", { name: "Amal Saleh" }).closest("tr") as HTMLElement
+      expect(within(amal).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+        "0", "0", "0", "0", "Opening values", "4 owed", "12", "+0.33", "−0.50", "Projected from June 2026"])
+      expect(within(table).getByRole("columnheader", { name: "June 2026 starts from" })).toBeInTheDocument()
+      expect(within(table).getByRole("columnheader", { name: "It hands to July 2026" })).toBeInTheDocument()
+      expect(within(card).queryByRole("button")).not.toBeInTheDocument()
+      expect(within(card).queryByText(/not over yet/)).not.toBeInTheDocument()
+    })
+
+    it("says what a closed month's facts broke, that they changed since, and closes it again", async () => {
+      const { calls, user } = start("/roster", manager({
+        [`GET ${UNIT}/close`]: { body: CLOSED },
+        [`POST ${UNIT}/close`]: { body: { ...CLOSED, closed: { ...CLOSED.closed, closed_by: "Mona Ali", version: 2, changed_since: false } } },
+      }))
+
+      const card = await screen.findByRole("region", { name: "Carry-over and month close" })
+      expect(await within(card).findByText("Closed 2026-07-01 00:30:04 by the schedule, with version 2 as the roster in force.")).toBeInTheDocument()
+      expect(within(card).getByText(/broke a hard rule/)).toBeInTheDocument()
+      expect(within(card).getByRole("listitem")).toHaveTextContent("3 June: headcount: D on 2026-06-03 has 0, needs 1")
+      expect(within(card).getByText("Leave or a nurse's dates have changed since it closed. Close it again to take them in.")).toBeInTheDocument()
+
+      await user.click(within(card).getByRole("button", { name: "Close June 2026 again" }))
+
+      expect(await within(card).findByText("Closed 2026-07-01 00:30:04 by Mona Ali, with version 2 as the roster in force.")).toBeInTheDocument()
+      expect(within(card).getByText("June 2026 is closed. Each nurse's carry-over below is this close's.")).toBeInTheDocument()
+      expect(within(card).queryByText(/changed since it closed/)).not.toBeInTheDocument()
+      expect(calls.filter((call) => call.method === "POST").map((call) => [call.url, call.body])).toEqual([[`${UNIT}/close`, { month: "2026-06" }]])
+    })
+
+    it("says why a month can no longer be closed again, and shows a refusal given at the press", async () => {
+      const refusal = "July 2026 has closed, so June 2026 can no longer be closed again."
+      start("/roster?month=2026-06", manager({ [`GET ${UNIT}/close`]: { body: { ...CLOSED, close_refusal: refusal } } }))
+      const card = await screen.findByRole("region", { name: "Carry-over and month close" })
+      expect(await within(card).findByText(refusal)).toBeInTheDocument()
+      expect(within(card).queryByRole("button")).not.toBeInTheDocument()
+      cleanup()
+
+      const second = start("/roster", manager({
+        [`GET ${UNIT}/close`]: { body: CLOSED },
+        [`POST ${UNIT}/close`]: { status: 409, body: { detail: refusal } },
+      }))
+      const again = await screen.findByRole("region", { name: "Carry-over and month close" })
+      await second.user.click(await within(again).findByRole("button", { name: "Close June 2026 again" }))
+      expect(await within(again).findByRole("alert")).toHaveTextContent(refusal)
     })
   })
 })
@@ -5725,6 +5822,15 @@ describe("a nurse's own month", () => {
     expect(screen.getByRole("link", { name: "See it under My roster" })).toHaveAttribute("href", "/my-roster?month=2026-11")
   })
 
+  it("shows a closed month's figures as what really happened", async () => {
+    start("/my-month?month=2026-10", mine({ ...IN_FORCE, month: "2026-10", first_month: "2026-10", roster: { ...IN_FORCE.roster, closed: true } },
+      { ...LEAVE, month: "2026-10" }))
+
+    expect(await screen.findByText(/The month has closed: these are what really happened, with your leave\./)).toBeInTheDocument()
+    expect(terms()["Carried into next month"]).toBe("6 hours worked ahead")
+    expect(screen.queryByText(/worked out again when the month closes/)).not.toBeInTheDocument()
+  })
+
   it("says hours owed into next month", async () => {
     start("/my-month", mine({ ...IN_FORCE, roster: { ...IN_FORCE.roster, hours: { ...IN_FORCE.roster.hours, carried: 4 } } }))
 
@@ -5748,7 +5854,7 @@ describe("a nurse's own month", () => {
   it("shows a month already over with its leave and no hours", async () => {
     start("/my-month?month=2026-10", mine({ ...NO_HOURS_YET, month: "2026-10" }, { ...LEAVE, month: "2026-10" }))
 
-    expect(await screen.findByText(/Months already over are not shown here/)).toBeInTheDocument()
+    expect(await screen.findByText(/for a month already over once it has closed/)).toBeInTheDocument()
     expect(await screen.findByRole("cell", { name: "Sick" })).toBeInTheDocument()
   })
 
@@ -5895,6 +6001,16 @@ describe("requests", () => {
     ])
     expect(screen.getAllByRole("button", { name: /^Withdraw/ }).map((button) => button.getAttribute("aria-label"))).toEqual([
       "Withdraw your request for 3 Dec 2026"])
+  })
+
+  it("a nurse reads a request the month's close ended, with no one's name on it", async () => {
+    const expired = { id: "r4", date: "2026-12-09", shift: "", state: "expired", promised: null, steps: [
+      made(), { step: "expired", by: null, at: "2027-01-01T00:30:00+03:00", reason: "The month closed before a decision.", shift: null }] }
+    start("/my-month?month=2026-12", myMonth({ body: { ...MY_OPEN, requests: [expired] } }))
+
+    const [row] = within(await screen.findByRole("region", { name: "Your requests for December 2026" })).getAllByRole("row").slice(1)
+    expect(within(row).getAllByRole("cell").slice(0, 3).map((cell) => cell.textContent)).toEqual([
+      "9 Dec 2026", "A day off", "ExpiredThe month closed before a decision."])
   })
 
   it("a nurse makes a request and is told it is made", async () => {

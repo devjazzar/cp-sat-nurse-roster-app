@@ -9,5 +9,6 @@ import type { DraftChangeWhat } from './draftChangeWhat';
 export interface DraftChange {
   hospital_id: string;
   full_name: string;
+  /** `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21). */
   what: DraftChangeWhat;
 }

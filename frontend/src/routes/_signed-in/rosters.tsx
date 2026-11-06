@@ -23,6 +23,7 @@ const STATE_WORDS: Record<OverviewUnitStatesItem, string> = {
   draft: "Draft",
   submitted: "Submitted",
   approved: "Approved",
+  closed: "Closed",
 }
 
 function OverviewPage() {
@@ -33,7 +34,7 @@ function OverviewPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-medium">Rosters</h1>
-      <p className="text-muted-foreground">Where each unit's roster stands, month by month. Open a submitted or approved one to read it, and a submitted one to approve or reject it. A draft is its manager's until it is submitted.</p>
+      <p className="text-muted-foreground">Where each unit's roster stands, month by month. Open a submitted, approved or closed one to read it, and a submitted one to approve or reject it. A draft is its manager's until it is submitted. A month closes once it is over: its roster in force, leave and pins become fact.</p>
       {overview.isPending && <p>Loading…</p>}
       {overview.isError && <p role="alert">The rosters could not be read. Reload the page to try again.</p>}
       {answer && (
@@ -57,7 +58,7 @@ function OverviewPage() {
                     <TableHead scope="row" className="font-normal">{unit.archived ? `${unit.name} (archived)` : unit.name}</TableHead>
                     {unit.states.map((state, index) => (
                       <TableCell key={answer.months[index]}>
-                        {state === "submitted" || state === "approved"
+                        {state === "submitted" || state === "approved" || state === "closed"
                           ? <Link to="/unit-roster" search={{ unit: unit.id, month: answer.months[index] }} className={`underline underline-offset-3 ${state === "submitted" ? "font-medium" : ""}`}>{STATE_WORDS[state]}</Link>
                           : <span className="text-muted-foreground">{STATE_WORDS[state]}</span>}
                       </TableCell>

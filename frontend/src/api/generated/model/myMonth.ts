@@ -8,7 +8,7 @@ import type { MyMonthInForce } from './myMonthInForce';
 
 export interface MyMonth {
   month: string;
-  /** The earliest month with hours here: this one. */
+  /** The earliest month with hours here: this one, or the earliest of theirs that has closed. */
   first_month: string;
   /** The unit this month falls under for the reader. Null with no nurse profile, or before their first placement. */
   unit: string | null;

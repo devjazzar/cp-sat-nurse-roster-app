@@ -29,4 +29,6 @@ export interface NurseAttributesRow {
   allowed_shifts: string[] | null;
   /** A transfer emptied the list, as none of its shifts are worked here. */
   allowed_shifts_to_check: boolean;
+  /** Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now. */
+  opening_values_locked: boolean;
 }

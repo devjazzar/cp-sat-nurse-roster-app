@@ -6,6 +6,7 @@
  */
 import type { LeaveNurse } from './leaveNurse';
 import type { LeaveRun } from './leaveRun';
+import type { UnitLeaveMonthClosed } from './unitLeaveMonthClosed';
 
 export interface UnitLeaveMonth {
   /** YYYY-MM. */
@@ -13,4 +14,6 @@ export interface UnitLeaveMonth {
   /** Who may have leave recorded this month, and anyone who has some. */
   nurses: LeaveNurse[];
   runs: LeaveRun[];
+  /** `closed`: the month has closed, and leave changed here is taken in when its manager closes it again. `fixed`: the month after has closed too, so its leave can no longer change. `open` otherwise. */
+  closed: UnitLeaveMonthClosed;
 }

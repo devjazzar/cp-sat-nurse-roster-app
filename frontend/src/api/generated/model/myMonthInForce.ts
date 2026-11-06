@@ -9,6 +9,8 @@ import type { MyHours } from './myHours';
 export interface MyMonthInForce {
   version: number;
   approved_at: string;
+  /** The month has closed: `hours` are its close's figures, fact, and `carried` is what it handed on. */
+  closed: boolean;
   /** Null when the reader has no row on it, such as a nurse due to start, or when the month as it stands no longer has them. */
   hours: MyHours | null;
 }

@@ -17,6 +17,7 @@ export const MY_STATE: Record<MyRequestRowState, string> = {
   withdrawn: "Withdrawn",
   cancelled: "Cancelled after it was accepted",
   replaced_by_leave: "Replaced by your leave",
+  expired: "Expired",
 }
 
 /** Said to the unit's manager. */
