@@ -41,9 +41,10 @@ from typing import IO
 
 from . import fairness as F
 from .calendar import MonthInfo
+from .explain import Analysis, explain
 from .model import RosterModel, Solution, fingerprint
 from .precheck import needed_history
-from .problem import MAX_HISTORY
+from .problem import MAX_HISTORY, Problem
 from .request import Request
 from .rules import HARD, level
 from .validate import last_worked, rest_owed_after
@@ -144,10 +145,25 @@ def build_result(req: Request, rm: RosterModel | None, sol: Solution, *, prechec
             out["elapsed_violations" if m.elapsed else "violations"].append(item)
     out["cost"], out["penalties"] = an.total, dict(sol.penalty_breakdown)
     out["department_cost"] = an.nurses.get("", 0)
+    out["nurses"] = nurse_accounting(p, sol.assignment, an)
+    return out
+
+
+def nurse_accounting(p: Problem, assignment: list[list[int]], analysis: Analysis | None = None) -> dict:
+    """Each nurse's hours accounting and carry-over (a result's `nurses` block) for a complete grid of `p`: one shift index or -1
+    a nurse and day. The one place it is worked out, so that a result and a month with every day recorded, scored with no search
+    (`solver_service.grid.nurses_of`), cannot disagree. `analysis` is `explain(p, assignment)`, worked out when not given."""
+    if p.month is None:
+        raise ValueError("nurse_accounting: the problem carries no month (not built by the request loader?)")
+    y, mo = (int(x) for x in p.month.split("-"))
+    month = MonthInfo(y, mo, p.days, p.first_weekday, list(p.ramadan_days))
+    an = analysis if analysis is not None else explain(p, assignment)
+    g, dep = p.general, p.department
+    sh = dep.shifts
     share, per = F.share_m(p), F.friday_slots_m(p)
     need = needed_history(dep, g)
     nurses = {}
-    for n, row in zip(p.nurses, sol.assignment):
+    for n, row in zip(p.nurses, assignment):
         hrs = sum(g.shift_hours[sh[v]] for v in row if v >= 0)
         required = p.required_hours(n)
         overtime = max(0, hrs - required) if g.hours_rule_enabled else 0
@@ -168,8 +184,7 @@ def build_result(req: Request, rm: RosterModel | None, sol: Solution, *, prechec
                            "last_shift_kind": _kind_out(before, n, dep.night_shift),
                            "rest_owed": rest_owed_after(n.rest_owed, before, dep.night_shift,
                                                         dep.day_shift, dep.night_rest_days)}}
-    out["nurses"] = nurses
-    return out
+    return nurses
 
 
 def _kind_out(before: list[str], nurse, night: str) -> str | None:
