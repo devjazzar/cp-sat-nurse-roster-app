@@ -3566,6 +3566,259 @@ export const CancelRequestResponse = zod.object({
 
 
 /**
+ * @summary Unit Swaps
+ */
+export const ListUnitSwapsParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const listUnitSwapsQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ListUnitSwapsQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(listUnitSwapsQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.')
+})
+
+export const ListUnitSwapsResponse = zod.object({
+  "month": zod.string().describe('YYYY-MM: the one asked for, or the hospital\'s current month.'),
+  "swaps": zod.array(zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string(),
+  "note": zod.string(),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})),
+  "ended_by": zod.union([zod.string(),zod.null()]),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string(),
+  "expired_why": zod.union([zod.enum(['date_passed', 'cell_changed']),zod.null()]).describe('Why it expired: a date passed, or a new version changed one of its cells. For you only: such a version can be leave.'),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version its approval made.')
+})).describe('The month\'s, newest first, every state.')
+})
+
+
+/**
+ * Judged again now, with the solver's own code in this process, whatever its state; only one awaiting you can be decided.
+ * @summary Swap Decision
+ */
+export const GetSwapDecisionParams = zod.object({
+  "unit_id": zod.uuid(),
+  "swap_id": zod.uuid()
+})
+
+export const GetSwapDecisionResponse = zod.object({
+  "swap": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string(),
+  "note": zod.string(),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})),
+  "ended_by": zod.union([zod.string(),zod.null()]),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string(),
+  "expired_why": zod.union([zod.enum(['date_passed', 'cell_changed']),zod.null()]).describe('Why it expired: a date passed, or a new version changed one of its cells. For you only: such a version can be leave.'),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version its approval made.')
+}),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.'),
+  "now": zod.string().describe('The cell in the roster in force now.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.')
+})),
+  "check": zod.union([zod.object({
+  "reason": zod.union([zod.string(),zod.null()]).describe('Why this could not be worked out: the solver\'s code cannot read the month as it stands.'),
+  "ok": zod.union([zod.boolean(),zod.null()]).describe('Whether it breaks no hard rule.'),
+  "violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})),
+  "cost": zod.union([zod.int(),zod.null()])
+}).describe('What the solver\'s own code says of a grid. `reason` says why it could not, and the rest is then null.'),zod.null()]).describe('What the roster in force would break with the swap\'s cells, on the month as it stands. Null when a cell cannot hold its change: `problems` says why.'),
+  "cost_before": zod.union([zod.int(),zod.null()]).describe('The roster in force\'s cost, worked out the same way.'),
+  "cost_after": zod.union([zod.int(),zod.null()]),
+  "delta": zod.union([zod.int(),zod.null()]).describe('`cost_after` less `cost_before`.'),
+  "problems": zod.array(zod.string()).describe('Why it cannot be approved as the month stands now, in full: a cell\'s or a hard rule it would newly break. Leave or a transfer may have come since it was proposed.'),
+  "approve_refusal": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
+ * Its cells become pinned cells of origin `swap` in a new version with origin `swap`, in force at once. Refused while a cell
+ * cannot hold its change or the grid would newly break a hard rule.
+ * @summary Approve Swap
+ */
+export const ApproveUnitSwapParams = zod.object({
+  "unit_id": zod.uuid(),
+  "swap_id": zod.uuid()
+})
+
+export const approveUnitSwapBodyReasonDefault = ``;
+export const approveUnitSwapBodyReasonMax = 2000;
+
+
+
+export const ApproveUnitSwapBody = zod.object({
+  "reason": zod.string().max(approveUnitSwapBodyReasonMax).default(approveUnitSwapBodyReasonDefault).describe('Optional. The proposer and every colleague in it read it.')
+})
+
+export const ApproveUnitSwapResponse = zod.object({
+  "swap": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string(),
+  "note": zod.string(),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})),
+  "ended_by": zod.union([zod.string(),zod.null()]),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string(),
+  "expired_why": zod.union([zod.enum(['date_passed', 'cell_changed']),zod.null()]).describe('Why it expired: a date passed, or a new version changed one of its cells. For you only: such a version can be leave.'),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version its approval made.')
+}),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.'),
+  "now": zod.string().describe('The cell in the roster in force now.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.')
+})),
+  "check": zod.union([zod.object({
+  "reason": zod.union([zod.string(),zod.null()]).describe('Why this could not be worked out: the solver\'s code cannot read the month as it stands.'),
+  "ok": zod.union([zod.boolean(),zod.null()]).describe('Whether it breaks no hard rule.'),
+  "violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})),
+  "cost": zod.union([zod.int(),zod.null()])
+}).describe('What the solver\'s own code says of a grid. `reason` says why it could not, and the rest is then null.'),zod.null()]).describe('What the roster in force would break with the swap\'s cells, on the month as it stands. Null when a cell cannot hold its change: `problems` says why.'),
+  "cost_before": zod.union([zod.int(),zod.null()]).describe('The roster in force\'s cost, worked out the same way.'),
+  "cost_after": zod.union([zod.int(),zod.null()]),
+  "delta": zod.union([zod.int(),zod.null()]).describe('`cost_after` less `cost_before`.'),
+  "problems": zod.array(zod.string()).describe('Why it cannot be approved as the month stands now, in full: a cell\'s or a hard rule it would newly break. Leave or a transfer may have come since it was proposed.'),
+  "approve_refusal": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
+ * @summary Reject Swap
+ */
+export const RejectUnitSwapParams = zod.object({
+  "unit_id": zod.uuid(),
+  "swap_id": zod.uuid()
+})
+
+export const rejectUnitSwapBodyReasonMax = 2000;
+
+
+
+export const RejectUnitSwapBody = zod.object({
+  "reason": zod.string().min(1).max(rejectUnitSwapBodyReasonMax).describe('The proposer and every colleague in it read it: never a notification or the audit log.')
+})
+
+export const RejectUnitSwapResponse = zod.object({
+  "swap": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string(),
+  "note": zod.string(),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})),
+  "ended_by": zod.union([zod.string(),zod.null()]),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string(),
+  "expired_why": zod.union([zod.enum(['date_passed', 'cell_changed']),zod.null()]).describe('Why it expired: a date passed, or a new version changed one of its cells. For you only: such a version can be leave.'),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version its approval made.')
+}),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.'),
+  "now": zod.string().describe('The cell in the roster in force now.'),
+  "replaces_pin": zod.union([zod.string(),zod.null()]).describe('The shift\'s code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.')
+})),
+  "check": zod.union([zod.object({
+  "reason": zod.union([zod.string(),zod.null()]).describe('Why this could not be worked out: the solver\'s code cannot read the month as it stands.'),
+  "ok": zod.union([zod.boolean(),zod.null()]).describe('Whether it breaks no hard rule.'),
+  "violations": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})),
+  "cost": zod.union([zod.int(),zod.null()])
+}).describe('What the solver\'s own code says of a grid. `reason` says why it could not, and the rest is then null.'),zod.null()]).describe('What the roster in force would break with the swap\'s cells, on the month as it stands. Null when a cell cannot hold its change: `problems` says why.'),
+  "cost_before": zod.union([zod.int(),zod.null()]).describe('The roster in force\'s cost, worked out the same way.'),
+  "cost_after": zod.union([zod.int(),zod.null()]),
+  "delta": zod.union([zod.int(),zod.null()]).describe('`cost_after` less `cost_before`.'),
+  "problems": zod.array(zod.string()).describe('Why it cannot be approved as the month stands now, in full: a cell\'s or a hard rule it would newly break. Leave or a transfer may have come since it was proposed.'),
+  "approve_refusal": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
  * The hospital's current month when none is given, as the rest of My month.
  * @summary My Requests
  */
@@ -3666,6 +3919,244 @@ export const WithdrawRequestResponse = zod.object({
   "reason": zod.string().describe('The nurse\'s, when she made it; the manager\'s, for a decision. Read only by her and the unit\'s manager.'),
   "shift": zod.union([zod.string(),zod.null()]).describe('What an acceptance or an edit promised: a shift\'s code, empty for a day off. Null for other steps.')
 }))
+})
+
+
+/**
+ * Those you proposed and those whose cells change yours, newest first, every state.
+ * @summary My Swaps
+ */
+export const listMySwapsQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ListMySwapsQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(listMySwapsQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. Every month\'s when left out.')
+})
+
+export const ListMySwapsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string().describe('The proposer\'s full name.'),
+  "proposed_by_me": zod.boolean(),
+  "note": zod.string().describe('The proposer\'s words to everyone in it.'),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})).describe('Every cell it changes, by date.'),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})).describe('Everyone but the proposer whose cells it changes, with their answer.'),
+  "my_answer": zod.union([zod.enum(['pending', 'accepted', 'rejected']),zod.null()]).describe('Yours, when you are one of its colleagues.'),
+  "ended_by": zod.union([zod.string(),zod.null()]).describe('Who rejected, withdrew or decided it. Null while it waits, and for an expiry.'),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string().describe('The manager\'s, for a decision, which everyone in it reads.')
+})
+export const ListMySwapsResponse = zod.array(ListMySwapsResponseItem)
+
+
+/**
+ * On the approved roster of the unit the month falls under for you, cells of today or later, at least one of them yours.
+ * Refused with 422 and every reason, each on its cell when it is about one: a reason that rests on a colleague says only that
+ * the swap cannot work for them on that date. Each colleague whose cells change is told; with none, the manager is.
+ * @summary Propose Swap
+ */
+export const proposeSwapBodyMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+export const proposeSwapBodyCellsItemHospitalIdMax = 150;
+
+export const proposeSwapBodyCellsItemShiftOneMax = 8;
+
+export const proposeSwapBodyCellsMax = 62;
+
+export const proposeSwapBodyNoteDefault = ``;
+export const proposeSwapBodyNoteMax = 500;
+
+
+
+export const ProposeSwapBody = zod.object({
+  "month": zod.string().regex(proposeSwapBodyMonthRegExp),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string().min(1).max(proposeSwapBodyCellsItemHospitalIdMax),
+  "date": zod.iso.date(),
+  "shift": zod.union([zod.string().max(proposeSwapBodyCellsItemShiftOneMax),zod.null()]).describe('The shift\'s code it should hold, or null for a day off.')
+})).min(1).max(proposeSwapBodyCellsMax),
+  "note": zod.string().max(proposeSwapBodyNoteMax).default(proposeSwapBodyNoteDefault).describe('Optional. Everyone in the swap and the unit\'s manager read it.')
+})
+
+export const ProposeSwapResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string().describe('The proposer\'s full name.'),
+  "proposed_by_me": zod.boolean(),
+  "note": zod.string().describe('The proposer\'s words to everyone in it.'),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})).describe('Every cell it changes, by date.'),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})).describe('Everyone but the proposer whose cells it changes, with their answer.'),
+  "my_answer": zod.union([zod.enum(['pending', 'accepted', 'rejected']),zod.null()]).describe('Yours, when you are one of its colleagues.'),
+  "ended_by": zod.union([zod.string(),zod.null()]).describe('Who rejected, withdrew or decided it. Null while it waits, and for an expiry.'),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string().describe('The manager\'s, for a decision, which everyone in it reads.')
+})
+
+
+/**
+ * The roster in force as My roster shows it, from today on, and the unit's shifts. The hospital's current month when none
+ * is given.
+ * @summary Composer
+ */
+export const getSwapComposerQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetSwapComposerQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getSwapComposerQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The hospital\'s current one when left out.')
+})
+
+export const GetSwapComposerResponse = zod.object({
+  "month": zod.string(),
+  "unit": zod.union([zod.string(),zod.null()]),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why you cannot propose a swap on this month now.'),
+  "days": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "weekend": zod.boolean(),
+  "holiday": zod.boolean()
+})).describe('The month\'s days not yet passed, which a swap can change.'),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string()
+})).describe('The unit\'s shifts, which any cell may be swapped to.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "me": zod.boolean(),
+  "shifts": zod.array(zod.string()).describe('One for each of `days`: the roster in force\'s shift code, empty for a day not worked.')
+})).describe('You and the staff nurses of the roster in force, by name.')
+})
+
+
+/**
+ * Yours, while it waits for its colleagues or the manager.
+ * @summary Withdraw Swap
+ */
+export const WithdrawSwapParams = zod.object({
+  "swap_id": zod.uuid()
+})
+
+export const WithdrawSwapResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string().describe('The proposer\'s full name.'),
+  "proposed_by_me": zod.boolean(),
+  "note": zod.string().describe('The proposer\'s words to everyone in it.'),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})).describe('Every cell it changes, by date.'),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})).describe('Everyone but the proposer whose cells it changes, with their answer.'),
+  "my_answer": zod.union([zod.enum(['pending', 'accepted', 'rejected']),zod.null()]).describe('Yours, when you are one of its colleagues.'),
+  "ended_by": zod.union([zod.string(),zod.null()]).describe('Who rejected, withdrew or decided it. Null while it waits, and for an expiry.'),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string().describe('The manager\'s, for a decision, which everyone in it reads.')
+})
+
+
+/**
+ * One whose cells change yours, while it waits for its colleagues. The last acceptance sends it to the manager.
+ * @summary Accept Swap
+ */
+export const AcceptSwapParams = zod.object({
+  "swap_id": zod.uuid()
+})
+
+export const AcceptSwapResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string().describe('The proposer\'s full name.'),
+  "proposed_by_me": zod.boolean(),
+  "note": zod.string().describe('The proposer\'s words to everyone in it.'),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})).describe('Every cell it changes, by date.'),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})).describe('Everyone but the proposer whose cells it changes, with their answer.'),
+  "my_answer": zod.union([zod.enum(['pending', 'accepted', 'rejected']),zod.null()]).describe('Yours, when you are one of its colleagues.'),
+  "ended_by": zod.union([zod.string(),zod.null()]).describe('Who rejected, withdrew or decided it. Null while it waits, and for an expiry.'),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string().describe('The manager\'s, for a decision, which everyone in it reads.')
+})
+
+
+/**
+ * Ends it, for everyone in it.
+ * @summary Reject Swap
+ */
+export const RejectSwapParams = zod.object({
+  "swap_id": zod.uuid()
+})
+
+export const RejectSwapResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "state": zod.enum(['pending', 'awaiting_manager', 'approved', 'rejected', 'withdrawn', 'expired']).describe('As it stands now: a live swap whose earliest date has passed is expired.'),
+  "proposed_at": zod.iso.datetime({"offset":true}),
+  "proposer": zod.string().describe('The proposer\'s full name.'),
+  "proposed_by_me": zod.boolean(),
+  "note": zod.string().describe('The proposer\'s words to everyone in it.'),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The cell\'s shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague\'s leave included.'),
+  "after": zod.string().describe('What the swap makes it. Empty for a day off.')
+})).describe('Every cell it changes, by date.'),
+  "colleagues": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'rejected'])
+})).describe('Everyone but the proposer whose cells it changes, with their answer.'),
+  "my_answer": zod.union([zod.enum(['pending', 'accepted', 'rejected']),zod.null()]).describe('Yours, when you are one of its colleagues.'),
+  "ended_by": zod.union([zod.string(),zod.null()]).describe('Who rejected, withdrew or decided it. Null while it waits, and for an expiry.'),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "reason": zod.string().describe('The manager\'s, for a decision, which everyone in it reads.')
 })
 
 
@@ -4268,7 +4759,7 @@ export const ListNotificationsResponse = zod.object({
   "event": zod.string(),
   "text": zod.string(),
   "link": zod.union([zod.object({
-  "page": zod.enum(['roster', 'my_roster', 'unit_roster', 'my_month', 'requests']),
+  "page": zod.enum(['roster', 'my_roster', 'unit_roster', 'my_month', 'requests', 'swaps', 'unit_swaps']),
   "month": zod.string(),
   "unit_id": zod.union([zod.uuid(),zod.null()]).optional()
 }),zod.null()]).describe('The reader\'s own page for it. Null when they no longer have one.'),

@@ -31,6 +31,10 @@ function Open({ link, onOpen }: { link: NotificationLink; onOpen: () => void }) 
       return <Link to="/my-month" search={{ month: link.month }} onClick={onOpen} className={LINK}>Open My month</Link>
     case "requests":
       return <Link to="/requests" search={{ month: link.month }} onClick={onOpen} className={LINK}>Open the requests</Link>
+    case "swaps":
+      return <Link to="/swaps" search={{ month: link.month }} onClick={onOpen} className={LINK}>Open Swaps</Link>
+    case "unit_swaps":
+      return <Link to="/unit-swaps" search={{ month: link.month }} onClick={onOpen} className={LINK}>Open the swaps</Link>
   }
 }
 

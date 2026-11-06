@@ -138,3 +138,25 @@ def test_the_system_admin_reaches_no_roster_content():
                     if re.search(r"/roster|/solves|/replans|/units/\{unit_id\}/solve-history", path)}
     assert set(ROSTER_ROLES) <= set(roster_roles)
     assert [name for name, roles in roster_roles.items() if Role.SYSTEM_ADMIN in roles] == []
+
+
+# Swaps (ticket 20): a staff nurse proposes, answers and withdraws, and reads only their own; the unit's manager reads and decides
+# the unit's. Nobody else reads any: not the System Admin, and not the CNO or the Deputy CNO.
+NURSE = {Role.STAFF_NURSE}
+SWAP_ROLES = {
+    "GET /api/swaps/mine": NURSE,
+    "GET /api/swaps/compose": NURSE,
+    "POST /api/swaps/mine": NURSE,
+    "POST /api/swaps/mine/{swap_id}/withdraw": NURSE,
+    "POST /api/swaps/mine/{swap_id}/accept": NURSE,
+    "POST /api/swaps/mine/{swap_id}/reject": NURSE,
+    "GET /api/units/{unit_id}/swaps": MANAGER,
+    "GET /api/units/{unit_id}/swaps/{swap_id}": MANAGER,
+    "POST /api/units/{unit_id}/swaps/{swap_id}/approve": MANAGER,
+    "POST /api/units/{unit_id}/swaps/{swap_id}/reject": MANAGER,
+}
+
+
+def test_each_swap_endpoint_is_for_these_roles_only():
+    guarded = {label(method, path): set(guard.roles) for method, path, guard in RESTRICTED}
+    assert {name: roles for name, roles in guarded.items() if "swaps" in name} == SWAP_ROLES

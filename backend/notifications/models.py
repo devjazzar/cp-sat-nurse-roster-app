@@ -14,6 +14,7 @@ class Event(models.TextChoices):
     WINDOW_CLOSED_EARLY = "window_closed_early"
     WINDOW_CLOSED = "window_closed"
     REQUEST_DECIDED = "request_decided"
+    SWAP_STEP = "swap_step"
 
 
 class SolveOutcome(models.TextChoices):

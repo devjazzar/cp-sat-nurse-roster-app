@@ -34,9 +34,11 @@ const LEAVE = { to: "/leave", label: "Leave" } as const
 const REQUESTS = { to: "/requests", label: "Requests" } as const
 const MY_MONTH = { to: "/my-month", label: "My month" } as const
 const MY_ROSTER = { to: "/my-roster", label: "My roster" } as const
+const MY_SWAPS = { to: "/swaps", label: "Swaps" } as const
+const UNIT_SWAPS = { to: "/unit-swaps", label: "Swaps" } as const
 const ROSTERS = { to: "/rosters", label: "Rosters" } as const
-const NURSE_PAGES = linkOptions([HOME, MY_MONTH, MY_ROSTER, ...CATALOGUE])
-const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, REQUESTS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
+const NURSE_PAGES = linkOptions([HOME, MY_MONTH, MY_ROSTER, MY_SWAPS, ...CATALOGUE])
+const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, REQUESTS, UNIT_SWAPS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
 const DEPUTY_PAGES = linkOptions([HOME, ROSTERS, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
 const CNO_PAGES = linkOptions([HOME, ROSTERS, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])
 

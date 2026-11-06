@@ -26,6 +26,7 @@ import type {
 import type {
   AcceptRequestBody,
   AllowedShiftsBody,
+  ApproveSwapBody,
   AttributesBody,
   AuditFilterOptions,
   AuditPage,
@@ -48,6 +49,7 @@ import type {
   GetRosterMonthParams,
   GetRosterOverviewParams,
   GetRosterVersionSheetParams,
+  GetSwapComposerParams,
   Health,
   HospitalHistory,
   HospitalRules,
@@ -60,11 +62,13 @@ import type {
   LeaveTypeSchema,
   ListAuditEntriesParams,
   ListHospitalSolveHistoryParams,
+  ListMySwapsParams,
   ListPublicHolidaysParams,
   ListRamadanMonthsParams,
   ListRosterVersionsParams,
   ListUnitLeaveParams,
   ListUnitSolveHistoryParams,
+  ListUnitSwapsParams,
   LoginBody,
   LoginRefusal,
   ManagedUser,
@@ -79,6 +83,7 @@ import type {
   MyRequests,
   MyRosterMonth,
   MyRosterSheet,
+  MySwapRow,
   NameCorrectionBody,
   NewLeaveBody,
   NewNurseBody,
@@ -94,12 +99,14 @@ import type {
   PreviewNurseImportBody,
   PreviewReplanParams,
   PreviewSolveParams,
+  ProposeSwapBody,
   PublicHolidayBody,
   PublicHolidaySchema,
   RamadanFix,
   RamadanMonth,
   ReactivateRefusal,
   RejectBody,
+  RejectSwapBody,
   ReplanPreview,
   RequestDecided,
   RequestReasonBody,
@@ -115,6 +122,8 @@ import type {
   SolveResult,
   StartReplanBody,
   StartSolveBody,
+  SwapComposer,
+  SwapDecision,
   TechnicalSettingsSchema,
   TransferBody,
   UnitBody,
@@ -125,6 +134,7 @@ import type {
   UnitRulesBody,
   UnitRulesState,
   UnitSchema,
+  UnitSwaps,
   UnitWindows,
   Unread,
   UserWithPassword,
@@ -7217,6 +7227,416 @@ export const useCancelRequest = <TError = unknown,
       return useMutation(getCancelRequestMutationOptions(options), queryClient);
     }
 
+export const getListUnitSwapsUrl = (unitId: string,
+    params?: ListUnitSwapsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/swaps?${stringifiedParams}` : `/api/units/${unitId}/swaps`
+}
+
+/**
+ * @summary Unit Swaps
+ */
+export const listUnitSwaps = async (unitId: string,
+    params?: ListUnitSwapsParams, options?: Parameters<typeof apiFetch>[1]): Promise<UnitSwaps> => {
+
+  return apiFetch<UnitSwaps>(getListUnitSwapsUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnitSwapsQueryKey = (unitId: string,
+    params?: ListUnitSwapsParams,) => {
+    return [
+    `/api/units/${unitId}/swaps`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListUnitSwapsQueryOptions = <TData = Awaited<ReturnType<typeof listUnitSwaps>>, TError = unknown>(unitId: string,
+    params?: ListUnitSwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSwaps>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnitSwapsQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnitSwaps>>> = ({ signal }) => listUnitSwaps(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnitSwaps>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUnitSwapsQueryResult = NonNullable<Awaited<ReturnType<typeof listUnitSwaps>>>
+export type ListUnitSwapsQueryError = unknown
+
+
+export function useListUnitSwaps<TData = Awaited<ReturnType<typeof listUnitSwaps>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  ListUnitSwapsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSwaps>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitSwaps>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitSwaps>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitSwaps<TData = Awaited<ReturnType<typeof listUnitSwaps>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitSwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSwaps>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitSwaps>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitSwaps>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitSwaps<TData = Awaited<ReturnType<typeof listUnitSwaps>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitSwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSwaps>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Unit Swaps
+ */
+
+export function useListUnitSwaps<TData = Awaited<ReturnType<typeof listUnitSwaps>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitSwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitSwaps>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUnitSwapsQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSwapDecisionUrl = (unitId: string,
+    swapId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/swaps/${swapId}`
+}
+
+/**
+ * Judged again now, with the solver's own code in this process, whatever its state; only one awaiting you can be decided.
+ * @summary Swap Decision
+ */
+export const getSwapDecision = async (unitId: string,
+    swapId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SwapDecision> => {
+
+  return apiFetch<SwapDecision>(getGetSwapDecisionUrl(unitId,swapId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSwapDecisionQueryKey = (unitId: string,
+    swapId: string,) => {
+    return [
+    `/api/units/${unitId}/swaps/${swapId}`
+    ] as const;
+    }
+
+
+export const getGetSwapDecisionQueryOptions = <TData = Awaited<ReturnType<typeof getSwapDecision>>, TError = unknown>(unitId: string,
+    swapId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapDecision>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSwapDecisionQueryKey(unitId,swapId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSwapDecision>>> = ({ signal }) => getSwapDecision(unitId,swapId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined && swapId !== null && swapId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSwapDecision>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSwapDecisionQueryResult = NonNullable<Awaited<ReturnType<typeof getSwapDecision>>>
+export type GetSwapDecisionQueryError = unknown
+
+
+export function useGetSwapDecision<TData = Awaited<ReturnType<typeof getSwapDecision>>, TError = unknown>(
+ unitId: string,
+    swapId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapDecision>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSwapDecision>>,
+          TError,
+          Awaited<ReturnType<typeof getSwapDecision>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSwapDecision<TData = Awaited<ReturnType<typeof getSwapDecision>>, TError = unknown>(
+ unitId: string,
+    swapId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapDecision>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSwapDecision>>,
+          TError,
+          Awaited<ReturnType<typeof getSwapDecision>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSwapDecision<TData = Awaited<ReturnType<typeof getSwapDecision>>, TError = unknown>(
+ unitId: string,
+    swapId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapDecision>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Swap Decision
+ */
+
+export function useGetSwapDecision<TData = Awaited<ReturnType<typeof getSwapDecision>>, TError = unknown>(
+ unitId: string,
+    swapId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapDecision>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSwapDecisionQueryOptions(unitId,swapId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveUnitSwapUrl = (unitId: string,
+    swapId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/swaps/${swapId}/approve`
+}
+
+/**
+ * Its cells become pinned cells of origin `swap` in a new version with origin `swap`, in force at once. Refused while a cell
+ * cannot hold its change or the grid would newly break a hard rule.
+ * @summary Approve Swap
+ */
+export const approveUnitSwap = async (unitId: string,
+    swapId: string,
+    approveSwapBody: ApproveSwapBody, options?: Parameters<typeof apiFetch>[1]): Promise<SwapDecision> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SwapDecision>(getApproveUnitSwapUrl(unitId,swapId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(approveSwapBody)
+  }
+);}
+
+
+
+
+
+export const getApproveUnitSwapMutationKey = () => ['approveUnitSwap'] as const;
+
+export const getApproveUnitSwapMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveUnitSwap>>, TError,ApproveUnitSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveUnitSwap>>, TError,ApproveUnitSwapMutationVariables, TContext> => {
+
+const mutationKey = getApproveUnitSwapMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveUnitSwap>>, ApproveUnitSwapMutationVariables> = (props) => {
+          const {unitId,swapId,data} = props ?? {};
+
+          return  approveUnitSwap(unitId,swapId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveUnitSwapMutationResult = NonNullable<Awaited<ReturnType<typeof approveUnitSwap>>>
+    export type ApproveUnitSwapMutationBody = ApproveSwapBody
+    export type ApproveUnitSwapMutationError = unknown
+    export type ApproveUnitSwapMutationVariables = {unitId: string;swapId: string;data: ApproveSwapBody}
+
+    /**
+ * @summary Approve Swap
+ */
+export const useApproveUnitSwap = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveUnitSwap>>, TError,ApproveUnitSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof approveUnitSwap>>,
+        TError,
+        ApproveUnitSwapMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApproveUnitSwapMutationOptions(options), queryClient);
+    }
+
+export const getRejectUnitSwapUrl = (unitId: string,
+    swapId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/swaps/${swapId}/reject`
+}
+
+/**
+ * @summary Reject Swap
+ */
+export const rejectUnitSwap = async (unitId: string,
+    swapId: string,
+    rejectSwapBody: RejectSwapBody, options?: Parameters<typeof apiFetch>[1]): Promise<SwapDecision> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SwapDecision>(getRejectUnitSwapUrl(unitId,swapId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(rejectSwapBody)
+  }
+);}
+
+
+
+
+
+export const getRejectUnitSwapMutationKey = () => ['rejectUnitSwap'] as const;
+
+export const getRejectUnitSwapMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectUnitSwap>>, TError,RejectUnitSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectUnitSwap>>, TError,RejectUnitSwapMutationVariables, TContext> => {
+
+const mutationKey = getRejectUnitSwapMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectUnitSwap>>, RejectUnitSwapMutationVariables> = (props) => {
+          const {unitId,swapId,data} = props ?? {};
+
+          return  rejectUnitSwap(unitId,swapId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectUnitSwapMutationResult = NonNullable<Awaited<ReturnType<typeof rejectUnitSwap>>>
+    export type RejectUnitSwapMutationBody = RejectSwapBody
+    export type RejectUnitSwapMutationError = unknown
+    export type RejectUnitSwapMutationVariables = {unitId: string;swapId: string;data: RejectSwapBody}
+
+    /**
+ * @summary Reject Swap
+ */
+export const useRejectUnitSwap = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectUnitSwap>>, TError,RejectUnitSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rejectUnitSwap>>,
+        TError,
+        RejectUnitSwapMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRejectUnitSwapMutationOptions(options), queryClient);
+    }
+
 export const getGetMyRequestsUrl = (params?: GetMyRequestsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7489,6 +7909,541 @@ export const useWithdrawRequest = <TError = unknown,
         TContext
       > => {
       return useMutation(getWithdrawRequestMutationOptions(options), queryClient);
+    }
+
+export const getListMySwapsUrl = (params?: ListMySwapsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/swaps/mine?${stringifiedParams}` : `/api/swaps/mine`
+}
+
+/**
+ * Those you proposed and those whose cells change yours, newest first, every state.
+ * @summary My Swaps
+ */
+export const listMySwaps = async (params?: ListMySwapsParams, options?: Parameters<typeof apiFetch>[1]): Promise<MySwapRow[]> => {
+
+  return apiFetch<MySwapRow[]>(getListMySwapsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMySwapsQueryKey = (params?: ListMySwapsParams,) => {
+    return [
+    `/api/swaps/mine`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMySwapsQueryOptions = <TData = Awaited<ReturnType<typeof listMySwaps>>, TError = unknown>(params?: ListMySwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySwaps>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMySwapsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMySwaps>>> = ({ signal }) => listMySwaps(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMySwaps>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMySwapsQueryResult = NonNullable<Awaited<ReturnType<typeof listMySwaps>>>
+export type ListMySwapsQueryError = unknown
+
+
+export function useListMySwaps<TData = Awaited<ReturnType<typeof listMySwaps>>, TError = unknown>(
+ params: undefined |  ListMySwapsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySwaps>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySwaps>>,
+          TError,
+          Awaited<ReturnType<typeof listMySwaps>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMySwaps<TData = Awaited<ReturnType<typeof listMySwaps>>, TError = unknown>(
+ params?: ListMySwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySwaps>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySwaps>>,
+          TError,
+          Awaited<ReturnType<typeof listMySwaps>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMySwaps<TData = Awaited<ReturnType<typeof listMySwaps>>, TError = unknown>(
+ params?: ListMySwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySwaps>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Swaps
+ */
+
+export function useListMySwaps<TData = Awaited<ReturnType<typeof listMySwaps>>, TError = unknown>(
+ params?: ListMySwapsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySwaps>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMySwapsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getProposeSwapUrl = () => {
+
+
+
+
+  return `/api/swaps/mine`
+}
+
+/**
+ * On the approved roster of the unit the month falls under for you, cells of today or later, at least one of them yours.
+ * Refused with 422 and every reason, each on its cell when it is about one: a reason that rests on a colleague says only that
+ * the swap cannot work for them on that date. Each colleague whose cells change is told; with none, the manager is.
+ * @summary Propose Swap
+ */
+export const proposeSwap = async (proposeSwapBody: ProposeSwapBody, options?: Parameters<typeof apiFetch>[1]): Promise<MySwapRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MySwapRow>(getProposeSwapUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(proposeSwapBody)
+  }
+);}
+
+
+
+
+
+export const getProposeSwapMutationKey = () => ['proposeSwap'] as const;
+
+export const getProposeSwapMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proposeSwap>>, TError,ProposeSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof proposeSwap>>, TError,ProposeSwapMutationVariables, TContext> => {
+
+const mutationKey = getProposeSwapMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof proposeSwap>>, ProposeSwapMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  proposeSwap(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProposeSwapMutationResult = NonNullable<Awaited<ReturnType<typeof proposeSwap>>>
+    export type ProposeSwapMutationBody = ProposeSwapBody
+    export type ProposeSwapMutationError = unknown
+    export type ProposeSwapMutationVariables = {data: ProposeSwapBody}
+
+    /**
+ * @summary Propose Swap
+ */
+export const useProposeSwap = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proposeSwap>>, TError,ProposeSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof proposeSwap>>,
+        TError,
+        ProposeSwapMutationVariables,
+        TContext
+      > => {
+      return useMutation(getProposeSwapMutationOptions(options), queryClient);
+    }
+
+export const getGetSwapComposerUrl = (params?: GetSwapComposerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/swaps/compose?${stringifiedParams}` : `/api/swaps/compose`
+}
+
+/**
+ * The roster in force as My roster shows it, from today on, and the unit's shifts. The hospital's current month when none
+ * is given.
+ * @summary Composer
+ */
+export const getSwapComposer = async (params?: GetSwapComposerParams, options?: Parameters<typeof apiFetch>[1]): Promise<SwapComposer> => {
+
+  return apiFetch<SwapComposer>(getGetSwapComposerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSwapComposerQueryKey = (params?: GetSwapComposerParams,) => {
+    return [
+    `/api/swaps/compose`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSwapComposerQueryOptions = <TData = Awaited<ReturnType<typeof getSwapComposer>>, TError = unknown>(params?: GetSwapComposerParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapComposer>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSwapComposerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSwapComposer>>> = ({ signal }) => getSwapComposer(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSwapComposer>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSwapComposerQueryResult = NonNullable<Awaited<ReturnType<typeof getSwapComposer>>>
+export type GetSwapComposerQueryError = unknown
+
+
+export function useGetSwapComposer<TData = Awaited<ReturnType<typeof getSwapComposer>>, TError = unknown>(
+ params: undefined |  GetSwapComposerParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapComposer>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSwapComposer>>,
+          TError,
+          Awaited<ReturnType<typeof getSwapComposer>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSwapComposer<TData = Awaited<ReturnType<typeof getSwapComposer>>, TError = unknown>(
+ params?: GetSwapComposerParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapComposer>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSwapComposer>>,
+          TError,
+          Awaited<ReturnType<typeof getSwapComposer>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSwapComposer<TData = Awaited<ReturnType<typeof getSwapComposer>>, TError = unknown>(
+ params?: GetSwapComposerParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapComposer>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Composer
+ */
+
+export function useGetSwapComposer<TData = Awaited<ReturnType<typeof getSwapComposer>>, TError = unknown>(
+ params?: GetSwapComposerParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSwapComposer>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSwapComposerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getWithdrawSwapUrl = (swapId: string,) => {
+
+
+
+
+  return `/api/swaps/mine/${swapId}/withdraw`
+}
+
+/**
+ * Yours, while it waits for its colleagues or the manager.
+ * @summary Withdraw Swap
+ */
+export const withdrawSwap = async (swapId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MySwapRow> => {
+
+  return apiFetch<MySwapRow>(getWithdrawSwapUrl(swapId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getWithdrawSwapMutationKey = () => ['withdrawSwap'] as const;
+
+export const getWithdrawSwapMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawSwap>>, TError,WithdrawSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawSwap>>, TError,WithdrawSwapMutationVariables, TContext> => {
+
+const mutationKey = getWithdrawSwapMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawSwap>>, WithdrawSwapMutationVariables> = (props) => {
+          const {swapId} = props ?? {};
+
+          return  withdrawSwap(swapId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawSwapMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawSwap>>>
+
+    export type WithdrawSwapMutationError = unknown
+    export type WithdrawSwapMutationVariables = {swapId: string}
+
+    /**
+ * @summary Withdraw Swap
+ */
+export const useWithdrawSwap = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawSwap>>, TError,WithdrawSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawSwap>>,
+        TError,
+        WithdrawSwapMutationVariables,
+        TContext
+      > => {
+      return useMutation(getWithdrawSwapMutationOptions(options), queryClient);
+    }
+
+export const getAcceptSwapUrl = (swapId: string,) => {
+
+
+
+
+  return `/api/swaps/mine/${swapId}/accept`
+}
+
+/**
+ * One whose cells change yours, while it waits for its colleagues. The last acceptance sends it to the manager.
+ * @summary Accept Swap
+ */
+export const acceptSwap = async (swapId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MySwapRow> => {
+
+  return apiFetch<MySwapRow>(getAcceptSwapUrl(swapId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptSwapMutationKey = () => ['acceptSwap'] as const;
+
+export const getAcceptSwapMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptSwap>>, TError,AcceptSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptSwap>>, TError,AcceptSwapMutationVariables, TContext> => {
+
+const mutationKey = getAcceptSwapMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptSwap>>, AcceptSwapMutationVariables> = (props) => {
+          const {swapId} = props ?? {};
+
+          return  acceptSwap(swapId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptSwapMutationResult = NonNullable<Awaited<ReturnType<typeof acceptSwap>>>
+
+    export type AcceptSwapMutationError = unknown
+    export type AcceptSwapMutationVariables = {swapId: string}
+
+    /**
+ * @summary Accept Swap
+ */
+export const useAcceptSwap = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptSwap>>, TError,AcceptSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acceptSwap>>,
+        TError,
+        AcceptSwapMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcceptSwapMutationOptions(options), queryClient);
+    }
+
+export const getRejectSwapUrl = (swapId: string,) => {
+
+
+
+
+  return `/api/swaps/mine/${swapId}/reject`
+}
+
+/**
+ * Ends it, for everyone in it.
+ * @summary Reject Swap
+ */
+export const rejectSwap = async (swapId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MySwapRow> => {
+
+  return apiFetch<MySwapRow>(getRejectSwapUrl(swapId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectSwapMutationKey = () => ['rejectSwap'] as const;
+
+export const getRejectSwapMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectSwap>>, TError,RejectSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectSwap>>, TError,RejectSwapMutationVariables, TContext> => {
+
+const mutationKey = getRejectSwapMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectSwap>>, RejectSwapMutationVariables> = (props) => {
+          const {swapId} = props ?? {};
+
+          return  rejectSwap(swapId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectSwapMutationResult = NonNullable<Awaited<ReturnType<typeof rejectSwap>>>
+
+    export type RejectSwapMutationError = unknown
+    export type RejectSwapMutationVariables = {swapId: string}
+
+    /**
+ * @summary Reject Swap
+ */
+export const useRejectSwap = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectSwap>>, TError,RejectSwapMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rejectSwap>>,
+        TError,
+        RejectSwapMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRejectSwapMutationOptions(options), queryClient);
     }
 
 export const getGetRosterOverviewUrl = (params?: GetRosterOverviewParams,) => {

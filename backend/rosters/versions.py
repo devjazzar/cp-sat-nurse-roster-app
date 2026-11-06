@@ -1,6 +1,7 @@
 """The versions of an approved roster. Every change to it is a new version, in force at once: the manager's direct edits, leave
-recorded on a day it works, and later re-plans (ticket 17) and swaps (ticket 20). `make_version` is the one way a version is made,
-so `Roster.grid` always equals the latest version's grid under today's codes, which every reader of the roster in force relies on.
+recorded on a day it works, re-plans (ticket 17), accepted requests (ticket 19) and approved swaps (ticket 20). `make_version` is
+the one way a version is made, so `Roster.grid` always equals the latest version's grid under today's codes, which every reader
+of the roster in force relies on.
 
 A version's reason is for the unit's manager and the approvers only: it can say a cell was leave. It never reaches a nurse, a
 notification or the audit log."""
@@ -25,12 +26,18 @@ Grid = dict[str, dict[str, str]]
 def make_version(roster: Roster, grid: Grid, origin: str, by: User, reason: str = "",
                  solve: Solve | None = None) -> RosterVersion:
     """The next number, with `grid` in today's codes, which becomes `Roster.grid` too. Hold the roster's row lock, so that two
-    changes at once each get their own number in the order they commit."""
+    changes at once each get their own number in the order they commit. A live swap one of whose cells this changes expires here
+    (ticket 20), whatever made the version, and its people are told it expired, never why."""
+    from swaps.expiring import on_new_version  # swaps reads rosters, so not at the top.
+
     latest = roster.versions.first()
     roster.grid = grid
     roster.save(update_fields=["grid"])  # `updated_at` stays: it is when a solve or a restore last replaced the grid.
-    return RosterVersion.objects.create(roster=roster, number=latest.number + 1 if latest else 1, grid=grid, origin=origin,
-                                        solve=solve, created_by=by, reason=reason)
+    version = RosterVersion.objects.create(roster=roster, number=latest.number + 1 if latest else 1, grid=grid, origin=origin,
+                                           solve=solve, created_by=by, reason=reason)
+    if latest is not None:
+        on_new_version(roster, latest.grid, grid)  # Not `roster.grid`, which a direct edit has written already.
+    return version
 
 
 @dataclass(frozen=True)

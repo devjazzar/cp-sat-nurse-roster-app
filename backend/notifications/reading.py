@@ -12,8 +12,10 @@ from django.db.models import Count, Q
 
 from accounts.models import Role, User
 from notifications.models import Event, Notification, SolveOutcome
+from notifications.sending import SwapStep
 from requesting.models import Request, RequestState, RequestWindow, Step
 from rosters.pins import long_date
+from swaps.models import Swap
 from units.models import Unit
 
 WINDOW_EVENTS = (Event.WINDOW_OPENED, Event.WINDOW_CLOSED_EARLY, Event.REQUEST_DECIDED)
@@ -21,7 +23,7 @@ WINDOW_EVENTS = (Event.WINDOW_OPENED, Event.WINDOW_CLOSED_EARLY, Event.REQUEST_D
 
 @dataclass(frozen=True)
 class Link:
-    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests"]
+    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps"]
     month: str
     unit_id: UUID | None = None
 
@@ -40,6 +42,8 @@ class Names:
         self.windows = {str(window.pk): window for window in RequestWindow.objects.filter(pk__in=window_ids).annotate(
             waiting=Count("requests", filter=Q(requests__state=RequestState.PENDING)))}
         self.requests = {str(row.pk): row for row in Request.objects.filter(pk__in=request_ids).select_related("shift")}
+        swap_ids = {note.payload.get("swap_id") for note in notes} - {None}
+        self.swaps = {str(row.pk): row for row in Swap.objects.filter(pk__in=swap_ids).select_related("proposer__user")}
 
 
 def _month_name(month: str) -> str:
@@ -124,6 +128,32 @@ def _decision_words(note: Notification, names: Names, by: str) -> str:
     return f"Your request for {what} on {on} has moved."
 
 
+def _swap_words(note: Notification, names: Names, roster: str, by: str) -> str:
+    """Read from the swap when shown, and only what everyone in it reads on Swaps: never its cells, and never why it expired,
+    since a cell a version changed can be a colleague's leave."""
+    swap = names.swaps.get(note.payload.get("swap_id"))
+    proposer = (swap.proposer.user.full_name or swap.proposer.user.username) if swap else "A nurse"
+    whose = "you proposed" if swap and swap.proposer.user_id == note.user_id else f"{proposer} proposed"
+    match note.payload.get("step"):
+        case SwapStep.PROPOSED:
+            return f"{proposer} proposed a swap on the {roster} that changes your cells. Accept or reject it on Swaps."
+        case SwapStep.ACCEPTED:
+            return f"{by} accepted the swap you proposed on the {roster}."
+        case SwapStep.AWAITING:
+            return f"The swap {proposer} proposed on the {roster} waits for your decision."
+        case SwapStep.REJECTED if swap and swap.reason:
+            return f"{by} rejected the swap {whose} on the {roster}. The reason is on Swaps."
+        case SwapStep.REJECTED:
+            return f"{by} rejected the swap {whose} on the {roster}, so it has ended."
+        case SwapStep.WITHDRAWN:
+            return f"{proposer} withdrew the swap they proposed on the {roster}."
+        case SwapStep.EXPIRED:
+            return f"The swap {whose} on the {roster} has expired, so it changes nothing."
+        case SwapStep.APPROVED:
+            return f"{by} approved the swap {whose} on the {roster}. Its cells are in the roster in force."
+    return f"A swap on the {roster} has moved."
+
+
 def text_of(note: Notification, names: Names) -> str:
     payload = note.payload
     unit = names.units.get(payload.get("unit_id"))
@@ -144,6 +174,8 @@ def text_of(note: Notification, names: Names) -> str:
             return _window_words(note, names, roster, by)
         case Event.REQUEST_DECIDED:
             return _decision_words(note, names, by)
+        case Event.SWAP_STEP:
+            return _swap_words(note, names, roster, by)
     return "Something has changed."
 
 
@@ -155,6 +187,10 @@ def link_of(note: Notification, reader: User, names: Names) -> Link | None:
     month = payload["month"]
     if note.event in WINDOW_EVENTS:
         return Link("my_month", month) if reader.role == Role.STAFF_NURSE else None
+    if note.event == Event.SWAP_STEP:
+        if unit.manager_id == reader.pk:
+            return Link("unit_swaps", month)
+        return Link("swaps", month) if reader.role == Role.STAFF_NURSE else None
     if note.event == Event.WINDOW_CLOSED:
         return Link("requests", month) if unit.manager_id == reader.pk else None
     if reader.role in (Role.CNO, Role.DEPUTY_CNO):

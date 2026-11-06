@@ -1,0 +1,231 @@
+"""Whether a swap can work, and how that is said to each reader: the one place both are decided, so the proposer's words and the
+manager's cannot drift apart.
+
+The proposer may learn nothing about a colleague that My roster would not show them (docs/ARCHITECTURE.md section 3): a
+colleague's leave reads as a day off there, and a nurse never reads a colleague's attributes (allowed shifts, Ramadan reduction,
+breastfeeding, score, team leader, gender, hours). So every reason that rests on a colleague's facts, whatever it is, reaches the
+proposer as the same sentence, "This swap cannot work for Badr Omar on 5 June 2026.": no rule, no text from the solver, no cost.
+A reason about the proposer's own cells may be named, as may what any reader of My roster sees (a cell's shift, a date passed,
+how many work a shift that day). The unit's manager reads every reason in full, as they read the leave and the attributes.
+
+What is left is the one bit a refusal is: a nurse who proposes the same change day after day can learn on which days a
+colleague cannot take a shift, without learning why. That comes with refusing at once, which the ticket asks for."""
+from __future__ import annotations
+
+import copy
+import datetime as dt
+from dataclasses import dataclass, field
+
+from accounts.models import Role
+from hospital.models import Shift
+from nurses import membership
+from nurses.models import NurseProfile
+from requesting.models import what_of
+from rosters.drafts import current_code
+from rosters.editing import Checked, scored
+from rosters.models import PinnedCell, PinOrigin, Roster
+from rosters.pins import Judge, long_date
+from solves.input import assemble
+from solves.result import in_dates
+from swaps.models import LIVE, SwapCell
+
+# A shift-day rule with no nurse that says nothing of anyone: how many work it, which any reader of the roster can count.
+SAID_AS_IT_IS = {"headcount"}
+
+
+@dataclass(frozen=True)
+class Change:
+    """One cell asked for: a nurse's date and what it should hold, a shift's code or None for a day off."""
+    hospital_id: str
+    date: dt.date
+    shift: str | None
+
+    @property
+    def day(self) -> str:
+        return self.date.isoformat()
+
+
+@dataclass(frozen=True)
+class Problem:
+    """One reason the swap cannot work. `index` is the change it is about, when it is about one."""
+    manager: str
+    proposer: str
+    index: int | None = None
+
+
+@dataclass
+class Judged:
+    problems: list[Problem] = field(default_factory=list)
+    before: Checked | None = None
+    after: Checked | None = None
+    grid: dict[str, dict[str, str]] | None = None
+
+    def for_proposer(self) -> list[tuple[int | None, str]]:
+        """Each sentence once, in order, with the change it is about."""
+        seen, said = set(), []
+        for problem in self.problems:
+            if (problem.index, problem.proposer) not in seen:
+                seen.add((problem.index, problem.proposer))
+                said.append((problem.index, problem.proposer))
+        return said
+
+    @property
+    def cost_before(self) -> int | None:
+        return self.before.cost if self.before else None
+
+    @property
+    def cost_after(self) -> int | None:
+        return self.after.cost if self.after else None
+
+
+def name_of(nurse: NurseProfile) -> str:
+    return nurse.user.full_name or nurse.user.username
+
+
+def cannot_work_for(name: str, day: dt.date | None) -> str:
+    """The one sentence a proposer reads for any reason that rests on a colleague."""
+    return f"This swap cannot work for {name} on {long_date(day)}." if day else f"This swap cannot work for {name}."
+
+
+class Month:
+    """An approved roster's month as a swap reads it, read once for all of a swap's cells. `exclude` is the swap being judged
+    again, whose own cells are not another swap's."""
+
+    def __init__(self, roster: Roster, exclude=None):
+        self.roster, self.unit, self.month = roster, roster.unit, roster.month
+        self.judge = Judge(self.unit, self.month)
+        self.serving = {nurse.user.username: nurse for nurse in self.judge.nurses.values()}
+        on_grid = NurseProfile.objects.filter(user__username__in=list(roster.grid)).select_related("user")
+        self.on_grid = {nurse.user.username: nurse for nurse in on_grid}
+        self.shifts = {shift.code: shift for shift in Shift.objects.filter(active=True, code__in=self.unit.rules.get("shifts", []))}
+        self.pins = {(pin.nurse_id, pin.date): pin for pin in PinnedCell.objects.current().in_month(self.month)
+                     .filter(unit=self.unit).select_related("shift")}
+        live = SwapCell.objects.filter(swap__roster=roster, swap__state__in=LIVE)
+        if exclude is not None:
+            live = live.exclude(swap=exclude)
+        self.in_other_swaps = set(live.values_list("nurse_id", "date"))
+
+    def cell(self, hospital_id: str, day: dt.date) -> str:
+        return self.roster.grid.get(hospital_id, {}).get(day.isoformat(), "")
+
+    def shift_of(self, code: str | None) -> Shift | None:
+        return self.shifts.get(current_code(code)) if code else None
+
+    def grid_after(self, changes: list[Change]) -> dict[str, dict[str, str]]:
+        grid = copy.deepcopy(self.roster.grid)
+        for change in changes:
+            shift = self.shift_of(change.shift)
+            grid[change.hospital_id][change.day] = shift.code if shift else ""
+        return grid
+
+
+def _cell_problem(month: Month, change: Change, index: int, proposer: NurseProfile | None) -> Problem | None:
+    """Why this one cell cannot be in the swap. `proposer` is None when the manager judges it again, and every reason is then
+    said in full to them; the proposer's words are still worked out, for the same reason as below."""
+    nurse = month.on_grid.get(change.hospital_id)
+    if change.hospital_id not in month.roster.grid or nurse is None:
+        words = f"There is no {change.hospital_id} on this roster."
+        return Problem(words, words, index)
+    mine = proposer is not None and nurse.pk == proposer.pk
+    name = name_of(nurse)
+    on = long_date(change.date)
+    if change.date < membership.today():
+        words = f"{on} has passed, so its cells can no longer be swapped."
+        return Problem(words, words, index)
+    if nurse.user.role != Role.STAFF_NURSE:
+        words = f"{name} is not a staff nurse, so a swap cannot change their cells."
+        return Problem(words, words, index)
+    hidden = cannot_work_for(name, change.date)
+    serving = month.serving.get(change.hospital_id)
+    if serving is None or month.judge.day_why(serving.pk, change.date) is not None:
+        why = month.judge.day_why(serving.pk, change.date) if serving else "not_in_month"
+        manager = month.judge.refusal(nurse.pk, name, change.date, None, None) if serving else \
+            f"{name} is not on this unit's roster for {month.month:%B %Y}."
+        own = {"not_in_month": f"You have no days on this roster in {month.month:%B %Y}.",
+               "outside_dates": f"{on} is outside your dates on the roster.",
+               "leave": f"You are on leave on {on}, so there is nothing to swap that day."}.get(why, hidden)
+        return Problem(manager, own if mine else hidden, index)
+    shift = month.shift_of(change.shift)
+    if change.shift and shift is None:
+        words = f"{change.shift} is not one of this unit's shifts."
+        return Problem(words, words, index)
+    held = month.cell(change.hospital_id, change.date)
+    if (shift.code if shift else "") == held:
+        what = what_of(shift)
+        words = (f"Your cell on {on} is already {what}." if mine else f"{name}'s cell on {on} is already {what}.")
+        return Problem(f"{name}'s cell on {on} is already {what}.", words, index)
+    if month.judge.shift_why(serving.pk, shift) == "shift_not_allowed":
+        manager = month.judge.refusal(nurse.pk, name, change.date, shift.code, shift)
+        return Problem(manager, f"{shift.code} is not one of the shifts you work." if mine else hidden, index)
+    pin = month.pins.get((nurse.pk, change.date))
+    if pin is not None and pin.origin == PinOrigin.REQUEST:
+        # A colleague's request is hers and her manager's to read (ticket 19), so it is hidden like her leave.
+        return Problem(f"An accepted request holds {name}'s cell on {on}, so change it there.",
+                       f"Your accepted request holds your cell on {on}, so a swap cannot change it." if mine else hidden, index)
+    if (nurse.pk, change.date) in month.in_other_swaps:
+        words = f"Your cell on {on} is already in another swap." if mine else f"{name}'s cell on {on} is already in another swap."
+        return Problem(f"{name}'s cell on {on} is already in another swap.", words, index)
+    return None
+
+
+def _with_pins(solve_input: dict, month: Month, changes: list[Change]) -> dict:
+    """The input as approval would make it: each changed cell a pin, so the solver's `pin` rule holds the new cell, and a manager's
+    pin there, which approval replaces, does not count against it."""
+    edited = copy.deepcopy(solve_input)
+    rows = {row["id"]: row for row in edited["nurses"]}
+    for change in changes:
+        row = rows.get(change.hospital_id)
+        if row is not None:
+            shift = month.shift_of(change.shift)
+            row.setdefault("pinned", {})[change.day] = shift.code if shift else ""
+    return edited
+
+
+def _key(violation: dict) -> tuple:
+    """The solver's text tells the shifts of one day apart, and says how far a rule is broken: one broken further is new."""
+    return violation["rule"], violation["nurse"], violation["date"], violation["text"]
+
+
+def _violation_problem(violation: dict, month: Month, changes: list[Change], proposer: NurseProfile | None) -> Problem:
+    text = in_dates(violation["text"], month.month)
+    day = dt.date.fromisoformat(violation["date"]) if violation["date"] else None
+    nurse = month.on_grid.get(violation["nurse"]) if violation["nurse"] else None
+    if nurse is not None:
+        if proposer is not None and nurse.pk == proposer.pk:
+            return Problem(text, f"This swap breaks a rule for you: {text}")
+        # A rule of the whole month, such as hours, is said on the colleague's first cell, as any other of theirs.
+        day = day or min((change.date for change in changes if change.hospital_id == violation["nurse"]), default=None)
+        return Problem(text, cannot_work_for(name_of(nurse), day))
+    if violation["rule"] in SAID_AS_IT_IS:
+        return Problem(text, f"This swap breaks the unit's rules: {text}")
+    # A team leader or both genders missing from a shift-day would say who holds which attribute.
+    hidden = (f"This swap cannot work on {long_date(day)}: that day's shifts would break the unit's rules." if day
+              else "This swap would break the unit's rules.")
+    return Problem(text, hidden)
+
+
+def judge(roster: Roster, changes: list[Change], proposer: NurseProfile | None, exclude=None) -> Judged:
+    """Every reason the swap cannot work: each cell's, and when every cell can hold its change, what the grid would newly break
+    on the month as it stands, with the solver's own code. A hard rule the roster in force already breaks is not the swap's,
+    since an edit may save one (ticket 16)."""
+    month = Month(roster, exclude)
+    judged = Judged()
+    for index, change in enumerate(changes):
+        problem = _cell_problem(month, change, index, proposer)
+        if problem:
+            judged.problems.append(problem)
+    if judged.problems:
+        return judged
+    solve_input = assemble(month.unit, month.month).input
+    judged.grid = month.grid_after(changes)
+    judged.before = scored(solve_input, roster.grid)
+    judged.after = scored(_with_pins(solve_input, month, changes), judged.grid)
+    if judged.after.reason:
+        judged.problems.append(Problem(f"The swap cannot be checked: {in_dates(judged.after.reason, month.month)}",
+                                       "This swap cannot be checked against the roster now. Ask your manager."))
+        return judged
+    already = {_key(row) for row in judged.before.answer["violations"]} if judged.before.answer else set()
+    for violation in judged.after.answer["violations"]:
+        if _key(violation) not in already:
+            judged.problems.append(_violation_problem(violation, month, changes, proposer))
+    return judged

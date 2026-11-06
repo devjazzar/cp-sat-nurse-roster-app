@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from django.db.models import QuerySet
+from django.db.models import QuerySet, TextChoices
 
 from accounts.models import Role, User
 from notifications.models import Event, Notification, SolveOutcome
@@ -16,6 +16,7 @@ from units.models import Unit
 
 if TYPE_CHECKING:
     from requesting.models import Request, RequestWindow
+    from swaps.models import Swap
 
 
 def notify(users: Iterable[User | None], event: Event, **payload) -> int:
@@ -99,3 +100,36 @@ def request_decided(request: "Request", step: str, by: User) -> None:
     when shown, and only she reads them."""
     notify([request.nurse.user], Event.REQUEST_DECIDED, **_about(request.window.unit, request.window.month),
            request_id=str(request.pk), step=str(step), by=str(by.pk))
+
+
+class SwapStep(TextChoices):
+    """A step a swap took, as its people are told: a payload's `step`, so no migration."""
+    PROPOSED = "proposed"
+    ACCEPTED = "accepted"
+    AWAITING = "awaiting"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+    EXPIRED = "expired"
+    APPROVED = "approved"
+
+
+def swap_step(swap: "Swap", step: SwapStep, by: User | None, *, awaiting: bool = False) -> None:
+    """Everyone involved, at each step (ticket 20): its colleagues when it is proposed; its proposer at each acceptance; the
+    unit's manager when all have accepted, which awaits them. At a rejection, a withdrawal, an expiry and an approval, the
+    proposer and every colleague in it, and the manager too for a withdrawal or an expiry of one that was `awaiting` them. Never
+    whoever took the step, who knows. The payload holds identifiers and the step only: the words read the swap when shown, and
+    never say why one expired, since a cell a version changed can be a colleague's leave. `by` is None for an expiry."""
+    colleagues = [row.nurse.user for row in swap.participants.select_related("nurse__user")]
+    proposer = swap.proposer.user
+    match step:
+        case SwapStep.PROPOSED:
+            users = colleagues
+        case SwapStep.ACCEPTED:
+            users = [proposer]
+        case SwapStep.AWAITING:
+            users = [swap.unit.manager]
+        case _:
+            users = [proposer, *colleagues, *([swap.unit.manager] if awaiting else [])]
+    users = [user for user in users if user is not None and (by is None or user.pk != by.pk)]
+    notify(users, Event.SWAP_STEP, **_about(swap.unit, swap.roster.month), swap_id=str(swap.pk), step=str(step),
+           **({"by": str(by.pk)} if by is not None else {}))

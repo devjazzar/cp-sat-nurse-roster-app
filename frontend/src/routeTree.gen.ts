@@ -31,8 +31,10 @@ import { Route as SignedInRostersRouteImport } from './routes/_signed-in/rosters
 import { Route as SignedInSettingsRouteImport } from './routes/_signed-in/settings'
 import { Route as SignedInShiftsRouteImport } from './routes/_signed-in/shifts'
 import { Route as SignedInSolveHistoryRouteImport } from './routes/_signed-in/solve-history'
+import { Route as SignedInSwapsRouteImport } from './routes/_signed-in/swaps'
 import { Route as SignedInUnitRosterRouteImport } from './routes/_signed-in/unit-roster'
 import { Route as SignedInUnitRulesRouteImport } from './routes/_signed-in/unit-rules'
+import { Route as SignedInUnitSwapsRouteImport } from './routes/_signed-in/unit-swaps'
 import { Route as SignedInUnitsRouteImport } from './routes/_signed-in/units'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
 import { Route as SignedInMyRosterPrintRouteImport } from './routes/_signed-in/my-roster_.print'
@@ -150,6 +152,11 @@ const SignedInSolveHistoryRoute = SignedInSolveHistoryRouteImport.update({
   path: '/solve-history',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInSwapsRoute = SignedInSwapsRouteImport.update({
+  id: '/swaps',
+  path: '/swaps',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInUnitRosterRoute = SignedInUnitRosterRouteImport.update({
   id: '/unit-roster',
   path: '/unit-roster',
@@ -158,6 +165,11 @@ const SignedInUnitRosterRoute = SignedInUnitRosterRouteImport.update({
 const SignedInUnitRulesRoute = SignedInUnitRulesRouteImport.update({
   id: '/unit-rules',
   path: '/unit-rules',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInUnitSwapsRoute = SignedInUnitSwapsRouteImport.update({
+  id: '/unit-swaps',
+  path: '/unit-swaps',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInUnitsRoute = SignedInUnitsRouteImport.update({
@@ -214,8 +226,10 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
   '/solve-history': typeof SignedInSolveHistoryRoute
+  '/swaps': typeof SignedInSwapsRoute
   '/unit-roster': typeof SignedInUnitRosterRoute
   '/unit-rules': typeof SignedInUnitRulesRoute
+  '/unit-swaps': typeof SignedInUnitSwapsRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/my-roster/print': typeof SignedInMyRosterPrintRoute
@@ -244,8 +258,10 @@ export interface FileRoutesByTo {
   '/settings': typeof SignedInSettingsRoute
   '/shifts': typeof SignedInShiftsRoute
   '/solve-history': typeof SignedInSolveHistoryRoute
+  '/swaps': typeof SignedInSwapsRoute
   '/unit-roster': typeof SignedInUnitRosterRoute
   '/unit-rules': typeof SignedInUnitRulesRoute
+  '/unit-swaps': typeof SignedInUnitSwapsRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
@@ -277,8 +293,10 @@ export interface FileRoutesById {
   '/_signed-in/settings': typeof SignedInSettingsRoute
   '/_signed-in/shifts': typeof SignedInShiftsRoute
   '/_signed-in/solve-history': typeof SignedInSolveHistoryRoute
+  '/_signed-in/swaps': typeof SignedInSwapsRoute
   '/_signed-in/unit-roster': typeof SignedInUnitRosterRoute
   '/_signed-in/unit-rules': typeof SignedInUnitRulesRoute
+  '/_signed-in/unit-swaps': typeof SignedInUnitSwapsRoute
   '/_signed-in/units': typeof SignedInUnitsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
@@ -311,8 +329,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shifts'
     | '/solve-history'
+    | '/swaps'
     | '/unit-roster'
     | '/unit-rules'
+    | '/unit-swaps'
     | '/units'
     | '/users'
     | '/my-roster/print'
@@ -341,8 +361,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shifts'
     | '/solve-history'
+    | '/swaps'
     | '/unit-roster'
     | '/unit-rules'
+    | '/unit-swaps'
     | '/units'
     | '/users'
     | '/'
@@ -373,8 +395,10 @@ export interface FileRouteTypes {
     | '/_signed-in/settings'
     | '/_signed-in/shifts'
     | '/_signed-in/solve-history'
+    | '/_signed-in/swaps'
     | '/_signed-in/unit-roster'
     | '/_signed-in/unit-rules'
+    | '/_signed-in/unit-swaps'
     | '/_signed-in/units'
     | '/_signed-in/users'
     | '/_signed-in/'
@@ -546,6 +570,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInSolveHistoryRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/swaps': {
+      id: '/_signed-in/swaps'
+      path: '/swaps'
+      fullPath: '/swaps'
+      preLoaderRoute: typeof SignedInSwapsRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/unit-roster': {
       id: '/_signed-in/unit-roster'
       path: '/unit-roster'
@@ -558,6 +589,13 @@ declare module '@tanstack/react-router' {
       path: '/unit-rules'
       fullPath: '/unit-rules'
       preLoaderRoute: typeof SignedInUnitRulesRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/unit-swaps': {
+      id: '/_signed-in/unit-swaps'
+      path: '/unit-swaps'
+      fullPath: '/unit-swaps'
+      preLoaderRoute: typeof SignedInUnitSwapsRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/units': {
@@ -624,8 +662,10 @@ interface SignedInRouteChildren {
   SignedInSettingsRoute: typeof SignedInSettingsRoute
   SignedInShiftsRoute: typeof SignedInShiftsRoute
   SignedInSolveHistoryRoute: typeof SignedInSolveHistoryRoute
+  SignedInSwapsRoute: typeof SignedInSwapsRoute
   SignedInUnitRosterRoute: typeof SignedInUnitRosterRoute
   SignedInUnitRulesRoute: typeof SignedInUnitRulesRoute
+  SignedInUnitSwapsRoute: typeof SignedInUnitSwapsRoute
   SignedInUnitsRoute: typeof SignedInUnitsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
@@ -654,8 +694,10 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInSettingsRoute: SignedInSettingsRoute,
   SignedInShiftsRoute: SignedInShiftsRoute,
   SignedInSolveHistoryRoute: SignedInSolveHistoryRoute,
+  SignedInSwapsRoute: SignedInSwapsRoute,
   SignedInUnitRosterRoute: SignedInUnitRosterRoute,
   SignedInUnitRulesRoute: SignedInUnitRulesRoute,
+  SignedInUnitSwapsRoute: SignedInUnitSwapsRoute,
   SignedInUnitsRoute: SignedInUnitsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,

@@ -35,7 +35,7 @@ class Unread(Schema):
 
 
 class NotificationLink(Schema):
-    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests"]
+    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps"]
     month: str
     unit_id: UUID | None = None
 

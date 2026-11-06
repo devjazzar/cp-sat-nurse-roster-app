@@ -3503,6 +3503,232 @@
         ]
       }
     },
+    "/api/units/{unit_id}/swaps": {
+      "get": {
+        "operationId": "listUnitSwaps",
+        "summary": "Unit Swaps",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitSwaps"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "swaps"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/swaps/{swap_id}": {
+      "get": {
+        "operationId": "getSwapDecision",
+        "summary": "Swap Decision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "swap_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Swap Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwapDecision"
+                }
+              }
+            }
+          }
+        },
+        "description": "Judged again now, with the solver's own code in this process, whatever its state; only one awaiting you can be decided.",
+        "tags": [
+          "swaps"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/swaps/{swap_id}/approve": {
+      "post": {
+        "operationId": "approveUnitSwap",
+        "summary": "Approve Swap",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "swap_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Swap Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwapDecision"
+                }
+              }
+            }
+          }
+        },
+        "description": "Its cells become pinned cells of origin `swap` in a new version with origin `swap`, in force at once. Refused while a cell\ncannot hold its change or the grid would newly break a hard rule.",
+        "tags": [
+          "swaps"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveSwapBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/swaps/{swap_id}/reject": {
+      "post": {
+        "operationId": "rejectUnitSwap",
+        "summary": "Reject Swap",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "swap_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Swap Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwapDecision"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "swaps"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectSwapBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/requests/mine": {
       "get": {
         "operationId": "getMyRequests",
@@ -3621,6 +3847,265 @@
         "description": "A pending one, while its window is open. Another nurse's is the same 404 as none.",
         "tags": [
           "requests"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/swaps/mine": {
+      "get": {
+        "operationId": "listMySwaps",
+        "summary": "My Swaps",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. Every month's when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. Every month's when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MySwapRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Those you proposed and those whose cells change yours, newest first, every state.",
+        "tags": [
+          "swaps"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "proposeSwap",
+        "summary": "Propose Swap",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MySwapRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "On the approved roster of the unit the month falls under for you, cells of today or later, at least one of them yours.\nRefused with 422 and every reason, each on its cell when it is about one: a reason that rests on a colleague says only that\nthe swap cannot work for them on that date. Each colleague whose cells change is told; with none, the manager is.",
+        "tags": [
+          "swaps"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeSwapBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/swaps/compose": {
+      "get": {
+        "operationId": "getSwapComposer",
+        "summary": "Composer",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The hospital's current one when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The hospital's current one when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwapComposer"
+                }
+              }
+            }
+          }
+        },
+        "description": "The roster in force as My roster shows it, from today on, and the unit's shifts. The hospital's current month when none\nis given.",
+        "tags": [
+          "swaps"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/swaps/mine/{swap_id}/withdraw": {
+      "post": {
+        "operationId": "withdrawSwap",
+        "summary": "Withdraw Swap",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "swap_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Swap Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MySwapRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Yours, while it waits for its colleagues or the manager.",
+        "tags": [
+          "swaps"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/swaps/mine/{swap_id}/accept": {
+      "post": {
+        "operationId": "acceptSwap",
+        "summary": "Accept Swap",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "swap_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Swap Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MySwapRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "One whose cells change yours, while it waits for its colleagues. The last acceptance sends it to the manager.",
+        "tags": [
+          "swaps"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/swaps/mine/{swap_id}/reject": {
+      "post": {
+        "operationId": "rejectSwap",
+        "summary": "Reject Swap",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "swap_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Swap Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MySwapRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Ends it, for everyone in it.",
+        "tags": [
+          "swaps"
         ],
         "security": [
           {
@@ -10448,6 +10933,395 @@
         "title": "EditRequestBody",
         "type": "object"
       },
+      "SwapCellRow": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "before": {
+            "description": "The cell's shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague's leave included.",
+            "title": "Before",
+            "type": "string"
+          },
+          "after": {
+            "description": "What the swap makes it. Empty for a day off.",
+            "title": "After",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "date",
+          "before",
+          "after"
+        ],
+        "title": "SwapCellRow",
+        "type": "object"
+      },
+      "SwapColleague": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "answer": {
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected"
+            ],
+            "title": "Answer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "answer"
+        ],
+        "title": "SwapColleague",
+        "type": "object"
+      },
+      "UnitSwapRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "state": {
+            "description": "As it stands now: a live swap whose earliest date has passed is expired.",
+            "enum": [
+              "pending",
+              "awaiting_manager",
+              "approved",
+              "rejected",
+              "withdrawn",
+              "expired"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "proposed_at": {
+            "format": "date-time",
+            "title": "Proposed At",
+            "type": "string"
+          },
+          "proposer": {
+            "title": "Proposer",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/SwapCellRow"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "colleagues": {
+            "items": {
+              "$ref": "#/components/schemas/SwapColleague"
+            },
+            "title": "Colleagues",
+            "type": "array"
+          },
+          "ended_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended By"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "expired_why": {
+            "anyOf": [
+              {
+                "enum": [
+                  "date_passed",
+                  "cell_changed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it expired: a date passed, or a new version changed one of its cells. For you only: such a version can be leave.",
+            "title": "Expired Why"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The roster version its approval made.",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "state",
+          "proposed_at",
+          "proposer",
+          "note",
+          "cells",
+          "colleagues",
+          "ended_by",
+          "ended_at",
+          "reason",
+          "expired_why",
+          "version"
+        ],
+        "title": "UnitSwapRow",
+        "type": "object"
+      },
+      "UnitSwaps": {
+        "properties": {
+          "month": {
+            "description": "YYYY-MM: the one asked for, or the hospital's current month.",
+            "title": "Month",
+            "type": "string"
+          },
+          "swaps": {
+            "description": "The month's, newest first, every state.",
+            "items": {
+              "$ref": "#/components/schemas/UnitSwapRow"
+            },
+            "title": "Swaps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "swaps"
+        ],
+        "title": "UnitSwaps",
+        "type": "object"
+      },
+      "DecisionCell": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "before": {
+            "description": "The cell's shift code in the roster in force when it was proposed. Empty for a day not worked, a colleague's leave included.",
+            "title": "Before",
+            "type": "string"
+          },
+          "after": {
+            "description": "What the swap makes it. Empty for a day off.",
+            "title": "After",
+            "type": "string"
+          },
+          "now": {
+            "description": "The cell in the roster in force now.",
+            "title": "Now",
+            "type": "string"
+          },
+          "replaces_pin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The shift's code, or empty for a day off, of your pin on this cell, which approving replaces. Null when you pinned none there.",
+            "title": "Replaces Pin"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "date",
+          "before",
+          "after",
+          "now",
+          "replaces_pin"
+        ],
+        "title": "DecisionCell",
+        "type": "object"
+      },
+      "SwapDecision": {
+        "properties": {
+          "swap": {
+            "$ref": "#/components/schemas/UnitSwapRow"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GridCheck"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the roster in force would break with the swap's cells, on the month as it stands. Null when a cell cannot hold its change: `problems` says why."
+          },
+          "cost_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The roster in force's cost, worked out the same way.",
+            "title": "Cost Before"
+          },
+          "cost_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost After"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`cost_after` less `cost_before`.",
+            "title": "Delta"
+          },
+          "problems": {
+            "description": "Why it cannot be approved as the month stands now, in full: a cell's or a hard rule it would newly break. Leave or a transfer may have come since it was proposed.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "approve_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approve Refusal"
+          }
+        },
+        "required": [
+          "swap",
+          "cells",
+          "check",
+          "cost_before",
+          "cost_after",
+          "delta",
+          "problems",
+          "approve_refusal"
+        ],
+        "title": "SwapDecision",
+        "type": "object"
+      },
+      "ApproveSwapBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "default": "",
+            "description": "Optional. The proposer and every colleague in it read it.",
+            "maxLength": 2000,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "ApproveSwapBody",
+        "type": "object"
+      },
+      "RejectSwapBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "The proposer and every colleague in it read it: never a notification or the audit log.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RejectSwapBody",
+        "type": "object"
+      },
       "MyRosterFilter": {
         "properties": {
           "month": {
@@ -10727,6 +11601,343 @@
           "shift"
         ],
         "title": "NewRequestBody",
+        "type": "object"
+      },
+      "MySwapsFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. Every month's when left out.",
+            "title": "Month"
+          }
+        },
+        "title": "MySwapsFilter",
+        "type": "object"
+      },
+      "MySwapRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "state": {
+            "description": "As it stands now: a live swap whose earliest date has passed is expired.",
+            "enum": [
+              "pending",
+              "awaiting_manager",
+              "approved",
+              "rejected",
+              "withdrawn",
+              "expired"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "proposed_at": {
+            "format": "date-time",
+            "title": "Proposed At",
+            "type": "string"
+          },
+          "proposer": {
+            "description": "The proposer's full name.",
+            "title": "Proposer",
+            "type": "string"
+          },
+          "proposed_by_me": {
+            "title": "Proposed By Me",
+            "type": "boolean"
+          },
+          "note": {
+            "description": "The proposer's words to everyone in it.",
+            "title": "Note",
+            "type": "string"
+          },
+          "cells": {
+            "description": "Every cell it changes, by date.",
+            "items": {
+              "$ref": "#/components/schemas/SwapCellRow"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "colleagues": {
+            "description": "Everyone but the proposer whose cells it changes, with their answer.",
+            "items": {
+              "$ref": "#/components/schemas/SwapColleague"
+            },
+            "title": "Colleagues",
+            "type": "array"
+          },
+          "my_answer": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pending",
+                  "accepted",
+                  "rejected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Yours, when you are one of its colleagues.",
+            "title": "My Answer"
+          },
+          "ended_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who rejected, withdrew or decided it. Null while it waits, and for an expiry.",
+            "title": "Ended By"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "reason": {
+            "description": "The manager's, for a decision, which everyone in it reads.",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "unit",
+          "state",
+          "proposed_at",
+          "proposer",
+          "proposed_by_me",
+          "note",
+          "cells",
+          "colleagues",
+          "my_answer",
+          "ended_by",
+          "ended_at",
+          "reason"
+        ],
+        "title": "MySwapRow",
+        "type": "object"
+      },
+      "ProposeSwapBody": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/SwapCellBody"
+            },
+            "maxItems": 62,
+            "minItems": 1,
+            "title": "Cells",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "description": "Optional. Everyone in the swap and the unit's manager read it.",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "cells"
+        ],
+        "title": "ProposeSwapBody",
+        "type": "object"
+      },
+      "SwapCellBody": {
+        "additionalProperties": false,
+        "properties": {
+          "hospital_id": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The shift's code it should hold, or null for a day off.",
+            "title": "Shift"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "date",
+          "shift"
+        ],
+        "title": "SwapCellBody",
+        "type": "object"
+      },
+      "ComposerNurse": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "me": {
+            "title": "Me",
+            "type": "boolean"
+          },
+          "shifts": {
+            "description": "One for each of `days`: the roster in force's shift code, empty for a day not worked.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Shifts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "me",
+          "shifts"
+        ],
+        "title": "ComposerNurse",
+        "type": "object"
+      },
+      "ComposerShift": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "display_name"
+        ],
+        "title": "ComposerShift",
+        "type": "object"
+      },
+      "SwapComposer": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why you cannot propose a swap on this month now.",
+            "title": "Refusal"
+          },
+          "days": {
+            "description": "The month's days not yet passed, which a swap can change.",
+            "items": {
+              "$ref": "#/components/schemas/GridDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "shifts": {
+            "description": "The unit's shifts, which any cell may be swapped to.",
+            "items": {
+              "$ref": "#/components/schemas/ComposerShift"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "nurses": {
+            "description": "You and the staff nurses of the roster in force, by name.",
+            "items": {
+              "$ref": "#/components/schemas/ComposerNurse"
+            },
+            "title": "Nurses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "unit",
+          "refusal",
+          "days",
+          "shifts",
+          "nurses"
+        ],
+        "title": "SwapComposer",
         "type": "object"
       },
       "OverviewFilter": {
@@ -11997,7 +13208,9 @@
               "my_roster",
               "unit_roster",
               "my_month",
-              "requests"
+              "requests",
+              "swaps",
+              "unit_swaps"
             ],
             "title": "Page",
             "type": "string"
