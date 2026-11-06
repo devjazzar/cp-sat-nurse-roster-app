@@ -51,7 +51,7 @@ How to add an event, the same for each: add it to `notifications.models.Event`, 
 
 **Implemented on 2026-11-06,** on branch `claude/ticket-19-requests-59645b`. The backend ran under pytest on a throwaway PostgreSQL 18 container of my own, the frontend under Vitest with the real routes and generated client over a stubbed `fetch`.
 
-- Results: backend 2043 passed, frontend 498 of 498, and `npm run build` clean. After that run one fix changed `requesting/mine_api.py` (a missing month now means the current one, below); for it `requesting`, `notifications` and the authorisation walk ran again (650 passed), not the whole backend.
+- Results on the final code: backend 2044 passed, frontend 498 of 498, and `npm run build` clean.
 - `makemigrations --check` is clean, and `frontend/openapi.json` is the same as a fresh export.
 - **The frontend suite ran alone in this worktree, not in clean exports in parallel.** That is left to the session that brings this into `main`.
 - The solver's suite was not run: nothing under `solver/` changed.
