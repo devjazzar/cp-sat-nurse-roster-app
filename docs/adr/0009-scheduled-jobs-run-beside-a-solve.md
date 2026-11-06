@@ -27,7 +27,8 @@ safe:
 The close itself is an hourly catch-up job at minute 30, like the other hourly jobs: it closes
 every unit's month whose close time has passed on the hospital's clock and is not closed.
 Procrastinate's cron is fixed at import and runs in UTC, so it could neither read a configured time
-nor follow the hospital's time zone; a worker that was down catches up on its next run. A close does
+nor follow the hospital's time zone; a worker that was down catches up on its next run. Where the
+hospital's offset from UTC is not a whole hour, the close comes at the next run, within the hour. A close does
 not wait for or stop a solve of a later month: that solve ends as usual and its draft is warned of
 as older than the close, as for a correction to leave, and is validated again before submit.
 
