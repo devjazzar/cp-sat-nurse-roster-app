@@ -1,9 +1,12 @@
 import { useState } from "react"
 
-import { useCompareRosterVersions, useListRosterVersions } from "@/api/generated/endpoints"
+import { Link } from "@tanstack/react-router"
+
+import { getExportRosterVersionUrl, useCompareRosterVersions, useListRosterVersions } from "@/api/generated/endpoints"
 import type { VersionRow } from "@/api/generated/model"
 import { plural } from "@/components/roster-notes"
-import { longDay } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
+import { cn, longDay } from "@/lib/utils"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { hospitalTime } from "@/lib/utils"
@@ -20,6 +23,20 @@ const ORIGIN: Record<VersionRow["origin"], string> = {
 }
 
 const shown = (code: string) => code || "Off"
+const FILE_LINK = cn(buttonVariants({ variant: "outline", size: "sm" }))
+
+/** A version's print page and its two files. Each file taken is in the audit log, as the staff list is; the print page is
+ *  not, since it makes no file. A file holds a day of leave as a day off, and never a leave's type. */
+function VersionFiles({ unitId, month, number }: { unitId: string; month: string; number: number }) {
+  const file = (format: "csv" | "xlsx") => getExportRosterVersionUrl(unitId, { month, version: number, format })
+  return (
+    <div className="flex flex-wrap gap-1">
+      <Link to="/roster/print" search={{ unit: unitId, month, version: number }} className={FILE_LINK} aria-label={`Print version ${number}`}>Print</Link>
+      <a href={file("csv")} download className={FILE_LINK} aria-label={`Version ${number} as CSV`}>CSV</a>
+      <a href={file("xlsx")} download className={FILE_LINK} aria-label={`Version ${number} as Excel`}>Excel</a>
+    </div>
+  )
+}
 
 function Comparison({ unitId, month, from, to }: { unitId: string; month: string; from: number; to: number }) {
   const compared = useCompareRosterVersions(unitId, { month, from_version: from, to_version: to })
@@ -88,6 +105,7 @@ export function RosterVersions({ unitId, month }: { unitId: string; month: strin
     <section aria-labelledby="versions" className="flex flex-col gap-3">
       <h3 id="versions" className="font-medium">Versions</h3>
       <p className="text-sm text-muted-foreground">Every change to the approved roster is a new version, in force at once. The reasons are for the unit's manager, the CNO and the Deputy CNO: nurses read only the roster in force.</p>
+      <p className="text-sm text-muted-foreground">Any version prints, or downloads as CSV or Excel, with each nurse's hours and shift counts. A file leaves the system, so it shows a day of leave as a day off, and the audit log records who took which.</p>
       <div className="overflow-x-auto">
         <Table>
           <caption className="sr-only">Versions of this roster, newest first</caption>
@@ -99,6 +117,7 @@ export function RosterVersions({ unitId, month }: { unitId: string; month: strin
               <TableHead scope="col">When</TableHead>
               <TableHead scope="col">Cells changed</TableHead>
               <TableHead scope="col">Why</TableHead>
+              <TableHead scope="col">Print or download</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -110,6 +129,7 @@ export function RosterVersions({ unitId, month }: { unitId: string; month: strin
                 <TableCell className="tabular-nums">{hospitalTime(row.created_at)}</TableCell>
                 <TableCell className="tabular-nums">{row.cells_changed ?? "—"}</TableCell>
                 <TableCell className="min-w-48 whitespace-pre-wrap wrap-anywhere">{row.reason || "—"}</TableCell>
+                <TableCell><VersionFiles unitId={unitId} month={month} number={row.number} /></TableCell>
               </TableRow>
             ))}
           </TableBody>

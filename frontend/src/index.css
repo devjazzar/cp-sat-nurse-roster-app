@@ -134,3 +134,9 @@
     @apply font-sans;
     }
 }
+/* A roster's print page (`components/roster-sheet.tsx`): A4 landscape, so a 31-day month fits across one page. Named, so
+   that other pages print as they did. */
+@page roster {
+    size: A4 landscape;
+    margin: 10mm;
+}

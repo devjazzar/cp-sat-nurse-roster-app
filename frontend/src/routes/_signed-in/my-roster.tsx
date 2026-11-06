@@ -58,7 +58,10 @@ function MyRosterPage() {
           {answer.month >= answer.first_month && answer.unit && !answer.roster && <p>No roster yet for {monthName(answer.month)}.</p>}
           {answer.roster && (
             <>
-              <p className="text-sm text-muted-foreground">Approved {hospitalTime(answer.roster.approved_at)}.{answer.roster.mine ? "" : " You are not on it."}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm text-muted-foreground">Approved {hospitalTime(answer.roster.approved_at)}.{answer.roster.mine ? "" : " You are not on it."}</p>
+                <Link to="/my-roster/print" search={{ month: answer.month }} className={MONTH_LINK}>Print this roster</Link>
+              </div>
               <RosterGrid grid={asGrid(answer.roster, user.username)} label={`Roster of ${answer.unit}, ${monthName(answer.month)}`} />
               <GridLegend grid={asGrid(answer.roster, user.username)} />
             </>

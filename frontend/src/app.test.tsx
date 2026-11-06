@@ -129,14 +129,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/notifications", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/notifications"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -157,7 +157,7 @@ describe("route guards", () => {
     expect(router.state.location.pathname).toBe("/health")
   })
 
-  it.each(["/health", "/settings", "/users", "/audit-log", "/units", "/nurses"])("%s is not for another role", async (path) => {
+  it.each(["/health", "/settings", "/users", "/audit-log", "/units", "/nurses", "/roster/print"])("%s is not for another role", async (path) => {
     const { router, calls } = start(path, nurseHome("u1"))
 
     expect(await screen.findByText("No roster yet for December 2026.")).toBeInTheDocument()
@@ -1237,6 +1237,14 @@ describe("the audit log page", () => {
     expect(screen.getByText("Unknown")).toBeInTheDocument()
     expect(screen.getByText("System")).toBeInTheDocument()
     expect(document.title).toBe("Audit log · Nurse roster")
+  })
+
+  it("names a roster version's file taken, with who took which version and nothing from the file", async () => {
+    auditStart("/audit-log", () => ({ body: { entries: [{ ...ENTRY, actor: "mona", action: "roster.exported", target: "ER, 2026-06", before: null, after: { version: 2, format: "xlsx" } }], older_than: null } }))
+
+    const row = (await screen.findAllByText("2026-11-06 00:30:15"))[0].closest("tr")!
+    expect(within(row).getByText("Exported a roster version")).toBeInTheDocument()
+    expect(within(row).getByText("ER, 2026-06")).toBeInTheDocument()
   })
 
   it("applies the filters to the address and the request, and clears them", async () => {
@@ -4992,9 +5000,9 @@ describe("the roster page", () => {
       const list = await screen.findByRole("region", { name: "Versions" })
       const rows = within(within(list).getAllByRole("table")[0]).getAllByRole("row").slice(1)
       expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
-        ["3 (in force)", "Changed by hand", "Mona Ali", "2026-06-04 09:00:00", "1", "Leave recorded for Amal Saleh took their shift off 7 June 2026."],
-        ["2", "Changed by hand", "Mona Ali", "2026-06-03 08:30:00", "2", "Badr covers Amal's night."],
-        ["1", "Approved from a solve", "Dina Deputy", "2026-05-16 12:00:00", "—", "—"],
+        ["3 (in force)", "Changed by hand", "Mona Ali", "2026-06-04 09:00:00", "1", "Leave recorded for Amal Saleh took their shift off 7 June 2026.", "PrintCSVExcel"],
+        ["2", "Changed by hand", "Mona Ali", "2026-06-03 08:30:00", "2", "Badr covers Amal's night.", "PrintCSVExcel"],
+        ["1", "Approved from a solve", "Dina Deputy", "2026-05-16 12:00:00", "—", "—", "PrintCSVExcel"],
       ])
       expect(within(list).getByLabelText("From")).toHaveValue("2")
       expect(within(list).getByLabelText("To")).toHaveValue("3")
@@ -5006,6 +5014,21 @@ describe("the roster page", () => {
 
       expect(await within(list).findByRole("table", { name: "Cells that differ from version 1 to version 3" })).toBeInTheDocument()
       expect(calls.map((call) => call.url)).toContain(`${UNIT}/roster/versions/compare?month=2026-06&from_version=1&to_version=3`)
+    })
+
+    it("offers each version's print page and its two files", async () => {
+      start("/roster", manager({
+        [`GET ${UNIT}/roster`]: { body: { ...IN_FORCE, approved: { ...IN_FORCE.approved, version: 2 } } },
+        [`GET ${UNIT}/roster/versions`]: { body: [VERSION_2, VERSION_1] },
+        [`GET ${UNIT}/roster/versions/compare`]: compared,
+      }))
+
+      const list = await screen.findByRole("region", { name: "Versions" })
+      expect(within(list).getByRole("link", { name: "Print version 1" })).toHaveAttribute("href", "/roster/print?unit=u1&month=2026-06&version=1")
+      const csv = within(list).getByRole("link", { name: "Version 1 as CSV" })
+      expect(csv).toHaveAttribute("href", `${UNIT}/roster/export?month=2026-06&version=1&format=csv`)
+      expect(csv).toHaveAttribute("download")
+      expect(within(list).getByRole("link", { name: "Version 2 as Excel" })).toHaveAttribute("href", `${UNIT}/roster/export?month=2026-06&version=2&format=xlsx`)
     })
 
     it("offers to take a shift off a nurse no longer in the unit's month, and nothing to pin", async () => {
@@ -5673,5 +5696,88 @@ describe("a nurse's own month", () => {
     })
 
     await waitFor(() => expect(router.state.location.pathname).not.toBe("/my-month"))
+  })
+})
+
+describe("printing and downloading a roster version", () => {
+  const UNIT = "/api/units/u1"
+  const DAYS = [{ date: "2026-06-01", weekend: false, holiday: false }, { date: "2026-06-02", weekend: false, holiday: false }, { date: "2026-06-05", weekend: true, holiday: false }]
+  const SHEET = {
+    unit: "ER", month: "2026-06", version: 2, in_force: 2, made_at: "2026-06-03T08:30:00+03:00", days: DAYS,
+    shifts: [{ code: "D", display_name: "Day", hours: 12 }, { code: "N", display_name: "Night", hours: 12 }],
+    rows: [
+      { hospital_id: "h1", full_name: "Amal Saleh", shifts: ["N", "", "D"], hours: 24, counts: [1, 1] },
+      { hospital_id: "h123", full_name: "Hana Ali", shifts: ["", "D", ""], hours: 12, counts: [1, 0] },
+    ],
+    mine: null,
+  }
+  const asManager = (extra = {}) => ({ ...session(MANAGER), ...extra })
+  const bodyRows = (table: HTMLElement) => within(table).getAllByRole("row").slice(1).map((row) =>
+    [within(row).getByRole("rowheader").textContent, ...within(row).getAllByRole("cell").map((cell) => cell.textContent)])
+
+  it("lays out a version for paper: a row a nurse, a column a date, the hours and the shift counts", async () => {
+    const print = vi.fn()
+    vi.stubGlobal("print", print)
+    const { user, calls } = start("/roster/print?unit=u1&month=2026-06&version=2", asManager({ [`GET ${UNIT}/roster/sheet`]: { body: SHEET } }))
+
+    expect(await screen.findByRole("heading", { name: "ER roster, June 2026" })).toBeInTheDocument()
+    expect(screen.getByText(/Version 2, made 2026-06-03 08:30:00\. It is the roster in force\./)).toBeInTheDocument()
+    const table = screen.getByRole("table", { name: "ER roster, June 2026, version 2" })
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Nurse", "1M", "2T", "5F", "Hours", "D", "N"])
+    expect(bodyRows(table)).toEqual([["Amal Saleh", "N", "", "D", "24", "1", "1"], ["Hana Ali", "", "D", "", "12", "1", "0"]])
+    expect(screen.getByText(/D: Day, 12 hours\. N: Night, 12 hours\./)).toBeInTheDocument()
+    expect(screen.queryByText(/your leave/)).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Back to the roster" })).toHaveAttribute("href", "/roster?month=2026-06")
+    expect(calls.map((call) => call.url)).toContain(`${UNIT}/roster/sheet?month=2026-06&version=2`)
+
+    await user.click(screen.getByRole("button", { name: "Print" }))
+
+    expect(print).toHaveBeenCalled()
+  })
+
+  it("says when the version printed is not the roster in force, and leads an approver back to the unit's roster", async () => {
+    start("/roster/print?unit=u1&month=2026-06&version=1", { ...session(ME_DEPUTY), [`GET ${UNIT}/roster/sheet`]: { body: { ...SHEET, version: 1 } } })
+
+    expect(await screen.findByText("Version 2 has replaced it, so this is not the roster in force.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Back to the roster" })).toHaveAttribute("href", "/unit-roster?unit=u1&month=2026-06")
+  })
+
+  it("says so when the version cannot be read, or the address names none", async () => {
+    start("/roster/print?unit=u1&month=2026-06&version=9", asManager({ [`GET ${UNIT}/roster/sheet`]: { status: 404, body: { detail: "This month's roster has no version 9." } } }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This version could not be read.")
+    cleanup()
+
+    start("/roster/print?unit=u1", asManager())
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This address names no roster version.")
+  })
+
+  describe("a nurse's own", () => {
+    const MINE = { month: "2026-06", first_month: "2026-06", unit: "ER" }
+    const OWN = { ...SHEET, mine: [{ date: "2026-06-01", kind: "leave" }, { date: "2026-06-02", kind: "shift" }, { date: "2026-06-05", kind: "off" }] }
+    const reading = (answer: object) => nurseHome("u1", { "GET /api/rosters/mine/sheet": { body: answer } })
+
+    it("prints their unit's roster in force with their own leave as leave and a colleague's empty day as a day off", async () => {
+      start("/my-roster/print?month=2026-06", reading({ ...MINE, sheet: OWN }))
+
+      const table = await screen.findByRole("table", { name: "ER roster, June 2026, version 2" })
+      expect(bodyRows(table)).toEqual([["Amal Saleh", "N", "", "D", "24", "1", "1"], ["Hana Ali (you)", "L", "D", "", "12", "1", "0"]])
+      expect(screen.getByText(/L: your leave\./)).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Back to My roster" })).toHaveAttribute("href", "/my-roster?month=2026-06")
+    })
+
+    it("says when there is nothing approved to print", async () => {
+      start("/my-roster/print?month=2026-06", reading({ ...MINE, sheet: null }))
+
+      expect(await screen.findByText(/There is no approved roster of June 2026 to print\./)).toBeInTheDocument()
+    })
+
+    it("is reached from My roster", async () => {
+      start("/my-roster?month=2026-06", nurseHome("u1", { "GET /api/rosters/mine": { body: { ...MINE, roster: {
+        approved_at: "2026-05-16T12:00:00+03:00", version: 2, days: DAYS, shifts: [], rows: [], mine: null } } } }))
+
+      expect(await screen.findByRole("link", { name: "Print this roster" })).toHaveAttribute("href", "/my-roster/print?month=2026-06")
+    })
   })
 })

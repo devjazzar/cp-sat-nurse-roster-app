@@ -73,6 +73,7 @@ const ACTION_NAMES: Record<string, string> = {
   "roster.changed": "Changed an approved roster",
   "roster.draft_replaced": "A solve replaced a draft",
   "roster.draft_restored": "Restored a result as a draft",
+  "roster.exported": "Exported a roster version",
   "roster.rejected": "Rejected a roster",
   "roster.submitted": "Submitted a roster",
   "shift.changed": "Changed a shift",

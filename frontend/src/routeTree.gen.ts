@@ -34,7 +34,9 @@ import { Route as SignedInUnitRosterRouteImport } from './routes/_signed-in/unit
 import { Route as SignedInUnitRulesRouteImport } from './routes/_signed-in/unit-rules'
 import { Route as SignedInUnitsRouteImport } from './routes/_signed-in/units'
 import { Route as SignedInUsersRouteImport } from './routes/_signed-in/users'
+import { Route as SignedInMyRosterPrintRouteImport } from './routes/_signed-in/my-roster_.print'
 import { Route as SignedInNursesImportRouteImport } from './routes/_signed-in/nurses_.import'
+import { Route as SignedInRosterPrintRouteImport } from './routes/_signed-in/roster_.print'
 import { Route as SignedInSolveHistorySolveIdRouteImport } from './routes/_signed-in/solve-history_.$solveId'
 
 const SignedInRoute = SignedInRouteImport.update({
@@ -162,9 +164,19 @@ const SignedInUsersRoute = SignedInUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => SignedInRoute,
 } as any)
+const SignedInMyRosterPrintRoute = SignedInMyRosterPrintRouteImport.update({
+  id: '/my-roster_/print',
+  path: '/my-roster/print',
+  getParentRoute: () => SignedInRoute,
+} as any)
 const SignedInNursesImportRoute = SignedInNursesImportRouteImport.update({
   id: '/nurses_/import',
   path: '/nurses/import',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInRosterPrintRoute = SignedInRosterPrintRouteImport.update({
+  id: '/roster_/print',
+  path: '/roster/print',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInSolveHistorySolveIdRoute =
@@ -199,7 +211,9 @@ export interface FileRoutesByFullPath {
   '/unit-rules': typeof SignedInUnitRulesRoute
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
+  '/my-roster/print': typeof SignedInMyRosterPrintRoute
   '/nurses/import': typeof SignedInNursesImportRoute
+  '/roster/print': typeof SignedInRosterPrintRoute
   '/solve-history/$solveId': typeof SignedInSolveHistorySolveIdRoute
 }
 export interface FileRoutesByTo {
@@ -227,7 +241,9 @@ export interface FileRoutesByTo {
   '/units': typeof SignedInUnitsRoute
   '/users': typeof SignedInUsersRoute
   '/': typeof SignedInIndexRoute
+  '/my-roster/print': typeof SignedInMyRosterPrintRoute
   '/nurses/import': typeof SignedInNursesImportRoute
+  '/roster/print': typeof SignedInRosterPrintRoute
   '/solve-history/$solveId': typeof SignedInSolveHistorySolveIdRoute
 }
 export interface FileRoutesById {
@@ -257,7 +273,9 @@ export interface FileRoutesById {
   '/_signed-in/units': typeof SignedInUnitsRoute
   '/_signed-in/users': typeof SignedInUsersRoute
   '/_signed-in/': typeof SignedInIndexRoute
+  '/_signed-in/my-roster_/print': typeof SignedInMyRosterPrintRoute
   '/_signed-in/nurses_/import': typeof SignedInNursesImportRoute
+  '/_signed-in/roster_/print': typeof SignedInRosterPrintRoute
   '/_signed-in/solve-history_/$solveId': typeof SignedInSolveHistorySolveIdRoute
 }
 export interface FileRouteTypes {
@@ -287,7 +305,9 @@ export interface FileRouteTypes {
     | '/unit-rules'
     | '/units'
     | '/users'
+    | '/my-roster/print'
     | '/nurses/import'
+    | '/roster/print'
     | '/solve-history/$solveId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -315,7 +335,9 @@ export interface FileRouteTypes {
     | '/units'
     | '/users'
     | '/'
+    | '/my-roster/print'
     | '/nurses/import'
+    | '/roster/print'
     | '/solve-history/$solveId'
   id:
     | '__root__'
@@ -344,7 +366,9 @@ export interface FileRouteTypes {
     | '/_signed-in/units'
     | '/_signed-in/users'
     | '/_signed-in/'
+    | '/_signed-in/my-roster_/print'
     | '/_signed-in/nurses_/import'
+    | '/_signed-in/roster_/print'
     | '/_signed-in/solve-history_/$solveId'
   fileRoutesById: FileRoutesById
 }
@@ -531,11 +555,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInUsersRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/_signed-in/my-roster_/print': {
+      id: '/_signed-in/my-roster_/print'
+      path: '/my-roster/print'
+      fullPath: '/my-roster/print'
+      preLoaderRoute: typeof SignedInMyRosterPrintRouteImport
+      parentRoute: typeof SignedInRoute
+    }
     '/_signed-in/nurses_/import': {
       id: '/_signed-in/nurses_/import'
       path: '/nurses/import'
       fullPath: '/nurses/import'
       preLoaderRoute: typeof SignedInNursesImportRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/roster_/print': {
+      id: '/_signed-in/roster_/print'
+      path: '/roster/print'
+      fullPath: '/roster/print'
+      preLoaderRoute: typeof SignedInRosterPrintRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/solve-history_/$solveId': {
@@ -571,7 +609,9 @@ interface SignedInRouteChildren {
   SignedInUnitsRoute: typeof SignedInUnitsRoute
   SignedInUsersRoute: typeof SignedInUsersRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
+  SignedInMyRosterPrintRoute: typeof SignedInMyRosterPrintRoute
   SignedInNursesImportRoute: typeof SignedInNursesImportRoute
+  SignedInRosterPrintRoute: typeof SignedInRosterPrintRoute
   SignedInSolveHistorySolveIdRoute: typeof SignedInSolveHistorySolveIdRoute
 }
 
@@ -598,7 +638,9 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInUnitsRoute: SignedInUnitsRoute,
   SignedInUsersRoute: SignedInUsersRoute,
   SignedInIndexRoute: SignedInIndexRoute,
+  SignedInMyRosterPrintRoute: SignedInMyRosterPrintRoute,
   SignedInNursesImportRoute: SignedInNursesImportRoute,
+  SignedInRosterPrintRoute: SignedInRosterPrintRoute,
   SignedInSolveHistorySolveIdRoute: SignedInSolveHistorySolveIdRoute,
 }
 
