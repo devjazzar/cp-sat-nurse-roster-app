@@ -5,8 +5,12 @@
  * OpenAPI spec version: 1
  */
 import type { UnitSolveRowFailure } from './unitSolveRowFailure';
+import type { UnitSolveRowReplanOutcome } from './unitSolveRowReplanOutcome';
 import type { UnitSolveRowState } from './unitSolveRowState';
 
+/**
+ * The System Admin's row never has these: a re-plan's date is about a roster.
+ */
 export interface UnitSolveRow {
   id: string;
   month: string;
@@ -21,6 +25,10 @@ export interface UnitSolveRow {
   cost: number | null;
   /** Whether it ended with a roster it could keep. */
   found_roster: boolean;
-  /** Whether its month's draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. */
+  /** Whether its month's draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. After a re-plan put its roster in force, that roster's grid is the re-plan's. */
   in_draft: boolean;
+  /** Set on a re-plan: the first date it planned again. */
+  replan_from: string | null;
+  /** What a re-plan's end did to the roster in force. Null for a solve, before the end, and for a re-plan that kept no roster. */
+  replan_outcome: UnitSolveRowReplanOutcome;
 }

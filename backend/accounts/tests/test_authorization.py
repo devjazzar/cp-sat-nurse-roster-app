@@ -112,6 +112,8 @@ ROSTER_ROLES = {
     "GET /api/units/{unit_id}/roster/versions/compare": MANAGER | APPROVERS,
     "POST /api/units/{unit_id}/solves": MANAGER,
     "GET /api/units/{unit_id}/solves/preview": MANAGER,
+    "POST /api/units/{unit_id}/replans": MANAGER,
+    "GET /api/units/{unit_id}/replans/preview": MANAGER,
     "GET /api/units/{unit_id}/solve-history": MANAGER | APPROVERS,
     "GET /api/units/{unit_id}/solve-history/{solve_id}": MANAGER | APPROVERS,
     "POST /api/units/{unit_id}/solve-history/{solve_id}/restore": MANAGER,
@@ -129,6 +131,6 @@ def test_each_roster_transition_and_read_is_for_these_roles_only():
 def test_the_system_admin_reaches_no_roster_content():
     """Their solve history across units is a closed list of fields (`solves.history_api.hospital_router`)."""
     roster_roles = {label(method, path): guard.roles for method, path, guard in RESTRICTED
-                    if re.search(r"/roster|/solves|/units/\{unit_id\}/solve-history", path)}
+                    if re.search(r"/roster|/solves|/replans|/units/\{unit_id\}/solve-history", path)}
     assert set(ROSTER_ROLES) <= set(roster_roles)
     assert [name for name, roles in roster_roles.items() if Role.SYSTEM_ADMIN in roles] == []

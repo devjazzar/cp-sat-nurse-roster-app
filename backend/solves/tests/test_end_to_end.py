@@ -157,3 +157,46 @@ def test_two_units_queue_first_come_first_served(mona, er, make_user, client_of)
     assert one.state == two.state == "succeeded"
     assert one.finished_at <= two.started_at
     assert Roster.objects.filter(unit=er).exists() and Roster.objects.filter(unit=icu).exists()
+
+
+def test_a_re_plan_from_a_date_keeps_the_days_before_it_and_becomes_a_version(mona, er, client_of, monkeypatch):
+    """The ticket's test with the real solver: a real solve, a real approval, leave late on a worked day, then a re-plan from the
+    12th. The solver's own facts and the version the re-plan made are read back through the API."""
+    from rosters.models import RosterVersion
+    from rosters.tests.test_review import approve, submit
+    carla = client_of("carla", Role.CNO, full_name="Carla CNO")
+    started(mona, er, seconds=30)
+    run_the_queue()
+    assert submit(mona, er).status_code == 200 and approve(carla, er).status_code == 200
+    from nurses import membership
+    monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 6, 12))
+    in_force = Roster.objects.get(unit=er).grid
+    worked = next(day for day in range(14, 31) if in_force["Badr"][f"2026-06-{day:02d}"])
+    sick = LeaveType.objects.get(name="Sick")
+    badr = NurseProfile.objects.get(user__username="Badr")
+    response = post(mona, url(er, "/leave"), {"nurse_id": str(badr.pk), "leave_type_id": str(sick.pk),
+                                              "first": f"2026-06-{worked:02d}", "last": f"2026-06-{worked:02d}"})
+    assert response.status_code == 201, response.content
+    before = Roster.objects.get(unit=er).grid
+    assert before["Badr"][f"2026-06-{worked:02d}"] == "" and RosterVersion.objects.count() == 2
+
+    response = post(mona, url(er, "/replans"), {"month": MONTH, "replan_from": "2026-06-12", "time_limit_seconds": 30,
+                                                "reason": "Badr is off sick."})
+    assert response.status_code == 201, response.content
+    run_the_queue()
+
+    stored = Solve.objects.get(pk=response.json()["id"])
+    assert stored.state == "succeeded" and stored.result["ok"] is True
+    assert stored.result["replan"] == {"from": "2026-06-12", "recorded_cells_differ": 0}
+    after = Roster.objects.get(unit=er).grid
+    for nurse, row in before.items():
+        assert [row[f"2026-06-{day:02d}"] for day in range(1, 12)] == [after[nurse][f"2026-06-{day:02d}"] for day in range(1, 12)]
+    assert after["Badr"][f"2026-06-{worked:02d}"] == ""
+    if stored.replan_outcome == "version":
+        version = RosterVersion.objects.order_by("-number").first()
+        assert (version.number, version.origin, version.reason, version.solve_id) == (3, "replan", "Badr is off sick.", stored.pk)
+    else:
+        assert stored.replan_outcome == "unchanged" and RosterVersion.objects.count() == 2
+    comparison = mona.get(url(er, f"/solve-history/{stored.pk}")).json()["replan"]
+    assert comparison["based_on"] == 2 and comparison["cost_after"] == stored.result["cost"]
+    assert comparison["cost_before"] is not None and comparison["rules"]

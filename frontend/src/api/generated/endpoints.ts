@@ -82,6 +82,7 @@ import type {
   Overview,
   PasswordSheet,
   PreviewNurseImportBody,
+  PreviewReplanParams,
   PreviewSolveParams,
   PublicHolidayBody,
   PublicHolidaySchema,
@@ -89,6 +90,7 @@ import type {
   RamadanMonth,
   ReactivateRefusal,
   RejectBody,
+  ReplanPreview,
   RosterMonth,
   SavedLeave,
   SessionState,
@@ -97,6 +99,7 @@ import type {
   SolvePreview,
   SolveProgress,
   SolveResult,
+  StartReplanBody,
   StartSolveBody,
   TechnicalSettingsSchema,
   TransferBody,
@@ -4603,6 +4606,216 @@ export const useStartSolve = <TError = unknown,
         TContext
       > => {
       return useMutation(getStartSolveMutationOptions(options), queryClient);
+    }
+
+export const getPreviewReplanUrl = (unitId: string,
+    params?: PreviewReplanParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/replans/preview?${stringifiedParams}` : `/api/units/${unitId}/replans/preview`
+}
+
+/**
+ * What a re-plan from this date would be given, and whether it can start. Saves nothing.
+ * @summary Preview Replan
+ */
+export const previewReplan = async (unitId: string,
+    params?: PreviewReplanParams, options?: Parameters<typeof apiFetch>[1]): Promise<ReplanPreview> => {
+
+  return apiFetch<ReplanPreview>(getPreviewReplanUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPreviewReplanQueryKey = (unitId: string,
+    params?: PreviewReplanParams,) => {
+    return [
+    `/api/units/${unitId}/replans/preview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPreviewReplanQueryOptions = <TData = Awaited<ReturnType<typeof previewReplan>>, TError = unknown>(unitId: string,
+    params?: PreviewReplanParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewReplan>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewReplanQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewReplan>>> = ({ signal }) => previewReplan(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewReplan>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PreviewReplanQueryResult = NonNullable<Awaited<ReturnType<typeof previewReplan>>>
+export type PreviewReplanQueryError = unknown
+
+
+export function usePreviewReplan<TData = Awaited<ReturnType<typeof previewReplan>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  PreviewReplanParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewReplan>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewReplan>>,
+          TError,
+          Awaited<ReturnType<typeof previewReplan>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewReplan<TData = Awaited<ReturnType<typeof previewReplan>>, TError = unknown>(
+ unitId: string,
+    params?: PreviewReplanParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewReplan>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewReplan>>,
+          TError,
+          Awaited<ReturnType<typeof previewReplan>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewReplan<TData = Awaited<ReturnType<typeof previewReplan>>, TError = unknown>(
+ unitId: string,
+    params?: PreviewReplanParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewReplan>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Preview Replan
+ */
+
+export function usePreviewReplan<TData = Awaited<ReturnType<typeof previewReplan>>, TError = unknown>(
+ unitId: string,
+    params?: PreviewReplanParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewReplan>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPreviewReplanQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartReplanUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/replans`
+}
+
+/**
+ * An approved month's re-plan from a date, through the same queue as a solve. Its input holds the roster in force as it
+ * stands now, and the version it was, so its end can tell whether anything moved since (`solves.replans.finish`). Under the
+ * catalogue's lock, the unit's and the roster's. The audit entry is a solve's, saying it is a re-plan and nothing of the date
+ * or the reason, which are about the roster.
+ * @summary Start Replan
+ */
+export const startReplan = async (unitId: string,
+    startReplanBody: StartReplanBody, options?: Parameters<typeof apiFetch>[1]): Promise<SolveProgress> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SolveProgress>(getStartReplanUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(startReplanBody)
+  }
+);}
+
+
+
+
+
+export const getStartReplanMutationKey = () => ['startReplan'] as const;
+
+export const getStartReplanMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startReplan>>, TError,StartReplanMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startReplan>>, TError,StartReplanMutationVariables, TContext> => {
+
+const mutationKey = getStartReplanMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startReplan>>, StartReplanMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  startReplan(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartReplanMutationResult = NonNullable<Awaited<ReturnType<typeof startReplan>>>
+    export type StartReplanMutationBody = StartReplanBody
+    export type StartReplanMutationError = unknown
+    export type StartReplanMutationVariables = {unitId: string;data: StartReplanBody}
+
+    /**
+ * @summary Start Replan
+ */
+export const useStartReplan = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startReplan>>, TError,StartReplanMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startReplan>>,
+        TError,
+        StartReplanMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStartReplanMutationOptions(options), queryClient);
     }
 
 export const getGetSolveProgressUrl = (unitId: string,

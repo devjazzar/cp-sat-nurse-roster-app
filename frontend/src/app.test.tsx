@@ -5035,6 +5035,173 @@ describe("the roster page", () => {
     })
   })
 
+  describe("re-planning from a date", () => {
+    const IN_FORCE = {
+      ...DRAFTED, state: "approved", submit_refusal: "This roster is approved and in force, so no solve or restore can change it.",
+      approved: { approved_by: "Dina Deputy", approved_at: "2026-05-16T12:00:00+03:00", version: 2 }, draft: DRAFT,
+    }
+    const REPLAN_PREVIEW = {
+      month: "2026-06", replan_from: "2026-06-12", earliest: "2026-06-12", latest: "2026-06-30", in_force: 2,
+      summary: { nurses: 4, leave_days: 3, outside_days: 0, pins: 2 }, recorded_cells_differ: 1, change_weight: 3, precheck: [],
+      rules_refusal: null, refusal: null, date_refusal: null, time_limit_default: 60, time_limit_cap: 300,
+    }
+    const REPLANNING = { ...RUNNING, replan_from: "2026-06-12", replan_outcome: null }
+    const replanner = (extra = {}) => manager({
+      [`GET ${UNIT}/roster`]: { body: IN_FORCE },
+      [`GET ${UNIT}/replans/preview`]: { body: REPLAN_PREVIEW },
+      ...extra,
+    })
+
+    it("offers a re-plan of the approved month from today, saying what it keeps and what it is given", async () => {
+      start("/roster", replanner())
+
+      const card = await screen.findByRole("region", { name: "Re-plan from a date" })
+      expect(await within(card).findByLabelText("Re-plan from")).toHaveValue("2026-06-12")
+      expect(within(card).getByLabelText("Re-plan from")).toHaveAttribute("min", "2026-06-12")
+      expect(within(card).getByLabelText("Re-plan from")).toHaveAttribute("max", "2026-06-30")
+      expect(within(card).getByText(/Days before the date are kept as they happened/)).toBeInTheDocument()
+      expect(within(card).getByText(/1 cell before the date already differs from version 2/)).toBeInTheDocument()
+      expect(within(card).getByLabelText("Time limit (seconds)")).toHaveValue(60)
+      expect(screen.queryByRole("region", { name: "What the solver will receive" })).not.toBeInTheDocument()
+    })
+
+    it("starts one with the date, the time limit and the reason, and follows it as a re-plan", async () => {
+      let started = false
+      const { user, calls } = start("/roster", replanner({
+        [`GET ${UNIT}/roster`]: () => ({ body: started ? { ...IN_FORCE, active_solve: REPLANNING } : IN_FORCE }),
+        [`POST ${UNIT}/replans`]: () => { started = true; return { status: 201, body: REPLANNING } },
+        [`GET ${UNIT}/solves/${SOLVE_ID}`]: { body: REPLANNING },
+      }))
+
+      const card = await screen.findByRole("region", { name: "Re-plan from a date" })
+      await user.type(await within(card).findByLabelText("Why (optional)"), "Badr is off sick.")
+      await user.click(within(card).getByRole("button", { name: "Re-plan from 12 June" }))
+
+      expect(await screen.findByRole("heading", { name: "Re-planning June 2026 from 12 June" })).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "POST" && call.url.endsWith("/replans"))!.body).toEqual({
+        month: "2026-06", replan_from: "2026-06-12", time_limit_seconds: 60, reason: "Badr is off sick." })
+      expect(screen.getByRole("button", { name: "Stop and put the best roster in force" })).toBeInTheDocument()
+      expect(screen.getByText(/A re-plan of this month is under way/)).toBeInTheDocument()
+    })
+
+    it("asks the preview again for the date chosen, and shows why a date cannot be one", async () => {
+      const over = "11 June 2026 is over. Re-plan from 12 June 2026 or later: the days before then are facts."
+      const { user, calls } = start("/roster", replanner({
+        [`GET ${UNIT}/replans/preview`]: ({ url }: { url: string }) => (url.includes("replan_from=2026-06-11")
+          ? { body: { ...REPLAN_PREVIEW, replan_from: "2026-06-11", date_refusal: over, recorded_cells_differ: null } }
+          : { body: REPLAN_PREVIEW }),
+      }))
+
+      const card = await screen.findByRole("region", { name: "Re-plan from a date" })
+      const date = await within(card).findByLabelText("Re-plan from")
+      await user.clear(date)
+      await user.type(date, "2026-06-11")
+
+      expect(await within(card).findByText(over)).toBeInTheDocument()
+      expect(calls.map((call) => call.url)).toContain(`${UNIT}/replans/preview?month=2026-06&replan_from=2026-06-11`)
+      expect(within(card).getByRole("button", { name: /Re-plan from/ })).toHaveAttribute("aria-disabled", "true")
+    })
+
+    it("says why no re-plan can start, and offers none", async () => {
+      start("/roster", replanner({
+        [`GET ${UNIT}/replans/preview`]: { body: { ...REPLAN_PREVIEW, refusal: "This month is over, so its roster in force cannot be re-planned." } },
+      }))
+
+      const card = await screen.findByRole("region", { name: "Re-plan from a date" })
+      expect(await within(card).findByText("This month is over, so its roster in force cannot be re-planned.")).toBeInTheDocument()
+      expect(within(card).queryByRole("button")).not.toBeInTheDocument()
+    })
+
+    it("warns when nothing keeps the re-plan close to the roster in force", async () => {
+      start("/roster", replanner({ [`GET ${UNIT}/replans/preview`]: { body: { ...REPLAN_PREVIEW, change_weight: 0 } } }))
+
+      expect(await screen.findByText(/The change weight is 0/)).toBeInTheDocument()
+    })
+
+    it("says what each end of a re-plan did to the roster in force", async () => {
+      const ended = { ...REPLANNING, state: "succeeded", finished_at: "2026-06-12T10:01:00+03:00" }
+      const words: [object, RegExp][] = [
+        [{ ...ended, found_roster: false }, /ended with no roster to keep, so the roster in force is as it was/],
+        [{ ...ended, found_roster: true, replan_outcome: "unchanged" }, /changed no cell, so the roster in force is as it was/],
+        [{ ...ended, found_roster: true, replan_outcome: "outdated" }, /roster in force or the month changed while the re-plan ran/],
+        [{ ...ended, found_roster: true, replan_outcome: "month_over" }, /month ended while the re-plan ran/],
+        [{ ...ended, state: "cancelled", found_roster: false }, /re-plan you stopped had found no roster yet/],
+      ]
+      for (const [last, said] of words) {
+        start("/roster", replanner({ [`GET ${UNIT}/roster`]: { body: { ...IN_FORCE, last_solve: last } } }))
+        expect(await screen.findByText(said)).toBeInTheDocument()
+        cleanup()
+      }
+    })
+
+    it("tells the manager when a re-plan put its roster in force", async () => {
+      let progress: object = REPLANNING
+      start("/roster", replanner({
+        [`GET ${UNIT}/roster`]: () => ({ body: progress === REPLANNING ? { ...IN_FORCE, active_solve: REPLANNING }
+          : { ...IN_FORCE, approved: { ...IN_FORCE.approved, version: 3 } } }),
+        [`GET ${UNIT}/solves/${SOLVE_ID}`]: () => ({ body: progress }),
+      }))
+
+      await screen.findByRole("heading", { name: "Re-planning June 2026 from 12 June" })
+      progress = { ...REPLANNING, state: "succeeded", found_roster: true, best_cost: 40, replan_outcome: "version" }
+
+      expect(await screen.findByText("The re-plan finished with a cost of 40, and its roster is now in force as a new version. The unit's nurses are told the roster has changed.")).toBeInTheDocument()
+    })
+  })
+
+  describe("a re-plan's result", () => {
+    const COMPARISON = {
+      replan_from: "2026-06-12", recorded_cells_differ: 1, based_on: 2, version: 3, outcome: "version",
+      changes: [
+        { hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-15", before: "", after: "D" },
+        { hospital_id: "h2", full_name: "Badr Noor", date: "2026-06-15", before: "D", after: "" },
+      ],
+      cost_before: 116, cost_after: 120,
+      rules: [{ rule: "change", before: 0, after: 6 }, { rule: "fair_day", before: 10, after: 8 }],
+    }
+    const REPLAN_ROW = { ...ROW, replan_from: "2026-06-12", replan_outcome: "version" }
+    const FACT = { rule: "night_rest", hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-05", text: "Amal Saleh works the 5th after a night" }
+    const REPLANNED = { ...RESULT, solve: REPLAN_ROW, replan: COMPARISON, elapsed_violations: [FACT], restore_refusal: "This roster is approved and in force." }
+
+    it("compares it with the roster in force it started from, and lists elapsed violations as facts", async () => {
+      start(`/solve-history/${SOLVE_ID}`, manager({ [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: REPLANNED } }))
+
+      const panel = await screen.findByRole("region", { name: "Against the roster in force" })
+      expect(within(panel).getByText(/Re-planned from 12 June, keeping every earlier day of version 2 as it happened/)).toBeInTheDocument()
+      expect(within(panel).getByText(/Its roster is version 3, in force/)).toBeInTheDocument()
+      expect(within(panel).getByText("Cost before").nextElementSibling).toHaveTextContent("116")
+      expect(within(panel).getByText("Cost after").nextElementSibling).toHaveTextContent("120")
+      const cells = within(panel).getByRole("table", { name: "Cells it changed" })
+      expect(within(cells).getAllByRole("row")).toHaveLength(3)
+      expect(within(cells).getByRole("rowheader", { name: "Badr Noor" }).parentElement).toHaveTextContent("Badr Noor15 JuneDayOff")
+      const rules = within(panel).getByRole("table", { name: "Each rule, before and after" })
+      expect(within(rules).getByRole("rowheader", { name: /Changes in a re-plan/ }).parentElement).toHaveTextContent("06+6")
+      expect(within(panel).getByText(/1 cell before the date differed from version 2/)).toBeInTheDocument()
+      const facts = screen.getByRole("region", { name: "Recorded facts that broke rules" })
+      expect(within(facts).getByText(/Amal Saleh works the 5th after a night/)).toBeInTheDocument()
+      expect(screen.getByText("Re-planned from").nextElementSibling).toHaveTextContent("12 June")
+    })
+
+    it("says when it was not put in force, and why", async () => {
+      start(`/solve-history/${SOLVE_ID}`, manager({ [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: {
+        body: { ...REPLANNED, solve: { ...REPLAN_ROW, replan_outcome: "outdated", in_draft: false }, replan: { ...COMPARISON, version: null, outcome: "outdated" } },
+      } }))
+
+      const panel = await screen.findByRole("region", { name: "Against the roster in force" })
+      expect(within(panel).getByText(/was not put in force: the roster in force or the month changed while it ran/)).toBeInTheDocument()
+    })
+
+    it("names each re-plan in the history with what it did", async () => {
+      start("/solve-history?month=2026-06", manager({
+        [`GET ${UNIT}/solve-history`]: { body: { solves: [REPLAN_ROW, { ...REPLAN_ROW, id: "r2", replan_outcome: "outdated", in_draft: false }, { ...ROW, in_draft: false, replan_from: null, replan_outcome: null }], older_than: null } },
+      }))
+
+      expect(await screen.findByText("Re-plan from 12 June: in force")).toBeInTheDocument()
+      expect(screen.getByText("Re-plan from 12 June: not applied, the roster changed meanwhile")).toBeInTheDocument()
+      expect(screen.getByText("Finished")).toBeInTheDocument()
+    })
+  })
+
   describe("its approval", () => {
     const FROZEN = "This roster is submitted and waits for the CNO or the Deputy CNO, so nothing can change it until they decide. A rejection returns it to draft."
     const WAITING = { submitted_by: "Mona Ali", submitted_at: "2026-05-16T09:00:00+03:00", new_since: [] as object[] }

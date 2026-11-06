@@ -12,6 +12,10 @@ const monthAndYear = new Intl.DateTimeFormat("en-GB", { month: "long", year: "nu
 /** "January 2027" from "2027-01". */
 export const monthName = (month: string) => monthAndYear.format(asDate(`${month}-01`))
 
+const dayOfMonth = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
+/** "10 November" from "2026-11-10", where the month and its year are said already. */
+export const longDay = (iso: string) => dayOfMonth.format(asDate(iso))
+
 const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
 /** "10 Nov 2026" from "2026-11-10". */
 export const shortDay = (iso: string) => shortDate.format(asDate(iso))

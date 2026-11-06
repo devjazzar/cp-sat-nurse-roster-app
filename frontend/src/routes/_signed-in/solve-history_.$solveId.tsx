@@ -17,8 +17,8 @@ import { SolveResultPanels } from "@/components/solve-result"
 import { Button } from "@/components/ui/button"
 import { useChosenUnit } from "@/components/unit-picker"
 import { plainRefusal } from "@/lib/server-errors"
-import { solveDuration, solveStatus } from "@/lib/solve-words"
-import { hospitalTime, monthName } from "@/lib/utils"
+import { replanStatus, solveDuration, solveStatus } from "@/lib/solve-words"
+import { hospitalTime, longDay, monthName } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/solve-history_/$solveId")({
@@ -105,7 +105,13 @@ function Result({ unit, solveId }: { unit: { id: string; name: string }; solveId
       <p><Link to="/solve-history" search={{ month: solve.month }} className={LINK}>Solve history of {month}</Link></p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm tabular-nums">
         <dt className="text-muted-foreground">Status</dt>
-        <dd>{solveStatus(solve)}</dd>
+        <dd>{solve.replan_from ? replanStatus(solve) : solveStatus(solve)}</dd>
+        {solve.replan_from && (
+          <>
+            <dt className="text-muted-foreground">Re-planned from</dt>
+            <dd>{longDay(solve.replan_from)}</dd>
+          </>
+        )}
         <dt className="text-muted-foreground">Asked for by</dt>
         <dd>{solve.requested_by}</dd>
         <dt className="text-muted-foreground">Asked for at</dt>

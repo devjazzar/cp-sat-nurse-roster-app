@@ -1640,7 +1640,96 @@ export const StartSolveResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
+})
+
+
+/**
+ * What a re-plan from this date would be given, and whether it can start. Saves nothing.
+ * @summary Preview Replan
+ */
+export const PreviewReplanParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const previewReplanQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const PreviewReplanQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(previewReplanQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).optional().describe('The first date to plan again. The earliest allowed when left out.')
+})
+
+export const PreviewReplanResponse = zod.object({
+  "month": zod.string(),
+  "replan_from": zod.iso.date().describe('The date this preview is for.'),
+  "earliest": zod.iso.date().describe('The first date a re-plan may start from: today, or the month\'s first day if it is still to come.'),
+  "latest": zod.iso.date().describe('The month\'s last day.'),
+  "in_force": zod.union([zod.int(),zod.null()]).describe('The version in force, which the re-plan keeps close to. Null with no approved roster.'),
+  "summary": zod.object({
+  "nurses": zod.int(),
+  "leave_days": zod.int().describe('Recorded leave within the nurses\' dates.'),
+  "outside_days": zod.int().describe('Days before a start date or after an end date, credited like leave.'),
+  "pins": zod.int().describe('Pinned cells that reach this solve.')
+}),
+  "recorded_cells_differ": zod.union([zod.int(),zod.null()]).describe('Days before the date whose facts differ from the roster in force: leave recorded since, a pin. Null when it could not be worked out.'),
+  "change_weight": zod.int().describe('The hospital\'s `change` weight: what keeps the re-plan close to the roster in force. Zero keeps nothing.'),
+  "precheck": zod.union([zod.array(zod.string()),zod.null()]),
+  "rules_refusal": zod.union([zod.string(),zod.null()]),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why no re-plan can start now, from this date or any.'),
+  "date_refusal": zod.union([zod.string(),zod.null()]).describe('Why this date cannot be the first one planned again.'),
+  "time_limit_default": zod.int(),
+  "time_limit_cap": zod.int()
+})
+
+
+/**
+ * An approved month's re-plan from a date, through the same queue as a solve. Its input holds the roster in force as it
+ * stands now, and the version it was, so its end can tell whether anything moved since (`solves.replans.finish`). Under the
+ * catalogue's lock, the unit's and the roster's. The audit entry is a solve's, saying it is a re-plan and nothing of the date
+ * or the reason, which are about the roster.
+ * @summary Start Replan
+ */
+export const StartReplanParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const startReplanBodyMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+export const startReplanBodyReasonDefault = ``;
+export const startReplanBodyReasonMax = 2000;
+
+
+
+export const StartReplanBody = zod.object({
+  "month": zod.string().regex(startReplanBodyMonthRegExp),
+  "time_limit_seconds": zod.int().min(1).describe('At most the System Admin\'s cap.'),
+  "replan_from": zod.iso.date().describe('The first date to plan again: earlier days are facts.'),
+  "reason": zod.string().max(startReplanBodyReasonMax).default(startReplanBodyReasonDefault).describe('Why, kept with the version it makes, for the unit\'s manager and the approvers. One is written when left empty. Never a nurse\'s, a notification\'s or the audit log\'s.')
+})
+
+export const StartReplanResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "queue_ahead": zod.union([zod.int(),zod.null()]).describe('Solves of any unit that go first. Null once this one has started.'),
+  "time_limit_seconds": zod.int(),
+  "stop_requested": zod.boolean(),
+  "elapsed_seconds": zod.number(),
+  "best_cost": zod.union([zod.int(),zod.null()]),
+  "improvements": zod.int(),
+  "attempts": zod.int(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "error": zod.string(),
+  "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
+  "message": zod.string().describe('Why the solver found no roster, in its words.'),
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 })
 
 
@@ -1670,7 +1759,9 @@ export const GetSolveProgressResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 })
 
 
@@ -1701,7 +1792,9 @@ export const StopSolveResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 })
 
 
@@ -1762,7 +1855,9 @@ export const GetRosterMonthResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]),
   "last_solve": zod.union([zod.object({
   "id": zod.uuid(),
@@ -1781,7 +1876,9 @@ export const GetRosterMonthResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
   "draft": zod.union([zod.object({
   "days": zod.array(zod.object({
@@ -1982,7 +2079,9 @@ export const SaveDraftPinsResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]),
   "last_solve": zod.union([zod.object({
   "id": zod.uuid(),
@@ -2001,7 +2100,9 @@ export const SaveDraftPinsResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
   "draft": zod.union([zod.object({
   "days": zod.array(zod.object({
@@ -2158,7 +2259,9 @@ export const SaveRosterVersionResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]),
   "last_solve": zod.union([zod.object({
   "id": zod.uuid(),
@@ -2177,7 +2280,9 @@ export const SaveRosterVersionResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
   "draft": zod.union([zod.object({
   "days": zod.array(zod.object({
@@ -2376,7 +2481,9 @@ export const SubmitRosterResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]),
   "last_solve": zod.union([zod.object({
   "id": zod.uuid(),
@@ -2395,7 +2502,9 @@ export const SubmitRosterResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
   "draft": zod.union([zod.object({
   "days": zod.array(zod.object({
@@ -2534,7 +2643,9 @@ export const ApproveRosterResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]),
   "last_solve": zod.union([zod.object({
   "id": zod.uuid(),
@@ -2553,7 +2664,9 @@ export const ApproveRosterResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
   "draft": zod.union([zod.object({
   "days": zod.array(zod.object({
@@ -2694,7 +2807,9 @@ export const RejectRosterResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]),
   "last_solve": zod.union([zod.object({
   "id": zod.uuid(),
@@ -2713,7 +2828,9 @@ export const RejectRosterResponse = zod.object({
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
-  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.')
+  "precheck": zod.array(zod.string()).describe('What the solver\'s own precheck said, once it has ended.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan of an approved month: the first date it plans again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster.')
 }),zod.null()]).describe('The latest to have ended, if it is newer than the draft or there is none: why the draft is not what was last asked for. A restore is newer than what it follows, as the manager has seen those.'),
   "draft": zod.union([zod.object({
   "days": zod.array(zod.object({
@@ -2827,8 +2944,10 @@ export const ListUnitSolveHistoryResponse = zod.object({
   "attempts": zod.int(),
   "cost": zod.union([zod.int(),zod.null()]),
   "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
-  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result.')
-})),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. After a re-plan put its roster in force, that roster\'s grid is the re-plan\'s.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan: the first date it planned again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null for a solve, before the end, and for a re-plan that kept no roster.')
+}).describe('The System Admin\'s row never has these: a re-plan\'s date is about a roster.')),
   "older_than": zod.union([zod.uuid(),zod.null()])
 })
 
@@ -2856,8 +2975,10 @@ export const GetSolveResultResponse = zod.object({
   "attempts": zod.int(),
   "cost": zod.union([zod.int(),zod.null()]),
   "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
-  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result.')
-}),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. After a re-plan put its roster in force, that roster\'s grid is the re-plan\'s.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan: the first date it planned again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null for a solve, before the end, and for a re-plan that kept no roster.')
+}).describe('The System Admin\'s row never has these: a re-plan\'s date is about a roster.'),
   "error": zod.string().describe('Why the last attempt failed, also when a retry then worked.'),
   "message": zod.string().describe('Why the solver found no roster or it could not be kept, in its words.'),
   "precheck": zod.array(zod.string()),
@@ -2940,7 +3061,28 @@ export const GetSolveResultResponse = zod.object({
   "hours": zod.int().describe('As the solve that made this grid was given them.')
 }))
 }),zod.null()]).describe('The roster it answered, under the codes in use now. Null when it found none.'),
-  "restore_refusal": zod.union([zod.string(),zod.null()]).describe('Why this result cannot be restored as the draft now.')
+  "restore_refusal": zod.union([zod.string(),zod.null()]).describe('Why this result cannot be restored as the draft now.'),
+  "replan": zod.union([zod.object({
+  "replan_from": zod.iso.date(),
+  "recorded_cells_differ": zod.union([zod.int(),zod.null()]).describe('Days before the date whose facts differ from the roster in force, as the solver counted them. Null when it found no roster.'),
+  "based_on": zod.int().describe('The version in force when it started.'),
+  "version": zod.union([zod.int(),zod.null()]).describe('The version it made. Null when it made none.'),
+  "outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]),
+  "changes": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The roster in force\'s shift when the re-plan started, under today\'s code. Empty for a day not worked.'),
+  "after": zod.string().describe('The re-plan\'s.')
+})).describe('Each cell its roster changes, by nurse then date. Empty with no roster.'),
+  "cost_before": zod.union([zod.int(),zod.null()]).describe('Null when the solver\'s code could not cost the roster in force.'),
+  "cost_after": zod.union([zod.int(),zod.null()]),
+  "rules": zod.array(zod.object({
+  "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
+  "before": zod.int().describe('What it cost in the roster in force, on the re-plan\'s input.'),
+  "after": zod.int().describe('What it costs in the re-plan\'s roster.')
+})).describe('Each soft rule that costs something in either, the largest difference first. Empty when `cost_before` is null.')
+}).describe('The re-plan against the roster in force it started from. Both are costed on the re-plan\'s own input, so they compare;\nthe roster in force is its own baseline, so its `change` is always 0, and the re-plan\'s is the price of the cells it\nchanged.'),zod.null()]).describe('Set on a re-plan: its comparison with the roster in force it started from. Its elapsed violations are `elapsed_violations`.')
 })
 
 
@@ -2968,8 +3110,10 @@ export const RestoreSolveResultResponse = zod.object({
   "attempts": zod.int(),
   "cost": zod.union([zod.int(),zod.null()]),
   "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
-  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result.')
-}),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. After a re-plan put its roster in force, that roster\'s grid is the re-plan\'s.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan: the first date it planned again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null for a solve, before the end, and for a re-plan that kept no roster.')
+}).describe('The System Admin\'s row never has these: a re-plan\'s date is about a roster.'),
   "error": zod.string().describe('Why the last attempt failed, also when a retry then worked.'),
   "message": zod.string().describe('Why the solver found no roster or it could not be kept, in its words.'),
   "precheck": zod.array(zod.string()),
@@ -3052,7 +3196,28 @@ export const RestoreSolveResultResponse = zod.object({
   "hours": zod.int().describe('As the solve that made this grid was given them.')
 }))
 }),zod.null()]).describe('The roster it answered, under the codes in use now. Null when it found none.'),
-  "restore_refusal": zod.union([zod.string(),zod.null()]).describe('Why this result cannot be restored as the draft now.')
+  "restore_refusal": zod.union([zod.string(),zod.null()]).describe('Why this result cannot be restored as the draft now.'),
+  "replan": zod.union([zod.object({
+  "replan_from": zod.iso.date(),
+  "recorded_cells_differ": zod.union([zod.int(),zod.null()]).describe('Days before the date whose facts differ from the roster in force, as the solver counted them. Null when it found no roster.'),
+  "based_on": zod.int().describe('The version in force when it started.'),
+  "version": zod.union([zod.int(),zod.null()]).describe('The version it made. Null when it made none.'),
+  "outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]),
+  "changes": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "before": zod.string().describe('The roster in force\'s shift when the re-plan started, under today\'s code. Empty for a day not worked.'),
+  "after": zod.string().describe('The re-plan\'s.')
+})).describe('Each cell its roster changes, by nurse then date. Empty with no roster.'),
+  "cost_before": zod.union([zod.int(),zod.null()]).describe('Null when the solver\'s code could not cost the roster in force.'),
+  "cost_after": zod.union([zod.int(),zod.null()]),
+  "rules": zod.array(zod.object({
+  "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
+  "before": zod.int().describe('What it cost in the roster in force, on the re-plan\'s input.'),
+  "after": zod.int().describe('What it costs in the re-plan\'s roster.')
+})).describe('Each soft rule that costs something in either, the largest difference first. Empty when `cost_before` is null.')
+}).describe('The re-plan against the roster in force it started from. Both are costed on the re-plan\'s own input, so they compare;\nthe roster in force is its own baseline, so its `change` is always 0, and the re-plan\'s is the price of the cells it\nchanged.'),zod.null()]).describe('Set on a re-plan: its comparison with the roster in force it started from. Its elapsed violations are `elapsed_violations`.')
 })
 
 

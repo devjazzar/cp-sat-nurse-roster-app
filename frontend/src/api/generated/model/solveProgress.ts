@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1
  */
 import type { SolveProgressFailure } from './solveProgressFailure';
+import type { SolveProgressReplanOutcome } from './solveProgressReplanOutcome';
 import type { SolveProgressState } from './solveProgressState';
 
 export interface SolveProgress {
@@ -30,4 +31,8 @@ export interface SolveProgress {
   message: string;
   /** What the solver's own precheck said, once it has ended. */
   precheck: string[];
+  /** Set on a re-plan of an approved month: the first date it plans again. */
+  replan_from: string | null;
+  /** What a re-plan's end did to the roster in force. Null until it ends, for a plain solve, and for a re-plan that kept no roster. */
+  replan_outcome: SolveProgressReplanOutcome;
 }

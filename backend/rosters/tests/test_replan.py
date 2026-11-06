@@ -515,3 +515,42 @@ class TestTheComparison:
 
         assert badr.get(url(er, f"/solve-history/{solve.pk}")).status_code == 403
         assert badr.get(url(er, "/roster/versions"), {"month": MONTH}).status_code == 403
+
+
+class TestWhatTheBellSays:
+    WORDS = {
+        "applied": "The re-plan of the ER roster for June 2026 has finished, and its roster is now in force as a new version. "
+                   "The unit's nurses are told the roster has changed.",
+        "unchanged": "The re-plan of the ER roster for June 2026 has finished without changing a cell, so the roster in force "
+                     "stays as it was.",
+        "outdated": "The re-plan of the ER roster for June 2026 has ended, but the roster in force or the month changed while it "
+                    "ran, so it stays as it was. Re-plan again to take that in.",
+        "no roster": "The re-plan of the ER roster for June 2026 has ended with no roster to keep, so the roster in force stays "
+                     "as it was. Its result says why.",
+    }
+
+    def said(self, client, solve) -> dict:
+        from notifications.tests.test_events import told
+        [note] = [note for note in told(client, "solve_ended") if note["text"].startswith("The re-plan")]
+        assert note["link"] == {"page": "roster", "month": MONTH, "unit_id": None}
+        return note["text"]
+
+    def test_applied(self, mona, er, solver, in_force):
+        assert self.said(mona, replanned(mona, er, solver)) == self.WORDS["applied"]
+
+    def test_unchanged(self, mona, er, solver, in_force):
+        assert self.said(mona, replanned(mona, er, solver, answered(copy.deepcopy(IN_FORCE)))) == self.WORDS["unchanged"]
+
+    def test_outdated(self, mona, er, solver, in_force):
+        while_it_runs(solver, lambda: record_leave(mona, er, "Amal", 15))
+        assert self.said(mona, replanned(mona, er, solver, *under_way(SWAPPED))) == self.WORDS["outdated"]
+
+    def test_no_roster(self, mona, er, solver, in_force):
+        assert self.said(mona, replanned(mona, er, solver, answered(SWAPPED, ok=False))) == self.WORDS["no roster"]
+
+    def test_stopped_and_failed(self, mona, er, solver, in_force):
+        from notifications.tests.test_events import told
+        solver.script(RuntimeError("down"), RuntimeError("down"))
+        running.run(started(mona, er)["id"])
+        assert told(mona, "solve_ended")[0]["text"] == ("The re-plan of the ER roster for June 2026 failed, so the roster in "
+                                                        "force stays as it was. Its result says why.")

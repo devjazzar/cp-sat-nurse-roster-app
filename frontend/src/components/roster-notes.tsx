@@ -1,7 +1,7 @@
 import { useGetSolveResult } from "@/api/generated/endpoints"
 import type { Draft, DraftChange, DraftPin, GridCheck, RosterMonth } from "@/api/generated/model"
 import { SolveResultPanels } from "@/components/solve-result"
-import { asDate, hospitalTime } from "@/lib/utils"
+import { hospitalTime, longDay } from "@/lib/utils"
 
 /** What the roster pages say beside a grid: what changed since its solve, what it breaks, and the pins leave ended or that
  *  count for nothing. The manager's page and the approvers' read the same words. */
@@ -16,8 +16,7 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   pins: "pinned cells changed",
 }
 
-const dayOf = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
-export const longDay = (date: string) => dayOf.format(asDate(date))
+export { longDay }
 const shiftWord = (code: string) => (code ? code : "a day off")
 
 const SET_ASIDE: Record<NonNullable<DraftPin["set_aside"]>, string> = {

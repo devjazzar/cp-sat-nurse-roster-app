@@ -6,6 +6,7 @@
  */
 import type { GridView } from './gridView';
 import type { NurseAccounting } from './nurseAccounting';
+import type { ReplanComparison } from './replanComparison';
 import type { RuleResult } from './ruleResult';
 import type { SolverStatistics } from './solverStatistics';
 import type { UnitSolveRow } from './unitSolveRow';
@@ -34,4 +35,6 @@ export interface SolveResult {
   grid: GridView | null;
   /** Why this result cannot be restored as the draft now. */
   restore_refusal: string | null;
+  /** Set on a re-plan: its comparison with the roster in force it started from. Its elapsed violations are `elapsed_violations`. */
+  replan: ReplanComparison | null;
 }

@@ -34,7 +34,32 @@ def _month_name(month: str) -> str:
     return dt.date.fromisoformat(f"{month}-01").strftime("%B %Y")
 
 
+def _replan_words(payload: dict, roster: str) -> str:
+    stays = "so the roster in force stays as it was."
+    match payload.get("outcome"):
+        case SolveOutcome.REPLANNED:
+            return (f"The re-plan of the {roster} has finished, and its roster is now in force as a new version. The unit's "
+                    "nurses are told the roster has changed.")
+        case SolveOutcome.STOPPED_REPLANNED:
+            return (f"The re-plan of the {roster} was stopped, and the best roster it found is now in force as a new version. "
+                    "The unit's nurses are told the roster has changed.")
+        case SolveOutcome.REPLAN_UNCHANGED:
+            return f"The re-plan of the {roster} has finished without changing a cell, {stays}"
+        case SolveOutcome.REPLAN_OUTDATED:
+            return (f"The re-plan of the {roster} has ended, but the roster in force or the month changed while it ran, so it "
+                    "stays as it was. Re-plan again to take that in.")
+        case SolveOutcome.REPLAN_MONTH_OVER:
+            return f"The re-plan of the {roster} has ended after the month did, {stays}"
+        case SolveOutcome.FAILED:
+            return f"The re-plan of the {roster} failed, {stays} Its result says why."
+        case SolveOutcome.NO_ROSTER:
+            return f"The re-plan of the {roster} has ended with no roster to keep, {stays} Its result says why."
+    return f"The re-plan of the {roster} has ended."
+
+
 def _solve_words(payload: dict, roster: str) -> str:
+    if payload.get("replan"):
+        return _replan_words(payload, roster)
     match payload.get("outcome"):
         case SolveOutcome.DRAFT:
             return f"The solve of the {roster} has finished, and its roster is now the draft."

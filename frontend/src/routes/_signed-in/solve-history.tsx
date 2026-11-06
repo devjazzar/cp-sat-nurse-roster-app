@@ -9,7 +9,7 @@ import { monthInAddress } from "@/components/month-nav"
 import { SolveHistoryTable } from "@/components/solve-history-table"
 import { buttonVariants } from "@/components/ui/button"
 import { useChosenUnit } from "@/components/unit-picker"
-import { solveStatus } from "@/lib/solve-words"
+import { replanStatus, solveStatus } from "@/lib/solve-words"
 import { cn, hospitalTime, monthName } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
@@ -56,7 +56,7 @@ function UnitHistory({ unit, month, older_than }: { unit: { id: string; name: st
       {page && page.solves.length === 0 && <p>{month ? `No solve of ${monthName(month)} yet.` : "This unit has not solved a month yet."}</p>}
       {page && page.solves.length > 0 && (
         <SolveHistoryTable<UnitSolveRow> label={`Solves of ${unit.name}`} solves={page.solves}
-          status={(row) => (row.in_draft ? `${solveStatus(row)}, the draft` : solveStatus(row))}
+          status={(row) => (row.replan_from ? replanStatus(row) : row.in_draft ? `${solveStatus(row)}, the draft` : solveStatus(row))}
           trailing={[
             { header: "Cost", end: true, cell: (row) => row.cost ?? "None" },
             {

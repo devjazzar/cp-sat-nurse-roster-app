@@ -11,12 +11,15 @@ import {
   getGetRosterMonthQueryKey,
   getGetSolveProgressQueryKey,
   getListRosterVersionsQueryKey,
+  getPreviewReplanQueryKey,
   getPreviewSolveQueryKey,
   useGetRosterMonth,
   useGetSolveProgress,
+  usePreviewReplan,
   usePreviewSolve,
   useSaveDraftPins,
   useSaveRosterVersion,
+  useStartReplan,
   useStartSolve,
   useStopSolve,
   useSubmitRoster,
@@ -26,6 +29,7 @@ import {
   type Draft,
   type DraftCheck,
   type EditBody,
+  type ReplanPreview,
   type RosterMonth,
   type SolvePreview,
   type SolveProgress,
@@ -63,6 +67,8 @@ const LINK = "underline underline-offset-3"
 
 const isRefusal = (error: unknown) => error instanceof ApiError && error.status < 500
 const isActive = (solve: SolveProgress) => solve.state === "queued" || solve.state === "running"
+/** A re-plan of an approved month, which ends as a new version rather than a draft. */
+const isReplan = (solve: SolveProgress) => !!solve.replan_from
 
 function ProgressCard({ unitId, solve: first, onEnded }: { unitId: string; solve: SolveProgress; onEnded: (solve: SolveProgress) => void }) {
   const queryClient = useQueryClient()
@@ -91,8 +97,12 @@ function ProgressCard({ unitId, solve: first, onEnded }: { unitId: string; solve
   return (
     <Card role="region" aria-labelledby="solve-progress" data-solve-progress>
       <CardHeader>
-        <CardTitle><h3 id="solve-progress" tabIndex={-1} className="outline-none">Solving {monthName(solve.month)}</h3></CardTitle>
-        <CardDescription>You can leave this page: the solve carries on, and its draft is here when you come back.</CardDescription>
+        <CardTitle><h3 id="solve-progress" tabIndex={-1} className="outline-none">
+          {isReplan(solve) ? `Re-planning ${monthName(solve.month)} from ${longDay(solve.replan_from!)}` : `Solving ${monthName(solve.month)}`}
+        </h3></CardTitle>
+        <CardDescription>{isReplan(solve)
+          ? "You can leave this page: the re-plan carries on. When it ends its roster goes in force as a new version, unless the roster in force or the month changes meanwhile."
+          : "You can leave this page: the solve carries on, and its draft is here when you come back."}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-start gap-3">
         {solve.state === "queued" && (
@@ -116,7 +126,7 @@ function ProgressCard({ unitId, solve: first, onEnded }: { unitId: string; solve
         )}
         {stop.isError && <p role="alert" className="text-sm text-destructive">{plainRefusal(stop.error) ?? "The solve could not be stopped. Check your connection and try again."}</p>}
         <Button variant="outline" onClick={stopNow} disabled={stop.isPending || solve.stop_requested}>
-          {solve.stop_requested ? "Stopping…" : solve.state === "queued" ? "Take out of the queue" : "Stop and keep the best roster"}
+          {solve.stop_requested ? "Stopping…" : solve.state === "queued" ? "Take out of the queue" : isReplan(solve) ? "Stop and put the best roster in force" : "Stop and keep the best roster"}
         </Button>
       </CardContent>
     </Card>
@@ -136,8 +146,28 @@ function RulesRefused({ detail }: { detail: string }) {
   )
 }
 
+const IN_FORCE_AS_IT_WAS = "so the roster in force is as it was."
+
+/** Why a re-plan left the roster in force as it was. */
+function WhyNotInForce({ solve }: { solve: SolveProgress }) {
+  if (solve.state === "failed") return <p role="alert">The re-plan failed, {IN_FORCE_AS_IT_WAS} You can run it again. It says: {solve.error}</p>
+  if (solve.replan_outcome === "unchanged") return <p>The re-plan changed no cell, {IN_FORCE_AS_IT_WAS}</p>
+  if (solve.replan_outcome === "outdated") {
+    return <p role="alert">The roster in force or the month changed while the re-plan ran, so its roster was not put in force: it would have undone that change. Re-plan again to take it in.</p>
+  }
+  if (solve.replan_outcome === "month_over") return <p>The month ended while the re-plan ran, so its roster was not put in force.</p>
+  if (solve.state === "cancelled") return <p>The re-plan you stopped had found no roster yet, {IN_FORCE_AS_IT_WAS}</p>
+  return (
+    <>
+      <p role="alert">The re-plan ended with no roster to keep, {IN_FORCE_AS_IT_WAS} {solve.message}</p>
+      {solve.precheck.length > 0 && <ul className="list-disc ps-5 text-sm">{solve.precheck.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
+    </>
+  )
+}
+
 function WhyNoDraft({ solve }: { solve: SolveProgress }) {
   if (solve.failure === "refused") return <RulesRefused detail={solve.error} />
+  if (isReplan(solve)) return <WhyNotInForce solve={solve} />
   if (solve.state === "failed") {
     return <p role="alert">The solve failed, and the draft is as it was. You can run it again. It says: {solve.error}</p>
   }
@@ -327,7 +357,8 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
   submit?: ReactNode
   label: string
   pending: Pending
-  solving: boolean
+  /** What of this month is queued or running, if anything. */
+  solving: "solve" | "replan" | null
   onSaved: (answer: RosterMonth, count: number) => void
 }) {
   const [open, setOpen] = useState<{ cell: EditableCellState; anchor: HTMLElement } | null>(null)
@@ -405,7 +436,8 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
         : approved
           ? <p className="text-sm text-muted-foreground">Choose a cell to change it: a cover, late leave, a swap agreed in person. The arrow keys move between cells. Each save is a new version in force at once, with your reason, and the unit's nurses are told the roster has changed. Changed cells are pinned, so a later re-plan keeps them.</p>
           : <p className="text-sm text-muted-foreground">Choose a cell to pin a shift or a day off, or to clear its pin. The arrow keys move between cells. Pins are kept by every solve of this month.</p>}
-      {solving && editable && <p className="text-sm">A solve of this month is under way. It was given the month as it was when it started, so changes you save now are put on top of its roster when it ends, and the draft then asks you to solve again.</p>}
+      {solving === "replan" && editable && <p className="text-sm">A re-plan of this month is under way. A change saved now makes a new version at once, and the re-plan then ends without changing the roster in force, as its roster would undo yours: re-plan again after.</p>}
+      {solving === "solve" && editable && <p className="text-sm">A solve of this month is under way. It was given the month as it was when it started, so changes you save now are put on top of its roster when it ends, and the draft then asks you to solve again.</p>}
       <RosterGrid grid={draft} label={label} extraShifts={draft.editor.shifts} editing={editable ? { marks, onOpen: openCell } : undefined} />
       <GridLegend grid={draft} editable={editable} />
       {editable && <CellEditor cell={open?.cell ?? null} anchor={open?.anchor ?? null} onChoose={choose}
@@ -515,6 +547,104 @@ function PreviewCard({ unitId, month, onStarted, solvingAgain, unsaved }: { unit
   )
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/** An approved month's re-plan from a date: earlier days are facts, and the solver plans the rest again close to the roster in
+ *  force. Each date asks the server again what the re-plan would be given, and whether it can be that date. */
+function ReplanCard({ unitId, month, onStarted, unsaved }: { unitId: string; month: string; onStarted: () => void; unsaved: boolean }) {
+  const [day, setDay] = useState<string | undefined>(undefined)
+  const preview = usePreviewReplan(unitId, { month, ...(day && { replan_from: day }) }, { query: { placeholderData: keepPreviousData } })
+  const answer = preview.data
+  return (
+    <Card role="region" aria-labelledby="replan">
+      <CardHeader>
+        <CardTitle><h3 id="replan" tabIndex={-1} className="outline-none">Re-plan from a date</h3></CardTitle>
+        <CardDescription>When something changes mid-month, such as a nurse off sick for a week, plan the rest of the month again. The result is a new version, in force at once.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {preview.isPending && <p>Loading…</p>}
+        {preview.isError && <p role="alert">What a re-plan would be given could not be read. Reload the page to try again.</p>}
+        {answer && (answer.refusal
+          ? <p role="alert">{answer.refusal}</p>
+          : <ReplanForm unitId={unitId} preview={answer} onDay={setDay} onStarted={onStarted} unsaved={unsaved} />)}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ReplanForm({ unitId, preview, onDay, onStarted, unsaved }: {
+  unitId: string
+  preview: ReplanPreview
+  onDay: (day: string) => void
+  onStarted: () => void
+  unsaved: boolean
+}) {
+  const start = useStartReplan()
+  const schema = z.object({
+    replan_from: z.string().regex(ISO_DAY, "Choose a date."),
+    time_limit_seconds: z.number("Enter a whole number of seconds.").int("Enter a whole number of seconds.")
+      .min(1, "At least 1 second.").max(preview.time_limit_cap, `The System Admin's cap is ${preview.time_limit_cap} seconds.`),
+    reason: z.string().max(2000, "At most 2000 characters."),
+  })
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { replan_from: preview.replan_from, time_limit_seconds: preview.time_limit_default, reason: "" },
+  })
+  const chosen = form.watch("replan_from")
+  // Only the answer for the date as it stands says whether that date can be one.
+  const current = chosen === preview.replan_from
+  const submit = form.handleSubmit((data) => start.mutate({ unitId, data: { month: preview.month, ...data, reason: data.reason.trim() } }, {
+    onSuccess: onStarted,
+    onError: (error) => showServerErrors(form, error, (loc) => String(loc.at(-1))),
+  }))
+  const refused = start.isError && plainRefusal(start.error)
+  const dateError = form.formState.errors.replan_from ?? (current && preview.date_refusal ? { type: "server", message: preview.date_refusal } : undefined)
+  const version = `version ${preview.in_force}`
+  const reasonError = form.formState.errors.reason
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col items-start gap-4">
+      <p className="text-sm">Days before the date are kept as they happened: {version}, with the leave and pins recorded since. From the date on, the solver plans again, keeping as close to {version} as the change weight makes worth it.</p>
+      {current && !!preview.recorded_cells_differ && (
+        <p className="text-sm">{plural(preview.recorded_cells_differ, "cell")} before the date already {preview.recorded_cells_differ === 1 ? "differs" : "differ"} from {version}: leave or a pin recorded since, kept as fact.</p>
+      )}
+      {preview.change_weight === 0 && <p className="text-sm">The change weight is 0, so nothing keeps the re-plan close to {version}: it may change any cell from the date on. The CNO sets the weights.</p>}
+      <div className="w-48">
+        <FormField label="Re-plan from" type="date" min={preview.earliest} max={preview.latest}
+          description={`From ${longDay(preview.earliest)} to ${longDay(preview.latest)}.`}
+          registration={form.register("replan_from", { onChange: (event) => { if (ISO_DAY.test(event.target.value)) onDay(event.target.value) } })}
+          error={dateError} />
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm tabular-nums">
+        <dt className="text-muted-foreground">Nurses</dt>
+        <dd>{preview.summary.nurses}</dd>
+        <dt className="text-muted-foreground">Days of leave</dt>
+        <dd>{preview.summary.leave_days}</dd>
+        <dt className="text-muted-foreground">Pinned cells</dt>
+        <dd>{preview.summary.pins}</dd>
+      </dl>
+      {current && (preview.rules_refusal ? <RulesRefused detail={preview.rules_refusal} /> : !preview.date_refusal && <Precheck issues={preview.precheck} />)}
+      <div className="w-48">
+        <FormField label="Time limit (seconds)" type="number" inputMode="numeric" min={1} max={preview.time_limit_cap}
+          description={`Up to ${preview.time_limit_cap}.`}
+          registration={form.register("time_limit_seconds", { valueAsNumber: true })} error={form.formState.errors.time_limit_seconds} />
+      </div>
+      <Field data-invalid={!!reasonError || undefined} className="max-w-xl">
+        <FieldLabel htmlFor="replan-reason">Why (optional)</FieldLabel>
+        <Textarea id="replan-reason" rows={2} aria-invalid={!!reasonError || undefined}
+          aria-describedby={["replan-reason-description", reasonError && "replan-reason-error"].filter(Boolean).join(" ")} {...form.register("reason")} />
+        <FieldDescription id="replan-reason-description">Kept with the new version, for you, the CNO and the Deputy CNO. Left empty, it says the date. The unit's nurses are told only that the roster changed, never why.</FieldDescription>
+        <FieldError id="replan-reason-error" role={undefined} errors={reasonError ? [reasonError] : undefined} />
+      </Field>
+      {unsaved && <p className="text-sm">Save or discard your changes first: a re-plan is given only what is saved.</p>}
+      {refused && <p role="alert" className="text-sm text-destructive">{refused}</p>}
+      {start.isError && !refused && !Object.keys(form.formState.errors).length && <p role="alert" className="text-sm text-destructive">The re-plan could not be started. Check your connection and try again.</p>}
+      <Button type="submit" disabled={start.isPending || unsaved || !current || !!preview.date_refusal || !!preview.rules_refusal}>
+        {ISO_DAY.test(chosen) ? `Re-plan from ${longDay(chosen)}` : "Re-plan"}
+      </Button>
+    </form>
+  )
+}
+
 function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: string }; month: string | undefined }) {
   const queryClient = useQueryClient()
   const roster = useGetRosterMonth(unit.id, inAddress ? { month: inAddress } : undefined, { query: { placeholderData: keepPreviousData } })
@@ -523,6 +653,8 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: getGetRosterMonthQueryKey(unit.id) }),
     queryClient.invalidateQueries({ queryKey: getPreviewSolveQueryKey(unit.id) }),
+    queryClient.invalidateQueries({ queryKey: getPreviewReplanQueryKey(unit.id) }),
+    queryClient.invalidateQueries({ queryKey: getListRosterVersionsQueryKey(unit.id) }),
   ])
   // Focus was on Start or on Stop, and each goes when the page changes, so it follows to what took their place.
   const focusNext = useRef<string | null>(null)
@@ -538,12 +670,18 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
     void refresh()
   }
   const ended = (solve: SolveProgress) => {
-    setSaid(solve.found_roster
-      ? `The solve ${solve.state === "cancelled" ? "stopped" : "finished"} with a cost of ${solve.best_cost}, and the draft is replaced.`
-      : "The solve ended with no new draft.")
+    const how = solve.state === "cancelled" ? "stopped" : "finished"
+    const inForce = solve.replan_outcome === "version"
+    setSaid(!isReplan(solve)
+      ? (solve.found_roster ? `The solve ${how} with a cost of ${solve.best_cost}, and the draft is replaced.` : "The solve ended with no new draft.")
+      : inForce
+        ? `The re-plan ${how} with a cost of ${solve.best_cost}, and its roster is now in force as a new version. The unit's nurses are told the roster has changed.`
+        : "The re-plan ended, and the roster in force is as it was. The page says why.")
     // Only if focus was on Stop, which is going, or nowhere: a solve can end minutes later, with the manager elsewhere on the page.
     const onTheCard = document.activeElement?.closest("[data-solve-progress]")
-    if (onTheCard || document.activeElement === document.body) focusNext.current = solve.found_roster ? "draft" : "before-solving"
+    if (onTheCard || document.activeElement === document.body) {
+      focusNext.current = isReplan(solve) ? (inForce ? "draft" : "replan") : solve.found_roster ? "draft" : "before-solving"
+    }
     void refresh()
   }
   const pending = usePendingEdits()
@@ -586,9 +724,10 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
           {!active && answer.last_solve && <LastSolve solve={answer.last_solve} />}
           <RosterStatus answer={answer} />
           {answer.draft && <DraftCard unitId={unit.id} month={answer.month} draft={answer.draft} state={answer.state}
-            label={`${ROSTER_HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}`} pending={pending} solving={!!active} onSaved={saved}
+            label={`${ROSTER_HEADING[answer.state]} of ${unit.name}, ${monthName(answer.month)}`} pending={pending} solving={active ? (isReplan(active) ? "replan" : "solve") : null} onSaved={saved}
             submit={answer.state === "draft" && <SubmitForm unitId={unit.id} answer={answer} unsaved={unsaved} onSubmitted={submitted} />} />}
           {!answer.draft && !active && !answer.last_solve && <p>No draft yet for {monthName(answer.month)}.</p>}
+          {!active && answer.state === "approved" && <ReplanCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} unsaved={unsaved} />}
           {!active && !frozen && <PreviewCard key={answer.month} unitId={unit.id} month={answer.month} onStarted={started} solvingAgain={!!answer.draft} unsaved={unsaved} />}
         </>
       )}

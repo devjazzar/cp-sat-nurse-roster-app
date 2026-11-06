@@ -25,6 +25,9 @@ def _scene(before_june, solver, empty_queue):
     pass
 
 
+from rosters.tests.test_replan import mid_june  # noqa: E402, F401
+
+
 @pytest.fixture
 def pool():
     with ThreadPoolExecutor(max_workers=1) as executor:
@@ -162,3 +165,55 @@ def test_a_rename_waits_for_leave_taking_shifts_off_two_approved_months_and_then
         held = roster(er, month).grid
         assert "N" not in {code for row in held.values() for code in row.values()}
         assert roster(er, month).grid == in_current_codes(roster(er, month).versions.first().grid)
+
+
+class TestAReplansEnd:
+    """A re-plan's end takes the catalogue's lock, the month's nurses' (`FOR NO KEY UPDATE`), the unit's and the roster's, as an
+    approval does, so a leave or an edit either comes before it, and is then what makes its roster out of date, or after it, on
+    top of the version it made."""
+
+    @pytest.fixture
+    def under_way(self, mona, carla, er, solver, mid_june):
+        from rosters.tests.test_replan import SWAPPED, answered, started
+        approved(mona, carla, er, solver)
+        mid_june()
+        solver.script([answered(SWAPPED)])
+        return started(mona, er)["id"]
+
+    def test_it_waits_for_leave_on_a_day_off_and_then_leaves_its_roster_out(self, mona, er, under_way, pool):
+        """Amal is off on the 15th in the roster in force and on Day there in the re-plan's. Without the nurses' lock the end
+        would read the month before the leave committed and put her to work on her leave day."""
+        from solves import running
+        from solves.models import ReplanOutcome, Solve
+        with transaction.atomic():
+            assert record_leave(mona, er, "Amal", 15).status_code == 201
+            end = alongside(pool, lambda: running.run(under_way))
+            assert not end.done()
+
+        end.result()
+        assert Solve.objects.get(pk=under_way).replan_outcome == ReplanOutcome.OUTDATED
+        assert roster(er).versions.first().number == 1 and roster(er).grid["Amal"]["2026-06-15"] == ""
+
+    def test_leave_waits_for_it_and_then_takes_its_shift_off_as_the_next_version(self, mona, er, under_way, pool):
+        from solves import running
+        with transaction.atomic():
+            running.run(under_way)
+            leave = alongside(pool, lambda: record_leave(mona, er, "Amal", 15))
+            assert not leave.done()
+
+        assert leave.result().status_code == 201
+        numbers = list(roster(er).versions.order_by("number").values_list("number", "origin"))
+        assert numbers == [(1, "solve"), (2, "replan"), (3, "edit")]
+        assert roster(er).grid["Amal"]["2026-06-15"] == "" and roster(er).grid["Emad"]["2026-06-15"] == ""
+        assert roster(er).grid == roster(er).versions.first().grid
+
+    def test_an_edit_waits_for_it_and_builds_on_its_version(self, mona, er, under_way, pool):
+        from solves import running
+        with transaction.atomic():
+            running.run(under_way)
+            edit = alongside(pool, lambda: change(mona, er, pin("Badr", 20, "D"), reason="Badr asked."))
+            assert not edit.done()
+
+        assert edit.result().status_code == 200
+        latest = roster(er).versions.first()
+        assert latest.number == 3 and latest.grid["Amal"]["2026-06-15"] == "D" and latest.grid["Badr"]["2026-06-20"] == "D"
