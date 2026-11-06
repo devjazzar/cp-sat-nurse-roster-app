@@ -129,6 +129,32 @@ class TestTheSchedule:
         starts = {row["id"]: {key: row[key] for key in CARRIED} for row in july.input["nurses"]}
         assert starts == carried(june)
 
+    def test_it_locks_as_an_approval_does(self, june, er, on):
+        """The catalogue's row, the month's nurses and their users `FOR NO KEY UPDATE`, the unit's, then the roster's."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        on(dt.date(2026, 7, 1))
+
+        with CaptureQueriesContext(connection) as queries:
+            closing.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        locks = [query["sql"] for query in queries.captured_queries if " FOR " in query["sql"]]
+        tables = [next(table for table in ("hospital_hospitalsettings", "nurses_nurseprofile", "units_unit", "rosters_roster",
+                                           "requesting_request") if f'FROM "{table}"' in sql) for sql in locks]
+        assert tables[:4] == ["hospital_hospitalsettings", "nurses_nurseprofile", "units_unit", "rosters_roster"]
+        nurses = locks[1]
+        assert "FOR NO KEY UPDATE OF" in nurses and '"nurses_nurseprofile"' in nurses.split("FOR NO KEY UPDATE OF")[1]
+        assert '"accounts_user"' in nurses.split("FOR NO KEY UPDATE OF")[1]
+
+    def test_it_stays_out_of_the_system_admins_solve_history(self, june, er, on, client_of):
+        admin = client_of("sam", Role.SYSTEM_ADMIN)
+        before = ok(admin.get("/api/solve-history"))
+        on(dt.date(2026, 7, 1))
+
+        closing.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        assert ok(admin.get("/api/solve-history")) == before
+
     def test_it_never_asks_the_solver_service(self, june, er, on, monkeypatch):
         def refuse_to_solve(solve_input):
             raise AssertionError("A close never calls POST /solve")

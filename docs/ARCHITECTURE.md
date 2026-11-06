@@ -133,7 +133,8 @@ the environment (section 2), set at install; and the request cap is each unit's 
 default.
 
 **Shift** (catalogue): code (the solver's name), display name, hours, start and end time,
-colour, active flag. Hours cannot change while an open month's roster uses the shift; the
+colour, active flag. Hours cannot change while an open month's roster uses the shift (a month not closed: one not over, or
+an approved one over that its close will read; a closed month stored the hours it read); the
 code may be renamed (each rename is recorded, the app carries the old name through nurses'
 histories, and the forbidden successions, every unit's rules and every list of allowed shifts follow
 at once, and no other shift may take a code a shift used to hold); a shift a live unit still uses, or
@@ -218,14 +219,15 @@ next write about the unit, whichever comes first (`requesting.windows`). At most
 one has closed, another may target any month, the same one included. A unit whose request cap is 0 opens none.
 
 **Request**: nurse, window, date, a shift or a day off, state (`pending`, `accepted`, `rejected`, `withdrawn`, `cancelled`,
-`replaced_by_leave`), and its steps: who made, withdrew, accepted, rejected, edited or cancelled it, when, and the reason given
+`replaced_by_leave`, `expired`), and its steps: who made, withdrew, accepted, rejected, edited or cancelled it, when, and the reason given
 (the nurse's when she made it, the manager's for a decision), which only she and the unit's manager read. At most one request a
 nurse and date is pending or accepted, and those two states count against the unit's cap a nurse a month, across the month's
 windows; a cap lowered later stops new requests and leaves those made. Only an accepted request reaches the solver, as a pinned
 cell of origin `request`, judged as any pin is (`rosters.pins.Judge`): a manager's pin on its cell is replaced, a swap's refuses
 it. An edit changes what the pin promises and keeps what was asked. Leave recorded over an accepted request ends its pin and
 makes it `replaced_by_leave`, and its nurse is told. Nothing is deleted: a request the manager cancels after acceptance becomes
-`cancelled`, its pin ends and no cell changes.
+`cancelled`, its pin ends and no cell changes. One still pending when its month closes becomes `expired`, with a step of no one's
+hand and the same words for everyone ("The month closed before a decision."), and its nurse is told.
 
 **Swap**: unit, roster, the roster version it was proposed on, proposer, the proposer's note, the set of cell changes (nurse,
 date, the shift or off before, the new shift or off, and the pin its approval made), the participants (every colleague whose cells
@@ -246,11 +248,15 @@ solve of a unit's month is active at a time. A re-plan is a solve with the date 
 manager's reason for the version it makes, and what its end did to the roster in force (`version`, `unchanged`, `outdated`,
 `month_over`).
 
-**Month close**: unit, month, closed at, closed by (system or manager), the close result,
-and the carry-over per nurse.
+**Month close**: unit, month, closed at, closed by (none for the schedule, or the manager closing it again), the roster version
+closed, the input it was worked out on (the roster in force as `published`, the first day after the month as `replan_from`) and
+the close result: the month as it happened, what the facts broke and each nurse's hours accounting and carry-over, as a solve's
+`nurses` block reads. It is not a solve, so it is in neither solve history. Nothing rewrites it: closing again is a new row, and
+the latest of a unit's month is the close in force.
 
-**Carry-over** (per nurse and month): the values and their source (`opening`, `projected`,
-`closed`).
+**Carry-over** (per nurse and month): the values and their source (`opening`, `projected`, `closed`). A closed row belongs to its
+close and is never rewritten; a projected row is the latest worked out for that month, a record only, since an assembly works the
+chain out again; opening values are the nurse profile's and have no row.
 
 **Notification**: user, event, payload, when it was read. The payload holds identifiers only (a unit, a month, a solve, a
 version number), and the words are worked out as it is read, from what those name then: a rename or a corrected name leaves
@@ -308,8 +314,8 @@ backup time and retention, close time.
   cell makes no version and tells no nurse; no roster, or one breaking a hard rule, leaves the roster in force as it was. A
   stopped re-plan's best roster goes in force like a finished one's. Its result shows the comparison with the roster in force it
   started from: the cells changed, the cost of each on the re-plan's input, rule by rule, and the facts that broke rules. A nurse reads the roster in force on My roster and no
-  version list. Leave recorded late is such a change too (section 4). A month already over cannot be edited; its close
-  (ticket 21) reads leave and pins itself.
+  version list. Leave recorded late is such a change too (section 4). A month already over cannot be edited; its close reads
+  leave and pins itself.
 - A month with no approved roster shows "no roster yet" to its nurses; the CNO's and the Deputy CNO's homes
   list submitted rosters waiting, oldest first. A nurse sees their unit's approved roster for this month and later, the unit
   being the one each month falls under for them: names and shifts only, a colleague's leave the same empty cell as a day off,
@@ -375,9 +381,23 @@ backup time and retention, close time.
   recorded leave and pin becomes fact, the solver validates and reports what the facts broke,
   and the carry-over is stored. A unit with no approved roster is skipped; the next month then
   starts from the last closed carry-over with no shift history.
-- The unit manager may record late facts and re-close while the following month is not
-  closed. A close always takes the previous closed month's carry-over as its input, never a
-  projection.
+- What becomes fact (`closing.closing`): the solver's own loader with every day elapsed makes a pin that counts a fact, then
+  leave and the days outside a nurse's dates, then the roster in force. The pins are `rosters.pins.month_pins` with the month's
+  facts: a pin set aside for its day counts for nothing, one on a shift since dropped or no longer allowed was worked and
+  counts. A shift the roster or a pin holds that the unit has since stopped working, or that was retired, counts as worked (the
+  user's decision): the close lists it among the unit's shifts for its own input, with the hours it had. The solver reports
+  what the facts broke (`elapsed_violations`); a close never refuses them. Requests of the month still pending expire. The
+  schedule's close tells the unit's manager, with how many hard rules broke read when shown; the audit log says only which
+  version closed and whether again.
+- The unit manager may record late facts (leave, and corrections to a nurse's dates) and close again, on the Roster page,
+  while the following month is not closed; the page says when the facts read now differ from the close's. Pins and hand edits
+  of a month over stay closed. Once the month after has closed the month is fixed for good: its leave, and a start or end date
+  that would change which of its days counted (with a first placement reaching back into it), are refused, naming it. A
+  nurse's opening values lock at her first close, refused on their own fields. A close always takes the previous closed
+  month's carry-over as its input, never a projection; months with no approved roster in between hand on what came in, with no
+  shift history. A shift renamed since is mapped into histories (`renamed_shifts`).
+- A draft solved before the month before it closed warns that the month before has closed since (`closed` among its changes),
+  and is checked again on the month as it stands, as at submit. A re-plan is never made outdated by a close.
 - The carry-over handed into January has overtime-to-date and both fairness balances reset
   to zero.
 - Days before a nurse's start date and after her end date are credited like leave in every
@@ -421,7 +441,9 @@ minute takes a lock of its own. Jobs:
 - `recover_lost_jobs` (every five minutes): puts a dead worker's job back on the queue, which would
   otherwise hold the lock for good, and fails a solve whose job is gone.
 - `close_month` (hourly, minute 30): closes every unit's month whose close time has passed on the hospital's clock and
-  is not closed, so a worker that was down catches up; and `project_carry_over` on demand. Neither calls the solver
+  is not closed, oldest month first across units, so a worker that was down catches up; and `project_carry_over` on demand,
+  after every new roster version and every close, under its own lock, which stores the projected carry-over of an approved
+  month and of the unit's approved months after it. Neither calls the solver
   service: the carry-over is worked out in the worker's process by `solver_service.grid`. A solve of a later month
   that is queued or running goes on, and its draft is warned of as older than the close.
 - `backup` (cron, 02:00) and backup retention.

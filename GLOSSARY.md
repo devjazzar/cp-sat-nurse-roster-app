@@ -120,7 +120,7 @@ _Avoid_: absence type, leave category
 ### Requests
 
 **Request**:
-A nurse's wish about one date of a coming month, made during a request window and accepted or rejected by her unit manager: either a day off or a specific shift. Accepted, it is a promise the roster keeps, as a pinned cell; rejected, withdrawn, cancelled or replaced by leave recorded on its date, it stays on record and never reaches the solver. Only she and her unit manager read it and its reasons.
+A nurse's wish about one date of a coming month, made during a request window and accepted or rejected by her unit manager: either a day off or a specific shift. Accepted, it is a promise the roster keeps, as a pinned cell; rejected, withdrawn, cancelled, replaced by leave recorded on its date, or expired because its month closed before a decision, it stays on record and never reaches the solver. Only she and her unit manager read it and its reasons.
 _Avoid_: solve request, preference, wish, day request
 
 **Request window**:
@@ -164,7 +164,7 @@ The carry-over computed from a month's roster in force before that month has clo
 _Avoid_: estimate, provisional balance
 
 **Month close**:
-Recording what really happened in a month that has ended and computing its carry-over from that record and the previous month's closed carry-over. The close may be redone while the following month is still open.
+Recording what really happened in a month that has ended and computing its carry-over from that record and the previous month's closed carry-over. The close may be redone while the following month is still open; once that month has closed too, the month is fixed for good.
 _Avoid_: month-end reconciliation, closing, finalisation
 
 **Solve history**:
