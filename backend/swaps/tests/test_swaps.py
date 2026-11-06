@@ -7,7 +7,7 @@ import pytest
 from accounts.models import Role, User
 from audit.models import AuditEntry
 from conftest import post
-from hospital.models import LeaveType
+from hospital.models import FixedRamadanMonth, LeaveType
 from notifications.models import Event, Notification
 from notifications.tests.test_events import as_user, told
 from nurses.models import NurseProfile, Placement
@@ -223,6 +223,25 @@ def _overtime(mona, unit):
     NurseProfile.objects.filter(user__username="Emad").update(ytd_overtime=720)
 
 
+# Emad's overtime this year at 712 hours leaves room for the one more Day shift of `SOUND_SWAP`, and no more: each fact below
+# lowers the hours his month owes, so that shift would take him past the overtime cap.
+NEAR_THE_CAP = 712
+
+
+def _ramadan_reduced(mona, unit):
+    NurseProfile.objects.filter(user__username="Emad").update(ytd_overtime=NEAR_THE_CAP, ramadan_reduced=True)
+    FixedRamadanMonth.objects.update_or_create(month="2026-06", defaults={"dates": [dt.date(2026, 6, day) for day in (1, 2, 3)]})
+
+
+def _breastfeeding(mona, unit):
+    NurseProfile.objects.filter(user__username="Emad").update(ytd_overtime=NEAR_THE_CAP, breastfeeding=True)
+
+
+def _hours_worked_ahead(mona, unit):
+    """What his contract still asks of him this month: two shifts' hours already worked ahead."""
+    NurseProfile.objects.filter(user__username="Emad").update(ytd_overtime=NEAR_THE_CAP, hours_balance=-24)
+
+
 def _request(mona, unit):
     opened(mona, unit)
     made = asked(as_user("Emad"), 9)
@@ -241,7 +260,11 @@ class TestWhatTheProposerMayNotLearn:
         (_transfer, "D", "Emad is not on this unit's roster for June 2026."),
         (_deactivated, "D", "Emad is not on this unit's roster for June 2026."),
         (_overtime, "D", "overtime"),
-    ], ids=["leave", "allowed_shifts", "end_date", "transferred", "deactivated", "overtime"])
+        (_ramadan_reduced, "D", "overtime"),
+        (_breastfeeding, "D", "overtime"),
+        (_hours_worked_ahead, "D", "overtime"),
+    ], ids=["leave", "allowed_shifts", "end_date", "transferred", "deactivated", "overtime", "ramadan_reduced", "breastfeeding",
+            "contract_hours"])
     def test_a_colleagues_hidden_fact(self, in_force, nurse, mona, fact, shift, manager_reads):
         badr = nurse("Badr")
         if fact:
@@ -253,6 +276,12 @@ class TestWhatTheProposerMayNotLearn:
         nothing_hidden_in(response.content.decode())
         assert not Swap.objects.exists() and not Notification.objects.filter(event=Event.SWAP_STEP).exists()
         self.the_manager_reads_why(mona, in_force, manager_reads, shift)
+
+    def test_without_a_reduction_the_same_overtime_leaves_room_for_the_swap(self, in_force, nurse):
+        """So in the three cases above the reduction, not the overtime, is what refuses it."""
+        NurseProfile.objects.filter(user__username="Emad").update(ytd_overtime=NEAR_THE_CAP)
+
+        assert propose(nurse("Badr"), *SOUND_SWAP).status_code == 201
 
     @staticmethod
     def the_manager_reads_why(mona, unit, words, shift):
