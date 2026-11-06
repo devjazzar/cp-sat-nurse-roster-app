@@ -13,6 +13,7 @@ from django.db import connection, connections
 from procrastinate import PsycopgConnector
 from procrastinate.contrib.django import app
 from procrastinate.contrib.django.db_cleanup import with_db_cleanup
+from procrastinate.contrib.django.models import ProcrastinateJob
 from procrastinate.contrib.django.utils import connector_params
 
 from accounts.models import Role, User
@@ -158,17 +159,23 @@ def started(client, unit, month=MONTH, seconds=60) -> dict:
     return response.json()
 
 
-def run_the_queue() -> None:
+def run_the_queue(concurrency: int = 1) -> None:
     """A real worker, on real connections and with the cleanup `manage.py procrastinate worker` has, until the queue is empty:
-    needs `django_db(transaction=True)`."""
+    needs `django_db(transaction=True)`. `deploy/compose.yaml` runs it at a concurrency of 4 (ADR 0009). A worker that does not
+    wait stops once it finds nothing it may fetch, which at a concurrency above 1 can be while a job waits on another's lock, so it
+    is run again until no job waits."""
     async def work():
         queue_app = app.with_connector(PsycopgConnector(kwargs=connector_params()))
         async with queue_app.open_async():
             await queue_app.run_worker_async(wait=False, install_signal_handlers=False, listen_notify=False,
-                                           **with_db_cleanup(None))
+                                           concurrency=concurrency, **with_db_cleanup(None))
         # The periodic deferrer's connection, which nothing else closes and which would stop the test database being dropped.
         await sync_to_async(connections.close_all, thread_sensitive=True)()
-    asyncio.run(work())
+    for _ in range(100):
+        asyncio.run(work())
+        if not ProcrastinateJob.objects.filter(status="todo").exists():
+            return
+    raise AssertionError("jobs still wait on the queue")
 
 
 @pytest.fixture

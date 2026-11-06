@@ -69,7 +69,8 @@ services:
 
   worker:
     <<: *app
-    command: python manage.py procrastinate worker
+    # Four at once, so a scheduled job never waits behind a running solve: every job takes a lock (ADR 0009).
+    command: python manage.py procrastinate worker --concurrency 4
     environment: *django-env
     depends_on:
       # `web` has run the migrations once it is healthy, the queue's tables among them.

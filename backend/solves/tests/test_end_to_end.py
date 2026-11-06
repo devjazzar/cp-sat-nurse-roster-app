@@ -202,3 +202,29 @@ def test_a_re_plan_from_a_date_keeps_the_days_before_it_and_becomes_a_version(mo
     comparison = mona.get(url(er, f"/solve-history/{stored.pk}")).json()["replan"]
     assert comparison["based_on"] == 2 and comparison["cost_after"] == stored.result["cost"]
     assert comparison["cost_before"] is not None and comparison["rules"]
+
+
+def test_a_real_month_closes_with_the_carry_over_its_real_solve_worked_out(mona, er, client_of, monkeypatch):
+    """Ticket 21 with the real solver: the four-nurse sample solved by the service, approved, and closed by the schedule. Nothing
+    was recorded after the solve, so the close's facts are its roster, and each nurse's hours and carry-over are the solve's own
+    `nurses` block: the close's no-search computation (`solver_service.grid.nurses_of`) is the solver's."""
+    from django.utils import timezone
+
+    from closing import closing
+    from nurses import membership
+    from rosters.tests.test_review import approve, submit
+    carla = client_of("carla", Role.CNO, full_name="Carla CNO")
+    solve = started(mona, er, seconds=30)
+    run_the_queue()
+    stored = Solve.objects.get(pk=solve["id"])
+    assert stored.result["ok"] is True
+    assert submit(mona, er).status_code == 200 and approve(carla, er).status_code == 200
+    monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 7, 1))
+
+    [close] = closing.catch_up(timezone.make_aware(dt.datetime(2026, 7, 1, 0, 30)))
+
+    assert close.result["facts"] == stored.result["roster"]
+    accounting = ("leave", "contract", "leave_credit", "required", "hours_worked", "overtime", "shortfall", "shifts", "carry_over")
+    assert {nurse: {key: row[key] for key in accounting} for nurse, row in close.result["nurses"].items()} == {
+        nurse: {key: row[key] for key in accounting} for nurse, row in stored.result["nurses"].items()}
+    assert close.result["elapsed_violations"] == []

@@ -325,3 +325,48 @@ class TestTheChain:
         from nurse_roster.request import load_request
         loaded = load_request(july)
         assert all("N" not in nurse.previous for nurse in loaded.problem.nurses)
+
+
+class TestThreeMonths:
+    """The chain across June, July and August, solved by the scripted solver and approved through the API: each month's close starts
+    from the one before's, a late fact closed again in the middle moves what the month after starts from, and every month's
+    projection is the same computation as its close."""
+
+    @pytest.fixture
+    def three(self, mona, carla, er, solver):  # noqa: F811
+        from hospital.models import FixedRamadanMonth
+        for month in ("2026-07", "2026-08"):
+            FixedRamadanMonth.objects.get_or_create(month=month, defaults={"dates": []})
+        for month in ("2026-06", "2026-07", "2026-08"):
+            approved(mona, carla, er, solver, month)
+
+    def starts(self, close: MonthClose) -> dict[str, dict]:
+        return {row["id"]: {key: row[key] for key in CARRIED} for row in close.input["nurses"]}
+
+    def test_each_close_starts_from_the_close_before(self, three, mona, er, on):
+        projected = {month: Chain().carry_out(Roster.objects.get(unit=er, month=month)) for month in (JUNE, JULY, AUGUST)}
+        on(dt.date(2026, 9, 1))
+
+        june, july, august = closing.catch_up(at(dt.date(2026, 9, 1), 1))
+
+        assert [close.month for close in (june, july, august)] == [JUNE, JULY, AUGUST]
+        assert self.starts(july) == carried(june) and self.starts(august) == carried(july)
+        # Nothing was recorded late, so each projection was what its close found.
+        assert [carried(close) for close in (june, july, august)] == [projected[month] for month in (JUNE, JULY, AUGUST)]
+        view = close_view(mona, er, "2026-08")
+        assert {(row["into"]["source"], row["into"]["out_of"], row["out"]["source"]) for row in view["carry_over"]} == {
+            ("closed", "2026-07", "closed")}
+
+    def test_a_late_fact_closed_again_in_the_middle_moves_what_the_next_month_starts_from(self, three, mona, er, on):
+        on(dt.date(2026, 8, 3))
+        june, july = closing.catch_up(at(dt.date(2026, 8, 3), 1))
+        worked = next(day for day in range(1, 32) if SOUND["2026-07"]["roster"]["Badr"][f"2026-07-{day:02d}"])
+        before = assemble(er, AUGUST).carried["Badr"]
+
+        assert record_leave(mona, er, "Badr", worked, "2026-07").status_code == 201
+        assert ok(close_again(mona, er, "2026-07"))["closed"]["changed_since"] is False
+
+        after = assemble(er, AUGUST).carried["Badr"]
+        assert before.source == after.source == CarrySource.CLOSED
+        assert after.values["previous"] != before.values["previous"]
+        assert self.starts(closing.latest_close(er, JULY)) == self.starts(july) == carried(june)  # The same start: June's close.

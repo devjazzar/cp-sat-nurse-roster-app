@@ -27,9 +27,11 @@ def finished():
     return [job("finished", result=result_of(roster_of(NURSES)))]
 
 
-def test_first_come_first_served_across_two_units_one_at_a_time(mona, er, icu_manager, icu, solver, before_june, monkeypatch):
+@pytest.mark.parametrize("concurrency", [1, 4])
+def test_first_come_first_served_across_two_units_one_at_a_time(mona, er, icu_manager, icu, solver, before_june, monkeypatch,
+                                                                concurrency):
     """Three solves, so the middle one belongs to the other unit. The scripted solver proves none overlapped: each `start_solve`
-    finds the row before it ended."""
+    finds the row before it ended. At the worker's concurrency of 4 too: the solves share one lock (ADR 0009)."""
     solver.script(finished(), finished(), finished())
     first, second, third = started(mona, er), started(icu_manager, icu), started(mona, er, "2026-07")
     assert [first["queue_ahead"], second["queue_ahead"], third["queue_ahead"]] == [0, 1, 2]
@@ -42,7 +44,7 @@ def test_first_come_first_served_across_two_units_one_at_a_time(mona, er, icu_ma
         return original(solve_input)
     monkeypatch.setattr(solver_client, "start_solve", seen)
 
-    run_the_queue()
+    run_the_queue(concurrency)
 
     assert order == ["ER", "ICU", "ER"]
     ended = [Solve.objects.get(pk=row["id"]) for row in (first, second, third)]
@@ -95,3 +97,67 @@ def test_a_solve_and_its_job_arrive_together(mona, er, before_june, solver):
         cursor.execute("SELECT count(*), max(id) FROM procrastinate_jobs WHERE task_name LIKE '%run_solve'")
         count, job_id = cursor.fetchone()
     assert count == 1 and Solve.objects.get().job_id == job_id
+
+
+def test_every_periodic_job_takes_a_lock_under_its_own_name(transactional_db):
+    """Its queueing lock keeps a second copy from waiting, and its lock keeps it from running beside its own previous run, at the
+    worker's concurrency of 4 (ADR 0009). Solves keep the hospital-wide one."""
+    from procrastinate.contrib.django import app
+
+    periodic = [task.task for task in app.periodic_registry.periodic_tasks.values()]
+    assert {task.name.rsplit(".", 1)[-1] for task in periodic} >= {"close_month", "recover_lost_jobs", "expire_swaps",
+                                                                   "open_and_close_request_windows", "close_ended_nurses"}
+    for task in periodic:
+        task.defer(timestamp=0)
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT task_name, lock, queueing_lock FROM procrastinate_jobs")
+        rows = cursor.fetchall()
+    assert len(rows) == len(periodic)
+    assert all(lock == queueing_lock == name.rsplit(".", 1)[-1] for name, lock, queueing_lock in rows)
+
+
+def july_roster() -> dict:
+    return {nurse: {f"2026-07-{day:02d}": "D" for day in range(1, 32)} for nurse in NURSES}
+
+
+def test_a_scheduled_job_runs_beside_a_solve_and_a_close_never_waits_for_one(mona, er, solver, monkeypatch, client_of):
+    """At the worker's concurrency of 4, with a solve held open by the scripted solver until the close's row exists: nothing waits
+    on a clock. A worker that ran one job at a time would never let the close run, and the solve would end on its own read
+    count, with no close."""
+    import datetime as dt
+
+    from closing.models import MonthClose
+    from closing.tasks import close_month
+    from nurses import membership
+    from rosters.tests.test_review import approve, ok, solved, submit
+    from solves.tests.conftest import result_of
+
+    monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 5, 15))
+    carla = client_of("carla", Role.CNO, full_name="Carla CNO")
+    solved(mona, er, solver)
+    ok(submit(mona, er))
+    ok(approve(carla, er))
+    monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 7, 2))
+    solve = started(mona, er, "2026-07")
+    seen, reads = [], [0]
+
+    def held_open(job_id):
+        reads[0] += 1
+        if not seen and (MonthClose.objects.exists() or reads[0] > 20000):
+            seen.append((MonthClose.objects.exists(), Solve.objects.get(pk=solve["id"]).state))
+            solver.reads[job_id] = [job("finished", result=result_of(july_roster()) | {"month": "2026-07"})]
+    solver.on_read = held_open
+    solver.script([job("running")])
+    close_month.defer(timestamp=0)
+    recover_lost_jobs.defer(timestamp=0)
+
+    run_the_queue(concurrency=4)
+
+    assert seen == [(True, "running")]
+    assert Solve.objects.get(pk=solve["id"]).state == "succeeded"
+    assert [(close.unit_id, close.month) for close in MonthClose.objects.all()] == [(er.pk, dt.date(2026, 6, 1))]
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT task_name, status FROM procrastinate_jobs ORDER BY id")
+        statuses = {name.rsplit(".", 1)[-1]: status for name, status in cursor.fetchall()}
+    # The worker's own periodic deferrer may add the hourly jobs due now; whatever ran, none failed.
+    assert {"run_solve", "close_month", "recover_lost_jobs"} <= set(statuses) and set(statuses.values()) == {"succeeded"}
