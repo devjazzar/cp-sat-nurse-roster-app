@@ -30,7 +30,7 @@
 
 **Implemented on 2026-11-06,** on branch `claude/ticket-17-replan-b2d1df`. The backend ran under pytest on a throwaway PostgreSQL 18 container of my own, the frontend under Vitest with the real routes and generated client over a stubbed `fetch`.
 
-- Results on the final code: see the last lines of this comment (`RESULTS`).
+- Results on the final code: backend 1854 passed, frontend 466 of 466, and `npm run build` clean.
 - `makemigrations --check` is clean (one new migration, `solves.0002_replan`), and `frontend/openapi.json` is the same as a fresh export.
 - **The frontend suite ran alone in this worktree, not in clean exports in parallel.** That is left to the session that brings this into `main`.
 - The solver's suite was not run: nothing under `solver/` changed.
