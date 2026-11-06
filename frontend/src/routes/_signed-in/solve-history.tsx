@@ -96,7 +96,8 @@ function HospitalHistory({ older_than }: { older_than: string | undefined }) {
       <h1 ref={heading} tabIndex={-1} className="text-xl font-medium outline-none">Solve history</h1>
       <p className="text-muted-foreground">
         Every unit's solves, newest first, with times in hospital time. No roster or nurse appears here. A solve's own words could name a nurse, so a failed
-        solve says only which kind of failure it was; its unit's manager reads the rest.
+        solve says only which kind of failure it was; its unit's manager reads the rest and can run it again. For the solver or the worker, their logs on the
+        server say more.
       </p>
       {history.isPending && <p>Loading…</p>}
       {history.isError && <p role="alert">The solve history could not be read. Reload the page to try again.</p>}

@@ -198,7 +198,7 @@ describe("arriving on a page", () => {
     // Not on the first load: the keyboard starts from the top of the page.
     expect(document.activeElement).toBe(document.body)
 
-    await user.click(screen.getByRole("link", { name: "Technical settings" }))
+    await user.click(within(screen.getByRole("navigation")).getByRole("link", { name: "Technical settings" }))
 
     await screen.findByLabelText("Backup time")
     await waitFor(() => expect(document.title).toBe("Technical settings · Nurse roster"))
@@ -5016,7 +5016,7 @@ describe("the roster page", () => {
         expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["June 2026", "Failed", "Mona Ali", "2026-05-15 10:00:00", "1 min 3 s", "The solver could not be reached.", "60 s", "1", "None"])
         expect(within(screen.getByRole("row", { name: /ER/ })).getAllByRole("cell")[5]).toHaveTextContent("")
         expect(screen.queryByRole("link", { name: /Open/ })).not.toBeInTheDocument()
-        expect(screen.getByText(/says only which kind of failure it was/)).toBeInTheDocument()
+        expect(screen.getByText(/says only which kind of failure it was; its unit's manager reads the rest and can run it again/)).toBeInTheDocument()
         expect(calls.map((call) => call.url)).not.toContain("/api/units")
       })
 
