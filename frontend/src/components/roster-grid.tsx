@@ -119,11 +119,14 @@ export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: G
   const region = scrollableRegion(label)
   const cellId = (row: number, col: number) => `cell-${row}-${col}`
 
-  // Only after an arrow key: a page that re-renders must not take focus from wherever the manager is.
+  // Only after an arrow key: a page that re-renders must not take focus from wherever the manager is. In a windowed grid the
+  // cell moved to may not be drawn yet, until the scroll to it renders its row, so the move waits for it (ticket 24).
   useEffect(() => {
     if (!moved.current) return
+    const cell = document.getElementById(cellId(active.row, active.col))
+    if (!cell) return
     moved.current = false
-    document.getElementById(cellId(active.row, active.col))?.focus()
+    cell.focus()
   })
 
   const move = (event: KeyboardEvent<HTMLButtonElement>, row: number, col: number) => {

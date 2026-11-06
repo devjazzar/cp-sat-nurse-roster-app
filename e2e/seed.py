@@ -8,8 +8,9 @@
 # - ER (ticket 23): the solver's four-nurse sample (its JSON copied to /tmp/four_nurses.json first), Mona its manager.
 #   Last month approved and not closed, so the hourly catch-up closes it (ticket 21); next month approved; a request window
 #   for the month after open from today. The nurses start two months back, so last month is theirs.
-# - ICU (ticket 24): sixty nurses, fifteen of each of the sample's, its headcounts fifteen times the sample's, so a roster is
-#   long enough to be windowed. Omar its manager has a nurse profile there, one of the sixty. Next month approved; the month
+# - ICU (ticket 24): sixty-four nurses, sixteen of each of the sample's, its headcounts sixteen times the sample's: past the
+#   sixty a roster grid is windowed above, and the size ticket 22's install checklist times. Omar its manager has a nurse
+#   profile there, one of the sixty-four. Next month approved; the month
 #   after a draft.
 # - Carla the CNO, Hala the Deputy CNO. The System Admin `admin` that `prepare` made takes the seed's password too, with no
 #   change due, so a check can sign in.
@@ -44,7 +45,7 @@ PASSWORD = os.environ["SEED_PASSWORD"]
 SAMPLE = json.load(open("/tmp/four_nurses.json"))
 NAMES = {"Amal": "Amal Saleh", "Badr": "Badr Harbi", "Dana": "Dana Odeh", "Emad": "Emad Nasser", "mona": "Mona Ali",
          "carla": "Carla Haddad", "hala": "Hala Mansour", "omar": "Omar Khalil"}
-ICU_COPIES = 15
+ICU_COPIES = 16
 
 assert not Unit.objects.exists(), "e2e/seed.py runs once, on an empty scratch database"
 

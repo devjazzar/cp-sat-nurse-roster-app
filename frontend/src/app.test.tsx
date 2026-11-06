@@ -4623,6 +4623,38 @@ describe("the roster page", () => {
       expect(await cellNamed("Badr Noor, 1 June: Night")).toHaveFocus()
     })
 
+    it("in a long grid, moves focus to a row out of view, which is drawn first (ticket 24)", async () => {
+      const rows = Array.from({ length: 200 }, (_, index) => ({
+        hospital_id: `h${index}`, full_name: `Nurse ${index}`, cells: DAYS.map(() => ({ shift: "D", kind: "shift" })),
+      }))
+      // jsdom lays nothing out and never scrolls, so the scroller and its rows are given a size, and a scroll that moves it.
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(33)
+      vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(400)
+      vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(800)
+      vi.spyOn(Element.prototype, "scrollHeight", "get").mockReturnValue(201 * 33)
+      const scrolled = new WeakMap<Element, number>()
+      vi.spyOn(Element.prototype, "scrollTop", "get").mockImplementation(function (this: Element) { return scrolled.get(this) ?? 0 })
+      // jsdom has no scrollTo at all.
+      Element.prototype.scrollTo = function (this: Element, options?: ScrollToOptions | number) {
+        scrolled.set(this, typeof options === "object" ? (options.top ?? 0) : 0)
+        this.dispatchEvent(new Event("scroll"))
+      } as Element["scrollTo"]
+      try {
+        const { user } = start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: { ...DRAFT, rows } } } }))
+
+        const first = await cellNamed("Nurse 0, 1 June: Day")
+        expect(screen.queryByRole("button", { name: "Nurse 199, 1 June: Day" })).not.toBeInTheDocument()
+        first.focus()
+        await user.keyboard("{PageDown}")
+        expect(await cellNamed("Nurse 199, 1 June: Day")).toHaveFocus()
+        await user.keyboard("{PageUp}")
+        expect(await cellNamed("Nurse 0, 1 June: Day")).toHaveFocus()
+      } finally {
+        vi.restoreAllMocks()
+        delete (Element.prototype as Partial<Element>).scrollTo
+      }
+    })
+
     it("offers only a nurse's allowed shifts, and nothing to pin on a day of leave or outside their dates", async () => {
       const { user } = start("/roster", editing())
 

@@ -5,7 +5,7 @@
 #   deploy/tests/operations.sh <project> [--keep]
 #
 # It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; JSON lines
-# from web, worker and solver; a backup taken by the worker's job; the retention jobs; a restore by deploy/restore.sh, which
+# from web, worker and solver; the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by deploy/restore.sh, which
 # takes back what was written after the backup; deploy/reset-admin-password.sh lifting a lock from wrong passwords. Then it
 # removes everything it made, unless --keep (the stack stays up, and the line to remove it is printed).
 # TEST_HTTPS_PORT (default 18443) is where Caddy answers on 127.0.0.1. Needs docker, curl, openssl and python3.
@@ -78,6 +78,26 @@ for line in lines:
     json.loads(line)
 print(len(lines))') || fail "$service logged a line that is not JSON"
   [[ $lines -gt 0 ]] && pass "$service: $lines lines, each one JSON" || fail "$service logged nothing"
+done
+
+# ---- the browser checks' clock is off --------------------------------------------------------------------------------------
+# e2e/compose.e2e.yaml alone passes E2E_CLOCK_FILE, which moves the hospital's date (nurses.membership.today, ticket 24). No
+# service of an installation's compose file is given it, so no .env can switch it on; and it has no URL of its own, so there is
+# nothing for Caddy to pass. Here: the variable in no service of compose.yaml as an installation runs it, nor in this stack's
+# web and worker, whose setting is off and whose date is the real one.
+COMPOSE_FILE=compose.yaml compose config --format json | python3 -c '
+import json, sys
+config = json.load(sys.stdin)
+given = [name for name, service in config["services"].items() if "E2E_CLOCK_FILE" in (service.get("environment") or {})]
+sys.exit(f"E2E_CLOCK_FILE is passed to {given}" if given else 0)' \
+  && pass "deploy/compose.yaml passes the browser checks' clock to no service" || fail "the browser checks' clock in deploy/compose.yaml"
+for service in web worker; do
+  clock=$(compose exec -T "$service" python manage.py shell -c "
+from django.conf import settings
+from django.utils import timezone
+from nurses import membership
+print(settings.E2E_CLOCK_FILE, membership.today() == timezone.localdate())" 2>/dev/null | tail -1)
+  [[ $clock == "None True" ]] && pass "$service: the clock is off and the hospital's date is the real one" || fail "$service's clock: $clock"
 done
 
 # ---- a backup by the job -----------------------------------------------------------------------------------------------------

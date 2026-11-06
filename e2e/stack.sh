@@ -80,7 +80,7 @@ EOF
     seed='{"names": {}}'
     if $seeded; then
       compose cp "$here/../solver/service_tests/fixtures/four_nurses.json" web:/tmp/four_nurses.json >/dev/null
-      echo "# Seeding (four months solved for real, two of them of sixty nurses: a couple of minutes)…"
+      echo "# Seeding (four months solved for real, two of them of sixty-four nurses: a couple of minutes)…"
       seed=$(in_web seed.py E2E_SEED -e SEED_PASSWORD="$password")
       [[ -n $seed ]] || { echo "The seed printed nothing." >&2; exit 1; }
       month=$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["approved_month"])' "$seed")

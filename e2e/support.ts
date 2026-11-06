@@ -18,7 +18,7 @@ export type Stack = {
   /** Each seeded user's full name, by username: the sample's nurses go by their hospital ID, the System Admin is `admin`. */
   names: Record<string, string>
   unit: string
-  /** Sixty nurses, one of them its manager Omar. */
+  /** Sixty-four nurses, one of them its manager Omar: a grid long enough to be windowed. */
   large_unit: string
   /** Last month, approved for ER and not closed when seeded. */
   past_month: string
@@ -54,8 +54,10 @@ export const stack = stackFrom("E2E_STACK", "a project e2e/stack.sh up started")
 export const journeyStack = stackFrom("E2E_JOURNEY_STACK", "a project e2e/stack.sh up --empty started")
 export const has = { seeded: !!process.env.E2E_STACK, journey: !!process.env.E2E_JOURNEY_STACK }
 
-/** Signs in through the login page, as a person would, and waits for the page past it. */
+/** Signs in through the login page, as a person would, and waits for the page past it. Whoever was signed in on this browser
+ *  before is not any more: the login page sends a signed-in browser home. */
 export async function signIn(page: Page, username: string, password = stack.password) {
+  await page.context().clearCookies()
   await page.goto("/login")
   await page.getByLabel("Username").fill(username)
   await page.getByLabel("Password").fill(password)
@@ -68,6 +70,7 @@ export async function signIn(page: Page, username: string, password = stack.pass
  *  Returns the new password. */
 export async function firstSignIn(page: Page, username: string, given: string): Promise<string> {
   const chosen = `${username}-${Math.random().toString(36).slice(2, 10)}-Rota!`
+  await page.context().clearCookies()
   await page.goto("/login")
   await page.getByLabel("Username").fill(username)
   await page.getByLabel("Password").fill(given)

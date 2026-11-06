@@ -1,0 +1,48 @@
+# The browser checks and the compose-level test (ticket 24): the image built from the commit, a seeded stack and an empty one
+# started on it, every Playwright project against them (the journeys from an empty stack, each role on a desktop and on phones,
+# the races, the clock, the PWA), then deploy/tests/operations.sh on a stack of its own. The job fails on any failure.
+#
+# Every step after the runner's own setup is e2e/ci.sh, which runs the same way from a checkout: what passes there passes here.
+# There is no remote yet, so this has not run on GitHub (ticket 24's comment says what was run instead).
+name: Browser checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-checks:
+    # Docker with Compose v2.24 or later, curl, openssl and python3 come with the image.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: What Chromium needs from the system
+        working-directory: e2e
+        run: npx --yes playwright@1.64.1 install-deps chromium
+
+      - name: Build, start, check and remove
+        run: e2e/ci.sh
+
+      - name: Playwright's traces of what failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: e2e/test-results/
+          retention-days: 7
