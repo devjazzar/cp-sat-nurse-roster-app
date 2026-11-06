@@ -22,7 +22,7 @@ from requesting import making
 from requesting.api import RequestStateText, RequestStepRow, step_rows, with_steps
 from requesting.models import Request, WindowState
 from requesting.windows import state_today
-from solves.api import MonthFilter, chosen_month
+from rosters.reading_api import MyRosterFilter
 from units.models import Unit
 
 router = Router(tags=["requests"])
@@ -76,8 +76,9 @@ def _shifts(nurse: NurseProfile, month: dt.date, unit: Unit) -> list[Requestable
 
 
 @router.get("/mine", response=MyRequests, auth=nurse_only, operation_id="getMyRequests")
-def my_requests(request: HttpRequest, filters: Query[MonthFilter]) -> MyRequests:
-    month = chosen_month(filters.month)
+def my_requests(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRequests:
+    """The hospital's current month when none is given, as the rest of My month."""
+    month = dt.date.fromisoformat(f"{filters.month}-01") if filters.month else membership.this_month()
     nurse = NurseProfile.objects.select_related("user").filter(user=request.user).first()
     rows = my_rows(with_steps(Request.objects.filter(nurse=nurse, date__year=month.year, date__month=month.month)))
     window = making.window_for(nurse, month) if nurse else None

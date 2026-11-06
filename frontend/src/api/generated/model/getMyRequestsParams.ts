@@ -6,6 +6,6 @@
  */
 
 export type GetMyRequestsParams = {
-  /** YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered. */
+  /** YYYY-MM. The hospital's current one when left out. */
   month?: string | null;
 };

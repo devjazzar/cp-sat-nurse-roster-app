@@ -327,6 +327,12 @@ class TestWhatANurseMayRequest:
         assert [shift["code"] for shift in seen["shifts"]] == ["D", "N"]
         assert (seen["first_day"], seen["last_day"]) == ("2026-06-01", "2026-06-30")
 
+    def test_with_no_month_given_it_reads_the_current_month_as_the_rest_of_my_month_does(self, mona, er):
+        amal = as_user("Amal")
+
+        assert ok(amal.get("/api/requests/mine"))["month"] == "2026-05"
+        assert ok(amal.get("/api/rosters/mine/month"))["month"] == "2026-05"
+
     def test_a_shift_they_do_not_work_is_refused_and_not_offered(self, mona, er):
         opened(mona, er)
         emad = as_user("Emad")  # Day only, in the sample.

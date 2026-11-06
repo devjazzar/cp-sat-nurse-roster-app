@@ -51,7 +51,7 @@ How to add an event, the same for each: add it to `notifications.models.Event`, 
 
 **Implemented on 2026-11-06,** on branch `claude/ticket-19-requests-59645b`. The backend ran under pytest on a throwaway PostgreSQL 18 container of my own, the frontend under Vitest with the real routes and generated client over a stubbed `fetch`.
 
-- Results on the final code: backend 2043 passed, frontend 498 of 498, and `npm run build` clean.
+- Results: backend 2043 passed, frontend 498 of 498, and `npm run build` clean. After that run one fix changed `requesting/mine_api.py` (a missing month now means the current one, below); for it `requesting`, `notifications` and the authorisation walk ran again (650 passed), not the whole backend.
 - `makemigrations --check` is clean, and `frontend/openapi.json` is the same as a fresh export.
 - **The frontend suite ran alone in this worktree, not in clean exports in parallel.** That is left to the session that brings this into `main`.
 - The solver's suite was not run: nothing under `solver/` changed.
@@ -84,7 +84,7 @@ What was built:
   - The Leave page says when a pin it replaced was an accepted request. The audit log names the new actions.
 
 Seams:
-- `requesting/tests/test_requests.py` (59 tests, some parametrised): the API with the scripted solver and the real worker's code. It covers the window's dates without waiting on a clock (`membership.today` patched, the job called directly), the cap, what may be requested, every state and transition, the decisions on a draft, a submitted and an approved roster, leave over a request, transfers, authorisation, and privacy.
+- `requesting/tests/test_requests.py` (60 tests, some parametrised): the API with the scripted solver and the real worker's code. It covers the window's dates without waiting on a clock (`membership.today` patched, the job called directly), the cap, what may be requested, every state and transition, the decisions on a draft, a submitted and an approved roster, leave over a request, transfers, authorisation, and privacy.
 - `requesting/tests/test_two_at_once.py` (5 tests), on real connections with the order forced: two requests at the cap, two acceptances, leave waiting on an acceptance, the hourly job waiting on a write that opened the window, and a decision waiting on a withdrawal.
 - `app.test.tsx`: 17 new tests and the new page in the route guards, through `start`. No raised timeout, no fake timers, no wait that proves something did not happen.
 - **Honestly: much of the backend came just ahead of its tests, not after a red one.** I broke guards by hand and saw tests fail: the cap check, the window's row lock (the job race tells the nurses twice), the leave hook, a reason put into a payload, the swap refusal, the draft branch and the withdrawal's open check. **One break failed nothing: taking away the nurse's row lock.** The window's row lock, which every request takes, also holds the cap, since a unit has one window open at a time. The nurse's lock stays, for the order with leave and decisions.
@@ -118,6 +118,7 @@ Seams:
 - That run found one bug, fixed with tests: a shift's name was lowercased inside sentences ("day (d)"). Everything of `nr-t19` has been removed since: containers, volumes, network and image.
 
 What was NOT checked:
+- **The Deputy CNO and the System Admin were not signed in** on the scratch stack: no Deputy CNO was seeded, and the System Admin's first login forces a password change. The walk in `test_authorization.py` holds both to 403 on every new endpoint. The manager's bell was seen only as its count; its texts were read from the database.
 - **The hourly job firing in the real worker.** No window was left to open or close at minute 10; the job is tested by calling it, and its registration was read from the worker.
 - **The manager's Requests page at 375 px, the Change dialog and Close early, in the browser.** Vitest only. **The Cancel dialog has no page test at all**; its endpoint is API-tested.
 - **The CNO's and the Deputy CNO's version list showing a request's version** in the browser.
@@ -160,6 +161,8 @@ What was NOT checked:
   - Leave replacing a request, and a version a request made, have no entry of their own, for the reason ticket 16 gave a leave-made version.
   - **Worth your review: a request's version reason** ("Amal Saleh's request for Day (D) on 15 December 2026 accepted.") is read by the CNO and the Deputy CNO in the version list, as every version reason is. It carries neither reason, but tells them a request was made.
 
+- **My month with no month in its address reads the current month**, its requests too, as its hours and leave do. The request read first defaulted to the next month, which a last check found and a test now holds. A window's notification links to its target month.
+
 `docs/ARCHITECTURE.md` sections 4, 5, 7 and 8 and the glossary's Request, Request window and Notification moved.
 
 **Review.** The `code-review` skill's two axes against `d3b9f5c`.
@@ -198,4 +201,5 @@ What was NOT checked:
   - `rosters.pins.pin_cell(unit, nurse, day, shift, PinOrigin.SWAP, by)` is the way to write a swap's pins. It ends whatever pin the nurse held that day, a request's included. A request so ended is left `accepted` with an ended pin, so decide there whether a swap may land on an accepted request's cell; `Judge.refusal` gives the shared words.
   - `requesting/deciding.py` shows the pattern for a version after approval.
 - **Month close (21):** a request of a month that is over can no longer be accepted, edited or cancelled (`deciding.MONTH_OVER`), and its pin is read by the close like any pin. A pending request of a month already over stays pending until its manager rejects it.
+- **A follow-up for whoever owns the Leave page's copy:** on an approved roster, leave that ends a pin still says "It replaced a pin on the draft… or solve again", which fits a draft only. It predates this ticket.
 - **The dev stack was not touched:** no restart, no migration, no login. When this branch reaches `main`, restart `web` and `worker` for `requesting.0001` and `notifications.0003`. Without the restart the pages that read or end pins (Leave, Roster) fail, since `leave_api` imports the new app. **No new dependency.**

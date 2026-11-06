@@ -3524,11 +3524,11 @@
                   "type": "null"
                 }
               ],
-              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "description": "YYYY-MM. The hospital's current one when left out.",
               "title": "Month"
             },
             "required": false,
-            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+            "description": "YYYY-MM. The hospital's current one when left out."
           }
         ],
         "responses": {
@@ -3543,6 +3543,7 @@
             }
           }
         },
+        "description": "The hospital's current month when none is given, as the rest of My month.",
         "tags": [
           "requests"
         ],
@@ -10447,6 +10448,28 @@
         "title": "EditRequestBody",
         "type": "object"
       },
+      "MyRosterFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. The hospital's current one when left out.",
+            "title": "Month"
+          }
+        },
+        "title": "MyRosterFilter",
+        "type": "object"
+      },
       "MyRequestRow": {
         "properties": {
           "id": {
@@ -10831,28 +10854,6 @@
           "changed_since"
         ],
         "title": "WaitingRoster",
-        "type": "object"
-      },
-      "MyRosterFilter": {
-        "properties": {
-          "month": {
-            "anyOf": [
-              {
-                "examples": [
-                  "2027-01"
-                ],
-                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "YYYY-MM. The hospital's current one when left out.",
-            "title": "Month"
-          }
-        },
-        "title": "MyRosterFilter",
         "type": "object"
       },
       "ColleagueRow": {

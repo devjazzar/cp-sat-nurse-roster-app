@@ -7233,6 +7233,7 @@ export const getGetMyRequestsUrl = (params?: GetMyRequestsParams,) => {
 }
 
 /**
+ * The hospital's current month when none is given, as the rest of My month.
  * @summary My Requests
  */
 export const getMyRequests = async (params?: GetMyRequestsParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyRequests> => {

@@ -3566,13 +3566,14 @@ export const CancelRequestResponse = zod.object({
 
 
 /**
+ * The hospital's current month when none is given, as the rest of My month.
  * @summary My Requests
  */
 export const getMyRequestsQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
 
 
 export const GetMyRequestsQueryParams = zod.object({
-  "month": zod.union([zod.string().regex(getMyRequestsQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.')
+  "month": zod.union([zod.string().regex(getMyRequestsQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The hospital\'s current one when left out.')
 })
 
 export const GetMyRequestsResponse = zod.object({

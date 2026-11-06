@@ -11,11 +11,11 @@
   - [x] roster submitted, approved, rejected
   - [x] solve finished
   - [ ] roster changed: ticket 16 calls it (comment there)
-  - [ ] window opened, request decided: ticket 19 (comment there)
+  - [x] window opened, request decided: ticket 19 (comment there)
   - [ ] swap step reached: ticket 20 (comment there)
 - Nurse's own summary from the result in force:
   - [x] hours, overtime, what is carried, shift counts (with My leave taken in)
-  - [ ] requests and their status: ticket 19 (a slot on My month, comment there)
+  - [x] requests and their status: ticket 19 (a slot on My month, comment there)
 - [x] Change own password for every role (it was there already: a test now holds it for each role)
 - [x] API tests cover each event's recipients and the summary
 
