@@ -3,12 +3,17 @@ import { readFileSync } from "node:fs"
 
 import { devices, expect, type Browser, type Page } from "@playwright/test"
 
-/** What e2e/stack.sh wrote for the stack the checks run against: where it answers, the seeded accounts' password, and what the
+/** What e2e/stack.sh wrote for the stack the checks run against: where it answers, the seeded users' password, and what the
  *  seed made (e2e/seed.py). */
 export type Stack = {
   project: string
+  /** `web` over HTTP on localhost: the checks' origin, where a browser lets the service worker register. */
   baseURL: string
+  /** Caddy in front, as a hospital reaches it, behind its self-signed certificate. */
+  caddyURL: string
   password: string
+  /** Each seeded user's full name, by username: the sample's nurses go by their hospital ID, the System Admin is `admin`. */
+  names: Record<string, string>
   unit: string
   approved_month: string
   window_month: string
@@ -25,11 +30,6 @@ function readStack(): Stack {
 
 export const stack = readStack()
 
-/** The seed's people, by username: the sample's nurses go by their hospital ID. */
-export const FULL_NAME: Record<string, string> = {
-  Amal: "Amal Saleh", Badr: "Badr Harbi", Dana: "Dana Odeh", Emad: "Emad Nasser", mona: "Mona Ali", carla: "Carla Haddad",
-}
-
 /** Signs in through the login page, as a person would, and waits for the page past it. */
 export async function signIn(page: Page, username: string) {
   await page.goto("/login")
@@ -40,10 +40,13 @@ export async function signIn(page: Page, username: string) {
   await expect(page).not.toHaveURL(/\/login/)
 }
 
-/** A second person on their own phone: a context of their own, with the same device as the test's. */
+/** A phone at a width: a touch screen and a mobile Chrome's user agent. */
+export const phone = (width: number, height: number) => ({ ...devices["Pixel 7"], viewport: { width, height } })
+
+/** A second person on their own phone: a context of their own, the same size as the test's. */
 export async function anotherPhone(browser: Browser, page: Page, username: string): Promise<Page> {
-  const viewport = page.viewportSize()!
-  const context = await browser.newContext({ ...devices["Pixel 7"], baseURL: stack.baseURL, viewport })
+  const { width, height } = page.viewportSize()!
+  const context = await browser.newContext({ ...phone(width, height), baseURL: stack.baseURL })
   const theirs = await context.newPage()
   await signIn(theirs, username)
   return theirs

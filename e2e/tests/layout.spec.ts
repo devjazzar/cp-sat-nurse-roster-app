@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test"
 
-import { expectNoSidewaysScroll, expectThumbSized, FULL_NAME, monthName, signIn, stack } from "../support"
+import { expectNoSidewaysScroll, expectThumbSized, monthName, signIn, stack } from "../support"
 
 // Ticket 23: a staff nurse's pages at phone width (360 px and 320 px, the two projects). Nothing makes the page itself scroll
 // sideways, the header is the name, the bell and a Menu button, and the roster grid scrolls inside its own region with the
 // nurse column held in place.
 
-test("the login fits a phone", async ({ page }) => {
+test("the login page fits a phone", async ({ page }) => {
   await page.goto("/login")
 
   await expect(page.getByRole("button", { name: "Log in" })).toBeVisible()
@@ -24,7 +24,7 @@ test("every page of a staff nurse fits a phone, and the menu reaches each one", 
   await expect(page.getByRole("navigation", { name: "Main", exact: true })).toBeHidden()
 
   for (const [link, heading] of [["My month", "My month"], ["My roster", /^Roster of|My roster/], ["Swaps", "Swaps"], ["Shifts", "Shifts"],
-    ["Leave types", "Leave types"], ["Holidays and Ramadan", "Holidays and Ramadan"], ["Home", FULL_NAME[nurse]]] as const) {
+    ["Leave types", "Leave types"], ["Holidays and Ramadan", "Holidays and Ramadan"], ["Home", stack.names[nurse]]] as const) {
     await menu.click()
     const item = page.getByRole("navigation", { name: "Main menu" }).getByRole("link", { name: link, exact: true })
     await expectThumbSized(item)
@@ -50,7 +50,7 @@ test("every page of a staff nurse fits a phone, and the menu reaches each one", 
   const back = page.getByRole("link", { name: "Back to home" })
   await expectThumbSized(back)
   await back.click()
-  await expect(page.getByRole("heading", { level: 1, name: FULL_NAME[nurse] })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: stack.names[nurse] })).toBeVisible()
 })
 
 test("the roster grid scrolls sideways in its own region, with the nurse column held", async ({ page }) => {
@@ -58,7 +58,7 @@ test("the roster grid scrolls sideways in its own region, with the nurse column 
   await signIn(page, nurse)
   await page.goto(`/my-roster?month=${stack.approved_month}`)
   const grid = page.getByRole("region", { name: `Roster of ${stack.unit}, ${monthName(stack.approved_month)}` })
-  const me = grid.getByRole("rowheader", { name: `${FULL_NAME[nurse]} (you)` })
+  const me = grid.getByRole("rowheader", { name: `${stack.names[nurse]} (you)` })
   await grid.scrollIntoViewIfNeeded()
   await expect(me).toBeInViewport()
   await expectNoSidewaysScroll(page)
@@ -92,5 +92,40 @@ test("a unit manager's pages are not made for a phone, but none breaks its width
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(page.getByText("Loading…")).toHaveCount(0)
     await expectNoSidewaysScroll(page)
+  }
+})
+
+test("the System Admin's pages keep within a phone's width, and no row's buttons cover a name on Users", async ({ page }) => {
+  await signIn(page, "admin")
+  const menu = page.getByRole("button", { name: "Menu" })
+  await menu.click()
+  const pages = (await page.getByRole("navigation", { name: "Main menu" }).getByRole("link").allTextContents()).filter((name) => name !== "Change password")
+  await menu.click()
+  expect(pages).toEqual(expect.arrayContaining(["Health", "Users"]))
+
+  for (const name of pages) {
+    await menu.click()
+    await page.getByRole("navigation", { name: "Main menu" }).getByRole("link", { name, exact: true }).click()
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+    await expect(page.getByText("Loading…")).toHaveCount(0)
+    await expectNoSidewaysScroll(page)
+  }
+
+  // Ticket 22's backup, taken by e2e/stack.sh up: its table scrolls inside its own region.
+  await page.goto("/health")
+  await expect(page.getByRole("region", { name: /backups/i })).toBeVisible()
+  await expectNoSidewaysScroll(page)
+
+  await page.goto("/users")
+  const users = page.getByRole("region", { name: "Users" })
+  for (const username of ["mona", "carla"]) {
+    const name = users.getByRole("cell", { name: stack.names[username], exact: true })
+    await expect(name).toBeInViewport()
+    const cell = (await name.boundingBox())!
+    for (const label of [`Correct name of ${username}`, `Deactivate ${username}`, `Reset password of ${username}`]) {
+      const button = (await users.getByRole("button", { name: label }).boundingBox())!
+      const overlaps = button.x < cell.x + cell.width && cell.x < button.x + button.width && button.y < cell.y + cell.height && cell.y < button.y + button.height
+      expect(overlaps, `${label} covers ${stack.names[username]}`).toBe(false)
+    }
   }
 })

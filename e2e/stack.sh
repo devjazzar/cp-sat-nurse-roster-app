@@ -2,7 +2,7 @@
 # A stack of its own for the browser checks, built from this checkout: its own compose project, secrets, volumes, image tag and
 # ports. It never touches another project, and refuses the installation's own name.
 #
-#   e2e/stack.sh up <project>        build, start, seed (e2e/seed.py); writes e2e/.stack/<project>.json for playwright.config.ts
+#   e2e/stack.sh up <project>        build, start, seed (e2e/seed.py), take a backup; writes e2e/.stack/<project>.json for playwright.config.ts
 #   e2e/stack.sh rebuild <project>   build the image again from this checkout and restart on it, keeping the data
 #   e2e/stack.sh redeploy <project>  a new deploy, as far as a browser can tell: a new marker in index.html and a changed
 #                                    service worker, then `web` restarted
@@ -12,8 +12,9 @@
 # Needs Docker with Compose v2.24 or later, openssl and python3.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-command=${1:?usage: $0 up|rebuild|redeploy|down <project>}
-project=${2:?usage: $0 up|rebuild|redeploy|down <project>}
+usage="usage: $0 up|rebuild|redeploy|down <project>"
+command=${1:?$usage}
+project=${2:?$usage}
 [[ $project != nurse-roster ]] || { echo "Refused: nurse-roster is the installation's own project." >&2; exit 2; }
 [[ $project =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "Refused: a compose project name is lower case letters, digits, - and _." >&2; exit 2; }
 state="$here/.stack"
@@ -46,10 +47,13 @@ EOF
     echo "# Seeding (one month solved for real, about half a minute)…"
     seed=$(compose exec -T -e SEED_PASSWORD="$password" web python manage.py shell < "$here/seed.py" | sed -n 's/^E2E_SEED //p')
     [[ -n $seed ]] || { echo "The seed printed nothing." >&2; exit 1; }
-    python3 - "$state/$project.json" "$port" "$password" "$seed" <<'EOF'
+    # A backup at once, for the checks that it is never served from a cache, rather than within the worker's first five minutes.
+    compose exec -T worker python manage.py backup >/dev/null
+    python3 - "$state/$project.json" "$port" "${E2E_HTTPS_PORT:-18443}" "$password" "$seed" <<'EOF'
 import json, sys
-path, port, password, seed = sys.argv[1:]
-json.dump({"baseURL": f"http://localhost:{port}", "password": password, **json.loads(seed)}, open(path, "w"), indent=2)
+path, port, https_port, password, seed = sys.argv[1:]
+json.dump({"baseURL": f"http://localhost:{port}", "caddyURL": f"https://localhost:{https_port}", "password": password,
+           **json.loads(seed)}, open(path, "w"), indent=2)
 EOF
     chmod 600 "$env_file" "$state/$project.json"
     echo "# Up: e2e/.stack/$project.json. Run the checks with E2E_STACK=$project npx playwright test"
@@ -73,5 +77,5 @@ EOF
     rm -f "$env_file" "$state/$project.json"
     ;;
   *)
-    echo "usage: $0 up|rebuild|redeploy|down <project>" >&2; exit 2 ;;
+    echo "$usage" >&2; exit 2 ;;
 esac

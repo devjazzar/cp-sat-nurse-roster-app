@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 
 import "./index.css"
 import { registerServiceWorker } from "./lib/service-worker"
+import { reloadOnStaleBuild } from "./lib/stale-build"
 import { createAppRouter, createQueryClient } from "./router"
 
 const queryClient = createQueryClient()
@@ -19,3 +20,4 @@ createRoot(document.getElementById("root")!).render(
 )
 
 registerServiceWorker()
+reloadOnStaleBuild()

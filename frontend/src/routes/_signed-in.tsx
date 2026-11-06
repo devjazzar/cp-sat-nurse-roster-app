@@ -28,11 +28,15 @@ const menuLinkClass = cn("flex min-h-11 items-center rounded-md px-2 text-base t
 /** The header has two shapes, chosen by CSS alone at Tailwind's `sm` (640 px). Wider, it is one row: the pages, the bell, who is
  *  signed in and Log out. On a phone it is the name, the bell and a Menu button, whose list of the same pages, the password and
  *  Log out is in the page only while it is open, so the links are never there twice for a screen reader or a test. */
-function SignedInLayout() {
-  const { user } = useRouteContext({ from: "/_signed-in" })
+function LogOutButton({ className }: { className?: string }) {
   const signOut = useSignOut()
   // Logging out clears the mutation cache and leaves the page, so a password on its way would reach nobody.
   const awaitingPassword = useAwaitingPassword()
+  return <Button variant="outline" size="sm" className={className} onClick={signOut.run} disabled={signOut.pending || awaitingPassword}>Log out</Button>
+}
+
+function SignedInLayout() {
+  const { user } = useRouteContext({ from: "/_signed-in" })
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const path = useRouterState({ select: (state) => state.location.pathname })
@@ -60,7 +64,7 @@ function SignedInLayout() {
         <div className="ms-auto flex items-center gap-3">
           <NotificationBell />
           <span className="text-sm text-muted-foreground max-sm:hidden">{who}</span>
-          <Button variant="outline" size="sm" className="max-sm:hidden" onClick={signOut.run} disabled={signOut.pending || awaitingPassword}>Log out</Button>
+          <LogOutButton className="max-sm:hidden" />
           <Button ref={menuButton} variant="outline" className="sm:hidden" aria-expanded={menuOpen} aria-controls="main-menu"
             onClick={() => setMenuOpen((open) => !open)}>
             {menuOpen ? <XIcon aria-hidden /> : <MenuIcon aria-hidden />}
@@ -78,7 +82,7 @@ function SignedInLayout() {
             </nav>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
               <span className="text-sm text-muted-foreground">{who}</span>
-              <Button variant="outline" onClick={signOut.run} disabled={signOut.pending || awaitingPassword}>Log out</Button>
+              <LogOutButton />
             </div>
           </div>
         )}

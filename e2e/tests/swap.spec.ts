@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { anotherPhone, expectThumbSized, FULL_NAME, signIn, stack } from "../support"
+import { anotherPhone, expectThumbSized, signIn, stack } from "../support"
 
 // Ticket 23: a swap proposed on one phone and accepted on another, on the approved month. The seed found the swap sound with the
 // app's own judging: the proposer's shift goes to a colleague who is off that day. The proposer withdraws it at the end, which
@@ -35,14 +35,14 @@ test("a nurse proposes a swap on her phone and the colleague in it accepts on th
   await cell(1, "shift").selectOption(shift)
   await page.getByRole("button", { name: "Propose the swap" }).click()
 
-  await expect(page.getByText(`Your swap is proposed. ${FULL_NAME[colleague]} is asked to accept it, then your manager decides.`)).toBeVisible()
+  await expect(page.getByText(`Your swap is proposed. ${stack.names[colleague]} is asked to accept it, then your manager decides.`)).toBeVisible()
 
   const theirs = await anotherPhone(browser, page, colleague)
   await theirs.goto("/swaps")
-  const accept = theirs.getByRole("button", { name: new RegExp(`^Accept ${FULL_NAME[proposer]}'s swap on `) })
+  const accept = theirs.getByRole("button", { name: new RegExp(`^Accept ${stack.names[proposer]}'s swap on `) })
   await expectThumbSized(accept)
   await accept.click()
-  await expect(theirs.getByText(`You accepted ${FULL_NAME[proposer]}'s swap. Everyone in it has now accepted, so it waits for the manager.`)).toBeVisible()
+  await expect(theirs.getByText(`You accepted ${stack.names[proposer]}'s swap. Everyone in it has now accepted, so it waits for the manager.`)).toBeVisible()
   await theirs.context().close()
 
   await page.reload()

@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
 import { askedFor, inSentence, herReason, lastDecision, MY_STATE, NO_CONNECTION, shiftNames } from "@/lib/request-words"
-import { monthName, scrollableRegion, shortDay } from "@/lib/utils"
+import { monthName, scrollableRegion, shortDay, WRAP_ON_PHONE } from "@/lib/utils"
 
 const STATUS = "my-requests-status"
 
@@ -138,8 +138,7 @@ export function MyRequestsCard({ month }: { month: string | undefined }) {
             <p>{windowWords(answer)}</p>
             {open && answer.refusal && <p>{answer.refusal}</p>}
             {answer.requests.length === 0 ? <p>You have made no requests for {monthName(answer.month)}.</p> : (
-              // On a phone the cells wrap, so the outcome is in view at 320 px rather than past the region's edge.
-              <Table container={scrollableRegion(`Your requests for ${monthName(answer.month)}`)} className="max-sm:[&_td]:whitespace-normal max-sm:[&_th]:whitespace-normal">
+              <Table container={scrollableRegion(`Your requests for ${monthName(answer.month)}`)} className={WRAP_ON_PHONE}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>

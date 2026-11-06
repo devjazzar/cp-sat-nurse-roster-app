@@ -1,11 +1,11 @@
-// Renders frontend/icons/icon.svg to the PNGs the web app manifest and iOS ask for, into frontend/public. Run again after
+// Renders frontend/public/favicon.svg, the app's icon, to the PNGs the web app manifest and iOS ask for, into frontend/public. Run again after
 // changing the SVG:  cd e2e && node render-icons.mjs
 // The "any" icons are rounded, transparent at the corners; the maskable one and Apple's are the full square, which the
 // launcher or iOS masks itself.
 import { readFileSync } from "node:fs"
 import { chromium } from "@playwright/test"
 
-const svg = readFileSync(new URL("../frontend/icons/icon.svg", import.meta.url), "utf8")
+const svg = readFileSync(new URL("../frontend/public/favicon.svg", import.meta.url), "utf8")
 const out = (name) => new URL(`../frontend/public/${name}`, import.meta.url).pathname
 const browser = await chromium.launch()
 for (const [name, size, rounded] of [["icon-192.png", 192, true], ["icon-512.png", 512, true], ["icon-maskable-512.png", 512, false], ["apple-touch-icon.png", 180, false]]) {

@@ -1,10 +1,13 @@
-import { expect, test, type CDPSession, type Page } from "@playwright/test"
+import { expect, request, test, type CDPSession, type Page } from "@playwright/test"
 
 import { anotherPhone, signIn, stack } from "../support"
 
 // Ticket 23: the app installs as a progressive web app, and its service worker keeps nothing. These read what Chrome itself
 // reads: the manifest as it parsed it, the worker it registered, and for every response whether it came from the worker or a
-// cache (the DevTools protocol's Network events).
+// cache (the DevTools protocol's Network events). The worker has no `fetch` listener (src/sw.test.ts holds it to that), so
+// "not from the worker" cannot fail today; "not from the disk cache" on a second fetch of the same file is the check that
+// `no-store` is honoured. Chrome's own `Page.getInstallabilityErrors` is not used: headless, it answers [] even with no
+// manifest at all, so it proves nothing here.
 
 /** Waits until the service worker controls the page: from the first visit, since it claims its clients when it activates. */
 async function controlled(page: Page) {
@@ -68,6 +71,7 @@ test("nothing reaches the page from the worker or a cache: the API, a roster's f
   await page.goto(`/my-roster?month=${stack.approved_month}`)
   await expect(page.getByRole("region", { name: /^Roster of / })).toBeVisible()
   await controlled(page)
+  // Each file twice, on purpose: the second would be the one a cache answered.
   for (const path of [`/api/rosters/mine/sheet?month=${stack.approved_month}`, `/api/rosters/mine/sheet?month=${stack.approved_month}`, "/metrics"]) {
     await fetchInPage(page, path)
   }
@@ -84,16 +88,44 @@ test("nothing reaches the page from the worker or a cache: the API, a roster's f
   }
   await manager.context().close()
 
-  const seen = [...nurseSaw, ...managerSaw]
+  const admin = await anotherPhone(browser, page, "admin")
+  await controlled(admin)
+  const adminSaw = await watchResponses(admin)
+  const health = await (await admin.request.get("/api/ops/health")).json() as { backups: { name: string }[] }
+  expect(health.backups.length, "e2e/stack.sh up takes a backup").toBeGreaterThan(0)
+  for (const path of ["/api/ops/health", "/api/ops/health", `/api/ops/backups/${health.backups[0].name}`, `/api/ops/backups/${health.backups[0].name}`]) {
+    expect(await fetchInPage(admin, path), path).toBe(200)
+  }
+  await admin.context().close()
+
+  const seen = [...nurseSaw, ...managerSaw, ...adminSaw]
   const ours = seen.filter((response) => /\/(api|metrics)/.test(new URL(response.url).pathname))
   expect(ours.filter((response) => response.url.includes("/mine/sheet"))).toHaveLength(2)
   expect(ours.filter((response) => response.url.includes("/roster/export"))).toHaveLength(3)
   expect(ours.filter((response) => response.url.includes("/roster/sheet"))).toHaveLength(2)
   expect(ours.filter((response) => response.url.endsWith("/metrics"))).toHaveLength(1)
+  expect(ours.filter((response) => response.url.endsWith("/api/ops/health"))).toHaveLength(2)
+  expect(ours.filter((response) => response.url.includes("/api/ops/backups/"))).toHaveLength(2)
   expect(ours.filter((response) => response.fromServiceWorker || response.fromDiskCache)).toEqual([])
-  for (const response of ours.filter((response) => response.url.includes("/roster/export"))) {
+  for (const response of ours.filter((response) => /\/roster\/export|\/api\/ops\/backups\//.test(response.url))) {
     expect(response.cacheControl).toContain("no-store")
   }
   // The page itself too: every navigation went to the server.
   expect(seen.filter((response) => !/\/(api|metrics|assets)/.test(new URL(response.url).pathname) && response.fromServiceWorker)).toEqual([])
+})
+
+test("through Caddy, as a hospital reaches it: the same headers, and /metrics refused", async () => {
+  // The browser will not register a worker behind Caddy's self-signed certificate, so this reads the answers themselves.
+  const caddy = await request.newContext({ baseURL: stack.caddyURL, ignoreHTTPSErrors: true })
+  for (const [path, type] of [["/", "text/html"], ["/my-roster", "text/html"], ["/sw.js", "text/javascript"],
+    ["/manifest.webmanifest", "application/manifest+json"], ["/icon-192.png", "image/png"]]) {
+    const response = await caddy.get(path)
+    expect(response.status(), path).toBe(200)
+    expect(response.headers()["cache-control"], path).toBe("no-cache")
+    expect(response.headers()["content-type"], path).toContain(type)
+  }
+  const entry = (await (await caddy.get("/")).text()).match(/src="(\/assets\/[^"]+\.js)"/)![1]
+  expect((await caddy.get(entry)).headers()["cache-control"]).toContain("immutable")
+  for (const path of ["/metrics", "/metrics/"]) expect((await caddy.get(path)).status(), path).toBe(404)
+  await caddy.dispose()
 })

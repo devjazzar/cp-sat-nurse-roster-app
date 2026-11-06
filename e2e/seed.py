@@ -3,6 +3,7 @@
 #   docker compose exec -T -e SEED_PASSWORD=… web python manage.py shell < e2e/seed.py
 #
 # The solver's four-nurse sample as ER (its JSON copied to /tmp/four_nurses.json first), Mona its manager and Carla the CNO.
+# The System Admin `admin` that `prepare` made takes the seed's password too, with no change due, so a check can sign in.
 # Next month is solved for real in-process, submitted and approved, on the real clock. The month after has a request window
 # open from today. A two-cell swap the app's own judging finds sound on the approved month is printed last, for the swap check:
 # one line, `E2E_SEED {...}`.
@@ -33,7 +34,8 @@ from units.models import Unit
 
 PASSWORD = os.environ["SEED_PASSWORD"]
 SAMPLE = json.load(open("/tmp/four_nurses.json"))
-NAMES = {"Amal": "Amal Saleh", "Badr": "Badr Harbi", "Dana": "Dana Odeh", "Emad": "Emad Nasser"}
+NAMES = {"Amal": "Amal Saleh", "Badr": "Badr Harbi", "Dana": "Dana Odeh", "Emad": "Emad Nasser", "mona": "Mona Ali",
+         "carla": "Carla Haddad"}
 
 assert not Unit.objects.exists(), "e2e/seed.py runs once, on an empty scratch database"
 
@@ -44,15 +46,19 @@ window_month = (approved_month + dt.timedelta(days=32)).replace(day=1)
 
 with transaction.atomic():
     seed_catalogue()
-    mona = User.objects.create_user("mona", PASSWORD, Role.UNIT_MANAGER, full_name="Mona Ali")
-    carla = User.objects.create_user("carla", PASSWORD, Role.CNO, full_name="Carla Haddad")
+    admin = User.objects.get(role=Role.SYSTEM_ADMIN)
+    admin.set_password(PASSWORD)
+    admin.must_change_password = False
+    admin.save()
+    mona = User.objects.create_user("mona", PASSWORD, Role.UNIT_MANAGER, full_name=NAMES["mona"])
+    carla = User.objects.create_user("carla", PASSWORD, Role.CNO, full_name=NAMES["carla"])
     settings = HospitalSettings.load()
     settings.rules = {k: v for k, v in copy.deepcopy(SAMPLE["general"]).items() if k != "shift_hours"}
     settings.save()
     unit = Unit.objects.create(name="ER", manager=mona,
                                rules={k: v for k, v in copy.deepcopy(SAMPLE["department"]).items() if k != "name"})
     for row in SAMPLE["nurses"]:
-        user = User.objects.create_user(row["id"], PASSWORD, Role.STAFF_NURSE, full_name=NAMES.get(row["id"], row["id"]))
+        user = User.objects.create_user(row["id"], PASSWORD, Role.STAFF_NURSE, full_name=NAMES[row["id"]])
         nurse = NurseProfile.objects.create(user=user, gender=row["gender"], start_date=this_month, team_leader=row["team_leader"],
                                             score=row["score"], attributes_saved=True)
         Placement.objects.create(nurse=nurse, unit=unit, from_month=this_month, allowed_shifts=row.get("allowed_shifts"))
@@ -103,6 +109,7 @@ def a_sound_swap() -> dict:
 
 print("E2E_SEED " + json.dumps({
     "unit": "ER",
+    "names": {**NAMES, "admin": admin.full_name},
     "approved_month": approved_month.strftime("%Y-%m"),
     "window_month": window_month.strftime("%Y-%m"),
     "swap": a_sound_swap(),

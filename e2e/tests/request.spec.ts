@@ -18,6 +18,7 @@ test("a nurse makes a request on her phone, then withdraws it", async ({ page })
   const waiting = requests.getByRole("row", { name: new RegExp(shortDay(day)) }).filter({ hasText: "Waiting for a decision" })
   const withdraw = waiting.getByRole("button", { name: `Withdraw your request for ${shortDay(day)}` })
   const withdrawn = page.getByText(`Your request for a day off on ${shortDay(day)} is withdrawn.`)
+  // The open-window sentence above comes in the same answer as the rows, so they are on the page by now.
   if (await waiting.count()) {
     await withdraw.click()
     await expect(withdrawn).toBeVisible()

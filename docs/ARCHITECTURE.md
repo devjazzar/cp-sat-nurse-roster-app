@@ -494,7 +494,10 @@ at the narrowest): below 640 px the header is the name, the bell and a Menu butt
 service worker that handles no request (`frontend/public/sw.js`, no `fetch` listener): nothing is kept offline, no push, so
 the API, a roster's files and print sheets, backups and `/metrics` reach the network as they would without it. Every file
 with a fixed name (the page, the worker, the manifest, the icons) answers `no-cache`, so a deploy is what loads next; only
-the build's hashed assets are cached for good. In-app notifications
+the build's hashed assets are cached for good. They come from `frontend/public` at the site's root: WhiteNoise in `web`
+sets the headers (`config.settings`) and Caddy passes them through unchanged; in development Vite serves the same files
+with the same headers. The worker's scope is `/`. A tab opened before a deploy that asks for a page's code by its old name
+loads again once (`lib/stale-build.ts`). In-app notifications
 only: every role's header has a bell with the unread count, which polls and does not count as activity, and leads to the
 Notifications page. Who is told of what is in one place, `notifications.sending`, called inside the transaction of the
 change. A notification links to the reader's own page for it, by what they hold when they read it. Visual design is decided later; the architecture does not depend on it.

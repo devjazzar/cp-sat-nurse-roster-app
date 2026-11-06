@@ -34,6 +34,9 @@ export function monthAfter(month: string, by: number): string {
 }
 
 /** `Table`'s container when nothing in the table can take focus, because a keyboard still has to scroll it. */
+/** For a small table whose columns should all fit a phone: below 640 px its cells wrap rather than scroll out of view (ticket 23). */
+export const WRAP_ON_PHONE = "max-sm:[&_td]:whitespace-normal max-sm:[&_th]:whitespace-normal"
+
 export function scrollableRegion(label: string) {
   return {
     tabIndex: 0,

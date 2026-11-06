@@ -116,14 +116,15 @@ BACKUPS_DIR = Path(os.environ.get("BACKUPS_DIR", "/backups"))
 # hour-old page (ticket 23); config.urls.spa says the same of every client-side route. The URL WhiteNoise tests starts with "/".
 SPA_DIR = Path(os.environ.get("SPA_DIR", BASE_DIR.parent / "spa"))
 WHITENOISE_ROOT = SPA_DIR if SPA_DIR.is_dir() else None
-WHITENOISE_IMMUTABLE_FILE_TEST = r"^/assets/"
+SPA_ASSETS = "/assets/"
+WHITENOISE_IMMUTABLE_FILE_TEST = rf"^{SPA_ASSETS}"
 WHITENOISE_MAX_AGE = None
 WHITENOISE_AUTOREFRESH = DEBUG
 WHITENOISE_MIMETYPES = {".webmanifest": "application/manifest+json"}
 
 
 def spa_cache_headers(headers, path: str, url: str) -> None:
-    if not url.startswith("/assets/"):
+    if not url.startswith(SPA_ASSETS):
         headers["Cache-Control"] = "no-cache"
 
 

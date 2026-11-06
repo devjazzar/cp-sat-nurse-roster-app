@@ -20,10 +20,10 @@ test("after a deploy, the next load is the new page and the new worker takes ove
   await expect(page.locator('meta[name="e2e-deploy"]')).toHaveCount(0)
 
   const marker = redeploy()
-  const reload = await page.reload()
+  await page.reload()
 
-  expect(reload!.fromServiceWorker()).toBe(false)
+  // The page from the server, and the browser's own check of the worker on that navigation finds the new one: nothing here
+  // asks it to look.
   await expect(page.locator('meta[name="e2e-deploy"]')).toHaveAttribute("content", marker)
-  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update())
   await expect.poll(() => [...activated].some((id) => !before.has(id)), { message: "a new version of the worker activated" }).toBe(true)
 })
