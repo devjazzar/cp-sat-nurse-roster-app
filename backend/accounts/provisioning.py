@@ -159,15 +159,25 @@ def reactivate(request: HttpRequest, user_id) -> User:
 def reset_password(request: HttpRequest, user_id) -> tuple[User, str]:
     """A new generated password, shown once, with a forced change at the next login. The new hash
     ends the user's sessions, and a lock from failed logins goes, or they would stay locked out."""
+    return _reset(User.objects.filter(pk=user_id), request=request)
+
+
+def reset_from_the_server(username: str) -> tuple[User, str]:
+    """`reset_password` for `deploy/reset-admin-password.sh`, run by whoever holds the server: no one signed in, so no actor,
+    and the entry says where it came from. Who may be reset that way is the command's business."""
+    return _reset(User.objects.filter(username=username), after={"from": "the server"})
+
+
+def _reset(users: QuerySet[User], *, request: HttpRequest | None = None, after: dict | None = None) -> tuple[User, str]:
     password = generate_password()
     with transaction.atomic():
-        user = User.objects.select_for_update(no_key=True).get(pk=user_id)
+        user = users.select_for_update(no_key=True).get()
         user.set_password(password)
         user.must_change_password = True
         user.save(update_fields=["password", "must_change_password"])
         LoginAttempts.objects.filter(username=user.username).delete()
-        record("user.password_reset", actor=request.user, target=user.username, request=request,
-               after={"must_change_password": True})
+        record("user.password_reset", actor=request.user if request else None, target=user.username, request=request,
+               after={"must_change_password": True} | (after or {}))
     return user, password
 
 

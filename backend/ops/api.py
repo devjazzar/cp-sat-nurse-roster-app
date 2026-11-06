@@ -1,16 +1,18 @@
 from datetime import datetime, time
 from typing import Annotated
 
-from django.db import OperationalError, connection, transaction
+from django.db import transaction
+from django.http import FileResponse, Http404, HttpRequest
 from ninja import Router, Schema
 from pydantic import Field
 
 from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
+from ops import backups
 from ops.models import TechnicalSettings
 from ops.solver_client import SolverUnreachable, solver_health
-from ops.status import database_size_bytes, disk_usage, queue_state
+from ops.status import database_reachable, database_size_bytes, disk_usage, queue_state
 
 router = Router()
 system_admin = SignedIn(Role.SYSTEM_ADMIN)
@@ -22,19 +24,16 @@ class SolverHealth(Schema):
     workers: int | None = None
 
 
+class PublicSolverHealth(Schema):
+    reachable: bool
+
+
 class Health(Schema):
+    """Anyone's to read, so it says only what the compose health check and an install check need: the solver's version and
+    thread count are the System Admin's (`/api/ops/health`)."""
     status: str
     database: bool
-    solver: SolverHealth
-
-
-def _database_reachable() -> bool:
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")
-        return True
-    except OperationalError:
-        return False
+    solver: PublicSolverHealth
 
 
 def _solver() -> SolverHealth:
@@ -48,8 +47,9 @@ def _solver() -> SolverHealth:
 @router.get("/health", response=Health, auth=None, operation_id="getHealth")
 def health(request) -> Health:
     """Always 200 while this process is alive; the body says what it can reach."""
-    database, solver = _database_reachable(), _solver()
-    return Health(status="ok" if database and solver.reachable else "degraded", database=database, solver=solver)
+    database, solver = database_reachable(), _solver()
+    return Health(status="ok" if database and solver.reachable else "degraded", database=database,
+                  solver=PublicSolverHealth(reachable=solver.reachable))
 
 
 class Disk(Schema):
@@ -64,20 +64,54 @@ class Queue(Schema):
     workers: int
 
 
+class BackupRow(Schema):
+    name: str = Field(description="The file's name, which `GET /api/ops/backups/{name}` takes and `deploy/restore.sh` restores.")
+    size_bytes: int
+    taken_at: datetime
+
+
+class BackupSchedule(Schema):
+    time: str = Field(description="HH:MM on the hospital's clock.")
+    retention_days: int
+
+
 class InstallationHealth(Schema):
     database: bool
     solver: SolverHealth
     database_size_bytes: int
     disk: Disk | None
     queue: Queue
-    last_backup: datetime | None = Field(description="Always empty until backups exist.")
+    last_backup: datetime | None = Field(description="When the newest backup was taken. Null before the first.")
+    backups: list[BackupRow] = Field(description="Every backup kept, newest first.")
+    backup_schedule: BackupSchedule
 
 
 @router.get("/ops/health", response=InstallationHealth, auth=system_admin, operation_id="getInstallationHealth")
 def installation_health(request) -> InstallationHealth:
-    return InstallationHealth(database=_database_reachable(), solver=_solver(),
+    kept = backups.list_backups()
+    technical = TechnicalSettings.load()
+    return InstallationHealth(database=database_reachable(), solver=_solver(),
                               database_size_bytes=database_size_bytes(), disk=disk_usage(), queue=queue_state(),
-                              last_backup=None)
+                              last_backup=kept[0].taken_at if kept else None,
+                              backups=[BackupRow(name=b.name, size_bytes=b.size_bytes, taken_at=b.taken_at) for b in kept],
+                              backup_schedule=BackupSchedule(time=technical.backup_time.strftime("%H:%M"),
+                                                             retention_days=technical.backup_retention_days))
+
+
+@router.get("/ops/backups/{name}", auth=system_admin, operation_id="downloadBackup",
+            response={200: None}, openapi_extra={"responses": {"200": {
+                "description": "The backup, as `pg_dump`'s custom format.",
+                "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}}})
+def download_backup(request: HttpRequest, name: str) -> FileResponse:
+    """A backup holds everything: password hashes and every nurse's leave. So only the System Admin takes one, each taking is
+    logged with its name and nothing else, and no copy is kept by a browser's cache."""
+    path = backups.file_of(name)
+    if path is None:
+        raise Http404("No such backup.")
+    response = FileResponse(path.open("rb"), as_attachment=True, filename=name, content_type="application/octet-stream")
+    response["Cache-Control"] = "no-store"
+    record("backup.downloaded", actor=request.user, target=name, request=request)
+    return response
 
 
 ClockTime = Annotated[str, Field(pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$", examples=["02:00"])]

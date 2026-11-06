@@ -394,7 +394,7 @@ class TestFailures:
         running.run(solve["id"])
 
         answer = progress(mona, er, solve["id"])
-        assert (answer["state"], answer["failure"], answer["error"], answer["attempts"]) == ("failed", "solver", "MemoryError: out", 2)
+        assert (answer["state"], answer["failure"], answer["error"], answer["attempts"]) == ("failed", "solver_error", "MemoryError: out", 2)
         assert not Roster.objects.exists()
 
     def test_a_solver_that_cannot_be_reached_at_the_start(self, mona, er, solver):
@@ -403,7 +403,8 @@ class TestFailures:
 
         running.run(solve["id"])
 
-        assert progress(mona, er, solve["id"])["error"] == "connection refused"
+        answer = progress(mona, er, solve["id"])
+        assert (answer["failure"], answer["error"]) == ("unreachable", "connection refused")
 
     def test_a_solver_that_goes_away_during_a_solve_is_given_a_few_polls(self, mona, er, solver):
         gone = SolverUnreachable("timed out")
@@ -422,6 +423,14 @@ class TestFailures:
 
         assert Solve.objects.get(pk=solve["id"]).attempts == 2
 
+    def test_the_kind_of_failure_is_the_last_attempts(self, mona, er, solver):
+        solver.script([job("failed", error="first")], [SolverUnreachable("timed out")])
+        solve = started(mona, er)
+
+        running.run(solve["id"])
+
+        assert Solve.objects.get(pk=solve["id"]).failure == "unreachable"
+
     def test_refused_rules_are_no_failed_solve_and_are_not_retried(self, mona, er, solver):
         solver.script(SolverRefused("request: department: night_shift"))
         solve = started(mona, er)
@@ -439,6 +448,24 @@ class TestFailures:
         running.run(solve["id"])
 
         assert Solve.objects.get(pk=solve["id"]).attempts == 2
+
+    def test_overrunning_twice_fails_as_an_overrun(self, mona, er, solver, monkeypatch):
+        monkeypatch.setattr(running, "OVERRUN_SECONDS", -1000)
+        solver.script([job(best_cost=1)], [job(best_cost=1)])
+        solve = started(mona, er)
+
+        running.run(solve["id"])
+
+        assert Solve.objects.get(pk=solve["id"]).failure == "overrun"
+
+    def test_an_error_of_the_workers_own_is_unexpected(self, mona, er, solver):
+        solver.script(KeyError("Badr"), KeyError("Badr"))
+        solve = started(mona, er)
+
+        running.run(solve["id"])
+
+        stored = Solve.objects.get(pk=solve["id"])
+        assert (stored.failure, stored.error) == ("unexpected", "'Badr'")
 
 
 class TestAWorkerThatDied:
@@ -480,7 +507,26 @@ class TestAWorkerThatDied:
         running.run(solve["id"])
 
         stored = Solve.objects.get(pk=solve["id"])
-        assert stored.state == "failed" and "worker stopped" in stored.error
+        assert (stored.state, stored.failure) == ("failed", "worker_lost") and "worker stopped" in stored.error
+
+    def test_the_solver_losing_the_last_attempt_is_a_restart(self, mona, er, solver):
+        solve = started(mona, er)
+        Solve.objects.filter(pk=solve["id"]).update(state="running", solver_job_id="gone", attempts=2)
+
+        running.run(solve["id"])
+
+        assert Solve.objects.get(pk=solve["id"]).failure == "lost"
+
+    def test_a_solver_that_will_not_stop_an_earlier_job_is_stuck(self, mona, er, solver, monkeypatch):
+        monkeypatch.setattr(running, "OVERRUN_SECONDS", -1000)
+        solve = started(mona, er)
+        Solve.objects.filter(pk=solve["id"]).update(state="running", attempts=1)
+        solver.busy_with = "orphan"
+        solver.reads["orphan"] = [job("running")]
+
+        running.run(solve["id"])
+
+        assert Solve.objects.get(pk=solve["id"]).failure == "stuck"
 
     def test_a_row_whose_job_is_gone_does_not_stay_active_for_good(self, mona, er):
         solve = started(mona, er)
@@ -489,7 +535,7 @@ class TestAWorkerThatDied:
 
         running.end_what_the_queue_lost()
 
-        assert Solve.objects.get(pk=solve["id"]).state == "failed"
+        assert (Solve.objects.get(pk=solve["id"]).state, Solve.objects.get(pk=solve["id"]).failure) == ("failed", "worker_lost")
         assert Solve.objects.get(pk=kept["id"]).state == "queued"
 
 

@@ -12,7 +12,7 @@ from conftest import post
 from hospital.models import LeaveType, Shift, ShiftRename
 from nurses.models import Leave, NurseProfile
 from nurses.tests.conftest import make_unit
-from ops.solver_client import SolverRefused
+from ops.solver_client import SolverRefused, SolverUnreachable
 from rosters.models import Roster
 from solves import running
 from solves.models import Solve
@@ -223,7 +223,7 @@ class TestTheSystemAdminsHistory:
         answer = self.everything(admin)
         text = json.dumps(answer)
 
-        assert [row["failure"] for row in answer["solves"]] == ["solver", "refused", None]
+        assert [row["failure"] for row in answer["solves"]] == ["unexpected", "refused", None]
         assert not re.findall("|".join(NURSES), text)
         assert not re.findall(r"2026-06-\d\d", text)
         for leak in ("leave", "precheck", "message", "error", "roster", "violations", "nurses", "input", "result"):
@@ -345,13 +345,13 @@ class TestAResult:
         assert details(mona, er, solve)["grid"]["shifts"][0]["hours"] == 12
 
     def test_a_failed_solve_says_why_and_holds_nothing_else(self, mona, er, solver):
-        solver.script(RuntimeError("the solver fell over"), RuntimeError("the solver fell over"))
+        solver.script(SolverUnreachable("the solver fell over"), SolverUnreachable("the solver fell over"))
         solve = started(mona, er)
         running.run(solve["id"])
 
         answer = details(mona, er, solve["id"])
 
-        assert answer["error"] == "the solver fell over" and answer["solve"]["failure"] == "solver"
+        assert answer["error"] == "the solver fell over" and answer["solve"]["failure"] == "unreachable"
         assert answer["grid"] is None and answer["rules"] == [] and answer["nurses"] == [] and answer["statistics"] is None
         assert answer["restore_refusal"] == "This solve left no roster to restore."
 

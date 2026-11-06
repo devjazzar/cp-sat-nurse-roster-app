@@ -31,8 +31,7 @@ def test_health_reports_the_database_and_the_solver(solver_answers):
     r = Client().get("/api/health")
 
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "database": True,
-                        "solver": {"reachable": True, "version": "0.1.0", "workers": 8}}
+    assert r.json() == {"status": "ok", "database": True, "solver": {"reachable": True}}
 
 
 @pytest.mark.django_db
@@ -40,8 +39,7 @@ def test_health_is_degraded_but_answers_when_the_solver_is_down(solver_down):
     r = Client().get("/api/health")
 
     assert r.status_code == 200
-    assert r.json() == {"status": "degraded", "database": True,
-                        "solver": {"reachable": False, "version": None, "workers": None}}
+    assert r.json() == {"status": "degraded", "database": True, "solver": {"reachable": False}}
 
 
 def test_the_openapi_document_and_docs_are_not_served():

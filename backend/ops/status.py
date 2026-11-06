@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from django.conf import settings
-from django.db import connection
+from django.db import OperationalError, connection
 from django.db.models import Count
 from django.utils import timezone
 from procrastinate.contrib.django.models import ProcrastinateJob, ProcrastinateWorker
@@ -28,6 +28,15 @@ def disk_usage() -> DiskUsage | None:
     except OSError:
         return None
     return DiskUsage(total_bytes=usage.total, free_bytes=usage.free)
+
+
+def database_reachable() -> bool:
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        return True
+    except OperationalError:
+        return False
 
 
 def database_size_bytes() -> int:

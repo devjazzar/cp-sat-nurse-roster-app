@@ -3,10 +3,12 @@ touching what the jobs do. Procrastinate finds a job by the module's name: put i
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import timedelta
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Q
 from django.utils import timezone
+from procrastinate import sql
 from procrastinate.contrib.django import app
 from procrastinate.contrib.django.models import ProcrastinateJob, ProcrastinateWorker
 from procrastinate.exceptions import AlreadyEnqueued
@@ -29,6 +31,11 @@ def _periodic(cron: str) -> Callable:
 
 def hourly(*, at_minute: int) -> Callable:
     return _periodic(f"{at_minute} * * * *")
+
+
+def daily(*, at_hour_utc: int, at_minute: int) -> Callable:
+    """In UTC, as every schedule here is: for a job whose hour does not matter to the hospital."""
+    return _periodic(f"{at_minute} {at_hour_utc} * * *")
 
 
 every_five_minutes = _periodic("*/5 * * * *")
@@ -68,6 +75,20 @@ def requeue_stalled() -> list[int]:
     for job_id in stalled:
         app.job_manager.retry_job_by_id(job_id, timezone.now())
     return stalled
+
+
+# Long enough to look into a week's runs; failed jobs stay until someone has looked, as the health page counts them.
+ENDED_JOBS_KEPT = timedelta(days=7)
+
+
+def remove_ended_jobs(older_than: timedelta = ENDED_JOBS_KEPT) -> int:
+    """Removes the rows, with their events, of jobs that ended well or were stopped longer ago than `older_than`: every periodic
+    run, every `project_carry_over` and every ended solve, whose `Solve` row is its record. A failed job, and one waiting or
+    running, stays. The library's own query, whose call is async only, as `requeue_stalled` does."""
+    with connection.cursor() as cursor:
+        cursor.execute(sql.queries["delete_old_jobs"], {"nb_hours": int(older_than.total_seconds() // 3600), "queue": None,
+                                                        "statuses": ["succeeded", "cancelled", "aborted"]})
+        return cursor.rowcount
 
 
 def still_on_the_queue(job_ids: list[int]) -> set[int]:

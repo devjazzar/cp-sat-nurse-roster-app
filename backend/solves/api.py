@@ -30,7 +30,7 @@ from rosters.drafts import frozen_month
 from rosters.models import Roster, RosterState
 from solves import replans
 from solves.input import Assembled, assemble, assemble_replan, recorded_cells_differ, solver_refusal
-from solves.models import ACTIVE_STATES, ReplanOutcomeWord, Solve, SolveFailure, SolveState
+from solves.models import ACTIVE_STATES, ReplanOutcomeWord, Solve, SolveFailureWord, SolveState
 from solves.result import has_a_roster_to_keep, in_dates, precheck_of
 from solves.tasks import run_solve
 from units.models import Unit
@@ -154,7 +154,7 @@ class SolveProgress(Schema):
     attempts: int
     requested_at: dt.datetime
     finished_at: dt.datetime | None
-    failure: Literal[SolveFailure.SOLVER, SolveFailure.REFUSED] | None = Field(
+    failure: SolveFailureWord | None = Field(
         description="`refused` is a matter of the rules, to be shown as such and not as a failed solve.")
     error: str
     found_roster: bool = Field(description="Whether this solve ended with a roster it could keep, which became the draft "

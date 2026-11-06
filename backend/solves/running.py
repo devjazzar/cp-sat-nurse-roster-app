@@ -36,7 +36,22 @@ _ENDED = ("finished", "cancelled", "failed")
 
 
 class SolveFailed(Exception):
-    """This attempt ended with no answer from the solver."""
+    """This attempt ended with no answer from the solver, for a reason of this `kind`."""
+
+    def __init__(self, message: str, kind: SolveFailure):
+        super().__init__(message)
+        self.kind = kind
+
+
+def _kind_of(error: Exception) -> SolveFailure:
+    """Which of the fixed kinds an attempt's failure is, from what was raised and never from its words."""
+    if isinstance(error, SolveFailed):
+        return error.kind
+    if isinstance(error, SolverUnreachable):
+        return SolveFailure.UNREACHABLE
+    if isinstance(error, SolverBusy):
+        return SolveFailure.STUCK
+    return SolveFailure.UNEXPECTED
 
 
 def _set(solve: Solve, **fields) -> None:
@@ -66,7 +81,7 @@ def run(solve_id: UUID | str) -> None:
             logger.exception("solve %s: attempt %s failed", solve.pk, solve.attempts)
             reason = str(e) or type(e).__name__
             if solve.attempts >= MAX_ATTEMPTS:
-                _fail(solve, failure=SolveFailure.SOLVER, error=reason)
+                _fail(solve, failure=_kind_of(e), error=reason)
                 return
             _set(solve, error=reason, solver_job_id="")
             time.sleep(WAIT_BEFORE_RETRY_SECONDS)
@@ -79,7 +94,7 @@ def _attempt(solve: Solve) -> dict:
         if _stop_requested(solve):
             return {"state": "cancelled", "result": None, "elapsed_seconds": solve.elapsed_seconds}
         if solve.attempts >= MAX_ATTEMPTS:
-            raise SolveFailed("The worker stopped during the last attempt.")
+            raise SolveFailed("The worker stopped during the last attempt.", SolveFailure.WORKER_LOST)
         _set(solve, attempts=solve.attempts + 1)
         _set(solve, solver_job_id=_start(solve))
     return _watch(solve, solve.solver_job_id)
@@ -100,7 +115,7 @@ def _cancel_what_a_dead_worker_left(job_id: str, solve: Solve) -> None:
     deadline = time.monotonic() + OVERRUN_SECONDS
     while solver_client.read_job(job_id)["state"] not in _ENDED:
         if time.monotonic() > deadline:
-            raise SolveFailed("The solver would not stop an earlier job.")
+            raise SolveFailed("The solver would not stop an earlier job.", SolveFailure.STUCK)
         time.sleep(POLL_SECONDS)
 
 
@@ -113,7 +128,7 @@ def _watch(solve: Solve, job_id: str) -> dict:
             unanswered = 0
             if job["state"] in _ENDED:
                 if job["state"] == "failed":
-                    raise SolveFailed(job.get("error") or "The solver failed and gave no reason.")
+                    raise SolveFailed(job.get("error") or "The solver failed and gave no reason.", SolveFailure.SOLVER_ERROR)
                 return job
             _write_progress(solve, job)
             if not relayed and (job["cancel_requested"] or _stop_requested(solve)):
@@ -124,9 +139,10 @@ def _watch(solve: Solve, job_id: str) -> dict:
             if unanswered >= UNANSWERED_POLLS:
                 raise
         except SolverJobUnknown as e:
-            raise SolveFailed("The solver restarted and lost this solve.") from e
+            raise SolveFailed("The solver restarted and lost this solve.", SolveFailure.LOST) from e
         if time.monotonic() > deadline:
-            raise SolveFailed(f"The solver had not ended {OVERRUN_SECONDS:.0f} seconds past the time limit.")
+            raise SolveFailed(f"The solver had not ended {OVERRUN_SECONDS:.0f} seconds past the time limit.",
+                              SolveFailure.OVERRUN)
         time.sleep(POLL_SECONDS)
 
 
@@ -193,4 +209,4 @@ def end_what_the_queue_lost() -> None:
     """A job can end without its row knowing only if the database went away as it tried to write. Without this the row would
     stay active for good, and with it the month's one active solve."""
     for solve in _solves_nothing_will_run():
-        _fail(solve, failure=SolveFailure.SOLVER, error="The worker lost this solve.")
+        _fail(solve, failure=SolveFailure.WORKER_LOST, error="The worker lost this solve.")

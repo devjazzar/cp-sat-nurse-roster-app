@@ -28,7 +28,7 @@ from rosters.versions import differences
 from rosters.review import SEEN_BY_APPROVERS
 from solves.api import chosen_month, manager
 from solver_service.grid import validate_grid
-from solves.models import ReplanOutcomeWord, Solve, SolveFailure, SolveState
+from solves.models import ReplanOutcomeWord, Solve, SolveFailureWord, SolveState
 from solves.result import LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, precheck_of, statistics_of
 from units.models import Unit
 from units.scope import HOSPITAL_WIDE, unit_in_scope
@@ -54,7 +54,7 @@ class SolveRow(Schema):
     id: UUID
     month: str
     state: Literal[SolveState.QUEUED, SolveState.RUNNING, SolveState.SUCCEEDED, SolveState.FAILED, SolveState.CANCELLED]
-    failure: Literal[SolveFailure.SOLVER, SolveFailure.REFUSED] | None
+    failure: SolveFailureWord | None
     requested_by: str
     requested_at: dt.datetime
     finished_at: dt.datetime | None

@@ -17,11 +17,17 @@ def required(name: str) -> str:
 DEBUG = os.environ.get("DJANGO_DEBUG", "") == "1"
 SECRET_KEY = required("SECRET_KEY")
 
-# With a domain only that name is served. Without one the hospital reaches the server by
-# whatever IP or name it has, behind Caddy's self-signed certificate. Loopback is always
-# allowed for the container's own health check.
+
+
+def hosts(domain: str) -> list[str]:
+    """With a domain only that name is served. Without one the hospital reaches the server by whatever IP or name it has,
+    behind Caddy's self-signed certificate. Loopback is always allowed for the container's own health check, and `web` for a
+    Prometheus scraping `/metrics` on the internal network (`ops.metrics`)."""
+    return [domain, "localhost", "127.0.0.1", "web"] if domain else ["*"]
+
+
 DOMAIN = os.environ.get("DOMAIN", "")
-ALLOWED_HOSTS = [DOMAIN, "localhost", "127.0.0.1"] if DOMAIN else ["*"]
+ALLOWED_HOSTS = hosts(DOMAIN)
 CSRF_TRUSTED_ORIGINS = [f"https://{DOMAIN}"] if DOMAIN else []
 if DEBUG:  # Vite's proxy does not pass the browser's Host on, so Django cannot match the Origin itself
     CSRF_TRUSTED_ORIGINS.append("http://localhost:5173")
@@ -110,3 +116,15 @@ WHITENOISE_ROOT = SPA_DIR if SPA_DIR.is_dir() else None
 WHITENOISE_MAX_AGE = 3600
 WHITENOISE_IMMUTABLE_FILE_TEST = r"^assets/"
 WHITENOISE_AUTOREFRESH = DEBUG
+
+# One JSON object a line on standard output, from every logger (ticket 22). gunicorn's own lines are config/gunicorn.py's. The
+# worker's lines can name a nurse and a date, so the install guide treats the log as personal data.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"json": {"()": "solver_service.logs.JsonFormatter"}},
+    "handlers": {"stdout": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "json"}},
+    "root": {"handlers": ["stdout"], "level": "INFO"},
+    # Django's own would print a second, plain copy under DEBUG; through the root instead.
+    "loggers": {"django": {"handlers": [], "level": "INFO", "propagate": True}},
+}

@@ -17,8 +17,24 @@ ACTIVE_STATES = (SolveState.QUEUED, SolveState.RUNNING)
 
 
 class SolveFailure(models.TextChoices):
-    SOLVER = "solver", "The solver crashed or could not be reached."
+    """Why a solve gave no answer, as one of a few fixed kinds the System Admin reads in place of `Solve.error`, whose words
+    can name a nurse and a date. A label holds no name, date or rule value, and neither may a kind added later."""
     REFUSED = "refused", "The solver refused the solve input, which is a matter of the rules and not of the solver."
+    UNREACHABLE = "unreachable", "The solver could not be reached."
+    LOST = "lost", "The solver restarted and lost the solve."
+    OVERRUN = "overrun", "The solver ran well past the time limit and was given up on."
+    SOLVER_ERROR = "solver_error", "The solver stopped with an error of its own."
+    STUCK = "stuck", "The solver would not stop an earlier job, so this one could not start."
+    WORKER_LOST = "worker_lost", "The worker stopped during the solve and could not take it up again."
+    UNEXPECTED = "unexpected", "The worker met an error of its own."
+    # Before ticket 22 every failure but a refusal was this one.
+    SOLVER = "solver", "The solver crashed or could not be reached (recorded before the kinds were told apart)."
+
+
+# How the API types a `SolveFailure`.
+SolveFailureWord = Literal[SolveFailure.REFUSED, SolveFailure.UNREACHABLE, SolveFailure.LOST, SolveFailure.OVERRUN,
+                           SolveFailure.SOLVER_ERROR, SolveFailure.STUCK, SolveFailure.WORKER_LOST, SolveFailure.UNEXPECTED,
+                           SolveFailure.SOLVER]
 
 
 class ReplanOutcome(models.TextChoices):
@@ -63,7 +79,7 @@ class Solve(models.Model):
         default=dict, help_text="{hospital ID: [dates]}: which of a nurse's credited days were outside their dates, which the "
                                 "input does not say, as it lists them with leave. No dates of leave, and no type.")
     result = models.JSONField(null=True, blank=True, help_text="The solver's result, as it answered.")
-    failure = models.CharField(max_length=7, choices=SolveFailure, blank=True)
+    failure = models.CharField(max_length=12, choices=SolveFailure, blank=True)
     error = models.TextField(blank=True, help_text="Why the last attempt failed, also when a retry then worked.")
     # A re-plan of an approved month: days before `replan_from` are facts, and its roster becomes a new version.
     replan_from = models.DateField(null=True, blank=True, help_text="Set only on a re-plan: the first date it plans again.")

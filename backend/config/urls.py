@@ -3,6 +3,7 @@ from django.http import FileResponse, Http404, HttpRequest
 from django.urls import path, re_path
 
 from config.api import api
+from ops.metrics import metrics
 
 
 def spa(request: HttpRequest, path: str = "") -> FileResponse:
@@ -15,5 +16,6 @@ def spa(request: HttpRequest, path: str = "") -> FileResponse:
 
 urlpatterns = [
     path("api/", api.urls),
+    path("metrics", metrics),
     re_path(r"^(?!api/)(?P<path>.*)$", spa),
 ]
