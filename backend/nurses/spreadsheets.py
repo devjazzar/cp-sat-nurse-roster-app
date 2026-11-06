@@ -49,19 +49,20 @@ def csv_response(filename: str, rows: Iterable[Iterable[Cell]]) -> HttpResponse:
     return response
 
 
-def xlsx_response(filename: str, title: str, rows: list[list[Cell]], *, frozen: tuple[int, int] = (1, 0),
-                  widths: Mapping[int, float] | None = None) -> HttpResponse:
+def xlsx_response(filename: str, title: str, sheet_name: str, rows: list[list[Cell]], *, frozen: tuple[int, int],
+                  widths: Mapping[int, float]) -> HttpResponse:
     """One sheet of `rows`, each cell written as its own type: text as text, a number as a number and a date as a date shown
     YYYY-MM-DD. Text is never read as a formula, a link or a number, so an ID keeps its leading zeros; text that opens like a
     formula is marked as text the way Excel marks a typed apostrophe (`quote_prefix`), which shows no apostrophe. Built in memory:
-    xlsxwriter would otherwise write its parts to temporary files. `title` goes in the workbook's properties."""
+    xlsxwriter would otherwise write its parts to temporary files. `title` goes in the workbook's properties, and `sheet_name`, at
+    most 31 characters and none of `[]:*?/\\`, is the one sheet's."""
     buffer = io.BytesIO()
     workbook = xlsxwriter.Workbook(buffer, {"in_memory": True, "strings_to_formulas": False, "strings_to_urls": False,
                                             "strings_to_numbers": False})
     workbook.set_properties({"title": title})
-    as_date = workbook.add_format({"num_format": "yyyy-mm-dd", "bold": False})
+    as_date = workbook.add_format({"num_format": "yyyy-mm-dd"})
     as_text = workbook.add_format({"quote_prefix": True})
-    sheet = workbook.add_worksheet("Roster")
+    sheet = workbook.add_worksheet(sheet_name)
     for row_number, row in enumerate(rows):
         for column, cell in enumerate(row):
             if cell == "":
@@ -74,7 +75,7 @@ def xlsx_response(filename: str, title: str, rows: list[list[Cell]], *, frozen: 
                 sheet.write_string(row_number, column, cell, as_text)
             else:
                 sheet.write_string(row_number, column, cell)
-    for column, width in (widths or {}).items():
+    for column, width in widths.items():
         sheet.set_column(column, column, width)
     sheet.freeze_panes(*frozen)
     workbook.close()

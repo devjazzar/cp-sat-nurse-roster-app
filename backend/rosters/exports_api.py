@@ -48,7 +48,7 @@ def version_for(user: User, unit_id: UUID, month: dt.date, number: int) -> Roste
     unit = unit_in_scope(user, unit_id)
     roster = Roster.objects.select_related("unit").filter(unit=unit, month=month).first()
     seen = roster is not None and (user.role not in HOSPITAL_WIDE or roster.state in review.SEEN_BY_APPROVERS)
-    version = roster.versions.select_related("roster__unit").filter(number=number).first() if seen else None
+    version = roster.versions.filter(number=number).first() if seen else None
     if version is None:
         raise HttpError(404, f"This month's roster has no version {number}.")
     return version
@@ -77,7 +77,7 @@ def export_version(request: HttpRequest, unit_id: UUID, filters: Query[ExportFil
         return csv_response(filename, sheet.table())
     # The names wide enough to read, a date as wide as YYYY-MM-DD; the header row and the two name columns stay in view.
     widths = {0: 14, 1: 28, **{2 + index: 11 for index in range(len(sheet.days))}}
-    return xlsx_response(filename, _title(sheet), sheet.table(), frozen=(1, 2), widths=widths)
+    return xlsx_response(filename, _title(sheet), "Roster", sheet.table(), frozen=(1, 2), widths=widths)
 
 
 @router.get("/{unit_id}/roster/sheet", response=RosterSheet, auth=reader, operation_id="getRosterVersionSheet")

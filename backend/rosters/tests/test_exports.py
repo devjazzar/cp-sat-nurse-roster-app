@@ -52,7 +52,7 @@ class TestTheCsv:
 
         header, *rows = csv_rows(export(mona, er))
 
-        assert header == ["Hospital ID", "Full name", *DATES, "Hours worked", "Day (D)", "Night (N)"]
+        assert header == ["Hospital ID", "Full name", *DATES, "Shift hours", "Day (D)", "Night (N)"]
         assert [row[0] for row in rows] == ["Amal", "Badr", "Dana", "Emad"]
         assert rows[0] == ["Amal", "Amal", *AMAL, "204", "6", "11"]
 
@@ -142,7 +142,7 @@ class TestTheWorkbook:
         cells = workbook(export(mona, er, file_format="xlsx"))
 
         assert [cells[ref]["value"] for ref in ("A1", "B1", "AG1", "AH1", "AI1")] == [
-            "Hospital ID", "Full name", "Hours worked", "Day (D)", "Night (N)"]
+            "Hospital ID", "Full name", "Shift hours", "Day (D)", "Night (N)"]
         # 1 June 2026 is day 46174 of Excel's calendar, which counts from 30 December 1899.
         assert cells["C1"] | {"value": float(cells["C1"]["value"])} == {
             "type": "n", "value": 46174.0, "formula": False, "text_marked": False, "format": "yyyy-mm-dd"}

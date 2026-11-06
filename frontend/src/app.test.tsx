@@ -5763,7 +5763,7 @@ describe("printing and downloading a roster version", () => {
 
       const table = await screen.findByRole("table", { name: "ER roster, June 2026, version 2" })
       expect(bodyRows(table)).toEqual([["Amal Saleh", "N", "", "D", "24", "1", "1"], ["Hana Ali (you)", "L", "D", "", "12", "1", "0"]])
-      expect(screen.getByText(/L: your leave\./)).toBeInTheDocument()
+      expect(screen.getByText(/L: your leave\. My month counts your leave as worked in your hours; these hours count shifts only\./)).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Back to My roster" })).toHaveAttribute("href", "/my-roster?month=2026-06")
     })
 

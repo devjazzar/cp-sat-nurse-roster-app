@@ -3,13 +3,12 @@ import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 
 import { getExportRosterVersionUrl, useCompareRosterVersions, useListRosterVersions } from "@/api/generated/endpoints"
-import type { VersionRow } from "@/api/generated/model"
+import type { ExportRosterVersionFormat, VersionRow } from "@/api/generated/model"
 import { plural } from "@/components/roster-notes"
 import { buttonVariants } from "@/components/ui/button"
-import { cn, longDay } from "@/lib/utils"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { hospitalTime } from "@/lib/utils"
+import { hospitalTime, longDay } from "@/lib/utils"
 
 /** The versions of an approved roster and what changed between any two, for the unit's manager and the approvers. A version's
  *  reason can say a cell was leave, so no nurse reads this: they see the roster in force on My roster. */
@@ -23,12 +22,12 @@ const ORIGIN: Record<VersionRow["origin"], string> = {
 }
 
 const shown = (code: string) => code || "Off"
-const FILE_LINK = cn(buttonVariants({ variant: "outline", size: "sm" }))
+const FILE_LINK = buttonVariants({ variant: "outline", size: "sm" })
 
 /** A version's print page and its two files. Each file taken is in the audit log, as the staff list is; the print page is
  *  not, since it makes no file. A file holds a day of leave as a day off, and never a leave's type. */
 function VersionFiles({ unitId, month, number }: { unitId: string; month: string; number: number }) {
-  const file = (format: "csv" | "xlsx") => getExportRosterVersionUrl(unitId, { month, version: number, format })
+  const file = (format: ExportRosterVersionFormat) => getExportRosterVersionUrl(unitId, { month, version: number, format })
   return (
     <div className="flex flex-wrap gap-1">
       <Link to="/roster/print" search={{ unit: unitId, month, version: number }} className={FILE_LINK} aria-label={`Print version ${number}`}>Print</Link>

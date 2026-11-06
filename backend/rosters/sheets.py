@@ -1,4 +1,4 @@
-"""A roster version as a table: one row a nurse by name, one column a date, then the hours worked and a count of each shift.
+"""A roster version as a table: one row a nurse by name, one column a date, then the hours of its shifts and a count of each shift.
 The CSV, the Excel workbook and the print page are all this one table (`rosters.exports_api`, and a nurse's own in
 `rosters.reading_api`).
 
@@ -66,7 +66,7 @@ class Sheet:
     def table(self) -> list[list[str | int | dt.date]]:
         """The header, then a row a nurse, with each cell its own type: a date heading is a date, and the hours and counts are
         numbers, so a workbook reads them as such."""
-        header = ["Hospital ID", "Full name", *(day.date for day in self.days), "Hours worked",
+        header = ["Hospital ID", "Full name", *(day.date for day in self.days), "Shift hours",
                   *(shift.heading for shift in self.shifts)]
         return [header, *([row.hospital_id, row.full_name, *row.shifts, row.hours, *row.counts] for row in self.rows)]
 
@@ -75,8 +75,9 @@ def _hours_by_code(version: RosterVersion) -> dict[str, int]:
     """A shift's hours as the solve behind this version was given them: its own, or for a hand edit the one of the version it was
     made on. A shift's hours cannot change while a month not over uses it, so these are the month's; a code that solve was not
     given, added by hand since, takes the catalogue's."""
-    solve = version.solve or next(earlier.solve for earlier in version.roster.versions.filter(number__lt=version.number)
-                                  if earlier.solve is not None)
+    earlier = version.roster.versions.filter(number__lt=version.number, solve__isnull=False).select_related("solve").first()
+    # Version 1 always has one, the approval's; the roster's own is the last resort should that ever not hold.
+    solve = version.solve or (earlier.solve if earlier else version.roster.solve)
     given = solve.input["general"]["shift_hours"]
     renamed = current_codes(given)
     return {renamed[code]: hours for code, hours in given.items()}

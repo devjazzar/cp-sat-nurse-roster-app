@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] CSV and Excel export of a chosen version with the agreed columns
-- [ ] Print page for a version, styled for paper
-- [ ] Authorization: unit-scoped for managers, hospital-wide for approvers, none for nurses beyond their own unit's print page
-- [ ] API tests cover both exports' content and authorization
+- [x] CSV and Excel export of a chosen version with the agreed columns
+- [x] Print page for a version, styled for paper
+- [x] Authorization: unit-scoped for managers, hospital-wide for approvers, none for nurses beyond their own unit's print page
+- [x] API tests cover both exports' content and authorization
 
 ## Comments
 

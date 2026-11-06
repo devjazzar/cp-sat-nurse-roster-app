@@ -16,6 +16,9 @@ const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "
 const twoLetters = (iso: string) => weekday.format(asDate(iso)).slice(0, 2)
 const dayNumber = (iso: string) => String(asDate(iso).getUTCDate())
 
+/** A weekend or a holiday is shaded, on paper too. */
+const shaded = (day: { weekend: boolean; holiday: boolean }) => (day.weekend || day.holiday) && "bg-muted print:[print-color-adjust:exact]"
+
 /** What a cell of the reader's own row says when it holds no shift, on their own sheet only. */
 const OWN_DAY = { leave: "L", outside: "·", off: "", shift: "" } as const
 
@@ -36,7 +39,7 @@ export function SheetTable({ sheet, me }: { sheet: RosterSheet; me?: string }) {
           <tr>
             <th scope="col" className="border p-1 text-start font-medium">Nurse</th>
             {sheet.days.map((day) => (
-              <th key={day.date} scope="col" className={cn("border p-0.5 text-center font-medium", (day.weekend || day.holiday) && "bg-muted print:[print-color-adjust:exact]")}>
+              <th key={day.date} scope="col" className={cn("border p-0.5 text-center font-medium", shaded(day))}>
                 <abbr title={day.date} className="no-underline">{dayNumber(day.date)}<br />{twoLetters(day.date)}</abbr>
               </th>
             ))}
@@ -55,7 +58,7 @@ export function SheetTable({ sheet, me }: { sheet: RosterSheet; me?: string }) {
                   {row.full_name || row.hospital_id}{own ? " (you)" : ""}
                 </th>
                 {row.shifts.map((code, index) => (
-                  <td key={sheet.days[index].date} className={cn("border p-0 text-center", (sheet.days[index].weekend || sheet.days[index].holiday) && "bg-muted print:[print-color-adjust:exact]")}>
+                  <td key={sheet.days[index].date} className={cn("border p-0 text-center", shaded(sheet.days[index]))}>
                     {code || (own ? OWN_DAY[own[index].kind] : "")}
                   </td>
                 ))}
@@ -91,7 +94,7 @@ export function SheetPage({ sheet, me, back }: { sheet: RosterSheet; me?: string
       <p className="text-sm print:text-[7pt]">
         {sheet.shifts.map((shift) => `${shift.code}: ${shift.display_name}, ${shift.hours} hours`).join(". ")}{sheet.shifts.length ? ". " : ""}
         An empty cell is a day not worked. Hours are those of the shifts on the row.
-        {ownLeave ? " L: your leave." : ""}{ownOutside ? " ·: before your start date or after your end date." : ""}
+        {ownLeave ? " L: your leave. My month counts your leave as worked in your hours; these hours count shifts only." : ""}{ownOutside ? " ·: before your start date or after your end date." : ""}
       </p>
     </div>
   )

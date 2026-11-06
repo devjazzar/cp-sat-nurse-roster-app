@@ -437,10 +437,10 @@ Minimum length 10 with Django's common-password and similarity checks, lockout f
 minutes after 5 failed logins, sessions expire after 12 hours of inactivity (polling a solve's
 progress is not activity), no two-factor authentication in v1. Every login, failed login and every change to settings, accounts,
 rosters, requests and swaps goes to the audit log. So does each taking of the staff list, which holds everyone's gender:
-who took it and how many nurses it held, and nothing from the file; and each taking of a roster version's CSV or Excel file
-(`roster.exported`): who took which unit's month, which version and which format, and nothing from the file. A roster's print
-page makes no file and shows only what its reader can already read, so it is not logged. Its import template holds no one's data and is not
-logged. Nurses see colleagues' names and shifts only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
+who took it and how many nurses it held, and nothing from the file. Its import template holds no one's data and is not
+logged. So does each taking of a roster version's CSV or Excel file (`roster.exported`): who took which unit's month, which
+version and which format, and nothing from the file. A roster's print page makes no file and shows only what its reader can
+already read, so it is not logged. Nurses see colleagues' names and shifts only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
 changed and by whom, without its value or even which one, since a change to a two-way flag gives its value away. Unit
 rules are logged with their values, as hospital rules are: they say nothing about a person. Attributes also stay off
 the staff list, a file that leaves the system. Leave is logged the same way, as whose changed and by whom: not its type, its
@@ -462,7 +462,7 @@ staff list every cell is quoted, and one a spreadsheet would run as a formula st
 ### Roster files and the print page
 
 Any version of an approved roster, not only the one in force, downloads as CSV and as an Excel workbook and opens as a print
-page, all one table (`rosters.sheets`): a row a nurse by name, a column a date, then the hours worked and a count of each shift.
+page, all one table (`rosters.sheets`): a row a nurse by name, a column a date, then the hours of its shifts and a count of each shift.
 The unit's manager takes them for their unit, the CNO and the Deputy CNO for any unit while its month is submitted or approved;
 a draft is not a version and has none. A nurse takes no file, and prints only their own unit's roster in force, from My
 roster. A file and a printout leave the system, so a cell is the version's shift or nothing: a day of leave reads as a day off
