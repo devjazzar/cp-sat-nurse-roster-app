@@ -9,3 +9,8 @@
 - [ ] Playwright journeys per role against the compose stack with the real solver on a small unit
 - [ ] CI job builds the image, starts the stack, runs the journeys, and fails the build on any failure
 - [ ] Journeys run at desktop and phone sizes
+
+## Comments
+
+**From ticket 20 (2026-11-06).** A swap journey: a staff nurse proposes on Swaps (`/swaps`) on an approved month, each colleague in it accepts on their own Swaps page, the unit's manager approves on Swaps (`/unit-swaps`), and the roster in force shows the new version. A refusal about a colleague reads only "This swap cannot work for … on …"; a journey can assert that it says nothing more.
+
