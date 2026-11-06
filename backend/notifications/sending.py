@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from accounts.models import Role, User
 from notifications.models import Event, Notification, SolveOutcome
 from nurses import membership
 from units.models import Unit
+
+if TYPE_CHECKING:
+    from requesting.models import Request, RequestWindow
 
 
 def notify(users: Iterable[User | None], event: Event, **payload) -> int:
@@ -62,3 +66,34 @@ def solve_ended(unit_id: UUID, month: dt.date, solve_id: UUID, outcome: SolveOut
     unit = Unit.objects.select_related("manager").get(pk=unit_id)
     notify([unit.manager], Event.SOLVE_ENDED, **_about(unit, month), solve_id=str(solve_id), outcome=outcome,
            **({"replan": True} if replan else {}))
+
+
+def _window_nurses(window: "RequestWindow"):
+    """The staff nurses of the unit's target month, a nurse due to join included, as an approval's are. A manager with a nurse
+    profile makes no requests."""
+    return User.objects.filter(role=Role.STAFF_NURSE, nurse_profile__in=membership.placed_in(window.unit, window.month))
+
+
+def window_opened(window: "RequestWindow") -> None:
+    """When its open date comes, which may be the day it is made. The words read the window's dates when shown."""
+    notify(_window_nurses(window), Event.WINDOW_OPENED, **_about(window.unit, window.month), window_id=str(window.pk),
+           by=str(window.created_by_id))
+
+
+def window_closed_early(window: "RequestWindow", by: User) -> None:
+    """To the nurses told it opened, who expected it open until its close date."""
+    notify(_window_nurses(window), Event.WINDOW_CLOSED_EARLY, **_about(window.unit, window.month), window_id=str(window.pk),
+           by=str(by.pk))
+
+
+def window_closed(window: "RequestWindow") -> None:
+    """To the unit's manager, once, when its close date has passed with requests waiting for a decision: one notification a
+    window rather than one a request. How many still wait is worked out when it is read."""
+    notify([window.unit.manager], Event.WINDOW_CLOSED, **_about(window.unit, window.month), window_id=str(window.pk))
+
+
+def request_decided(request: "Request", step: str, by: User) -> None:
+    """To the nurse who made it, and nobody else. Never its date, shift or either reason: the words read them from the request
+    when shown, and only she reads them."""
+    notify([request.nurse.user], Event.REQUEST_DECIDED, **_about(request.window.unit, request.window.month),
+           request_id=str(request.pk), step=str(step), by=str(by.pk))

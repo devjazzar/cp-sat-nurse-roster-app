@@ -489,7 +489,7 @@ class TestLeaveRecordedLate:
 
         response = leave_for(mona, er, "Amal", 9)
 
-        assert response.json()["pins_removed"] == [{"date": "2026-06-09", "shift": "N"}]
+        assert response.json()["pins_removed"] == [{"date": "2026-06-09", "shift": "N", "origin": "manager"}]
         assert response.json()["shifts_taken_off"] == [{"date": "2026-06-09", "shift": "N", "version": 3}]
         assert cell_of(er, "Amal", 9) == "" and not PinnedCell.objects.current().exists()
 

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
-from dataclasses import dataclass
-from typing import Annotated
+from dataclasses import dataclass, field
+from typing import Annotated, Literal
 from uuid import UUID
 
 from django.db import transaction
@@ -31,6 +31,8 @@ from notifications import sending
 from nurses import membership
 from nurses.api import Body, MonthText, with_units
 from nurses.models import Leave, NurseProfile
+from requesting.deciding import replaced_by_leave
+from requesting.models import Request, Step
 from rosters.pins import end_for_leave
 from rosters.versions import TakenOff, take_off_for_leave
 from units.models import Unit
@@ -100,6 +102,8 @@ class UnitLeaveMonth(Schema):
 class RemovedPin(Schema):
     date: dt.date
     shift: str = Field(description="The shift's code. Empty for a day off.")
+    origin: Literal["manager", "request", "swap"] = Field(description="An accepted request's pin is the nurse's: the request "
+                                                                      "stays on record, replaced by leave, and they are told.")
 
 
 class ShiftTakenOff(Schema):
@@ -257,12 +261,15 @@ def _refuse_dates(nurse: NurseProfile, unit: Unit, first: dt.date, last: dt.date
 class _Begun:
     pins_removed: list[RemovedPin]
     taken_off: list[TakenOff]
+    requests_replaced: list[Request] = field(default_factory=list)
 
     def notify_nurses(self, user: User) -> None:
-        """Tells the unit's nurses of each version made. Call it after the leave's audit entry, as every change tells after its
-        own."""
+        """Tells the unit's nurses of each version made, and the nurse of each accepted request of theirs the leave replaced.
+        Call it after the leave's audit entry, as every change tells after its own."""
         for taken in self.taken_off:
             sending.roster_changed(taken.roster.unit, taken.roster.month, user)
+        for replaced in self.requests_replaced:
+            sending.request_decided(replaced, Step.REPLACED_BY_LEAVE, user)
 
     @property
     def shifts_taken_off(self) -> list[ShiftTakenOff]:
@@ -275,8 +282,10 @@ def _begin(nurse: NurseProfile, unit: Unit, leave_type: LeaveType, days: list[dt
     roster (`rosters.versions.take_off_for_leave`). Leave's own audit entry stays as it is, whoever recorded it: an entry of the
     pin's or of the version's beside it would tell the System Admin the month of this leave."""
     Leave.objects.bulk_create([Leave(nurse=nurse, date=day, leave_type=leave_type, recorded_by=user) for day in days])
-    ended = sorted(end_for_leave(nurse, days, unit, user), key=lambda pin: pin.date)
-    return _Begun([RemovedPin(date=pin.date, shift=pin.code) for pin in ended], take_off_for_leave(nurse, unit, days, user))
+    ended = sorted(end_for_leave(nurse, days, user), key=lambda pin: pin.date)
+    replaced = replaced_by_leave(ended, user)
+    return _Begun([RemovedPin(date=pin.date, shift=pin.code, origin=pin.origin) for pin in ended if pin.unit_id == unit.pk],
+                  take_off_for_leave(nurse, unit, days, user), replaced)
 
 
 def _end(ids: Iterable[UUID], user: User) -> None:

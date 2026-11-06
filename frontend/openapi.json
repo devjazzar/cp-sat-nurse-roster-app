@@ -3081,6 +3081,553 @@
         ]
       }
     },
+    "/api/units/{unit_id}/request-windows": {
+      "get": {
+        "operationId": "listRequestWindows",
+        "summary": "Request Windows",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitWindows"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "requests"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "openRequestWindow",
+        "summary": "Open Request Window",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WindowRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "A window whose open date is today opens now, and the unit's nurses of the month are told; a later one opens on its date,\nby the hourly job or the next write, whichever comes first. At most one window of a unit is waiting or open.",
+        "tags": [
+          "requests"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WindowBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/request-windows/{window_id}/close": {
+      "post": {
+        "operationId": "closeRequestWindow",
+        "summary": "Close Request Window",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "window_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Window Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WindowRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Before its close date. Its pending requests stay for the manager's decision.",
+        "tags": [
+          "requests"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/request-windows/{window_id}/requests": {
+      "get": {
+        "operationId": "listWindowRequests",
+        "summary": "Window Requests",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "window_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Window Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UnitRequestRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "By date, then when they were made. A nurse transferred out of the month since keeps her request here: it can be\nrejected, and accepting it is refused, as a pin of hers would be.",
+        "tags": [
+          "requests"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/requests/{request_id}/accept": {
+      "post": {
+        "operationId": "acceptRequest",
+        "summary": "Accept Request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decided"
+                }
+              }
+            }
+          }
+        },
+        "description": "It becomes a pinned cell of origin `request`, refused where a pin would be. On an approved roster of a month not over,\na new version with origin `request` when it changes a cell; a submitted roster takes it once decided.",
+        "tags": [
+          "requests"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/requests/{request_id}/reject": {
+      "post": {
+        "operationId": "rejectRequest",
+        "summary": "Reject Request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decided"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "requests"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/requests/{request_id}/edit": {
+      "post": {
+        "operationId": "editRequest",
+        "summary": "Edit Request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decided"
+                }
+              }
+            }
+          }
+        },
+        "description": "An accepted request's promise changed, with a reason, as acceptance puts it on the roster.",
+        "tags": [
+          "requests"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/requests/{request_id}/cancel": {
+      "post": {
+        "operationId": "cancelRequest",
+        "summary": "Cancel Request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decided"
+                }
+              }
+            }
+          }
+        },
+        "description": "Its pin ends and no cell changes, so no version is made.",
+        "tags": [
+          "requests"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/requests/mine": {
+      "get": {
+        "operationId": "getMyRequests",
+        "summary": "My Requests",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyRequests"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "requests"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "makeRequest",
+        "summary": "Make Request",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyRequestRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Within an open window of the unit the date's month falls under for you, up to the unit's cap of requests pending or\naccepted, one a date. The audit log says that you made one, never what or why.",
+        "tags": [
+          "requests"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/requests/mine/{request_id}/withdraw": {
+      "post": {
+        "operationId": "withdrawRequest",
+        "summary": "Withdraw Request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyRequestRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "A pending one, while its window is open. Another nurse's is the same 404 as none.",
+        "tags": [
+          "requests"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/rosters/overview": {
       "get": {
         "operationId": "getRosterOverview",
@@ -6381,11 +6928,22 @@
             "description": "The shift's code. Empty for a day off.",
             "title": "Shift",
             "type": "string"
+          },
+          "origin": {
+            "description": "An accepted request's pin is the nurse's: the request stays on record, replaced by leave, and they are told.",
+            "enum": [
+              "manager",
+              "request",
+              "swap"
+            ],
+            "title": "Origin",
+            "type": "string"
           }
         },
         "required": [
           "date",
-          "shift"
+          "shift",
+          "origin"
         ],
         "title": "RemovedPin",
         "type": "object"
@@ -8023,25 +8581,11 @@
       "EditBody": {
         "additionalProperties": false,
         "properties": {
-          "hospital_id": {
-            "maxLength": 150,
+          "reason": {
+            "description": "The nurse reads it with her request, and nobody but you and her: never a notification or the audit log.",
+            "maxLength": 2000,
             "minLength": 1,
-            "title": "Hospital Id",
-            "type": "string"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "action": {
-            "description": "Pin a shift, pin a day off, or clear the cell's pin.",
-            "enum": [
-              "shift",
-              "off",
-              "clear"
-            ],
-            "title": "Action",
+            "title": "Reason",
             "type": "string"
           },
           "shift": {
@@ -8054,14 +8598,13 @@
                 "type": "null"
               }
             ],
-            "description": "The shift's code, with `shift`.",
+            "description": "The shift's code it now promises, or null for a day off.",
             "title": "Shift"
           }
         },
         "required": [
-          "hospital_id",
-          "date",
-          "action"
+          "reason",
+          "shift"
         ],
         "title": "EditBody",
         "type": "object"
@@ -9498,6 +10041,625 @@
         "title": "Violation",
         "type": "object"
       },
+      "UnitWindows": {
+        "properties": {
+          "request_cap": {
+            "description": "Requests per nurse per month.",
+            "title": "Request Cap",
+            "type": "integer"
+          },
+          "windows": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/WindowRow"
+            },
+            "title": "Windows",
+            "type": "array"
+          },
+          "open_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a window cannot be opened now.",
+            "title": "Open Refusal"
+          }
+        },
+        "required": [
+          "request_cap",
+          "windows",
+          "open_refusal"
+        ],
+        "title": "UnitWindows",
+        "type": "object"
+      },
+      "WindowRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "description": "YYYY-MM, the target month.",
+            "title": "Month",
+            "type": "string"
+          },
+          "opens_on": {
+            "format": "date",
+            "title": "Opens On",
+            "type": "string"
+          },
+          "closes_on": {
+            "description": "The last day requests can be made, on the hospital's clock.",
+            "format": "date",
+            "title": "Closes On",
+            "type": "string"
+          },
+          "state": {
+            "description": "As the dates say today.",
+            "enum": [
+              "scheduled",
+              "open",
+              "closed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "closed_early_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Early By"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "requests": {
+            "description": "Every request made in it, whatever its state.",
+            "title": "Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "opens_on",
+          "closes_on",
+          "state",
+          "closed_early_by",
+          "pending",
+          "requests"
+        ],
+        "title": "WindowRow",
+        "type": "object"
+      },
+      "WindowBody": {
+        "additionalProperties": false,
+        "properties": {
+          "month": {
+            "description": "YYYY-MM, a month not yet begun.",
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          },
+          "opens_on": {
+            "description": "Today or later. Nurses are told when it comes.",
+            "format": "date",
+            "title": "Opens On",
+            "type": "string"
+          },
+          "closes_on": {
+            "description": "The last day requests can be made, before the month begins.",
+            "format": "date",
+            "title": "Closes On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "opens_on",
+          "closes_on"
+        ],
+        "title": "WindowBody",
+        "type": "object"
+      },
+      "StepRow": {
+        "properties": {
+          "step": {
+            "enum": [
+              "made",
+              "withdrawn",
+              "accepted",
+              "rejected",
+              "edited",
+              "cancelled",
+              "replaced_by_leave"
+            ],
+            "title": "Step",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "reason": {
+            "description": "The nurse's, when she made it; the manager's, for a decision. Read only by her and the unit's manager.",
+            "title": "Reason",
+            "type": "string"
+          },
+          "shift": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What an acceptance or an edit promised: a shift's code, empty for a day off. Null for other steps.",
+            "title": "Shift"
+          }
+        },
+        "required": [
+          "step",
+          "by",
+          "at",
+          "reason",
+          "shift"
+        ],
+        "title": "StepRow",
+        "type": "object"
+      },
+      "UnitRequestRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "What she asked for: a shift's code, empty for a day off.",
+            "title": "Shift",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected",
+              "withdrawn",
+              "cancelled",
+              "replaced_by_leave"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "promised": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While accepted, what its pin holds, which an edit may have changed. Null otherwise.",
+            "title": "Promised"
+          },
+          "set_aside": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_in_month",
+                  "outside_dates",
+                  "leave",
+                  "shift_not_worked",
+                  "shift_not_allowed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why its pin counts for nothing now, while accepted, as for any pin.",
+            "title": "Set Aside"
+          },
+          "accept_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot be accepted now, while pending.",
+            "title": "Accept Refusal"
+          },
+          "replaces_pin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While pending, the shift's code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.",
+            "title": "Replaces Pin"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepRow"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "hospital_id",
+          "full_name",
+          "date",
+          "shift",
+          "state",
+          "promised",
+          "set_aside",
+          "accept_refusal",
+          "replaces_pin",
+          "steps"
+        ],
+        "title": "UnitRequestRow",
+        "type": "object"
+      },
+      "Decided": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/UnitRequestRow"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The roster version this made, now in force, when the roster is approved and a cell changed. The unit's nurses are told the roster changed, and not why.",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "request",
+          "version"
+        ],
+        "title": "Decided",
+        "type": "object"
+      },
+      "AcceptBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "default": "",
+            "description": "Optional. The nurse reads it with her request.",
+            "maxLength": 2000,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "AcceptBody",
+        "type": "object"
+      },
+      "ReasonBody": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "The nurse reads it with her request, and nobody but you and her: never a notification or the audit log.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReasonBody",
+        "type": "object"
+      },
+      "MyRequestRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "What you asked for: a shift's code, empty for a day off.",
+            "title": "Shift",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected",
+              "withdrawn",
+              "cancelled",
+              "replaced_by_leave"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "promised": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While accepted, what is promised, which your manager may have changed.",
+            "title": "Promised"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepRow"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "shift",
+          "state",
+          "promised",
+          "steps"
+        ],
+        "title": "MyRequestRow",
+        "type": "object"
+      },
+      "MyRequests": {
+        "properties": {
+          "month": {
+            "description": "YYYY-MM.",
+            "title": "Month",
+            "type": "string"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MyWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest window for this month of the unit it falls under for you."
+          },
+          "request_cap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Requests a nurse may have pending or accepted this month.",
+            "title": "Request Cap"
+          },
+          "counted": {
+            "description": "Yours pending or accepted this month, which count against the cap.",
+            "title": "Counted",
+            "type": "integer"
+          },
+          "refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why you cannot make a request for this month now.",
+            "title": "Refusal"
+          },
+          "shifts": {
+            "description": "The shifts you may ask for.",
+            "items": {
+              "$ref": "#/components/schemas/RequestableShift"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first day of the month you may ask about, within your dates.",
+            "title": "First Day"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "requests": {
+            "description": "Yours for this month, every state, by date.",
+            "items": {
+              "$ref": "#/components/schemas/MyRequestRow"
+            },
+            "title": "Requests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "window",
+          "request_cap",
+          "counted",
+          "refusal",
+          "shifts",
+          "first_day",
+          "last_day",
+          "requests"
+        ],
+        "title": "MyRequests",
+        "type": "object"
+      },
+      "MyWindow": {
+        "properties": {
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "opens_on": {
+            "format": "date",
+            "title": "Opens On",
+            "type": "string"
+          },
+          "closes_on": {
+            "description": "The last day requests can be made.",
+            "format": "date",
+            "title": "Closes On",
+            "type": "string"
+          },
+          "state": {
+            "description": "As the dates say today.",
+            "enum": [
+              "scheduled",
+              "open",
+              "closed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "closed_early": {
+            "title": "Closed Early",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "unit",
+          "opens_on",
+          "closes_on",
+          "state",
+          "closed_early"
+        ],
+        "title": "MyWindow",
+        "type": "object"
+      },
+      "RequestableShift": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "display_name"
+        ],
+        "title": "RequestableShift",
+        "type": "object"
+      },
+      "NewRequestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The shift's code, or null for a day off.",
+            "title": "Shift"
+          },
+          "reason": {
+            "default": "",
+            "description": "Optional. Only you and your manager read it.",
+            "maxLength": 500,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "shift"
+        ],
+        "title": "NewRequestBody",
+        "type": "object"
+      },
       "OverviewFilter": {
         "properties": {
           "month": {
@@ -10786,7 +11948,9 @@
             "enum": [
               "roster",
               "my_roster",
-              "unit_roster"
+              "unit_roster",
+              "my_month",
+              "requests"
             ],
             "title": "Page",
             "type": "string"

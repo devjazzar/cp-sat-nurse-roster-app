@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "rosters",
     "solves",
     "notifications",
+    "requesting",
 ]
 
 MIDDLEWARE = [

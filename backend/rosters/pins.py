@@ -53,6 +53,24 @@ class Judge:
     def why(self, nurse_id, day: dt.date, shift: Shift | None) -> AsideWhy | None:
         return self.day_why(nurse_id, day) or self.shift_why(nurse_id, shift)
 
+    def refusal(self, nurse_id, name: str, day: dt.date, asked: str | None, shift: Shift | None) -> str | None:
+        """Why this nurse could not be pinned to `asked`, a shift's code or None for a day off, on this day, in the words a save
+        of pins and a request's decision both use, so the two cannot disagree. `shift` is that code's shift, if it has one."""
+        match self.day_why(nurse_id, day):
+            case "not_in_month":
+                return f"{name} is not on this unit's roster for {self.month:%B %Y}."
+            case "outside_dates":
+                return f"{long_date(day)} is outside {name}'s dates, so there is nothing to pin."
+            case "leave":
+                return f"{name} is on leave on {long_date(day)}, and leave wins over a pin."
+        if asked is None:
+            return None
+        if shift is None or self.shift_why(nurse_id, shift) == "shift_not_worked":
+            return f"{asked} is not one of this unit's shifts."
+        if self.shift_why(nurse_id, shift) == "shift_not_allowed":
+            return f"{shift.code} is not one of {name}'s allowed shifts."
+        return None
+
 
 @dataclass
 class MonthPins:
@@ -84,12 +102,20 @@ def end(rows: Iterable[PinnedCell], why: PinEnded, by: User) -> None:
     PinnedCell.objects.filter(pk__in=[row.pk for row in rows]).update(removed_at=timezone.now(), removed_by=by, removed_why=why)
 
 
-def end_for_leave(nurse: NurseProfile, days: Iterable[dt.date], unit: Unit, by: User) -> list[PinnedCell]:
-    """Leave wins over a pin. Any pin on these days ends, but the answer names only this unit's: one a transfer left behind is
-    another manager's. Call it under the nurse's lock, as a leave write and a pin's save both hold it."""
+def pin_cell(unit: Unit, nurse: NurseProfile, day: dt.date, shift: Shift | None, origin: str, by: User) -> PinnedCell:
+    """The one way a pin is made. Whatever pin the nurse held that day ends as replaced: this unit's, or one a transfer left
+    behind in their last unit, set aside there, since this month is this unit's. Hold the nurse's lock."""
+    end(PinnedCell.objects.current().filter(nurse=nurse, date=day), PinEnded.REPLACED, by)
+    return PinnedCell.objects.create(unit=unit, nurse=nurse, date=day, shift=shift, origin=origin, pinned_by=by)
+
+
+def end_for_leave(nurse: NurseProfile, days: Iterable[dt.date], by: User) -> list[PinnedCell]:
+    """Leave wins over a pin. Every pin on these days ends, one a transfer left behind in another unit included: the caller
+    says only its own unit's to the manager, as the rest are another manager's. Call it under the nurse's lock, as a leave write
+    and a pin's save both hold it."""
     rows = list(PinnedCell.objects.current().filter(nurse=nurse, date__in=list(days)).select_related("shift"))
     end(rows, PinEnded.LEAVE, by)
-    return [row for row in rows if row.unit_id == unit.pk]
+    return rows
 
 
 def _counted_from_now_on(unit: Unit) -> list[PinnedCell]:

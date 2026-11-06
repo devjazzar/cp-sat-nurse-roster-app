@@ -9,10 +9,9 @@ from typing import Literal
 from solver_service.grid import validate_grid
 
 from hospital.models import Shift
-from nurses.models import NurseProfile
 from rosters.drafts import current_code, in_current_codes
 from rosters.models import PinEnded, PinnedCell, PinOrigin, Roster
-from rosters.pins import Judge, end, long_date
+from rosters.pins import Judge, end, long_date, pin_cell
 from solves.input import assemble
 
 Action = Literal["shift", "off", "clear"]
@@ -55,20 +54,8 @@ class DraftEdits:
         # In one sentence, and the same for a nurse of another unit as for no such nurse.
         if nurse is None or edit.day not in self.roster.grid.get(edit.hospital_id, ()):
             return f"{edit.hospital_id} has no cell on {long_date(edit.date)} in this roster."
-        name = nurse.user.full_name or edit.hospital_id
-        match self.judge.day_why(nurse.pk, edit.date):
-            case "outside_dates":
-                return f"{long_date(edit.date)} is outside {name}'s dates, so there is nothing to pin."
-            case "leave":
-                return f"{name} is on leave on {long_date(edit.date)}, and leave wins over a pin."
-        if edit.action == "off":
-            return None
-        shift = self.shift_of(edit)
-        if shift is None or self.judge.shift_why(nurse.pk, shift) == "shift_not_worked":
-            return f"{edit.shift} is not one of this unit's shifts."
-        if self.judge.shift_why(nurse.pk, shift) == "shift_not_allowed":
-            return f"{shift.code} is not one of {name}'s allowed shifts."
-        return None
+        asked = edit.shift if edit.action == "shift" else None
+        return self.judge.refusal(nurse.pk, nurse.user.full_name or edit.hospital_id, edit.date, asked, self.shift_of(edit))
 
     def cell_after(self, edit: Edit) -> str:
         """Clearing gives the cell back to its solve. On a credited day, leave wins, which is also how a manager takes a shift off
@@ -99,16 +86,11 @@ class DraftEdits:
             wanted = None if edit.action != "shift" else self.shift_of(edit)
             if pin is not None and edit.action != "clear" and pin.shift_id == (wanted.pk if wanted else None):
                 continue
-            if pin is not None:
-                end([pin], PinEnded.CLEARED if edit.action == "clear" else PinEnded.REPLACED, by)
-                changed += 1
-            if edit.action != "clear":
-                nurse: NurseProfile = self.nurses[edit.hospital_id]
-                # A pin of the nurse's last unit, which a transfer left behind and set aside there: this month is this unit's.
-                end(PinnedCell.objects.current().filter(nurse=nurse, date=edit.date).exclude(unit=self.roster.unit),
-                    PinEnded.REPLACED, by)
-                PinnedCell.objects.create(unit=self.roster.unit, nurse=nurse, date=edit.date, shift=wanted, pinned_by=by)
-                changed += pin is None
+            if edit.action == "clear" and pin is not None:
+                end([pin], PinEnded.CLEARED, by)
+            elif edit.action != "clear":
+                pin_cell(self.roster.unit, self.nurses[edit.hospital_id], edit.date, wanted, PinOrigin.MANAGER, by)
+            changed += edit.action != "clear" or pin is not None
         grid = self.grid_after(edits)
         cells = sum(grid[nurse][day] != code for nurse, row in self.roster.grid.items() for day, code in row.items())
         self.roster.grid = grid

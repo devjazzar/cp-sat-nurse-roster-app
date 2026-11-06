@@ -302,7 +302,7 @@ class TestAFrozenRoster:
         response = record_leave(mona, er, "Amal", 9)
 
         assert response.status_code == 201, response.content
-        assert response.json()["pins_removed"] == [{"date": "2026-06-09", "shift": "N"}]
+        assert response.json()["pins_removed"] == [{"date": "2026-06-09", "shift": "N", "origin": "manager"}]
         assert PinnedCell.objects.get().removed_why == PinEnded.LEAVE
         assert roster(er).grid["Amal"]["2026-06-09"] == "N", "the frozen grid keeps the shift"
         assert roster(er).state == RosterState.SUBMITTED

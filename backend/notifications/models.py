@@ -10,6 +10,10 @@ class Event(models.TextChoices):
     ROSTER_REJECTED = "roster_rejected"
     ROSTER_CHANGED = "roster_changed"
     SOLVE_ENDED = "solve_ended"
+    WINDOW_OPENED = "window_opened"
+    WINDOW_CLOSED_EARLY = "window_closed_early"
+    WINDOW_CLOSED = "window_closed"
+    REQUEST_DECIDED = "request_decided"
 
 
 class SolveOutcome(models.TextChoices):
