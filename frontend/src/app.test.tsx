@@ -5196,7 +5196,7 @@ describe("the roster page", () => {
         [`GET ${UNIT}/solve-history`]: { body: { solves: [REPLAN_ROW, { ...REPLAN_ROW, id: "r2", replan_outcome: "outdated", in_draft: false }, { ...ROW, in_draft: false, replan_from: null, replan_outcome: null }], older_than: null } },
       }))
 
-      expect(await screen.findByText("Re-plan from 12 June: in force")).toBeInTheDocument()
+      expect(await screen.findByText("Re-plan from 12 June: made a new version")).toBeInTheDocument()
       expect(screen.getByText("Re-plan from 12 June: not applied, the roster changed meanwhile")).toBeInTheDocument()
       expect(screen.getByText("Finished")).toBeInTheDocument()
     })

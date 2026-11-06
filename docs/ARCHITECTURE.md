@@ -224,7 +224,9 @@ from the solves ahead on the queue, so it cannot be out of date. `succeeded` mea
 to its end, which may have found no roster; `cancelled` may still hold the best roster found, which
 becomes the draft; only `failed` means the solver gave no answer. Rules the solver refuses are
 `failed` with the failure `refused`, and read as rules to review, not as a failed solve. At most one
-solve of a unit's month is active at a time.
+solve of a unit's month is active at a time. A re-plan is a solve with the date it plans from, the version it started from, the
+manager's reason for the version it makes, and what its end did to the roster in force (`version`, `unchanged`, `outdated`,
+`month_over`).
 
 **Month close**: unit, month, closed at, closed by (system or manager), the close result,
 and the carry-over per nurse.
@@ -274,7 +276,20 @@ backup time and retention, close time.
 - After approval, the unit manager alone changes the roster: direct cell edits, swaps,
   re-plans from a date (earlier days are facts; the `change` weight keeps the new roster
   close). Every change is a new version, in force immediately, and notifies the unit's nurses of the month, except whoever
-  made it, that the roster changed: never why, which cells or whose. A nurse reads the roster in force on My roster and no
+  made it, that the roster changed: never why, which cells or whose.
+- A re-plan (`solves.replans`) is a solve of an approved month that has not ended, from a date that is today or later and in
+  the month: the month's first day only while it is still to come, never the first day after it, which is month close. A draft
+  is solved again instead, and a submitted roster waits for its decision. It goes through the same queue as a solve, one active
+  a unit's month, with the same progress, stop and retry. Its input holds the roster in force as `published` and the date as
+  `replan_from`, and the solver makes every earlier day a fact: a pin that counts, of any origin, then leave and the days outside
+  a nurse's dates, then the roster in force; a pin set aside is no fact. A nurse no longer in the month is left out, and one who
+  joined since worked nothing before the date. Its end takes the locks an approval takes, and its roster becomes a version with
+  origin `replan`, the manager's reason or one naming the date, and the roster's solve set to it, only while the version it
+  started from is still in force and the month's nurses, leave and pins are as its input holds them; otherwise it would undo
+  what came since, so it is kept in the history and the manager re-plans again. A rename is no change. A roster that changes no
+  cell makes no version and tells no nurse; no roster, or one breaking a hard rule, leaves the roster in force as it was. A
+  stopped re-plan's best roster goes in force like a finished one's. Its result shows the comparison with the roster in force it
+  started from: the cells changed, the cost of each on the re-plan's input, rule by rule, and the facts that broke rules. A nurse reads the roster in force on My roster and no
   version list. Leave recorded late is such a change too (section 4). A month already over cannot be edited; its close
   (ticket 21) reads leave and pins itself.
 - A month with no approved roster shows "no roster yet" to its nurses; the CNO's and the Deputy CNO's homes
@@ -409,7 +424,8 @@ A stored result holds the penalties' totals only, so the explanation is worked o
 The solver's words count days from 0, so what the pages show says dates instead.
 
 The System Admin's solve history is unit, month, state, the kind of failure, who asked, when, how
-long, the time limit, the attempts and the cost, and only that: the solver's and the worker's words
+long, the time limit, the attempts and the cost, and only that (not even whether a solve was a re-plan, whose date is about a
+roster): the solver's and the worker's words
 (`error`, `message`, `precheck`, the explanations) can name a nurse and a date, and no free text
 reaches it. The cost was already theirs to read in the audit log.
 

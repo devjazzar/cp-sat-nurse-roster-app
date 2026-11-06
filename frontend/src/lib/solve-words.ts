@@ -7,7 +7,7 @@ export type SolveRow = Omit<UnitSolveRow, "in_draft" | "replan_from" | "replan_o
 
 /** What a re-plan's end did to the roster in force, in a few words, once it kept a roster. */
 const REPLAN_ENDED: Record<NonNullable<UnitSolveRow["replan_outcome"]>, string> = {
-  version: "in force",
+  version: "made a new version",
   unchanged: "nothing changed",
   outdated: "not applied, the roster changed meanwhile",
   month_over: "not applied, the month had ended",

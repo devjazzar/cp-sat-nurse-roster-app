@@ -52,3 +52,10 @@
 - **Leave recorded late on a month that is over makes no version** (`rosters.versions.take_off_for_leave` skips months before `membership.this_month()`), so that month's grid can still hold a shift on a day of leave. The close reads leave itself and leave wins, as it already does in `rosters.own_month`.
 - **The month under way** is edited and versioned as any other approved month. Its days already passed can change too: a sick day recorded the day after takes that shift off.
 - "The roster in force" is still `roster.versions.first()`, and `Roster.grid` equals its grid under today's codes.
+
+**From ticket 17 (2026-11-06).** Re-plans exist, and the close is the same mechanism with the date set to the first day after the month.
+
+- **The input:** `solves.input.assemble_replan(unit, month, replan_from, in_force)` builds the month as a solve would, with the roster in force under today's codes as `published` (exactly the month's nurses: one who left is dropped, one who joined gets an empty row) and `replan_from`. Pass the first day after the month and the solver makes every day a fact: pins that count, then leave and the days outside a nurse's dates, then the roster in force. A pin set aside is no fact there either: check that is what the close wants.
+- **Not through the re-plan's endpoint:** `solves.replans.why_not_from` refuses the first day after the month ("Choose a date in …") and `why_not` refuses a month that is over. Those refusals are the re-plan's; the close calls the solver's validate path or its own job.
+- **A re-plan that ends after its month did** is `ReplanOutcome.MONTH_OVER` and changes nothing, so the roster a close reads is never moved by a late re-plan.
+- `Solve.replan_from` marks a re-plan in the manager's history. The System Admin's history does not show it (a closed list); keep a close out of it the same way or decide.

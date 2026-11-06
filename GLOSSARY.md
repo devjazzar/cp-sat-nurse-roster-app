@@ -102,7 +102,7 @@ One saved state of a unit's approved roster for a month, with who changed it, wh
 _Avoid_: revision, snapshot, copy
 
 **Re-plan**:
-Solving a month that has started again from a chosen date, keeping every earlier day as a fact.
+Solving an approved month again from a chosen date, today or later, keeping every earlier day as a fact: the roster in force, recorded leave and pins. Its roster becomes the next roster version, unless the roster in force or the month's facts changed while it ran.
 _Avoid_: re-solve, re-run, regenerate
 
 **Pinned cell**:

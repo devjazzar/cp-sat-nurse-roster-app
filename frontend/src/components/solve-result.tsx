@@ -176,7 +176,8 @@ function Replan({ replan, shifts }: { replan: ReplanComparison; shifts: GridShif
       </dl>
       {replan.rules.length > 0 && (
         <>
-          <Table aria-label="Each rule, before and after" container={scrollableRegion("Each rule, before and after")}>
+          <p id="replan-rules" className="text-sm font-medium">Each rule, before and after</p>
+          <Table aria-labelledby="replan-rules" container={scrollableRegion("Each rule, before and after")}>
             <TableHeader>
               <TableRow>
                 <TableHead>Rule</TableHead>
@@ -202,7 +203,9 @@ function Replan({ replan, shifts }: { replan: ReplanComparison; shifts: GridShif
       {replan.changes.length === 0
         ? <p className="text-sm">No cell differs from version {replan.based_on}.</p>
         : (
-          <Table aria-label="Cells it changed" container={scrollableRegion("Cells it changed")}>
+          <>
+          <p id="replan-cells" className="text-sm font-medium">Cells it changed</p>
+          <Table aria-labelledby="replan-cells" container={scrollableRegion("Cells it changed")}>
             <TableHeader>
               <TableRow>
                 <TableHead>Nurse</TableHead>
@@ -222,6 +225,7 @@ function Replan({ replan, shifts }: { replan: ReplanComparison; shifts: GridShif
               ))}
             </TableBody>
           </Table>
+          </>
         )}
     </Panel>
   )
