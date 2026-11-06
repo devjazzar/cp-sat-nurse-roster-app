@@ -2727,6 +2727,170 @@
         ]
       }
     },
+    "/api/units/{unit_id}/roster/export": {
+      "get": {
+        "operationId": "exportRosterVersion",
+        "summary": "Export Version",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "description": "The version's number. Any version of the month, not only the one in force.",
+              "minimum": 1,
+              "title": "Version",
+              "type": "integer"
+            },
+            "required": true,
+            "description": "The version's number. Any version of the month, not only the one in force."
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "enum": [
+                "csv",
+                "xlsx"
+              ],
+              "title": "Format",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A CSV file or an Excel workbook, as `format` asks.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "rosters"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/roster/sheet": {
+      "get": {
+        "operationId": "getRosterVersionSheet",
+        "summary": "Version Sheet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "description": "The version's number. Any version of the month, not only the one in force.",
+              "minimum": 1,
+              "title": "Version",
+              "type": "integer"
+            },
+            "required": true,
+            "description": "The version's number. Any version of the month, not only the one in force."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterSheet"
+                }
+              }
+            }
+          }
+        },
+        "description": "What the print page shows: the same table as the files. Not audited, as it makes no file and shows only what the reader\ncan already read on the Roster page.",
+        "tags": [
+          "rosters"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units/{unit_id}/solve-history": {
       "get": {
         "operationId": "listUnitSolveHistory",
@@ -3040,6 +3204,57 @@
           }
         },
         "description": "Takes no nurse, so it answers only for the reader.",
+        "tags": [
+          "rosters"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/rosters/mine/sheet": {
+      "get": {
+        "operationId": "getMyRosterSheet",
+        "summary": "My Sheet",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The hospital's current one when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The hospital's current one when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyRosterSheet"
+                }
+              }
+            }
+          }
+        },
+        "description": "The print page of My roster: the version in force of the reader's own unit, as its files hold it, with hours and shift\ncounts that come from the cells alone. A colleague's day of leave is therefore the same `\"\"` as a day off, and only the\nreader's own row (`mine`) may say leave. No file is made, and nothing is audited.",
         "tags": [
           "rosters"
         ],
@@ -8111,6 +8326,245 @@
         "title": "RejectBody",
         "type": "object"
       },
+      "ExportFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+            "title": "Month"
+          },
+          "version": {
+            "description": "The version's number. Any version of the month, not only the one in force.",
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "format": {
+            "enum": [
+              "csv",
+              "xlsx"
+            ],
+            "title": "Format",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "format"
+        ],
+        "title": "ExportFilter",
+        "type": "object"
+      },
+      "VersionFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+            "title": "Month"
+          },
+          "version": {
+            "description": "The version's number. Any version of the month, not only the one in force.",
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "VersionFilter",
+        "type": "object"
+      },
+      "MyDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "kind": {
+            "description": "The reader's own day. `outside` is before their start date or after their end date.",
+            "enum": [
+              "shift",
+              "off",
+              "leave",
+              "outside"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "kind"
+        ],
+        "title": "MyDay",
+        "type": "object"
+      },
+      "RosterSheet": {
+        "description": "A version as its print page shows it, and as its files hold it.",
+        "properties": {
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "in_force": {
+            "description": "The number of the version in force, which is `version` unless a later one replaced it.",
+            "title": "In Force",
+            "type": "integer"
+          },
+          "made_at": {
+            "format": "date-time",
+            "title": "Made At",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/GridDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "shifts": {
+            "items": {
+              "$ref": "#/components/schemas/SheetShiftOut"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "rows": {
+            "description": "Everyone on the version, by name.",
+            "items": {
+              "$ref": "#/components/schemas/SheetRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "mine": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MyDay"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a nurse's own sheet, their own row, one for each of `days`, which may say leave. Null on anyone else's sheet, and when they are not on it.",
+            "title": "Mine"
+          }
+        },
+        "required": [
+          "unit",
+          "month",
+          "version",
+          "in_force",
+          "made_at",
+          "days",
+          "shifts",
+          "rows"
+        ],
+        "title": "RosterSheet",
+        "type": "object"
+      },
+      "SheetRowOut": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "shifts": {
+            "description": "One for each of `days`: the shift's code, or empty for a day not worked, leave included.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "hours": {
+            "description": "Hours of the shifts on this row.",
+            "title": "Hours",
+            "type": "integer"
+          },
+          "counts": {
+            "description": "How many of each of `shifts` this row works, in that order.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "shifts",
+          "hours",
+          "counts"
+        ],
+        "title": "SheetRowOut",
+        "type": "object"
+      },
+      "SheetShiftOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "hours": {
+            "description": "As the solve behind the version was given them.",
+            "title": "Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "hours"
+        ],
+        "title": "SheetShiftOut",
+        "type": "object"
+      },
       "UnitHistoryFilter": {
         "properties": {
           "older_than": {
@@ -9221,32 +9675,6 @@
         "title": "ColleagueRow",
         "type": "object"
       },
-      "MyDay": {
-        "properties": {
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "kind": {
-            "description": "The reader's own day. `outside` is before their start date or after their end date.",
-            "enum": [
-              "shift",
-              "off",
-              "leave",
-              "outside"
-            ],
-            "title": "Kind",
-            "type": "string"
-          }
-        },
-        "required": [
-          "date",
-          "kind"
-        ],
-        "title": "MyDay",
-        "type": "object"
-      },
       "MyRosterMonth": {
         "properties": {
           "month": {
@@ -9377,6 +9805,50 @@
           "hours"
         ],
         "title": "NurseShift",
+        "type": "object"
+      },
+      "MyRosterSheet": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "first_month": {
+            "description": "The earliest month shown here: this one. Earlier months are not.",
+            "title": "First Month",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.",
+            "title": "Unit"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RosterSheet"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until that unit's roster of the month is approved, and for a month before `first_month`."
+          }
+        },
+        "required": [
+          "month",
+          "first_month",
+          "unit",
+          "sheet"
+        ],
+        "title": "MyRosterSheet",
         "type": "object"
       },
       "MyHours": {

@@ -16,7 +16,7 @@ from ninja import Field, Query, Router, Schema
 
 from accounts.authz import SignedIn
 from accounts.models import Role, User
-from hospital.models import HospitalSettings, PublicHoliday, Shift
+from hospital.models import Shift
 from nurses import membership
 from nurses.api import MonthText
 from nurses.models import Leave, NurseProfile
@@ -25,6 +25,7 @@ from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names
 from rosters.models import Roster, RosterState, RosterVersion
 from rosters.own_month import OwnHours, own_hours
+from rosters.sheets import MyDay, RosterSheet, as_schema, days_of, sheet_of
 from units.models import Unit
 
 router = Router(tags=["rosters"])
@@ -110,12 +111,6 @@ class ColleagueRow(Schema):
     shifts: list[str] = Field(description="One for each of `days`: the shift's code, or empty for a day not worked.")
 
 
-class MyDay(Schema):
-    date: dt.date
-    kind: Literal["shift", "off", "leave", "outside"] = Field(
-        description="The reader's own day. `outside` is before their start date or after their end date.")
-
-
 class NurseRoster(Schema):
     approved_at: dt.datetime
     version: int
@@ -132,14 +127,6 @@ class MyRosterMonth(Schema):
                                          "their first placement.")
     roster: NurseRoster | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
                                                    "before `first_month`.")
-
-
-def _days(month: dt.date) -> list[GridDay]:
-    weekend = HospitalSettings.load().rules["weekend_weekdays"]
-    holidays = set(PublicHoliday.objects.filter(date__year=month.year, date__month=month.month).values_list("date", flat=True))
-    last = membership.last_day_of(month).day
-    return [GridDay(date=day, weekend=day.weekday() in weekend, holiday=day in holidays)
-            for day in (month.replace(day=number) for number in range(1, last + 1))]
 
 
 def _mine(nurse: NurseProfile, row: dict[str, str], days: list[GridDay]) -> list[MyDay]:
@@ -206,7 +193,7 @@ def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterM
     if found.version is None:
         return answer
     grid = found.grid
-    days = _days(found.month)
+    days = days_of(found.month)
     names = full_names(grid)
     used = {code for row in grid.values() for code in row.values() if code}
     mine = found.nurse.user.username
@@ -218,6 +205,30 @@ def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterM
                            shifts=[grid[hospital_id].get(day.date.isoformat(), "") for day in days])
               for hospital_id in by_name(grid, names)],
         mine=_mine(found.nurse, grid[mine], days) if mine in grid else None)
+    return answer
+
+
+class MyRosterSheet(Schema):
+    month: str
+    first_month: str = Field(description="The earliest month shown here: this one. Earlier months are not.")
+    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
+                                         "their first placement.")
+    sheet: RosterSheet | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
+                                                  "before `first_month`.")
+
+
+@router.get("/mine/sheet", response=MyRosterSheet, auth=nurse_reader, operation_id="getMyRosterSheet")
+def my_sheet(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterSheet:
+    """The print page of My roster: the version in force of the reader's own unit, as its files hold it, with hours and shift
+    counts that come from the cells alone. A colleague's day of leave is therefore the same `""` as a day off, and only the
+    reader's own row (`mine`) may say leave. No file is made, and nothing is audited."""
+    found = _in_force(request.user, filters.month)
+    answer = MyRosterSheet(**found.heading(), sheet=None)
+    if found.version is None:
+        return answer
+    sheet = sheet_of(found.version)
+    row = found.grid.get(found.nurse.user.username)
+    answer.sheet = as_schema(sheet, mine=_mine(found.nurse, row, sheet.days) if row is not None else None)
     return answer
 
 

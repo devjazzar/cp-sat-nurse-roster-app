@@ -2911,6 +2911,74 @@ export const RejectRosterResponse = zod.object({
 
 
 /**
+ * @summary Export Version
+ */
+export const ExportRosterVersionParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const exportRosterVersionQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+
+export const ExportRosterVersionQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(exportRosterVersionQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.'),
+  "version": zod.int().min(1).describe('The version\'s number. Any version of the month, not only the one in force.'),
+  "format": zod.enum(['csv', 'xlsx'])
+})
+
+export const ExportRosterVersionResponse = zod.unknown()
+
+
+/**
+ * What the print page shows: the same table as the files. Not audited, as it makes no file and shows only what the reader
+ * can already read on the Roster page.
+ * @summary Version Sheet
+ */
+export const GetRosterVersionSheetParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const getRosterVersionSheetQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+
+export const GetRosterVersionSheetQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getRosterVersionSheetQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The month after the hospital\'s current one when left out, since that is the one usually being rostered.'),
+  "version": zod.int().min(1).describe('The version\'s number. Any version of the month, not only the one in force.')
+})
+
+export const GetRosterVersionSheetResponse = zod.object({
+  "unit": zod.string(),
+  "month": zod.string(),
+  "version": zod.int(),
+  "in_force": zod.int().describe('The number of the version in force, which is `version` unless a later one replaced it.'),
+  "made_at": zod.iso.datetime({"offset":true}),
+  "days": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "weekend": zod.boolean(),
+  "holiday": zod.boolean()
+})),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "hours": zod.int().describe('As the solve behind the version was given them.')
+})),
+  "rows": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "shifts": zod.array(zod.string()).describe('One for each of `days`: the shift\'s code, or empty for a day not worked, leave included.'),
+  "hours": zod.int().describe('Hours of the shifts on this row.'),
+  "counts": zod.array(zod.int()).describe('How many of each of `shifts` this row works, in that order.')
+})).describe('Everyone on the version, by name.'),
+  "mine": zod.union([zod.array(zod.object({
+  "date": zod.iso.date(),
+  "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('The reader\'s own day. `outside` is before their start date or after their end date.')
+})),zod.null()]).optional().describe('On a nurse\'s own sheet, their own row, one for each of `days`, which may say leave. Null on anyone else\'s sheet, and when they are not on it.')
+}).describe('A version as its print page shows it, and as its files hold it.')
+
+
+/**
  * For the CNO and the Deputy CNO, only the months whose roster is submitted or approved.
  * @summary Unit History
  */
@@ -3296,6 +3364,54 @@ export const GetMyRosterResponse = zod.object({
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('The reader\'s own day. `outside` is before their start date or after their end date.')
 })),zod.null()]).describe('The reader\'s own row, one for each of `days`. Null when they are not on it.')
 }),zod.null()]).describe('Null until that unit\'s roster of the month is approved, and for a month before `first_month`.')
+})
+
+
+/**
+ * The print page of My roster: the version in force of the reader's own unit, as its files hold it, with hours and shift
+ * counts that come from the cells alone. A colleague's day of leave is therefore the same `""` as a day off, and only the
+ * reader's own row (`mine`) may say leave. No file is made, and nothing is audited.
+ * @summary My Sheet
+ */
+export const getMyRosterSheetQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const GetMyRosterSheetQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(getMyRosterSheetQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The hospital\'s current one when left out.')
+})
+
+export const GetMyRosterSheetResponse = zod.object({
+  "month": zod.string(),
+  "first_month": zod.string().describe('The earliest month shown here: this one. Earlier months are not.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
+  "sheet": zod.union([zod.object({
+  "unit": zod.string(),
+  "month": zod.string(),
+  "version": zod.int(),
+  "in_force": zod.int().describe('The number of the version in force, which is `version` unless a later one replaced it.'),
+  "made_at": zod.iso.datetime({"offset":true}),
+  "days": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "weekend": zod.boolean(),
+  "holiday": zod.boolean()
+})),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string(),
+  "hours": zod.int().describe('As the solve behind the version was given them.')
+})),
+  "rows": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "shifts": zod.array(zod.string()).describe('One for each of `days`: the shift\'s code, or empty for a day not worked, leave included.'),
+  "hours": zod.int().describe('Hours of the shifts on this row.'),
+  "counts": zod.array(zod.int()).describe('How many of each of `shifts` this row works, in that order.')
+})).describe('Everyone on the version, by name.'),
+  "mine": zod.union([zod.array(zod.object({
+  "date": zod.iso.date(),
+  "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('The reader\'s own day. `outside` is before their start date or after their end date.')
+})),zod.null()]).optional().describe('On a nurse\'s own sheet, their own row, one for each of `days`, which may say leave. Null on anyone else\'s sheet, and when they are not on it.')
+}).describe('A version as its print page shows it, and as its files hold it.'),zod.null()]).describe('Null until that unit\'s roster of the month is approved, and for a month before `first_month`.')
 })
 
 

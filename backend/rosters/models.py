@@ -59,6 +59,11 @@ class Roster(models.Model):
             models.CheckConstraint(condition=models.Q(month__day=1), name="rosters_roster_month_starts_a_month"),
         ]
 
+    @property
+    def audit_target(self) -> str:
+        """As a solve of the same unit and month names itself in the audit log."""
+        return f"{self.unit.name}, {self.month:%Y-%m}"
+
 
 class Submission(models.Model):
     """One sending of a draft for a decision, and the decision. Nothing is deleted, so every rejection's comment is kept, which

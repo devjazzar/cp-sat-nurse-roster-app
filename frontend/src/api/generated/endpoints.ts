@@ -37,11 +37,14 @@ import type {
   DraftCheck,
   EditsBody,
   EndDateBody,
+  ExportRosterVersionParams,
   GetMyLeaveParams,
   GetMyMonthParams,
   GetMyRosterParams,
+  GetMyRosterSheetParams,
   GetRosterMonthParams,
   GetRosterOverviewParams,
+  GetRosterVersionSheetParams,
   Health,
   HospitalHistory,
   HospitalRules,
@@ -70,6 +73,7 @@ import type {
   MyLeaveMonth,
   MyMonth,
   MyRosterMonth,
+  MyRosterSheet,
   NameCorrectionBody,
   NewLeaveBody,
   NewNurseBody,
@@ -92,6 +96,7 @@ import type {
   RejectBody,
   ReplanPreview,
   RosterMonth,
+  RosterSheet,
   SavedLeave,
   SessionState,
   ShiftBody,
@@ -5913,6 +5918,240 @@ export const useRejectRoster = <TError = unknown,
       return useMutation(getRejectRosterMutationOptions(options), queryClient);
     }
 
+export const getExportRosterVersionUrl = (unitId: string,
+    params: ExportRosterVersionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/roster/export?${stringifiedParams}` : `/api/units/${unitId}/roster/export`
+}
+
+/**
+ * @summary Export Version
+ */
+export const exportRosterVersion = async (unitId: string,
+    params: ExportRosterVersionParams, options?: Parameters<typeof apiFetch>[1]): Promise<string | Blob> => {
+
+  return apiFetch<string | Blob>(getExportRosterVersionUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportRosterVersionQueryKey = (unitId: string,
+    params?: ExportRosterVersionParams,) => {
+    return [
+    `/api/units/${unitId}/roster/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportRosterVersionQueryOptions = <TData = Awaited<ReturnType<typeof exportRosterVersion>>, TError = unknown>(unitId: string,
+    params: ExportRosterVersionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportRosterVersion>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportRosterVersionQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportRosterVersion>>> = ({ signal }) => exportRosterVersion(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportRosterVersion>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ExportRosterVersionQueryResult = NonNullable<Awaited<ReturnType<typeof exportRosterVersion>>>
+export type ExportRosterVersionQueryError = unknown
+
+
+export function useExportRosterVersion<TData = Awaited<ReturnType<typeof exportRosterVersion>>, TError = unknown>(
+ unitId: string,
+    params: ExportRosterVersionParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportRosterVersion>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportRosterVersion>>,
+          TError,
+          Awaited<ReturnType<typeof exportRosterVersion>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportRosterVersion<TData = Awaited<ReturnType<typeof exportRosterVersion>>, TError = unknown>(
+ unitId: string,
+    params: ExportRosterVersionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportRosterVersion>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportRosterVersion>>,
+          TError,
+          Awaited<ReturnType<typeof exportRosterVersion>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportRosterVersion<TData = Awaited<ReturnType<typeof exportRosterVersion>>, TError = unknown>(
+ unitId: string,
+    params: ExportRosterVersionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportRosterVersion>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Export Version
+ */
+
+export function useExportRosterVersion<TData = Awaited<ReturnType<typeof exportRosterVersion>>, TError = unknown>(
+ unitId: string,
+    params: ExportRosterVersionParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportRosterVersion>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getExportRosterVersionQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRosterVersionSheetUrl = (unitId: string,
+    params: GetRosterVersionSheetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/roster/sheet?${stringifiedParams}` : `/api/units/${unitId}/roster/sheet`
+}
+
+/**
+ * What the print page shows: the same table as the files. Not audited, as it makes no file and shows only what the reader
+ * can already read on the Roster page.
+ * @summary Version Sheet
+ */
+export const getRosterVersionSheet = async (unitId: string,
+    params: GetRosterVersionSheetParams, options?: Parameters<typeof apiFetch>[1]): Promise<RosterSheet> => {
+
+  return apiFetch<RosterSheet>(getGetRosterVersionSheetUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRosterVersionSheetQueryKey = (unitId: string,
+    params?: GetRosterVersionSheetParams,) => {
+    return [
+    `/api/units/${unitId}/roster/sheet`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRosterVersionSheetQueryOptions = <TData = Awaited<ReturnType<typeof getRosterVersionSheet>>, TError = unknown>(unitId: string,
+    params: GetRosterVersionSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterVersionSheet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRosterVersionSheetQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRosterVersionSheet>>> = ({ signal }) => getRosterVersionSheet(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRosterVersionSheet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetRosterVersionSheetQueryResult = NonNullable<Awaited<ReturnType<typeof getRosterVersionSheet>>>
+export type GetRosterVersionSheetQueryError = unknown
+
+
+export function useGetRosterVersionSheet<TData = Awaited<ReturnType<typeof getRosterVersionSheet>>, TError = unknown>(
+ unitId: string,
+    params: GetRosterVersionSheetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterVersionSheet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRosterVersionSheet>>,
+          TError,
+          Awaited<ReturnType<typeof getRosterVersionSheet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRosterVersionSheet<TData = Awaited<ReturnType<typeof getRosterVersionSheet>>, TError = unknown>(
+ unitId: string,
+    params: GetRosterVersionSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterVersionSheet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRosterVersionSheet>>,
+          TError,
+          Awaited<ReturnType<typeof getRosterVersionSheet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRosterVersionSheet<TData = Awaited<ReturnType<typeof getRosterVersionSheet>>, TError = unknown>(
+ unitId: string,
+    params: GetRosterVersionSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterVersionSheet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Version Sheet
+ */
+
+export function useGetRosterVersionSheet<TData = Awaited<ReturnType<typeof getRosterVersionSheet>>, TError = unknown>(
+ unitId: string,
+    params: GetRosterVersionSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRosterVersionSheet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetRosterVersionSheetQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListUnitSolveHistoryUrl = (unitId: string,
     params?: ListUnitSolveHistoryParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -6525,6 +6764,117 @@ export function useGetMyRoster<TData = Awaited<ReturnType<typeof getMyRoster>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMyRosterQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyRosterSheetUrl = (params?: GetMyRosterSheetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rosters/mine/sheet?${stringifiedParams}` : `/api/rosters/mine/sheet`
+}
+
+/**
+ * The print page of My roster: the version in force of the reader's own unit, as its files hold it, with hours and shift
+ * counts that come from the cells alone. A colleague's day of leave is therefore the same `""` as a day off, and only the
+ * reader's own row (`mine`) may say leave. No file is made, and nothing is audited.
+ * @summary My Sheet
+ */
+export const getMyRosterSheet = async (params?: GetMyRosterSheetParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyRosterSheet> => {
+
+  return apiFetch<MyRosterSheet>(getGetMyRosterSheetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyRosterSheetQueryKey = (params?: GetMyRosterSheetParams,) => {
+    return [
+    `/api/rosters/mine/sheet`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMyRosterSheetQueryOptions = <TData = Awaited<ReturnType<typeof getMyRosterSheet>>, TError = unknown>(params?: GetMyRosterSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRosterSheet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyRosterSheetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyRosterSheet>>> = ({ signal }) => getMyRosterSheet(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyRosterSheet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyRosterSheetQueryResult = NonNullable<Awaited<ReturnType<typeof getMyRosterSheet>>>
+export type GetMyRosterSheetQueryError = unknown
+
+
+export function useGetMyRosterSheet<TData = Awaited<ReturnType<typeof getMyRosterSheet>>, TError = unknown>(
+ params: undefined |  GetMyRosterSheetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRosterSheet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyRosterSheet>>,
+          TError,
+          Awaited<ReturnType<typeof getMyRosterSheet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyRosterSheet<TData = Awaited<ReturnType<typeof getMyRosterSheet>>, TError = unknown>(
+ params?: GetMyRosterSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRosterSheet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyRosterSheet>>,
+          TError,
+          Awaited<ReturnType<typeof getMyRosterSheet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyRosterSheet<TData = Awaited<ReturnType<typeof getMyRosterSheet>>, TError = unknown>(
+ params?: GetMyRosterSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRosterSheet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Sheet
+ */
+
+export function useGetMyRosterSheet<TData = Awaited<ReturnType<typeof getMyRosterSheet>>, TError = unknown>(
+ params?: GetMyRosterSheetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyRosterSheet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyRosterSheetQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

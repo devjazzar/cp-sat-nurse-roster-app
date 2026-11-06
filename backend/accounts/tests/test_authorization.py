@@ -98,7 +98,8 @@ def test_a_write_without_the_csrf_token_gets_403_even_with_the_right_role(make_u
 
 
 MANAGER, APPROVERS = {Role.UNIT_MANAGER}, {Role.CNO, Role.DEPUTY_CNO}
-# Who may call each transition and read of a roster (tickets 14 and 16).
+# Who may call each transition and read of a roster (tickets 14 and 16), and take its files or its print sheet (ticket 18): a
+# nurse takes no file, only their own unit's print sheet of the roster in force.
 # A unit's own scope is `units.scope`, held by the rosters' tests.
 ROSTER_ROLES = {
     "GET /api/units/{unit_id}/roster": MANAGER | APPROVERS,
@@ -110,6 +111,8 @@ ROSTER_ROLES = {
     "POST /api/units/{unit_id}/roster/versions": MANAGER,
     "GET /api/units/{unit_id}/roster/versions": MANAGER | APPROVERS,
     "GET /api/units/{unit_id}/roster/versions/compare": MANAGER | APPROVERS,
+    "GET /api/units/{unit_id}/roster/export": MANAGER | APPROVERS,
+    "GET /api/units/{unit_id}/roster/sheet": MANAGER | APPROVERS,
     "POST /api/units/{unit_id}/solves": MANAGER,
     "GET /api/units/{unit_id}/solves/preview": MANAGER,
     "POST /api/units/{unit_id}/replans": MANAGER,
@@ -120,6 +123,7 @@ ROSTER_ROLES = {
     "GET /api/rosters/overview": APPROVERS,
     "GET /api/rosters/submitted": APPROVERS,
     "GET /api/rosters/mine": {Role.STAFF_NURSE, Role.UNIT_MANAGER},
+    "GET /api/rosters/mine/sheet": {Role.STAFF_NURSE, Role.UNIT_MANAGER},
 }
 
 
