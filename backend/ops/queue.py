@@ -11,7 +11,7 @@ from django.utils import timezone
 from procrastinate import sql
 from procrastinate.contrib.django import app
 from procrastinate.contrib.django.models import ProcrastinateJob, ProcrastinateWorker
-from procrastinate.exceptions import AlreadyEnqueued
+from procrastinate.exceptions import AlreadyEnqueued, UniqueViolation
 
 from ops.status import WORKER_SILENCE
 
@@ -70,11 +70,28 @@ def requeue_stalled() -> list[int]:
     long it has run: a worker that lives keeps beating. The library's own call for this is async only, and this is the same
     query, so it holds to what `select_stalled_jobs_by_heartbeat` means."""
     silent = ProcrastinateWorker.objects.filter(last_heartbeat__lt=timezone.now() - WORKER_SILENCE)
-    stalled = list(ProcrastinateJob.objects.filter(Q(worker__isnull=True) | Q(worker__in=silent), status="doing")
-                   .values_list("id", flat=True))
-    for job_id in stalled:
-        app.job_manager.retry_job_by_id(job_id, timezone.now())
-    return stalled
+    stalled = ProcrastinateJob.objects.filter(Q(worker__isnull=True) | Q(worker__in=silent), status="doing")
+    requeued = []
+    for job_id, queueing_lock in stalled.values_list("id", "queueing_lock"):
+        if _requeue(job_id, queueing_lock):
+            requeued.append(job_id)
+    return requeued
+
+
+def _requeue(job_id: int, queueing_lock: str | None) -> bool:
+    """Back on the queue, unless its next run waits already: then it could not take its queueing lock back, and while it held
+    its lock the waiting one could never run. So it ends as failed, which the health page counts, and the next run does its
+    work (a restore brings back the backup that was running when the dump was taken, for one)."""
+    if queueing_lock is None or not ProcrastinateJob.objects.filter(queueing_lock=queueing_lock, status="todo").exists():
+        try:
+            with transaction.atomic():
+                app.job_manager.retry_job_by_id(job_id, timezone.now())
+            return True
+        except UniqueViolation:
+            pass  # a copy was deferred since
+    with connection.cursor() as cursor:
+        cursor.execute(sql.queries["finish_job"], {"job_id": job_id, "status": "failed", "delete_job": False})
+    return False
 
 
 # Long enough to look into a week's runs; failed jobs stay until someone has looked, as the health page counts them.

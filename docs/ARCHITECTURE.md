@@ -34,7 +34,8 @@ One application image per release. `docker compose` starts five services:
 The `solver` network is reachable by `web` and `worker` only. The solver container holds no
 database credential and no secret other than the shared solver token. See ADR 0001.
 
-Volumes: `pgdata` (PostgreSQL), `backups` (nightly dumps), `caddy_data` (certificates).
+Volumes: `pgdata` (PostgreSQL), `backups` (nightly dumps, mounted by `worker` and, read-only, by `web`, and by no other
+service), `caddy_data` (certificates).
 
 ### Configuration (`.env`)
 
@@ -47,14 +48,17 @@ self-signed certificate via `tls internal`), `SECRET_KEY`, `POSTGRES_PASSWORD`,
 
 - First start: `web` runs migrations, seeds the default hospital and unit rule sets (section
   9), and creates the System Admin account from `INITIAL_ADMIN_PASSWORD` with a forced
-  password change at first login. The variable is ignored afterwards.
+  password change at first login (`manage.py prepare`, which logs both). The variable is ignored afterwards.
 - Upgrade: `docker compose pull && docker compose up -d`; migrations run at `web` start.
-- `deploy/reset-admin-password.sh`: resets the System Admin password from the VPS.
-- `deploy/restore.sh <backup-file>`: stops the app, restores the database, starts it again.
+- `deploy/reset-admin-password.sh`: resets the System Admin password from the VPS, printed once with a forced change, ends
+  the account's sessions and lifts a lock from wrong passwords; audited with no actor, "from the server".
+- `deploy/restore.sh <backup name or file>`: stops `web` and `worker`, backs up the database as it stands, restores into a new
+  database and only then puts it in the old one's place, starts them again (`web` migrates an older backup forward).
   Restore is deliberately a script, not a button.
-- Nightly backup (02:00 hospital time, kept 30 days) is a worker job; backups are listed and
-  downloadable on the System Admin's health page. Off-site copies are the hospital's job and
-  are documented in the install guide.
+- Nightly backup (02:00 hospital time, kept 30 days, both the System Admin's to change) is a worker job; backups are listed
+  and downloadable on the System Admin's health page, each download audited. The files are the record (`ops.backups`): a
+  `pg_dump` in its custom format named by its UTC time, readable by the app user only, the newest always kept. Off-site copies
+  are the hospital's job and are documented in the install guide, `deploy/INSTALL.md`.
 
 ### Image build
 
@@ -239,7 +243,9 @@ promise), while a manager's pin, or an earlier swap's, is replaced by the approv
 
 **Solve**: unit, month, requested by, time limit, state (`queued`, `running`, `succeeded`,
 `failed`, `cancelled`), the queue's job, progress (elapsed, best cost, improvements), the
-complete solve input and result as stored, error text. A queue position is worked out when asked,
+complete solve input and result as stored, error text, and for a failed one its failure kind: `refused`, `unreachable`, `lost`
+(the solver restarted), `overrun` (past the time limit), `solver_error`, `stuck` (an earlier job would not stop), `worker_lost`,
+`unexpected`, or `solver` on a row from before the kinds were told apart. A queue position is worked out when asked,
 from the solves ahead on the queue, so it cannot be out of date. `succeeded` means the solver ran
 to its end, which may have found no roster; `cancelled` may still hold the best roster found, which
 becomes the draft; only `failed` means the solver gave no answer. Rules the solver refuses are
@@ -426,7 +432,8 @@ by the unit manager up to the System Admin's cap. The reproducible mode is not e
 ## 7. The worker and the queue (ADR 0006)
 
 Procrastinate, with its tables in the application database, run by the `worker` container at
-concurrency 4 (`--concurrency 4` in `deploy/compose.yaml`), so a scheduled job never waits behind a
+concurrency 4 (`manage.py queue worker --concurrency 4` in `deploy/compose.yaml`, `queue` being Procrastinate's command with
+what it prints logged as JSON), so a scheduled job never waits behind a
 running solve (ADR 0009). Every job takes a lock: solves share the hospital-wide one, and each
 periodic job takes one under its own name, so a waiting job takes no slot, no kind of job holds more
 than one, and no job runs beside its own previous run. A new job that can run longer than about a
@@ -439,14 +446,21 @@ minute takes a lock of its own. Jobs:
   failed with its reason, and the manager can re-run it. A worker that dies goes on watching the
   job the solver still holds when it comes back.
 - `recover_lost_jobs` (every five minutes): puts a dead worker's job back on the queue, which would
-  otherwise hold the lock for good, and fails a solve whose job is gone.
+  otherwise hold the lock for good, and fails a solve whose job is gone. A dead run of a periodic job whose next run already
+  waits ends as failed instead, since it could not take its queueing lock back (a restore brings back the backup that was
+  running when its dump was taken).
 - `close_month` (hourly, minute 30): closes every unit's month whose close time has passed on the hospital's clock and
   is not closed, oldest month first across units, so a worker that was down catches up; and `project_carry_over` on demand,
   after every new roster version and every close, under its own lock, which stores the projected carry-over of an approved
   month and of the unit's approved months after it. Neither calls the solver
   service: the carry-over is worked out in the worker's process by `solver_service.grid`. A solve of a later month
   that is queued or running goes on, and its draft is warned of as older than the close.
-- `backup` (cron, 02:00) and backup retention.
+- `backup` (every five minutes): takes the nightly backup once the backup time has passed on the hospital's clock and none
+  was taken since, so a worker that was down catches up, then removes those past the days kept, never the newest. Its own lock
+  (`backup`) keeps a run of minutes to one slot.
+- Retention, daily at a fixed UTC time, a day missed caught up by the next: `remove_ended_jobs` (queue rows and their events of
+  jobs that ended well or were stopped more than seven days ago; a failed job stays, as the health page counts it),
+  `remove_old_notifications` (older than a year, read or not), `clear_expired_sessions` (Django's `clearsessions`).
 - `expire_swaps` (hourly, minute 15): expires each waiting swap one of whose dates has passed, telling its people. Every page reads
   the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
 - `open_and_close_request_windows` (hourly): opens each request window whose open date has come and closes each whose close
@@ -498,7 +512,7 @@ re-plan the comparison with the roster in force. A nurse's carry-over waits for 
 A stored result holds the penalties' totals only, so the explanation is worked out when asked.
 The solver's words count days from 0, so what the pages show says dates instead.
 
-The System Admin's solve history is unit, month, state, the kind of failure, who asked, when, how
+The System Admin's solve history is unit, month, state, the failure kind (in fixed words naming no one), who asked, when, how
 long, the time limit, the attempts and the cost, and only that (not even whether a solve was a re-plan, whose date is about a
 roster): the solver's and the worker's words
 (`error`, `message`, `precheck`, the explanations) can name a nurse and a date, and no free text
@@ -556,9 +570,13 @@ page and the header row repeated on each.
 
 ### Observability
 
-JSON logs on stdout for every container; a Prometheus `/metrics` endpoint reachable on the
-internal network only; the health page shows solver reachability, disk and database size,
-last backup and queue state. Nothing else is bundled.
+JSON logs on stdout for every container: one formatter (`solver_service.logs`) for Django's `LOGGING`, gunicorn's own and
+access lines (`config/gunicorn.py`) and the solver's uvicorn (`solver_service/logging.json`); Docker rotates them at 10 MB,
+five files. The worker's can name a nurse and a date, so the install guide treats them as personal data. A Prometheus `/metrics`
+endpoint on `web`, with no sign-in, reachable on the internal network only: Caddy refuses the path and `web` refuses anything
+Caddy passed on (`X-Forwarded-For`); its gauges are worked out at each scrape from what the health page reads. The health page
+shows solver reachability and version, disk and database size, the backups with the last one's time, and queue state; the
+public `/api/health` says only whether the database and the solver answer. Nothing else is bundled.
 
 ## 9. Defaults
 
@@ -584,8 +602,8 @@ cp-sat-nurse-roster-app/
   backend/      Django project and apps, pytest-django suite
   solver/       vendored nurse_roster package and its tests, the FastAPI service
   frontend/     Vite + React SPA, Vitest suite
-  deploy/       compose.yaml, compose.dev.yaml, Caddyfile, .env.example, install guide,
-                reset-admin-password.sh, restore.sh
+  deploy/       compose.yaml, compose.dev.yaml, Caddyfile, .env.example, INSTALL.md,
+                reset-admin-password.sh, restore.sh, tests/operations.sh (the compose-level test)
   docs/         this document, adr/, research/
   e2e/          Playwright suite against the compose stack
   Dockerfile    one multi-stage build, one image

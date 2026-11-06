@@ -15,5 +15,8 @@
 
 {$CADDY_SITE} {
 	import {$CADDY_TLS_SNIPPET}
+	# The metrics answer with no sign-in, for a Prometheus on the internal network only (backend/ops/metrics.py).
+	@metrics path /metrics /metrics/*
+	respond @metrics 404
 	reverse_proxy web:8000
 }

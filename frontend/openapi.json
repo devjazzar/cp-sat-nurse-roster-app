@@ -50,6 +50,45 @@
         ]
       }
     },
+    "/api/ops/backups/{name}": {
+      "get": {
+        "operationId": "downloadBackup",
+        "summary": "Download Backup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "200": {
+            "description": "The backup, as `pg_dump`'s custom format.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "description": "A backup holds everything: password hashes and every nurse's leave. So only the System Admin takes one, each taking is\nlogged with its name and nothing else, and no copy is kept by a browser's cache.",
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/ops/technical-settings": {
       "get": {
         "operationId": "getTechnicalSettings",
@@ -5194,6 +5233,7 @@
   "components": {
     "schemas": {
       "Health": {
+        "description": "Anyone's to read, so it says only what the compose health check and an install check need: the solver's version and\nthread count are the System Admin's (`/api/ops/health`).",
         "properties": {
           "status": {
             "title": "Status",
@@ -5204,7 +5244,7 @@
             "type": "boolean"
           },
           "solver": {
-            "$ref": "#/components/schemas/SolverHealth"
+            "$ref": "#/components/schemas/PublicSolverHealth"
           }
         },
         "required": [
@@ -5215,39 +5255,61 @@
         "title": "Health",
         "type": "object"
       },
-      "SolverHealth": {
+      "PublicSolverHealth": {
         "properties": {
           "reachable": {
             "title": "Reachable",
             "type": "boolean"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "workers": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Workers"
           }
         },
         "required": [
           "reachable"
         ],
-        "title": "SolverHealth",
+        "title": "PublicSolverHealth",
+        "type": "object"
+      },
+      "BackupRow": {
+        "properties": {
+          "name": {
+            "description": "The file's name, which `GET /api/ops/backups/{name}` takes and `deploy/restore.sh` restores.",
+            "title": "Name",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "taken_at": {
+            "format": "date-time",
+            "title": "Taken At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "size_bytes",
+          "taken_at"
+        ],
+        "title": "BackupRow",
+        "type": "object"
+      },
+      "BackupSchedule": {
+        "properties": {
+          "time": {
+            "description": "HH:MM on the hospital's clock.",
+            "title": "Time",
+            "type": "string"
+          },
+          "retention_days": {
+            "title": "Retention Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "time",
+          "retention_days"
+        ],
+        "title": "BackupSchedule",
         "type": "object"
       },
       "Disk": {
@@ -5304,8 +5366,19 @@
                 "type": "null"
               }
             ],
-            "description": "Always empty until backups exist.",
+            "description": "When the newest backup was taken. Null before the first.",
             "title": "Last Backup"
+          },
+          "backups": {
+            "description": "Every backup kept, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/BackupRow"
+            },
+            "title": "Backups",
+            "type": "array"
+          },
+          "backup_schedule": {
+            "$ref": "#/components/schemas/BackupSchedule"
           }
         },
         "required": [
@@ -5314,7 +5387,9 @@
           "database_size_bytes",
           "disk",
           "queue",
-          "last_backup"
+          "last_backup",
+          "backups",
+          "backup_schedule"
         ],
         "title": "InstallationHealth",
         "type": "object"
@@ -5345,6 +5420,41 @@
           "workers"
         ],
         "title": "Queue",
+        "type": "object"
+      },
+      "SolverHealth": {
+        "properties": {
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "workers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workers"
+          }
+        },
+        "required": [
+          "reachable"
+        ],
+        "title": "SolverHealth",
         "type": "object"
       },
       "TechnicalSettingsSchema": {
@@ -7985,8 +8095,15 @@
             "anyOf": [
               {
                 "enum": [
-                  "solver",
-                  "refused"
+                  "refused",
+                  "unreachable",
+                  "lost",
+                  "overrun",
+                  "solver_error",
+                  "stuck",
+                  "worker_lost",
+                  "unexpected",
+                  "solver"
                 ],
                 "type": "string"
               },
@@ -9851,8 +9968,15 @@
             "anyOf": [
               {
                 "enum": [
-                  "solver",
-                  "refused"
+                  "refused",
+                  "unreachable",
+                  "lost",
+                  "overrun",
+                  "solver_error",
+                  "stuck",
+                  "worker_lost",
+                  "unexpected",
+                  "solver"
                 ],
                 "type": "string"
               },
@@ -12925,8 +13049,15 @@
             "anyOf": [
               {
                 "enum": [
-                  "solver",
-                  "refused"
+                  "refused",
+                  "unreachable",
+                  "lost",
+                  "overrun",
+                  "solver_error",
+                  "stuck",
+                  "worker_lost",
+                  "unexpected",
+                  "solver"
                 ],
                 "type": "string"
               },

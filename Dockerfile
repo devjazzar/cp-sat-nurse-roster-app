@@ -26,7 +26,14 @@ RUN uv sync --frozen --all-packages --no-editable
 
 # ---- the image ------------------------------------------------------------------------------
 FROM python:3.14-slim-trixie
-RUN useradd --create-home --uid 1000 app && install -d -o app -g app /backups
+# The worker's nightly backup runs `pg_dump`, which refuses a server newer than itself, and Debian's own client is 17: the
+# PostgreSQL project's repository has the server's version.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates postgresql-common \
+ && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+ && apt-get install -y --no-install-recommends postgresql-client-18 \
+ && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --uid 1000 app && install -d -o app -g app -m 0700 /backups
 COPY --from=python --chown=app:app /app /app
 COPY --from=spa --chown=app:app /src/dist /app/spa
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 SPA_DIR=/app/spa

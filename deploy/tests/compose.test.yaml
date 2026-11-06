@@ -1,0 +1,5 @@
+# For deploy/tests/operations.sh only: the stack on ports of its own, so it can run beside another.
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:${TEST_HTTPS_PORT:-18443}:443"

@@ -4,10 +4,14 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
-import type { SolverHealth } from './solverHealth';
+import type { PublicSolverHealth } from './publicSolverHealth';
 
+/**
+ * Anyone's to read, so it says only what the compose health check and an install check need: the solver's version and
+ * thread count are the System Admin's (`/api/ops/health`).
+ */
 export interface Health {
   status: string;
   database: boolean;
-  solver: SolverHealth;
+  solver: PublicSolverHealth;
 }

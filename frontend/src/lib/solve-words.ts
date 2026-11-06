@@ -29,6 +29,21 @@ export function solveStatus({ state, failure, found_roster }: Pick<SolveRow, "st
   return found_roster ? "Finished" : "No roster to keep"
 }
 
+/** Why a solve failed, in fixed words naming no one: what the System Admin reads in place of the solver's or the worker's
+ * own, which can name a nurse and a date. */
+const FAILED_BECAUSE: Record<NonNullable<SolveRow["failure"]>, string> = {
+  refused: "The solver refused the rules it was given: the unit's or the hospital's rules need review.",
+  unreachable: "The solver could not be reached.",
+  lost: "The solver restarted and lost the solve.",
+  overrun: "The solver ran well past the time limit and was given up on.",
+  solver_error: "The solver stopped with an error of its own.",
+  stuck: "The solver would not stop an earlier job, so this one could not start.",
+  worker_lost: "The worker stopped during the solve and could not take it up again.",
+  unexpected: "The worker met an error of its own.",
+  solver: "The solver failed or could not be reached (from before the kinds were told apart).",
+}
+export const failedBecause = (failure: SolveRow["failure"]) => (failure ? FAILED_BECAUSE[failure] : "")
+
 /** How long it searched. */
 export function solveDuration({ attempts, elapsed_seconds }: Pick<SolveRow, "attempts" | "elapsed_seconds">): string {
   if (attempts === 0) return "Did not start"

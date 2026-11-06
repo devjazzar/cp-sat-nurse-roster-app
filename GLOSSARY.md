@@ -171,6 +171,12 @@ _Avoid_: month-end reconciliation, closing, finalisation
 Every solve a unit has run, each with its solve input and result, kept for good.
 _Avoid_: job history, run log
 
+**Failure kind**:
+Why a failed solve gave no answer, as one of a few fixed kinds (the solver unreachable, restarted and lost the solve, run past
+the time limit, refusing the solve input, and the like), each read in fixed words naming no one. It is all the System Admin reads
+of why a solve failed: the solver's and the worker's own words can name a nurse and a date.
+_Avoid_: error, reason, cause
+
 **Time limit**:
 How long a solve may search. The unit manager chooses it, up to the time limit cap.
 _Avoid_: timeout, budget
@@ -224,3 +230,15 @@ _Avoid_: in-charge, senior
 **Ramadan days**:
 The dates of a month on which a Ramadan-reduced nurse owes fewer hours. Derived from the Umm al-Qura calendar unless the CNO fixes them after the moon sighting.
 _Avoid_: fasting days
+
+### Operations
+
+**Backup**:
+A copy of the whole database, taken by the worker every night at the System Admin's backup time and kept for their number of
+days. Only the System Admin sees and downloads one, since it holds every account and every nurse's leave.
+_Avoid_: dump, snapshot, export
+
+**Restore**:
+Putting a backup in place of the database, by a script on the server, never from the application. Everything done since the
+backup is lost, so the database as it stood is backed up first.
+_Avoid_: rollback, recovery

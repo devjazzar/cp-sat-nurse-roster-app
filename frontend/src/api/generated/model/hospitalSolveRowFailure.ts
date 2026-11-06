@@ -9,6 +9,13 @@ export type HospitalSolveRowFailure = typeof HospitalSolveRowFailure[keyof typeo
 
 
 export const HospitalSolveRowFailure = {
-  solver: 'solver',
   refused: 'refused',
+  unreachable: 'unreachable',
+  lost: 'lost',
+  overrun: 'overrun',
+  solver_error: 'solver_error',
+  stuck: 'stuck',
+  worker_lost: 'worker_lost',
+  unexpected: 'unexpected',
+  solver: 'solver',
 } as const;

@@ -9,6 +9,13 @@ export type UnitSolveRowFailure = typeof UnitSolveRowFailure[keyof typeof UnitSo
 
 
 export const UnitSolveRowFailure = {
-  solver: 'solver',
   refused: 'refused',
+  unreachable: 'unreachable',
+  lost: 'lost',
+  overrun: 'overrun',
+  solver_error: 'solver_error',
+  stuck: 'stuck',
+  worker_lost: 'worker_lost',
+  unexpected: 'unexpected',
+  solver: 'solver',
 } as const;

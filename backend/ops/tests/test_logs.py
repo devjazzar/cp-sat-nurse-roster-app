@@ -84,3 +84,16 @@ def test_gunicorn_logs_its_own_lines_and_each_request_as_json():
     assert [(e["method"], e["path"], e["query"], e["status"], e["remote"]) for e in access] == [
         ("GET", "/api/health", "from=test", 200, "203.0.113.9")]
     assert stderr == ""
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_queues_command_line_logs_what_it_would_print():
+    """`manage.py queue`, which the worker container runs, is Procrastinate's command with the lines it prints to standard
+    error ("Launching a worker on all queues", "Launching a job: …") made log lines like the rest."""
+    done = subprocess.run([sys.executable, "manage.py", "queue", "defer", "--ignore-already-enqueued", "ops.tasks.backup",
+                           '{"timestamp": 0}'], cwd=BACKEND, env=environment(), capture_output=True, text=True, check=True)
+
+    assert done.stderr == ""
+    entries = json_lines(done.stdout)
+    assert [entry["logger"] for entry in entries if entry["message"].startswith("Launching a job: ops.tasks.backup")] == [
+        "procrastinate.cli"]

@@ -4,6 +4,8 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
+import type { BackupRow } from './backupRow';
+import type { BackupSchedule } from './backupSchedule';
 import type { Disk } from './disk';
 import type { Queue } from './queue';
 import type { SolverHealth } from './solverHealth';
@@ -14,6 +16,9 @@ export interface InstallationHealth {
   database_size_bytes: number;
   disk: Disk | null;
   queue: Queue;
-  /** Always empty until backups exist. */
+  /** When the newest backup was taken. Null before the first. */
   last_backup: string | null;
+  /** Every backup kept, newest first. */
+  backups: BackupRow[];
+  backup_schedule: BackupSchedule;
 }

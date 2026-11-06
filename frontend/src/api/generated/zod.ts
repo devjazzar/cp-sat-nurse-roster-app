@@ -14,11 +14,9 @@ export const GetHealthResponse = zod.object({
   "status": zod.string(),
   "database": zod.boolean(),
   "solver": zod.object({
-  "reachable": zod.boolean(),
-  "version": zod.union([zod.string(),zod.null()]).optional(),
-  "workers": zod.union([zod.int(),zod.null()]).optional()
+  "reachable": zod.boolean()
 })
-})
+}).describe('Anyone\'s to read, so it says only what the compose health check and an install check need: the solver\'s version and\nthread count are the System Admin\'s (`/api/ops/health`).')
 
 
 /**
@@ -42,8 +40,29 @@ export const GetInstallationHealthResponse = zod.object({
   "failed": zod.int(),
   "workers": zod.int()
 }),
-  "last_backup": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('Always empty until backups exist.')
+  "last_backup": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('When the newest backup was taken. Null before the first.'),
+  "backups": zod.array(zod.object({
+  "name": zod.string().describe('The file\'s name, which `GET /api/ops/backups/{name}` takes and `deploy/restore.sh` restores.'),
+  "size_bytes": zod.int(),
+  "taken_at": zod.iso.datetime({"offset":true})
+})).describe('Every backup kept, newest first.'),
+  "backup_schedule": zod.object({
+  "time": zod.string().describe('HH:MM on the hospital\'s clock.'),
+  "retention_days": zod.int()
 })
+})
+
+
+/**
+ * A backup holds everything: password hashes and every nurse's leave. So only the System Admin takes one, each taking is
+ * logged with its name and nothing else, and no copy is kept by a browser's cache.
+ * @summary Download Backup
+ */
+export const DownloadBackupParams = zod.object({
+  "name": zod.string()
+})
+
+export const DownloadBackupResponse = zod.unknown()
 
 
 /**
@@ -1647,7 +1666,7 @@ export const StartSolveResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -1734,7 +1753,7 @@ export const StartReplanResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -1766,7 +1785,7 @@ export const GetSolveProgressResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -1799,7 +1818,7 @@ export const StopSolveResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -1862,7 +1881,7 @@ export const GetRosterMonthResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -1883,7 +1902,7 @@ export const GetRosterMonthResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2086,7 +2105,7 @@ export const SaveDraftPinsResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2107,7 +2126,7 @@ export const SaveDraftPinsResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2266,7 +2285,7 @@ export const SaveRosterVersionResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2287,7 +2306,7 @@ export const SaveRosterVersionResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2488,7 +2507,7 @@ export const SubmitRosterResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2509,7 +2528,7 @@ export const SubmitRosterResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2650,7 +2669,7 @@ export const ApproveRosterResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2671,7 +2690,7 @@ export const ApproveRosterResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2814,7 +2833,7 @@ export const RejectRosterResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -2835,7 +2854,7 @@ export const RejectRosterResponse = zod.object({
   "attempts": zod.int(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]).describe('`refused` is a matter of the rules, to be shown as such and not as a failed solve.'),
   "error": zod.string(),
   "found_roster": zod.boolean().describe('Whether this solve ended with a roster it could keep, which became the draft then. A later solve or a restore may have replaced it since.'),
   "message": zod.string().describe('Why the solver found no roster, in its words.'),
@@ -3014,7 +3033,7 @@ export const ListUnitSolveHistoryResponse = zod.object({
   "id": zod.uuid(),
   "month": zod.string(),
   "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]),
   "requested_by": zod.string(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
@@ -3045,7 +3064,7 @@ export const GetSolveResultResponse = zod.object({
   "id": zod.uuid(),
   "month": zod.string(),
   "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]),
   "requested_by": zod.string(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
@@ -3180,7 +3199,7 @@ export const RestoreSolveResultResponse = zod.object({
   "id": zod.uuid(),
   "month": zod.string(),
   "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]),
   "requested_by": zod.string(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
@@ -4459,7 +4478,7 @@ export const ListHospitalSolveHistoryResponse = zod.object({
   "id": zod.uuid(),
   "month": zod.string(),
   "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
-  "failure": zod.union([zod.enum(['solver', 'refused']),zod.null()]),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]),
   "requested_by": zod.string(),
   "requested_at": zod.iso.datetime({"offset":true}),
   "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),

@@ -1,11 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import type { ReactNode } from "react"
 
-import { useGetInstallationHealth } from "@/api/generated/endpoints"
-import { Role } from "@/api/generated/model"
+import { getDownloadBackupUrl, useGetInstallationHealth } from "@/api/generated/endpoints"
+import { Role, type InstallationHealth } from "@/api/generated/model"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { hospitalTime, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/health")({
@@ -32,6 +34,49 @@ function Row({ name, children }: { name: string; children: ReactNode }) {
 
 function Reachability({ reachable }: { reachable: boolean }) {
   return <Badge variant={reachable ? "secondary" : "destructive"}>{reachable ? "Reachable" : "Unreachable"}</Badge>
+}
+
+/** The backups the worker keeps, which only the System Admin may take: each holds the whole database. */
+function Backups({ health }: { health: InstallationHealth }) {
+  const { backups, backup_schedule: schedule } = health
+  return (
+    <Card className="sm:col-span-2">
+      <CardHeader><CardTitle><h2>Backups</h2></CardTitle></CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <dl className="flex flex-col gap-2">
+          <Row name="Last backup">{health.last_backup ? hospitalTime(health.last_backup) : "None yet"}</Row>
+        </dl>
+        <p className="text-sm text-muted-foreground">
+          Taken every day at {schedule.time} hospital time and kept {schedule.retention_days} days, on this server's disk; change either
+          in <Link to="/settings" className="underline underline-offset-3">Technical settings</Link>. A backup holds every account and every
+          nurse's leave, so keep a downloaded one as safe as the server itself. Copies kept elsewhere are the hospital's to make.
+        </p>
+        {backups.length > 0 && (
+          <Table container={scrollableRegion("Backups kept")}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Taken (hospital time)</TableHead>
+                <TableHead className="text-end">Size</TableHead>
+                <TableHead><span className="sr-only">Download</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {backups.map((backup) => (
+                <TableRow key={backup.name}>
+                  <TableHead scope="row" className="font-normal tabular-nums">{hospitalTime(backup.taken_at)}</TableHead>
+                  <TableCell className="text-end tabular-nums">{formatBytes(backup.size_bytes)}</TableCell>
+                  <TableCell>
+                    <a href={getDownloadBackupUrl(backup.name)} download className="underline underline-offset-3"
+                      aria-label={`Download the backup of ${hospitalTime(backup.taken_at)}`}>Download</a>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 function HealthPage() {
@@ -89,16 +134,7 @@ function HealthPage() {
               </dl>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader><CardTitle><h2>Backups</h2></CardTitle></CardHeader>
-            <CardContent>
-              <dl className="flex flex-col gap-2">
-                <Row name="Last backup">
-                  {health.data.last_backup ? new Date(health.data.last_backup).toLocaleString() : "None yet"}
-                </Row>
-              </dl>
-            </CardContent>
-          </Card>
+          <Backups health={health.data} />
         </div>
       )}
     </div>

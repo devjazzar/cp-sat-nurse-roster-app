@@ -9,7 +9,7 @@ import { monthInAddress } from "@/components/month-nav"
 import { SolveHistoryTable } from "@/components/solve-history-table"
 import { buttonVariants } from "@/components/ui/button"
 import { useChosenUnit } from "@/components/unit-picker"
-import { replanStatus, solveStatus } from "@/lib/solve-words"
+import { failedBecause, replanStatus, solveStatus } from "@/lib/solve-words"
 import { cn, hospitalTime, monthName } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
@@ -95,8 +95,8 @@ function HospitalHistory({ older_than }: { older_than: string | undefined }) {
     <>
       <h1 ref={heading} tabIndex={-1} className="text-xl font-medium outline-none">Solve history</h1>
       <p className="text-muted-foreground">
-        Every unit's solves, newest first, with times in hospital time. No roster or nurse appears here. A solve's stated reason could name a nurse, so why a solve
-        failed stays with its unit's manager.
+        Every unit's solves, newest first, with times in hospital time. No roster or nurse appears here. A solve's own words could name a nurse, so a failed
+        solve says only which kind of failure it was; its unit's manager reads the rest.
       </p>
       {history.isPending && <p>Loading…</p>}
       {history.isError && <p role="alert">The solve history could not be read. Reload the page to try again.</p>}
@@ -105,6 +105,7 @@ function HospitalHistory({ older_than }: { older_than: string | undefined }) {
         <SolveHistoryTable label="Solves of every unit" solves={page.solves}
           leading={{ header: "Unit", cell: (row) => row.unit }}
           trailing={[
+            { header: "Why it failed", cell: (row) => failedBecause(row.failure) },
             { header: "Time limit", cell: (row) => `${row.time_limit_seconds} s` },
             { header: "Attempts", end: true, cell: (row) => row.attempts },
             { header: "Cost", end: true, cell: (row) => row.cost ?? "None" },

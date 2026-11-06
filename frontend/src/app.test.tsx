@@ -21,6 +21,8 @@ const HEALTH = {
   disk: { total_bytes: 100 * 1024 ** 3, free_bytes: 60 * 1024 ** 3 },
   queue: { waiting: 2, running: 1, failed: 3, workers: 1 },
   last_backup: null,
+  backups: [],
+  backup_schedule: { time: "02:00", retention_days: 30 },
 }
 
 /** What the header's bell polls on every signed-in page. A test that needs other answers gives its own. */
@@ -464,6 +466,36 @@ describe("the health page", () => {
     await waitFor(() => expect(reads()).toBe(2))
     expect(screen.getByRole("button", { name: "Refresh" })).toHaveFocus()
     expect(await screen.findByText("Checked.")).toHaveAttribute("role", "status")
+  })
+
+  it("lists the backups newest first, each with its size and a download", async () => {
+    const backups = [
+      { name: "nurse-roster-20261105T230000Z.dump", size_bytes: 3 * 1024 * 1024, taken_at: "2026-11-06T02:00:00+03:00" },
+      { name: "nurse-roster-20261104T230000Z.dump", size_bytes: 2900 * 1024, taken_at: "2026-11-05T02:00:00+03:00" },
+    ]
+    start("/health", admin({ "GET /api/ops/health": { body: { ...HEALTH, backups, last_backup: backups[0].taken_at } } }))
+
+    expect(await screen.findByText("Last backup")).toBeInTheDocument()
+    expect(screen.getByText("Last backup").nextSibling).toHaveTextContent("2026-11-06 02:00:00")
+    expect(screen.getByText(/Taken every day at 02:00 hospital time and kept 30 days/)).toBeInTheDocument()
+    const table = screen.getByRole("region", { name: "Backups kept" })
+    const rows = within(table).getAllByRole("row").slice(1)
+    expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+      ["3.0 MB", "Download"], ["2.8 MB", "Download"]])
+    expect(rows.map((row) => within(row).getByRole("rowheader").textContent)).toEqual(["2026-11-06 02:00:00", "2026-11-05 02:00:00"])
+    const link = within(rows[0]).getByRole("link", { name: "Download the backup of 2026-11-06 02:00:00" })
+    expect(link).toHaveAttribute("href", "/api/ops/backups/nurse-roster-20261105T230000Z.dump")
+    expect(link).toHaveAttribute("download")
+    expect(screen.getByText(/holds every account and every nurse's leave/)).toBeInTheDocument()
+  })
+
+  it("says when there is no backup yet", async () => {
+    start("/health", admin())
+
+    expect(await screen.findByText("Last backup")).toBeInTheDocument()
+    expect(screen.getByText("Last backup").nextSibling).toHaveTextContent("None yet")
+    expect(screen.queryByRole("region", { name: "Backups kept" })).not.toBeInTheDocument()
+    expect(within(screen.getByText(/Taken every day/)).getByRole("link", { name: "Technical settings" })).toHaveAttribute("href", "/settings")
   })
 
   it("says so when the health cannot be read", async () => {
@@ -4977,14 +5009,31 @@ describe("the roster page", () => {
       const everything = (solves: unknown[], extra = {}) => admin({ "GET /api/solve-history": { body: { solves, older_than: null } }, ...extra })
 
       it("lists every unit's solves and offers nothing to open", async () => {
-        const { calls } = start("/solve-history", everything([HOSPITAL_ROW, { ...HOSPITAL_ROW, id: "b", unit: "ICU", state: "failed", failure: "solver", found_roster: false, cost: null }]))
+        const { calls } = start("/solve-history", everything([HOSPITAL_ROW, { ...HOSPITAL_ROW, id: "b", unit: "ICU", state: "failed", failure: "unreachable", found_roster: false, cost: null }]))
 
         await screen.findByRole("heading", { level: 1, name: "Solve history" })
         const row = await screen.findByRole("row", { name: /ICU/ })
-        expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["June 2026", "Failed", "Mona Ali", "2026-05-15 10:00:00", "1 min 3 s", "60 s", "1", "None"])
+        expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["June 2026", "Failed", "Mona Ali", "2026-05-15 10:00:00", "1 min 3 s", "The solver could not be reached.", "60 s", "1", "None"])
+        expect(within(screen.getByRole("row", { name: /ER/ })).getAllByRole("cell")[5]).toHaveTextContent("")
         expect(screen.queryByRole("link", { name: /Open/ })).not.toBeInTheDocument()
-        expect(screen.getByText(/stays with its unit's manager/)).toBeInTheDocument()
+        expect(screen.getByText(/says only which kind of failure it was/)).toBeInTheDocument()
         expect(calls.map((call) => call.url)).not.toContain("/api/units")
+      })
+
+      it.each([
+        ["refused", "The solver refused the rules it was given: the unit's or the hospital's rules need review."],
+        ["unreachable", "The solver could not be reached."],
+        ["lost", "The solver restarted and lost the solve."],
+        ["overrun", "The solver ran well past the time limit and was given up on."],
+        ["solver_error", "The solver stopped with an error of its own."],
+        ["stuck", "The solver would not stop an earlier job, so this one could not start."],
+        ["worker_lost", "The worker stopped during the solve and could not take it up again."],
+        ["unexpected", "The worker met an error of its own."],
+        ["solver", "The solver failed or could not be reached (from before the kinds were told apart)."],
+      ])("says why one failed in fixed words: %s", async (failure, words) => {
+        start("/solve-history", everything([{ ...HOSPITAL_ROW, state: "failed", failure, found_roster: false, cost: null }]))
+
+        expect(await screen.findByRole("cell", { name: words })).toBeInTheDocument()
       })
 
       it("goes back a page at a time", async () => {

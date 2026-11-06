@@ -10,7 +10,8 @@ tickets under `.scratch/nurse-rostering-v1/issues/`.
 
 ## Run the stack
 
-You need Docker with Compose. From a checkout:
+The install guide for a hospital's server, with backups, restore, the System Admin's password reset, logs and metrics, is
+[deploy/INSTALL.md](deploy/INSTALL.md). In short, you need Docker with Compose. From a checkout:
 
 ```bash
 cd deploy
@@ -30,7 +31,7 @@ The first start builds the image, which takes a few minutes. Five services come 
 curl -k https://localhost/api/health
 ```
 
-The answer reports `"solver": {"reachable": true, ...}`. Without a `DOMAIN` the certificate is
+The answer is `{"status": "ok", "database": true, "solver": {"reachable": true}}`. Without a `DOMAIN` the certificate is
 self-signed, so a browser warns once. With a `DOMAIN` whose DNS points at the server, and ports 80
 and 443 open to the internet, Caddy obtains a Let's Encrypt certificate by itself.
 
@@ -77,6 +78,13 @@ password there is `POSTGRES_PASSWORD` from `.env`.
 cd backend && uv run --no-sync pytest -q
 ```
 
+**The deploy scripts** (`restore.sh`, `reset-admin-password.sh`, backups, JSON logs, `/metrics`) on a stack of their own,
+built from the checkout and removed afterwards. Takes several minutes; never give it the installation's own project name.
+
+```bash
+deploy/tests/operations.sh nr-operations-test
+```
+
 **The frontend**:
 
 ```bash
@@ -103,5 +111,5 @@ cd frontend && npm run generate:api
 | `backend/` | Django, Django Ninja, the Procrastinate worker |
 | `solver/` | The vendored `nurse_roster` package and its tests, frozen in from its original repository (ADR 0002), and `solver_service`, the HTTP service around it |
 | `frontend/` | Vite, React, shadcn/ui on Base UI |
-| `deploy/` | Compose files, Caddyfile, `.env.example` |
+| `deploy/` | Compose files, Caddyfile, `.env.example`, the install guide and its scripts, the compose-level test |
 | `Dockerfile` | One multi-stage build, one image, three containers |

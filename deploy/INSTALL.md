@@ -1,0 +1,164 @@
+# Installing and running the nurse roster
+
+For the hospital's IT. One installation serves one hospital, as one `docker compose` stack on one server: Caddy in front,
+the web application, the queue worker, the solver and PostgreSQL (docs/ARCHITECTURE.md, section 2). Every command here runs
+in this `deploy/` directory on the server.
+
+## Install
+
+You need Docker with Compose v2.24 or later, ports 80 and 443 open to the people who use it, and, for a real certificate, a
+name whose DNS points at the server.
+
+```bash
+cp .env.example .env
+```
+
+Fill in the four required values in `.env` (the file says how to generate them), and `DOMAIN` if the server has a name. Then:
+
+```bash
+docker compose up -d
+```
+
+Five services come up: `caddy`, `web`, `worker`, `solver` and `db`. Check them through Caddy:
+
+```bash
+curl -k https://localhost/api/health
+```
+
+The answer is `{"status": "ok", "database": true, "solver": {"reachable": true}}`. The solver's version and threads are on the
+System Admin's health page, not here: anyone can read this one.
+
+Open `https://<server>/` and log in as `admin` with `INITIAL_ADMIN_PASSWORD`. You must choose a new password at once; from
+then on the variable is ignored.
+
+**On a server reachable from the internet, set `DOMAIN`.** Without it Caddy issues a self-signed certificate for any name a
+client sends, and each adds files to the `caddy_data` volume.
+
+### At the first real install
+
+These cannot be proven anywhere but on the hospital's own server.
+
+- **Let's Encrypt.** With `DOMAIN` set and its DNS pointing here, Caddy obtains a certificate by itself at the first start.
+  Open `https://<DOMAIN>/` in a browser and look at the certificate: it must be issued by Let's Encrypt, not by "Caddy Local
+  Authority". If it is not, `docker compose logs caddy` says why (most often port 80 or 443 is not reachable from the
+  internet, or the DNS does not point here yet). This has never been proven: no certificate was issued while building, for want
+  of a real name.
+- **The 500-row nurse import against gunicorn's timeout.** Confirming an import hashes one password a nurse, about half a
+  second each, four at once, in one request, and gunicorn gives a request 300 seconds (`--timeout 300` in `compose.yaml`).
+  500 rows took 62.5 seconds on 8 cores of a development machine; no hospital server has been measured. Before any real
+  nurse is added, take a backup (`docker compose exec worker python manage.py backup`, which prints its name), import 500
+  made-up nurses from the template on the Nurses page and time the confirmation, then restore that backup
+  (`./restore.sh <name>`), since nothing in the application deletes a nurse. Well under 300 seconds is fine. Near it, keep
+  imports smaller, or raise `--timeout` in `compose.yaml`.
+- **The install checklist** below.
+
+### The install checklist: what only the hospital's people can check
+
+- [ ] The roster's Excel file opened in Excel on Windows with a `;` list separator (a European locale), not only the default `,`.
+- [ ] The ward print page printed on a real printer: A4 landscape, a 31-day month on one page, the header row repeated.
+- [ ] One pass of the main pages with the keyboard alone and with a screen reader.
+- [ ] Caddy in a browser at the hospital's own address: the certificate (Let's Encrypt with `DOMAIN`, or the self-signed one), and the app through it.
+- [ ] Time a solve, a draft's read and a re-plan's comparison on a 60-nurse unit on the real server.
+- [ ] Time the audit log filtered by user on the real database.
+- [ ] The 500-row import, timed as above.
+- [ ] A backup restored with `./restore.sh` on the real server, and the application checked afterwards.
+
+## Upgrade
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+`web` runs the migrations as it starts.
+
+## Backups
+
+The worker takes a backup every night at the System Admin's backup time (02:00 hospital time unless changed on Technical
+settings) and keeps the System Admin's number of days (30 unless changed), always keeping the newest whatever its age. A worker
+that was down takes the missed one when it comes back, at most five minutes late. The first is taken within five minutes of
+the first start.
+
+A backup is the whole database in `pg_dump`'s custom format, named for when it was taken in UTC, for instance
+`nurse-roster-20261105T230000Z.dump`. They live in the `backups` volume, which only `worker` (writing) and `web` (reading)
+mount, and only the System Admin sees them: listed on the health page with sizes and dates and the time of the last one, and
+downloaded from there. Each download is in the audit log.
+
+**A backup holds everything:** every account's password hash and every nurse's leave. Keep any copy as safe as the server.
+
+**Copies off the server are the hospital's job.** A disk that fails takes the backups with it. Copy them somewhere else every
+day, for instance:
+
+```bash
+docker compose cp worker:/backups ./backups-copy
+```
+
+or download one from the health page.
+
+### Restore a backup
+
+Restore is a script on the server, not a button:
+
+```bash
+./restore.sh nurse-roster-20261105T230000Z.dump
+```
+
+It takes either the name of a backup the server keeps (the names are on the health page) or the path of a file, such as an
+off-site copy. It asks you to type `RESTORE`, then:
+
+1. stops `web` and `worker`, so nothing writes (Caddy stays up and answers 502 meanwhile);
+2. takes a backup of the database as it stands, kept beside the others, so a wrong choice can be undone by restoring that one;
+3. restores into a new database, and only once that has worked puts it in place of the old one;
+4. starts `web` and `worker` again. A backup from an older version is migrated forward as `web` starts.
+
+If it fails before step 3 ends, the database is as it was and the application starts again on it. Everything done since the
+backup is gone: solves running then start again from the queue, and anything a user did since must be done again.
+
+## Reset the System Admin's password
+
+For a lost password, or the System Admin's account locked by five wrong passwords (a lock lasts 15 minutes, and anyone can
+cause one):
+
+```bash
+./reset-admin-password.sh
+```
+
+It prints a new password once, which must be changed at the next login, ends the account's sessions and lifts the lock. The
+audit log records it as done from the server. `--username <name>` resets another System Admin account. Other accounts'
+passwords are reset in the application.
+
+## Logs
+
+Every container logs to standard output, `web`, `worker` and `solver` as one JSON object a line (Caddy's are JSON too):
+
+```bash
+docker compose logs -f worker
+```
+
+**The worker's log can hold names and dates:** a solver's error or a refusal's words can name a nurse and a day. Treat these
+logs as personal data: keep them only as long as you need, let only the people who run the server read them, and send them
+nowhere the hospital's rules on personal data do not allow. `compose.yaml` rotates each container's log at 10 MB and keeps
+five files; change `x-logging` there to keep less.
+
+## Metrics
+
+`web` answers `/metrics` in Prometheus's text format, with no sign-in, on the internal network only: Caddy refuses the path,
+and the application refuses anything that came through Caddy. A Prometheus that scrapes it joins the stack's `frontend` network
+(`nurse-roster_frontend` unless the project has another name), for instance in a `compose.override.yaml` beside `compose.yaml`:
+
+```yaml
+services:
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [frontend]
+```
+
+with `prometheus.yml` scraping `web:8000`. What it reads is what the health page shows: whether the database and the solver
+answer, the queue's jobs and workers, solves by state, the database's size, the disk's free space, and the backups kept with
+the time of the last one (`nurse_roster_last_backup_timestamp_seconds`, worth an alert when it is more than a day old).
+
+## What the queue keeps
+
+The worker removes, every day: queue rows of jobs that ended well or were stopped more than seven days ago (a failed job stays
+until looked at, and the health page counts it); notifications older than a year; sessions past their twelve idle hours.

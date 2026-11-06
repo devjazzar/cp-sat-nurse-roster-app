@@ -371,6 +371,109 @@ export function useGetInstallationHealth<TData = Awaited<ReturnType<typeof getIn
 
 
 
+export const getDownloadBackupUrl = (name: string,) => {
+
+
+
+
+  return `/api/ops/backups/${name}`
+}
+
+/**
+ * A backup holds everything: password hashes and every nurse's leave. So only the System Admin takes one, each taking is
+ * logged with its name and nothing else, and no copy is kept by a browser's cache.
+ * @summary Download Backup
+ */
+export const downloadBackup = async (name: string, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadBackupUrl(name),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadBackupQueryKey = (name: string,) => {
+    return [
+    `/api/ops/backups/${name}`
+    ] as const;
+    }
+
+
+export const getDownloadBackupQueryOptions = <TData = Awaited<ReturnType<typeof downloadBackup>>, TError = unknown>(name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadBackupQueryKey(name);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadBackup>>> = ({ signal }) => downloadBackup(name, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: name !== null && name !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadBackupQueryResult = NonNullable<Awaited<ReturnType<typeof downloadBackup>>>
+export type DownloadBackupQueryError = unknown
+
+
+export function useDownloadBackup<TData = Awaited<ReturnType<typeof downloadBackup>>, TError = unknown>(
+ name: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadBackup>>,
+          TError,
+          Awaited<ReturnType<typeof downloadBackup>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadBackup<TData = Awaited<ReturnType<typeof downloadBackup>>, TError = unknown>(
+ name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadBackup>>,
+          TError,
+          Awaited<ReturnType<typeof downloadBackup>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadBackup<TData = Awaited<ReturnType<typeof downloadBackup>>, TError = unknown>(
+ name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Download Backup
+ */
+
+export function useDownloadBackup<TData = Awaited<ReturnType<typeof downloadBackup>>, TError = unknown>(
+ name: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadBackup>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadBackupQueryOptions(name,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetTechnicalSettingsUrl = () => {
 
 
