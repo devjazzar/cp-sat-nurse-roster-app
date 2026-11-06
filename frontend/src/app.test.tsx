@@ -5723,7 +5723,7 @@ describe("printing and downloading a roster version", () => {
     expect(await screen.findByRole("heading", { name: "ER roster, June 2026" })).toBeInTheDocument()
     expect(screen.getByText(/Version 2, made 2026-06-03 08:30:00\. It is the roster in force\./)).toBeInTheDocument()
     const table = screen.getByRole("table", { name: "ER roster, June 2026, version 2" })
-    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Nurse", "1M", "2T", "5F", "Hours", "D", "N"])
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Nurse", "1Mo", "2Tu", "5Fr", "Hours", "D", "N"])
     expect(bodyRows(table)).toEqual([["Amal Saleh", "N", "", "D", "24", "1", "1"], ["Hana Ali", "", "D", "", "12", "1", "0"]])
     expect(screen.getByText(/D: Day, 12 hours\. N: Night, 12 hours\./)).toBeInTheDocument()
     expect(screen.queryByText(/your leave/)).not.toBeInTheDocument()

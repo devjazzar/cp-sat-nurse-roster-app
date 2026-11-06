@@ -437,7 +437,9 @@ Minimum length 10 with Django's common-password and similarity checks, lockout f
 minutes after 5 failed logins, sessions expire after 12 hours of inactivity (polling a solve's
 progress is not activity), no two-factor authentication in v1. Every login, failed login and every change to settings, accounts,
 rosters, requests and swaps goes to the audit log. So does each taking of the staff list, which holds everyone's gender:
-who took it and how many nurses it held, and nothing from the file. Its import template holds no one's data and is not
+who took it and how many nurses it held, and nothing from the file; and each taking of a roster version's CSV or Excel file
+(`roster.exported`): who took which unit's month, which version and which format, and nothing from the file. A roster's print
+page makes no file and shows only what its reader can already read, so it is not logged. Its import template holds no one's data and is not
 logged. Nurses see colleagues' names and shifts only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
 changed and by whom, without its value or even which one, since a change to a two-way flag gives its value away. Unit
 rules are logged with their values, as hospital rules are: they say nothing about a person. Attributes also stay off
@@ -456,6 +458,21 @@ it inside gunicorn's 300-second timeout (the default of 30 would kill it) even o
 answer to that request and lives only in the page's memory: if the answer is lost after the transaction, the nurses stay and
 their passwords are reset one at a time. Uploads stay in memory and never reach a temporary file. In a
 staff list every cell is quoted, and one a spreadsheet would run as a formula starts with an apostrophe.
+
+### Roster files and the print page
+
+Any version of an approved roster, not only the one in force, downloads as CSV and as an Excel workbook and opens as a print
+page, all one table (`rosters.sheets`): a row a nurse by name, a column a date, then the hours worked and a count of each shift.
+The unit's manager takes them for their unit, the CNO and the Deputy CNO for any unit while its month is submitted or approved;
+a draft is not a version and has none. A nurse takes no file, and prints only their own unit's roster in force, from My
+roster. A file and a printout leave the system, so a cell is the version's shift or nothing: a day of leave reads as a day off
+in every one, as it does to a colleague, and no leave's type is ever in one; only a nurse's own row on their own print page may
+say leave. Hours are therefore those of the shifts on the row, at the hours the version's solve was given, and never what a
+month owes or the overtime, which would say how much leave someone had. Cells and codes are under today's codes. The CSV is the
+staff list's (byte order mark, every cell quoted, an apostrophe before a cell that opens like a formula); the workbook writes
+text as text, numbers as numbers and dates as dates, marks text that opens like a formula as text the way Excel does, and is
+built in memory with XlsxWriter. Both answer `no-store`. The print page is laid out for A4 landscape, a 31-day month across one
+page and the header row repeated on each.
 
 ### Observability
 

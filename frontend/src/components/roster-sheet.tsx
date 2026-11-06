@@ -11,7 +11,9 @@ import { asDate, cn, hospitalTime, monthName, scrollableRegion } from "@/lib/uti
  *  so nothing is cut off at the right. Rows that do not fit go on to the next page, never split, and the header row repeats at
  *  the top of each, as a table's head does in print. Each row carries its own name, so no page needs another to be read. */
 
-const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "narrow", timeZone: "UTC" })
+// Two letters, so Saturday and Sunday, and Tuesday and Thursday, are told apart in a column a few millimetres wide.
+const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" })
+const twoLetters = (iso: string) => weekday.format(asDate(iso)).slice(0, 2)
 const dayNumber = (iso: string) => String(asDate(iso).getUTCDate())
 
 /** What a cell of the reader's own row says when it holds no shift, on their own sheet only. */
@@ -35,7 +37,7 @@ export function SheetTable({ sheet, me }: { sheet: RosterSheet; me?: string }) {
             <th scope="col" className="border p-1 text-start font-medium">Nurse</th>
             {sheet.days.map((day) => (
               <th key={day.date} scope="col" className={cn("border p-0.5 text-center font-medium", (day.weekend || day.holiday) && "bg-muted print:[print-color-adjust:exact]")}>
-                <abbr title={day.date} className="no-underline">{dayNumber(day.date)}<br />{weekday.format(asDate(day.date))}</abbr>
+                <abbr title={day.date} className="no-underline">{dayNumber(day.date)}<br />{twoLetters(day.date)}</abbr>
               </th>
             ))}
             <th scope="col" className="border p-0.5 text-center font-medium">Hours</th>
