@@ -59,3 +59,5 @@
 - **Not through the re-plan's endpoint:** `solves.replans.why_not_from` refuses the first day after the month ("Choose a date in …") and `why_not` refuses a month that is over. Those refusals are the re-plan's; the close calls the solver's validate path or its own job.
 - **A re-plan that ends after its month did** is `ReplanOutcome.MONTH_OVER` and changes nothing, so the roster a close reads is never moved by a late re-plan.
 - `Solve.replan_from` marks a re-plan in the manager's history. The System Admin's history does not show it (a closed list); keep a close out of it the same way or decide.
+
+**From ticket 19 (2026-11-06).** An accepted request is a pin of origin `request`, so the close reads it like any pin, through `rosters.pins.month_pins`. A request of a month that is over can no longer be accepted, edited or cancelled (`requesting.deciding.MONTH_OVER`), and a pending one stays pending until its manager rejects it: decide whether the close should end those. Re-closing with late facts that reopens pins for the month before would reopen requests' too, in `requesting.deciding.why_the_pin_cannot_move`.

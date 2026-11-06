@@ -32,3 +32,10 @@ How to add an event, the same for each: add it to `notifications.models.Event`, 
 - **A version's reason is for the manager and the approvers.** A swap's own reason is the proposer's to read, but keep it out of the version's notification as the edit does.
 
 **From ticket 17 (2026-11-06).** A re-plan (`solves.replans`) runs in the queue and, when it ends, puts its roster in force as a version only if the version it started from (`Solve.replan_of`) is still the latest and `solves.input.changes_since` finds nothing. An approved swap makes a version and pins, so a swap approved while a re-plan of that month runs makes the re-plan end `outdated`, with nothing applied: that is intended. A pin of origin `swap` before a re-plan's date is a fact, after it a pin the re-plan keeps. A re-plan's version can change a cell a pending swap names: expire it there as for any other version (`make_version` is the one place).
+
+**From ticket 19 (2026-11-06).** Requests are built (`requesting`), and their pins are ordinary pins of origin `request`.
+
+- **Writing a swap's pins:** `rosters.pins.pin_cell(unit, nurse, day, shift, PinOrigin.SWAP, by)` is the one way a pin is made. It ends whatever pin the nurse held that day, a manager's or an accepted request's, as `replaced`. A request whose pin a swap ended stays `accepted` and points at an ended pin, so decide whether a swap may land on an accepted request's cell (refuse it, or end the request with a state of its own and tell its nurse). `rosters.pins.Judge.refusal` gives the words a pin's refusal uses.
+- **The other way round:** accepting a request is refused where an accepted swap's pin holds the cell ("…so change it there"), in `requesting.deciding.refusal_to_pin`.
+- **A version after approval:** `requesting.deciding._onto_roster` makes one with `make_version` only when a cell changes, then the audit entry, then `sending.roster_changed`, as ticket 16 asked.
+- **Notifications:** `sending.request_decided` and `reading._decision_words` show an event whose payload is a step and an id, and whose words read the row when shown.
