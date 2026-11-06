@@ -6,14 +6,14 @@
 
 **Status:** ready-for-agent
 
-- [ ] Close job on the schedule and on demand; a unit with no approved roster is skipped; the close result and per-nurse carry-over stored with source 'closed'
-- [ ] Projection computed with the same solver computation and stored with source 'projected'; the assembler takes the latest closed carry-over projected forward, including the shift history
-- [ ] Re-close allowed until the next month is closed; refused afterwards
-- [ ] Opening values locked after the nurse's first close
-- [ ] January input resets overtime-to-date and both fairness balances
-- [ ] Shift-code renames mapped into histories; a transferred nurse's carry-over follows her into the new unit from the effective month
-- [ ] 'Closed' shown in the overview; projected carry-over per nurse shown to the manager
-- [ ] API and direct tests cover the chain across three months with the fake solver and one real closing of the four-nurse sample
+- [x] Close job on the schedule and on demand; a unit with no approved roster is skipped; the close result and per-nurse carry-over stored with source 'closed'
+- [x] Projection computed with the same solver computation and stored with source 'projected'; the assembler takes the latest closed carry-over projected forward, including the shift history
+- [x] Re-close allowed until the next month is closed; refused afterwards
+- [x] Opening values locked after the nurse's first close
+- [x] January input resets overtime-to-date and both fairness balances
+- [x] Shift-code renames mapped into histories; a transferred nurse's carry-over follows her into the new unit from the effective month
+- [x] 'Closed' shown in the overview; projected carry-over per nurse shown to the manager
+- [x] API and direct tests cover the chain across three months with the fake solver and one real closing of the four-nurse sample
 
 ## Comments
 
@@ -84,3 +84,86 @@
 - **A unit cannot stop working a shift its submitted or approved roster of a month not yet over holds** (review fixes, 2026-11-06: `rosters.drafts.frozen_cells_on_shifts_going`, refused in `units.rules_api`), because the solver refuses such a cell in the roster it is given. A month already over is not guarded, so a re-close of one whose unit has since dropped a shift its roster holds will meet the same refusal: decide what the close does then.
 
 **Decision from the user (2026-11-06), settling the line above.** When a month already over is closed or re-closed and its roster in force holds a shift the unit has since stopped working, the close does not refuse: it skips the solver's unit-shift check for those cells and keeps the past roster as it stands, so they count as worked. Nobody can change a month that is over, so there is nothing to ask the manager to fix. Test it with a unit that drops a shift after its month ended.
+
+**Implemented on 2026-11-06,** on branch `claude/ticket-21-month-close-df8578`. The backend ran under pytest on a throwaway PostgreSQL 18 container of my own (2233 passed), the solver's suite in full (442 passed after the lift, plus 5 new), the frontend under Vitest with the real routes and generated client over a stubbed `fetch` (528 passed) and `npm run build`. `makemigrations --check` is clean; `frontend/openapi.json` matches the export.
+
+What was built:
+- **The solver package (`nurse_roster/result.py::nurse_accounting`)**: the per-nurse block of `build_result` (hours, overtime, `carry_over` with `previous`, `last_shift_kind`, `rest_owed`) is one function of the problem and a complete grid, and `build_result` calls it. `solver_service/grid.py` exposes `nurses_of(solve_input, roster)` and `month_facts(solve_input)` beside `validate_grid`.
+- **A new app, `closes`** (the name section 8 gives it; the glossary avoids "closing"):
+  - `MonthClose` (unit, month, closed at, closed by: null for the schedule, the version closed, the input and the result: `facts`, `facts_broke`, `cost`, `nurses`). Nothing rewrites one: closing again is a new row, the latest is in force.
+  - `CarryOver` (nurse, unit, month carried out of, source `closed` with its close, or `projected`, the latest a nurse and month; opening values have no row). Migrations `closes.0001`, `requesting.0002` (`expired`, a step's `by` nullable) and `notifications.0005` (`month_closed`).
+  - `closes.chain`: the chain. A nurse's month starts from her latest closed carry-over (from that month's close in force), projected forward through each approved roster in between by the close's own computation, memoised per unit and month; a month with no approved roster hands on what came in with no shift history; without a close, her opening values from her first approved roster. The unit is the one each month falls under for her, so a transfer carries it. Overtime-to-date and both balances reset when the year turns. `solves.input.assemble` puts it into every nurse's block, with `renamed_shifts` for old codes in a history.
+  - `closes.making`: the close. Under the catalogue's lock, the month's nurses' and users' `FOR NO KEY UPDATE` (`review.lock_the_months_nurses`), the unit's and the roster's; `assemble_replan` with the first day after the month and a chain that takes closed months only; `month_facts`, `nurses_of` and `validate_grid` in this process. It ends the month's pending requests, writes `month.closed` (`{"version", "again"}` only), tells the nurses of expired requests and, for the schedule's close, the manager. `due()`/`catch_up()` close every approved month whose close time has passed on the hospital's clock, oldest month first across units, each in its own transaction.
+  - `closes.tasks`: `close_month` (`hourly(at_minute=30)`), and `project_carry_over` under its own lock, on demand after every version (`make_version`) and every close, storing the projected rows.
+  - API: `GET /api/units/{id}/close?month` (manager, CNO, Deputy CNO): the close in force, what the facts broke with names, whether the facts changed since, why it cannot close (again) now, and each nurse's carry-over into and out of the month with its source. `POST /api/units/{id}/close` (manager only) closes a month that is over, or closes it again.
+- **ADR 0009:** `deploy/compose.yaml` runs the worker with `--concurrency 4`. `ops.queue._periodic` gives every periodic job `queueing_lock` and `lock` under its own name; `under_its_own_lock` and `enqueue_once` (a savepoint, so a waiting copy fails only itself) for on-demand jobs. Nothing in `closes` imports `ops.solver_client`.
+- **Pages:** a "Carry-over and month close" card on the manager's Roster page for every month; "Closed" on the overview, linking to the roster; My month and My roster open a closed month as its close read it; the Leave page says a closed month's leave is taken in by closing it again, or is fixed; the attributes form shows the opening values read-only once locked; an expired request reads "Expired" with the fixed reason.
+
+Seams:
+- `solver/tests/test_carry_over.py` (5): a real solve's `nurses` block equals `nurse_accounting` on its own roster, with and without the analysis given, and through `nurses_of`; the facts (leave wins, a pin wins), what the facts broke is elapsed, the history carried.
+- `closes/tests/test_close.py` (26) and `test_guards.py` (12), through the API and the close's functions on the sample's sound June, July and August (August added to `rosters/tests/fixtures/sound_rosters.json`, solved reproducibly by the real package on June's and July's projection).
+- `solves/tests/test_queue.py`: the real queue at concurrency 4 with a scripted solve held open by `on_read` until the close's row exists (no clock wait: the solve ends on a read count if the close never runs, and the test then fails); two solves still one after the other at concurrency 4; every periodic job's lock and queueing lock are its own name. `run_the_queue` takes a concurrency and runs the worker again while a job waits, since a worker that does not wait stops once a lock blocks what is left.
+- `solves/tests/test_end_to_end.py`: **one real closing of the four-nurse sample**: solved by the real service, approved, closed by the schedule; its facts are the solve's roster and every nurse's hours and carry-over equal the solve's own block.
+- `app.test.tsx`: 7 new tests (the close card thrice, My month closed, the locked opening values, the closed month's leave, an expired request) and the overview's Closed. No raised timeout, no fake timers, no wait that proves something did not happen.
+- **Honestly: the code came just ahead of most of its tests**, written right after each piece. The spec review found three bugs the tests had not (below); each now has a test.
+
+The checklist from the comments above:
+- **07a, start date and first placement:** `nurses.api._closed_for_good`. A start date that changes which days counted in a month fixed for good (closed, and the month after closed too) is refused beside `start_date`, naming the month; so is a first placement reaching back into one. While the month can still close again the change is taken, and the close card says its facts changed since. The same for an end date (**Worth your review**, not asked). Gender is not refused, and a closed month keeps what its input says.
+- **09, opening values:** refused on each changed field alone once the nurse has any closed carry-over; the rest of the body saves.
+- **10, leave:** `_refuse_dates` and `_rows_to_change` refuse a date in a month fixed for good, beside First day; a closed month that can close again is open, with the prompt on the Leave page. The close reads `leave_dates` plus the days outside her dates, as `assemble` does.
+- **11, the input:** the projected carry-over replaces the opening values and the empty history in `assemble`, with `renamed_shifts`. `using_shift` now means a month not over, or an approved month over and not closed; a draft or submitted roster of a month over holds nothing, since it can never close.
+- **12, the result's `carry_over`** is stored per close and shown on the close card; what the facts broke is the solver's `elapsed_violations` (`facts_broke`).
+- **13, pins:** `month_pins(..., facts=True)`: a pin set aside for its day counts for nothing; one on a shift since dropped or no longer allowed counts as worked (**Worth your review**: ticket 13 says "the same set, from the same function", and the user's decision on dropped shifts speaks of roster cells; this reads it for pins too). A shift renamed since is read under its code now; one dropped or retired is listed among the unit's shifts for the close's input only, with its catalogue hours. Pins and edits on the month before stay closed: **late facts are leave and corrections to dates** (the user's decision that nobody can change a month that is over).
+- **14, the roster in force** is `roster.grid` (the latest version under today's codes); a submitted month is skipped.
+- **15, a nurse's own month:** `_in_force` opens a month before this one once it has closed, from the earliest of hers; My month reads the close's stored figures. A close is notified to the manager: `Event.MONTH_CLOSED` with `unit_id`, `month`, `close_id` only; how many hard rules broke is read when shown.
+- **16:** the close reads leave itself and leave wins; no version is made for a month that is over.
+- **17:** the close is not a re-plan and is not a solve: no `Solve` row, so it is in neither history, and `why_not_from` is untouched.
+- **19, requests:** pending ones of the month become `expired` with "The month closed before a decision.", by no one, and the nurse is told.
+- **20, swaps:** read like any pin; nothing writes `Roster.grid`.
+- **ADR 0009:** all as written, the three queue tests included.
+
+**Driven in the built-in browser,** on scratch project `nr-t21`: the production compose file with its own image (`nr-t21-app:t21`), secrets and volumes, `web` on `127.0.0.1:18021` under `DJANGO_DEBUG`, no Caddy, the real solver and worker at concurrency 4. ER was the four-nurse sample, Mona (manager) and Carla (CNO); September, October and November 2026 were solved for real in-process by a seed script and approved, on the real clock (6 November).
+- **The catch-up closed September and October** when the worker started (`closes.tasks.close_month` succeeded, `lock = close_month`), both "by the schedule". September's card then read "October 2026 has closed, so September 2026 can no longer be closed again." with no button.
+- **A late leave and closing again:** Sick leave for Amal on 14 and 15 October from the Leave page, which said the month had closed and how leave is taken in. October's card then said "Leave or a nurse's dates have changed since it closed." "Close October 2026 again" made a close by Mona Ali: 14 October's night was now uncovered ("Its recorded facts broke a hard rule"), and Amal handed on 16 hours owed instead of 8.
+- **The projected carry-over:** December's card showed each nurse starting from "Projected from November 2026", and "No approved roster" for what it hands on.
+- **A real solve beside the close:** with ER given the end-to-end suite's long-search rules and a third unit (CCU) with an approved October not closed, a 90 s December solve was started from the page. While its job was `doing` and the row `running` (23 improvements), `close_month` and `recover_lost_jobs` were deferred from the worker's CLI: CCU's October closed at 18:42:08 UTC and `recover_lost_jobs` succeeded at 18:42:14; the solve ended `succeeded` at 18:43:22. Read from Procrastinate's job and event tables, since the worker logs nothing per job at its level.
+- **The overview** (as Carla) showed Closed for ER's September and October and for ICU's and CCU's October, Approved for November and Draft for December.
+- **Amal's My month for October** said the month had closed and showed 180 hours worked, 16 of leave credit, 196 asked, 16 hours owed carried.
+- Timing on the stack: the December Roster read 0.56 s, the close view 0.06 s.
+- Everything of `nr-t21` has been removed: containers, volumes, networks, image, and my PostgreSQL container for the tests.
+
+What was NOT checked:
+- **The `:30` firing on its own in the real worker.** The catch-up ran when the worker started and when deferred from the CLI; the schedule's registration is read in the lock test. The "before 00:30 on the 1st" boundary is an API test only.
+- **A first close on demand in the browser.** The catch-up had closed the months before I could; the API test closes and closes again on demand.
+- **January in the browser, a transfer, a rename into a history, a dropped or retired shift, an end or start date refused, opening values refused, and an expired request:** API tests only (and Vitest for the pages).
+- **A late-leave re-close changing the month after's draft warning in the browser:** API test only.
+- **A race between a close and a leave or edit on real connections.** The lock order and `FOR NO KEY UPDATE` are asserted on the close's SQL, not raced.
+- **A large unit or a long chain.** Every `assemble` now works out the chain back to the latest close: one month in steady state. On an installation upgraded with many approved months never closed, the first catch-up closes them all, oldest first, and until then a read projects from the first approved roster.
+- Dark mode, 320 px, 200% zoom, a screen reader, and browsers other than the built-in one.
+
+**Decisions taken here:**
+- **Worth your review: late facts are leave and corrections to a nurse's dates, not pins or hand edits.** `rosters.api._why_not_edit` and the requests' `MONTH_OVER` stay as they are, following your decision that nobody can change a month that is over.
+- **Worth your review: a month is "fixed for good" once the month after has closed** (in its unit, or for one of its nurses transferred since). Leave and date corrections are refused only then; while it can close again they are taken, and the card asks for another close. Ticket 07a's "must not move a placement back into a closed month" is read the same way.
+- **Worth your review: the end-date guard,** the same as the start date's, not asked for.
+- **Worth your review: a pin on a shift since dropped or disallowed counts in a month that is over** (above).
+- **Worth your review: an expired request is a state of its own, `expired`,** with a step of no one's hand, rather than a rejection, which would say the manager decided. Its nurse reads "Your request for … has ended: the month closed before a decision."
+- **Worth your review: the manager is told of the schedule's close** (`month_closed`), with how many hard rules the facts broke read when shown, never which. A close by the manager tells nobody: they see it.
+- **Worth your review: closing again reads the hours the first close read** for every shift the month holds, since `using_shift` no longer holds a closed month; a first close reads the catalogue's, which cannot have changed while the month was open.
+- **Worth your review: "older than the close" is a timestamp:** a draft or submitted roster whose input was stored before a close of any month its nurses' carry-over comes through warns, per nurse, "the month before has closed since", and is checked again on the month as it stands, as at submit. A re-plan is never made outdated by a close.
+- **Worth your review: opening values stand at the month a nurse was added** (her first placement's), so ones entered in December reset when her first month in the application is January.
+- **On demand runs in the request,** not as a queued job: it is milliseconds, the manager sees what the facts broke at once, and it takes the same locks as the schedule's. It refuses a month whose earlier approved month has not closed.
+- **The projected rows are a record.** Every read works the chain out again, so a stored projection never feeds a solve; the card reads live.
+- The close's audit entry names the version and whether it closed again; a close by the schedule has no actor.
+
+`docs/ARCHITECTURE.md` sections 4, 5 and 7 and the glossary's Request and Month close moved.
+
+**Review.** The `code-review` skill's two axes against `500d231`.
+- Spec found: opening values entered the year before not reset in January; a missed close not due before the close time on the 2nd and later days; the date guards counting a boundary day that does not move; the stale warning only for the month directly before, and none on a submitted roster. All fixed, with tests. It also listed what goes beyond the ticket (the end-date guard, pins counting as facts, the Leave page's state, the "changed since" check, the notification), kept and recorded above. Its note that a pin of an unclosed past month could be read at changed hours does not hold: an approved roster's pins are in its grid, which `using_shift` reads.
+- Standards found the app named `closing` against section 8 and the glossary: renamed `closes`, with the module `closes.making`. Also fixed: two dead functions, a wasted query when not projecting, the projection fan-out after a close, and one name (`facts_broke`). Left as judgement calls: function-local imports between `closes` and `solves`/`rosters` (the chain assembles months, and assembling reads the chain), `next_month` beside two private copies, and `(unit, month)` pairs.
+
+`better-interface` and its domain skills, held by hand: the card's table has a named scroll region, row headers and column groups; its confirmation is a polite live region (not a second `status`); a refusal at the press is an alert; the read-only opening values say why; the copy uses the glossary's words (close, carry-over, projected, roster in force). No new colour, type or motion. `interface-review` is yours to invoke.
+
+**Things later tickets should know:**
+- **Backup (22):** take a lock of its own with `ops.queue.under_its_own_lock` or `_periodic`'s pattern; `run_the_queue(concurrency=4)` exists for its test.
+- **Browser journeys (24):** the manager's journey ends with the month closing and the card on the Roster page; the nurse's with My month of a closed month.
+- **The dev stack was not touched.** When this branch reaches `main`, **recreate** (not restart) `worker` there, since `deploy/compose.yaml`'s command changed to `--concurrency 4`, and restart `web`, for `closes.0001`, `requesting.0002` and `notifications.0005`. Without it every new version fails, since `make_version` imports `closes`. On its first run the catch-up closes every approved month whose close time has passed, oldest first. **No new dependency.**
