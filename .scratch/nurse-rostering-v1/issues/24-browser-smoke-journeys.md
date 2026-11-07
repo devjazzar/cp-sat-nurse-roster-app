@@ -55,8 +55,8 @@
 **Implemented on 2026-11-07,** on branch `claude/ticket-24-smoke-journeys-a25eb7`, from `main` at `8226d8a`. The suites:
 - backend under pytest on a throwaway PostgreSQL 18 container of my own: 2320 passed (2311, and 9 for the clock);
 - frontend under Vitest: 550 passed (549, and 1 for a bug the journeys found), and `npm run build` passed;
-- Playwright: 68 checks in 9 projects (ticket 23's 21 among them), passed twice in a row on the same two stacks (7.1 and 6.9 minutes);
-- `e2e/ci.sh`, the CI definition's steps, run end to end here: passed, Playwright 68 of 68 and `operations.sh` 30 of 30 (its 3 new clock checks among them), in 11 minutes, with everything removed after.
+- Playwright: 68 checks in 8 projects (ticket 23's 21 among them), passed twice in a row on the same two stacks (7.1 and 6.9 minutes);
+- `e2e/ci.sh`, the CI definition's steps, run end to end here: passed, Playwright 68 of 68 and `operations.sh` to "every check passed", printing 30 `ok` lines (its 3 new clock checks among them; ticket 22 counted its checks as 31, so its lines and its count differ), in 11 minutes, with everything removed after.
 
 `makemigrations --check` is clean. The API did not change, and `frontend/openapi.json` matches the export. The solver's suite was not run, since nothing in `solver/` changed.
 

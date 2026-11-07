@@ -93,7 +93,8 @@ export async function go(page: Page, name: string) {
   if (onPhone) await menu.click()
   const link = page.getByRole("navigation", onPhone ? { name: "Main menu" } : { name: "Main", exact: true }).getByRole("link", { name, exact: true })
   // The page left has a heading too, and the router changes the address before it draws the new page: what is waited for
-  // is the address the link goes to, then the new page's own heading in place of the old one.
+  // is the address the link goes to, then the new page's own heading in place of the old one. Two pages whose headings read
+  // the same (a manager's Roster and a nurse's My roster both say "Roster of …") would fail here in its own words.
   const path = new URL((await link.getAttribute("href"))!, page.url()).pathname
   const leaving = new URL(page.url()).pathname !== path ? await page.getByRole("heading", { level: 1 }).textContent() : null
   await link.click()
