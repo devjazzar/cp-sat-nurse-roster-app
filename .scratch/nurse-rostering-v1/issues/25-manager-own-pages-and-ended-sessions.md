@@ -44,3 +44,10 @@ No new ADR and no new glossary term. The words are the glossary's: **Draft**, **
 - The manager-nurse's pages were opened by address in the checks, since nothing links to them.
 - When a deactivated manager saved, the app went to the login page. The roster page's guard asked first, "Leave without saving your changes? Your changes to the draft are not saved yet …", on an approved roster, and the login page then said nothing.
 - `e2e/tests/journey/after/races.spec.ts` and `e2e/support.ts` (`signIn`, `go`) have what the new check needs. Run the checks with `e2e/ci.sh`, or with two stacks of your own as `README.md` says.
+
+**Spec (2026-11-07):** `.scratch/manager-own-pages-and-ended-sessions/spec.md`, written with `/to-spec` on three seams the user agreed:
+1. the API's `Me` gains `has_nurse_profile`;
+2. the frontend's app-level Vitest suite as the main seam;
+3. ticket 24's Playwright race check, "a manager deactivated while editing…", rewritten for the new behaviour, plus one step opening My roster and My month from the links.
+
+The spec also requires that the page to return to is an address inside the app, never a full URL.
