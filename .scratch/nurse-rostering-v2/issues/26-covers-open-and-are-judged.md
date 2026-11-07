@@ -95,3 +95,5 @@
 - **Ticket 27:** its file has a note on the judging's entry points, the origin literal, the locks a cover's foreign keys need, and where telling goes.
 - **The Day view (39):** an open-covers column is whichever lands second's; `Cover.objects.filter(state__in=WAITING, date=…)` with `state_now` is the read.
 - A new version anywhere fills covers: a test that adds a nurse to a shift-day with a waiting cover will see it end `filled`.
+
+**Reviewed by the user (2026-11-08):** all five points marked **Worth your review** are kept as built: "Open a cover" in the roster grid's cell menu; the lack's words, plain first and the solver's text after; a headcount already short judged by distance; a nurse not on the grid left out; one version link, `opened_on`. The finding on swaps (a swap bringing a short shift-day nearer its minimum is refused) goes to ticket 27's scope. The dev stack was rebuilt from `main` (`docker compose up -d --build`): it runs from `compose.yaml` alone since 2026-11-07, so a restart would have served the old image.
