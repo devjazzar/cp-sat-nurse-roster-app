@@ -57,7 +57,13 @@ export function createAppRouter(queryClient: QueryClient, history?: RouterHistor
     ),
     defaultPendingMs: 200,
   })
-  onSessionEnded = () => void router.navigate({ to: "/login" })
+  // Straight to the login page, past the roster page's question: without a session, staying could save nothing. The login
+  // page says why it is there, and goes back to this page once the user signs in again.
+  onSessionEnded = () => {
+    const { pathname, searchStr } = router.state.location
+    const back = pathname === "/login" ? undefined : pathname + searchStr
+    void router.navigate({ to: "/login", search: { ended: true, back }, ignoreBlocker: true })
+  }
   return router
 }
 

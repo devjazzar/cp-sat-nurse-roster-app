@@ -12,10 +12,12 @@ type FormFieldProps = {
   registration: UseFormRegisterReturn
   /** Client-side validation's error for this field. */
   error?: HookFormError
-} & Omit<ComponentProps<typeof Input>, "name" | "onChange" | "onBlur" | "ref">
+  /** Something else on the page that the field is read with, by its id. */
+  describedBy?: string
+} & Omit<ComponentProps<typeof Input>, "name" | "onChange" | "onBlur" | "ref" | "aria-describedby">
 
 /** A labelled input wired to React Hook Form, with its description and its error. */
-export function FormField({ label, description, registration, error, ...input }: FormFieldProps) {
+export function FormField({ label, description, registration, error, describedBy, ...input }: FormFieldProps) {
   const id = `field-${registration.name}`
   const descriptionId = description ? `${id}-description` : undefined
   const errorId = error ? `${id}-error` : undefined
@@ -23,7 +25,7 @@ export function FormField({ label, description, registration, error, ...input }:
     <Field data-invalid={!!error || undefined}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Input id={id} aria-invalid={!!error || undefined}
-        aria-describedby={[errorId, descriptionId].filter(Boolean).join(" ") || undefined}
+        aria-describedby={[errorId, descriptionId, describedBy].filter(Boolean).join(" ") || undefined}
         {...input} {...registration} />
       {description && <FieldDescription id={descriptionId}>{description}</FieldDescription>}
       {/* Tied to its input and read when the input takes focus, so not an alert of its own. */}

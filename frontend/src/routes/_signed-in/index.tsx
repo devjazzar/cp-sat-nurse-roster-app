@@ -59,6 +59,20 @@ function CnoHome() {
 }
 
 function ManagerHome() {
+  const { user } = useRouteContext({ from: "/_signed-in" })
+  return (
+    <>
+      <ManagedUnit />
+      {/* On their unit's rosters themselves, so their own roster and month are theirs to read, whatever unit they hold. */}
+      {user.has_nurse_profile && <>
+        <p><Link to="/my-roster" className="underline underline-offset-3">My roster</Link> has your own shifts for each coming month once it is approved.</p>
+        <p>Your hours, shifts and leave are under <Link to="/my-month" className="underline underline-offset-3">My month</Link>.</p>
+      </>}
+    </>
+  )
+}
+
+function ManagedUnit() {
   const units = useListUnits()
   if (units.isPending) return <p>Loading…</p>
   if (units.isError) return <p role="alert">Your unit could not be read. Reload the page to try again.</p>

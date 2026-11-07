@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -13,7 +13,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
 import { currentUser, setCurrentUser } from "@/session"
 
+/** Only an address in this app is gone back to, so a crafted link cannot send someone elsewhere once they sign in. */
+const inThisApp = (address: string) => /^\/(?![/\\])/.test(address)
+
+const searchSchema = z.object({
+  /** The session ended behind the user's back (`sessionCheck` in `router.tsx`), not by Log out. */
+  ended: z.boolean().optional().catch(undefined),
+  /** The page they were on then, with its search: where signing in again goes. */
+  back: z.string().refine(inThisApp).optional().catch(undefined),
+})
+
 export const Route = createFileRoute("/login")({
+  validateSearch: (search) => searchSchema.parse(search),
   beforeLoad: async ({ context }) => {
     if (await currentUser(context.queryClient)) throw redirect({ to: "/" })
   },
@@ -38,11 +49,16 @@ function refusalMessage(error: unknown): string {
   return "The login could not be completed. Try again."
 }
 
+const SIGNED_OUT = "You were signed out. Changes you had not saved are lost. Sign in to carry on."
+
 function LoginPage() {
+  const { ended, back } = Route.useSearch()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const router = useRouter()
   const login = useLogin()
   const form = useForm({ resolver: zodResolver(schema), defaultValues: { username: "", password: "" } })
+  const signedOut = ended && !login.isError
 
   const submit = form.handleSubmit((data) =>
     login.mutate(
@@ -50,8 +66,10 @@ function LoginPage() {
       {
         onSuccess: (me) => {
           setCurrentUser(queryClient, me)
-          // The signed-in layout sends a forced password change where it belongs.
-          void navigate({ to: "/" })
+          // The signed-in layout sends a forced password change where it belongs, and a page's own guard sends a role that
+          // may not open it home.
+          if (back) router.history.push(back)
+          else void navigate({ to: "/" })
         },
       },
     ),
@@ -64,9 +82,11 @@ function LoginPage() {
           <CardTitle><h1>Nurse roster</h1></CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Read out on arriving, and again with the field that has focus. A failed login's own alert replaces it. */}
+          {signedOut && <p id="signed-out" role="alert" className="mb-4 text-sm">{SIGNED_OUT}</p>}
           <form onSubmit={submit} noValidate>
             <FieldGroup>
-              <FormField label="Username" autoComplete="username" autoFocus
+              <FormField label="Username" autoComplete="username" autoFocus describedBy={signedOut ? "signed-out" : undefined}
                 registration={form.register("username")} error={form.formState.errors.username} />
               <FormField label="Password" type="password" autoComplete="current-password"
                 registration={form.register("password")} error={form.formState.errors.password} />

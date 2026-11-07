@@ -240,7 +240,7 @@ const monthIn = (location: unknown) => (location as { search?: { month?: string 
 
 /** Asks before anything would throw away edits not yet saved: another page, or another month of this one. The browser asks
  *  before a reload or closing the tab. */
-function UnsavedEditsGuard({ holding }: { holding: boolean }) {
+function UnsavedEditsGuard({ holding, month }: { holding: boolean; month: string | undefined }) {
   const page = useMatch({ strict: false, select: (match) => match.routeId })
   const blocker = useBlocker({
     shouldBlockFn: ({ current, next }) => holding && current.routeId === page
@@ -251,7 +251,8 @@ function UnsavedEditsGuard({ holding }: { holding: boolean }) {
   })
   return (
     <LeavePageDialog open={blocker.status === "blocked"} title="Leave without saving your changes?"
-      description="Your changes to the draft are not saved yet. If you leave, they are lost." action="Leave without saving"
+      // The month, not "the draft": the changes may be to the roster in force.
+      description={`Your changes to the roster of ${month ? monthName(month) : "this month"} are not saved yet. If you leave, they are lost.`} action="Leave without saving"
       onStay={() => blocker.reset?.()} onLeave={() => blocker.proceed?.()} />
   )
 }
@@ -716,7 +717,7 @@ function UnitRoster({ unit, month: inAddress }: { unit: { id: string; name: stri
   const frozen = answer?.state === "submitted" || answer?.state === "approved"
   return (
     <>
-      <UnsavedEditsGuard holding={unsaved} />
+      <UnsavedEditsGuard holding={unsaved} month={answer?.month} />
       {roster.isPending && <p>Loading…</p>}
       {roster.isError && <p role="alert">This month's roster could not be read. Reload the page to try again.</p>}
       {/* Always rendered, because a live region mounted with its text may never be read out. */}

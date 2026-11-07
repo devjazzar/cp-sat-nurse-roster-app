@@ -1,6 +1,6 @@
 import { linkOptions } from "@tanstack/react-router"
 
-import { Role } from "@/api/generated/model"
+import { Role, type Me } from "@/api/generated/model"
 
 export const ROLE_NAMES: Record<Role, string> = {
   system_admin: "System Admin",
@@ -39,16 +39,23 @@ const UNIT_SWAPS = { to: "/unit-swaps", label: "Swaps" } as const
 const ROSTERS = { to: "/rosters", label: "Rosters" } as const
 const NURSE_PAGES = linkOptions([HOME, MY_MONTH, MY_ROSTER, MY_SWAPS, ...CATALOGUE])
 const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, REQUESTS, UNIT_SWAPS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
+/** A manager on their unit's rosters reads their own roster and month too, beside the unit's Roster. A Staff Nurse's requests
+ *  and swaps are not theirs: only staff nurses' cells are swapped. */
+const MANAGER_NURSE_PAGES = linkOptions([HOME, ROSTER, MY_ROSTER, MY_MONTH, SOLVE_HISTORY, REQUESTS, UNIT_SWAPS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
 const DEPUTY_PAGES = linkOptions([HOME, ROSTERS, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
 const CNO_PAGES = linkOptions([HOME, ROSTERS, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])
 
-/** What each role reaches from the header. A role's pages join its list as their tickets land; the
- *  API refuses the rest whatever this says. The catalogue's pages open for the System Admin too, since
- *  every role may read them, but nothing in their work calls for a link. */
-export const NAVIGATION = {
+const NAVIGATION = {
   system_admin: ADMIN_PAGES,
   cno: CNO_PAGES,
   deputy_cno: DEPUTY_PAGES,
   unit_manager: MANAGER_PAGES,
   staff_nurse: NURSE_PAGES,
 } satisfies Record<Role, unknown>
+
+/** What the signed-in user reaches from the header: their role's pages, and a Unit Manager's own with a nurse profile. A role's
+ *  pages join its list as their tickets land; the API refuses the rest whatever this says. The catalogue's pages open for the
+ *  System Admin too, since every role may read them, but nothing in their work calls for a link. */
+export function navigation(user: Me) {
+  return user.role === Role.unit_manager && user.has_nurse_profile ? MANAGER_NURSE_PAGES : NAVIGATION[user.role]
+}

@@ -10,9 +10,9 @@ import { createAppRouter, createQueryClient } from "./router"
 type Answer = { status?: number; body?: unknown }
 type Handler = (request: { url: string; method: string; body: unknown }) => Answer
 
-const ME = { username: "admin", full_name: "System Admin", role: "system_admin", must_change_password: false }
+const ME = { username: "admin", full_name: "System Admin", role: "system_admin", must_change_password: false, has_nurse_profile: false }
 const FORCED = { ...ME, must_change_password: true }
-const NURSE = { ...ME, username: "h123", role: "staff_nurse" }
+const NURSE = { ...ME, username: "h123", role: "staff_nurse", has_nurse_profile: true }
 const SETTINGS = { time_limit_cap_seconds: 300, backup_time: "02:00", backup_retention_days: 30, close_time: "00:30" }
 const HEALTH = {
   database: true,
@@ -320,12 +320,133 @@ describe("logout", () => {
   })
 })
 
-describe("an expired session", () => {
-  it("a 401 on a page sends the user to the login page", async () => {
-    const { router } = start("/health", { ...session(ME), "GET /api/ops/health": { status: 401, body: { detail: "Unauthorized" } } })
+// Ticket 25. Behind the user's back: the 12-hour idle limit, a deactivation or a password changed elsewhere. The browser cannot
+// tell which, so there is one message.
+const SIGNED_OUT = "You were signed out. Changes you had not saved are lost. Sign in to carry on."
+const UNAUTHORIZED = { status: 401, body: { detail: "Unauthorized" } }
+/** Refused until someone signs in again, as a page's reads are once the session has ended. */
+const untilSignedIn = (answer: Answer) => {
+  let signedIn = false
+  return {
+    read: () => (signedIn ? answer : UNAUTHORIZED),
+    login: (me: unknown) => () => { signedIn = true; return { body: { time_zone: "Asia/Riyadh", ...(me as object) } } },
+  }
+}
+async function signInAgain(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(await screen.findByLabelText("Username"), "admin")
+  await user.type(screen.getByLabelText("Password"), "secret-password")
+  await user.click(screen.getByRole("button", { name: "Log in" }))
+}
+
+describe("a session that ends behind the user's back", () => {
+  it("a 401 on a page goes to the login page, which says so, with focus on the username", async () => {
+    const { router } = start("/health", { ...session(ME), "GET /api/ops/health": UNAUTHORIZED })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(SIGNED_OUT)
+    expect(router.state.location.pathname).toBe("/login")
+    await waitFor(() => expect(screen.getByLabelText("Username")).toHaveFocus())
+    expect(screen.getByLabelText("Username")).toHaveAccessibleDescription(SIGNED_OUT)
+  })
+
+  it("signing in goes back to the page and its address, and the message is gone", async () => {
+    const audit = untilSignedIn({ body: { entries: [], older_than: null } })
+    const { user, router } = start("/audit-log?action=auth.login", admin({
+      "GET /api/audit/entries": audit.read,
+      "GET /api/audit/filter-options": { body: { actions: ["auth.login"], users: ["admin"] } },
+      "POST /api/auth/login": audit.login(ME),
+    }))
+    await screen.findByText(SIGNED_OUT)
+
+    await signInAgain(user)
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Audit log" })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/audit-log")
+    expect(router.state.location.search).toEqual({ action: "auth.login" })
+    expect(screen.queryByText(SIGNED_OUT)).not.toBeInTheDocument()
+  })
+
+  it("signing in as a role that may not open the page goes home", async () => {
+    const audit = untilSignedIn({ body: { entries: [], older_than: null } })
+    const { user, router } = start("/audit-log", admin({
+      ...nurseHome(),
+      ...session(ME),
+      "GET /api/audit/entries": audit.read,
+      "GET /api/audit/filter-options": { body: { actions: ["auth.login"], users: ["admin"] } },
+      "POST /api/auth/login": audit.login(NURSE),
+    }))
+    await screen.findByText(SIGNED_OUT)
+
+    await signInAgain(user)
+
+    expect(await screen.findByText("Your unit is ER.")).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/")
+  })
+
+  it("the forced password change still comes first", async () => {
+    const health = untilSignedIn({ body: HEALTH })
+    const { user, router } = start("/health", admin({ "GET /api/ops/health": health.read, "POST /api/auth/login": health.login(FORCED) }))
+    await screen.findByText(SIGNED_OUT)
+
+    await signInAgain(user)
+
+    await onChangePassword(router)
+  })
+
+  it("a wrong password then says only that", async () => {
+    const { user } = start("/health", {
+      ...session(ME), "GET /api/ops/health": UNAUTHORIZED,
+      "POST /api/auth/login": { status: 401, body: { detail: "Wrong username or password." } },
+    })
+    await screen.findByText(SIGNED_OUT)
+
+    await signInAgain(user)
+
+    expect(await screen.findByText("Wrong username or password.")).toBeInTheDocument()
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual(["Wrong username or password."])
+  })
+
+  it("keeps nothing in the browser's storage", async () => {
+    start("/health", { ...session(ME), "GET /api/ops/health": UNAUTHORIZED })
+
+    await screen.findByText(SIGNED_OUT)
+    expect(localStorage.length).toBe(0)
+    expect(sessionStorage.length).toBe(0)
+  })
+
+  it.each([
+    ["a full address", "https://elsewhere.example/health"],
+    ["an address with no scheme", "//elsewhere.example/health"],
+    ["a path that is not absolute", "health"],
+  ])("ignores %s to go back to, and goes home", async (_, address) => {
+    const { user, router } = start(`/login?ended=true&back=${encodeURIComponent(address)}`, admin({ ...session(null), "POST /api/auth/login": { body: ME } }))
+    await screen.findByText(SIGNED_OUT)
+
+    await signInAgain(user)
+
+    expect(await screen.findByRole("heading", { name: "Health" })).toBeInTheDocument()
+    expect(router.state.location.href).toBe("/health")
+  })
+})
+
+describe("the login page says nothing of a session ending", () => {
+  it("on a first visit", async () => {
+    start("/login", session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe("/login")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Username")).not.toHaveAccessibleDescription()
+  })
+
+  it("after Log out, nor after a plain login that then logs out", async () => {
+    const { user, router } = start("/login", admin({ ...session(null), "POST /api/auth/login": { body: ME }, "POST /api/auth/logout": { status: 204 } }))
+    await signInAgain(user)
+    expect(await screen.findByRole("heading", { name: "Health" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Log out" }))
+
+    expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
+    expect(router.state.location.href).toBe("/login")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 })
 
@@ -860,6 +981,61 @@ describe("each role's navigation and home", () => {
     expect(screen.getByText(`someone · ${name}`)).toBeInTheDocument()
     expect(navLinks()).toEqual(links)
     await waitFor(() => expect(pageReads(calls).sort()).toEqual(["/api/auth/session", ...reads].sort()))
+  })
+
+  // Ticket 25. A Unit Manager with a nurse profile is on their unit's rosters, so their own roster and month are theirs to
+  // read too: beside the unit's Roster, and no request or swap of a Staff Nurse's.
+  describe("a Unit Manager with a nurse profile", () => {
+    const MANAGER_NURSE = { ...ME, username: "omar", full_name: "Omar Said", role: "unit_manager", has_nurse_profile: true }
+    const MANAGER_LINKS = ["Home", "Roster", "My roster", "My month", "Solve history", "Requests", "Swaps", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"]
+    const managerNurse = (extra = {}) => ({
+      ...session(MANAGER_NURSE),
+      "GET /api/units": { body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] },
+      ...extra,
+    })
+    const home = () => screen.getByRole("main")
+
+    it("has My roster and My month in the header and on Home", async () => {
+      const { user, router } = start("/", managerNurse({ "GET /api/rosters/mine": { body: NO_ROSTER_YET } }))
+
+      expect(await screen.findByText("Your unit is ER.")).toBeInTheDocument()
+      expect(navLinks()).toEqual(MANAGER_LINKS)
+      expect(within(home()).getByRole("link", { name: "My month" })).toHaveAttribute("href", "/my-month")
+      await user.click(within(home()).getByRole("link", { name: "My roster" }))
+
+      expect(await screen.findByRole("heading", { level: 1, name: "Roster of ER" })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/my-roster")
+    })
+
+    it("has them on Home even with no unit to manage", async () => {
+      start("/", managerNurse({ "GET /api/units": { body: [] } }))
+
+      expect(await screen.findByText(/No unit is assigned to you yet/)).toBeInTheDocument()
+      expect(within(home()).getByRole("link", { name: "My roster" })).toBeInTheDocument()
+      expect(within(home()).getByRole("link", { name: "My month" })).toBeInTheDocument()
+    })
+
+    it("has them in the phone's Menu, and My month opens from it", async () => {
+      const { user, router } = start("/", managerNurse({ "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, ...NO_REQUESTS,
+        "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } }))
+      await user.click(await screen.findByRole("button", { name: "Menu" }))
+      const menu = screen.getByRole("navigation", { name: "Main menu" })
+      expect(within(menu).getAllByRole("link").map((link) => link.textContent)).toEqual(MANAGER_LINKS)
+
+      await user.click(within(menu).getByRole("link", { name: "My month" }))
+
+      expect(await screen.findByRole("heading", { level: 1, name: "My month" })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/my-month")
+    })
+
+    it("a manager without one has neither, on Home or in the header", async () => {
+      start("/", managerNurse({ ...session({ ...MANAGER_NURSE, has_nurse_profile: false }) }))
+
+      expect(await screen.findByText("Your unit is ER.")).toBeInTheDocument()
+      expect(navLinks()).not.toContain("My roster")
+      expect(navLinks()).not.toContain("My month")
+      expect(within(home()).queryByRole("link")).not.toBeInTheDocument()
+    })
   })
 
   // Ticket 23. On a phone the header is the name, the bell and a Menu button: the pages, the password and Log out are behind it.
@@ -4786,6 +4962,7 @@ describe("the roster page", () => {
 
       await user.click(screen.getByRole("link", { name: "Next month" }))
       const question = await screen.findByRole("alertdialog", { name: "Leave without saving your changes?" })
+      expect(question).toHaveTextContent("Your changes to the roster of June 2026 are not saved yet. If you leave, they are lost.")
       await user.click(within(question).getByRole("button", { name: "Stay" }))
       await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument())
       expect(router.state.location.search).toEqual({})
@@ -4805,6 +4982,33 @@ describe("the roster page", () => {
       await user.click(screen.getByRole("link", { name: "Next month" }))
       await waitFor(() => expect(router.state.location.search).toEqual({ month: "2026-07" }))
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    })
+
+    // Ticket 25: without a session, staying could save nothing, so nothing is asked.
+    it("a session that ends on saving goes straight to the login page, and signing in comes back to the month", async () => {
+      const units = untilSignedIn({ body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] })
+      let ended = false
+      const { user, router } = start("/roster?month=2026-06", editing({
+        "GET /api/units": () => (ended ? units.read() : { body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] }),
+        [`POST ${UNIT}/roster/pins`]: () => { ended = true; return UNAUTHORIZED },
+        "POST /api/auth/login": units.login(MANAGER),
+      }))
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: "Pin a day off" }))
+
+      await user.click(within(screen.getByRole("region", { name: "1 change not saved yet" })).getByRole("button", { name: "Save changes" }))
+
+      expect(await screen.findByText(SIGNED_OUT)).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/login")
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+      expect(screen.queryByRole("grid")).not.toBeInTheDocument()
+
+      await signInAgain(user)
+
+      expect(await cellNamed("Amal Saleh, 5 June: Off")).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/roster")
+      expect(router.state.location.search).toEqual({ month: "2026-06" })
+      expect(screen.queryByRole("region", { name: /not saved yet/ })).not.toBeInTheDocument()
     })
 
     it("says what pins leave replaced, which pins count for nothing, and what the edited draft breaks", async () => {
@@ -5195,6 +5399,20 @@ describe("the roster page", () => {
       await waitFor(() => expect(screen.getByRole("button", { name: "Amal Saleh, 5 June: Night, pinned" })).toHaveFocus())
       const list = await screen.findByRole("region", { name: "Versions" })
       expect(await within(list).findByText("Badr covers Amal's night.")).toBeInTheDocument()
+    })
+
+    it("asks before leaving the roster in force with changes not saved, naming its month and not a draft", async () => {
+      const { user } = start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: IN_FORCE }, [`POST ${UNIT}/roster/check`]: { body: CHECK } }))
+      await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
+      await user.click(await screen.findByRole("menuitem", { name: /Pin Night/ }))
+
+      await user.click(screen.getByRole("link", { name: "Solve history" }))
+
+      const question = await screen.findByRole("alertdialog", { name: "Leave without saving your changes?" })
+      expect(question).toHaveTextContent("Your changes to the roster of June 2026 are not saved yet. If you leave, they are lost.")
+      // The page's opening lines say how drafts work, whatever the month's state; nothing else speaks of one.
+      const intro = screen.getByText(/^Solve a month to get its draft/)
+      expect(screen.queryAllByText(/draft/i).filter((element) => element !== intro)).toEqual([])
     })
 
     it("shows the refusal of changes that leave every cell as it is, keeping them", async () => {
