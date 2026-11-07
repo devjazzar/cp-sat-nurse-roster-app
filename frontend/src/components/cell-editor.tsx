@@ -19,13 +19,24 @@ export type EditableCellState = {
 
 const ITEM = "flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-60"
 
-/** One cell's choices, opened against the cell. Escape or a choice closes it, and focus goes back to the cell. */
-export function CellEditor({ cell, anchor, onChoose, onUndo, onClose }: {
+/** The shift-days of a cell's date on the roster in force, each of which a cover can ask one more nurse for. */
+export type CoverChoices = {
+  /** The unit's shifts. */
+  shifts: EditorShift[]
+  /** The day as a heading says it. */
+  day: (date: string) => string
+  onOpen: (date: string, shift: string) => void
+}
+
+/** One cell's choices, opened against the cell. Escape or a choice closes it, and focus goes back to the cell. On the roster in
+ *  force it also offers a cover for each shift of the cell's date. */
+export function CellEditor({ cell, anchor, onChoose, onUndo, onClose, covers }: {
   cell: EditableCellState | null
   anchor: HTMLElement | null
   onChoose: (edit: EditBody) => void
   onUndo: () => void
   onClose: () => void
+  covers?: CoverChoices
 }) {
   const edit = (action: EditBody["action"], shift?: string): EditBody => ({ hospital_id: cell!.hospitalId, date: cell!.date, action, ...(shift ? { shift } : {}) })
   const fromElsewhere = cell?.pin && cell.pin.origin !== "manager"
@@ -64,6 +75,19 @@ export function CellEditor({ cell, anchor, onChoose, onUndo, onClose }: {
                   <Menu.Item className={ITEM} disabled>Nothing to change here</Menu.Item>
                 )}
               </Menu.Group>
+            )}
+            {cell && covers && covers.shifts.length > 0 && (
+              <>
+                <Menu.Separator className="-mx-1 my-1 h-px bg-border" />
+                <Menu.Group>
+                  <Menu.GroupLabel className="px-2 py-1.5 text-xs font-medium text-muted-foreground">One more nurse on {covers.day(cell.date)}</Menu.GroupLabel>
+                  {covers.shifts.map((shift) => (
+                    <Menu.Item key={shift.code} className={ITEM} onClick={() => covers.onOpen(cell.date, shift.code)}>
+                      Open a cover for {shift.display_name}
+                    </Menu.Item>
+                  ))}
+                </Menu.Group>
+              </>
             )}
           </Menu.Popup>
         </Menu.Positioner>

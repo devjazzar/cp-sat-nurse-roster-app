@@ -3765,6 +3765,211 @@
         ]
       }
     },
+    "/api/units/{unit_id}/covers": {
+      "get": {
+        "operationId": "listUnitCovers",
+        "summary": "Unit Covers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The month after the hospital's current one when left out, since that is the one usually being rostered."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitCovers"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "covers"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "openUnitCover",
+        "summary": "Open Cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPage"
+                }
+              }
+            }
+          }
+        },
+        "description": "For any shift-day of the roster in force, today or later, short for any reason: it waits unoffered, as one opened by\nleave does. Nobody is told, and the audit log has nothing of it.",
+        "tags": [
+          "covers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenCoverBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/covers/{cover_id}": {
+      "get": {
+        "operationId": "getUnitCover",
+        "summary": "Unit Cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "cover_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Cover Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPage"
+                }
+              }
+            }
+          }
+        },
+        "description": "Judged again now, with the solver's own code in this process: nothing of the list is stored.",
+        "tags": [
+          "covers"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/covers/{cover_id}/withdraw": {
+      "post": {
+        "operationId": "withdrawUnitCover",
+        "summary": "Withdraw Cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "cover_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Cover Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPage"
+                }
+              }
+            }
+          }
+        },
+        "description": "Open or offered. Ticket 27 tells the nurses offered it, never why.",
+        "tags": [
+          "covers"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units/{unit_id}/close": {
       "get": {
         "operationId": "getMonthClose",
@@ -7772,12 +7977,26 @@
             "description": "The roster version that took it off, now in force.",
             "title": "Version",
             "type": "integer"
+          },
+          "cover": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cover this opened, waiting unoffered on your Covers page for one more nurse on that shift. Null for a day passed, which nobody can cover.",
+            "title": "Cover"
           }
         },
         "required": [
           "date",
           "shift",
-          "version"
+          "version",
+          "cover"
         ],
         "title": "ShiftTakenOff",
         "type": "object"
@@ -11602,6 +11821,319 @@
           "reason"
         ],
         "title": "RejectSwapBody",
+        "type": "object"
+      },
+      "UnitCoverRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "The shift's code now.",
+            "title": "Shift",
+            "type": "string"
+          },
+          "state": {
+            "description": "As it stands now: a waiting cover whose date has passed is expired.",
+            "enum": [
+              "open",
+              "offered",
+              "taken",
+              "withdrawn",
+              "filled",
+              "expired"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "opened": {
+            "description": "`leave`: leave took the shift off the roster in force, as version `opened_on`. `manager`: you opened it by hand.",
+            "enum": [
+              "leave",
+              "manager"
+            ],
+            "title": "Opened",
+            "type": "string"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "opened_on": {
+            "description": "The roster version in force when it was opened; for leave, the one the leave made.",
+            "title": "Opened On",
+            "type": "integer"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "ended_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who withdrew it. Null otherwise: taken, filled and expired are nobody's act.",
+            "title": "Ended By"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "taker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The nurse who took it.",
+            "title": "Taker"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The roster version its acceptance made.",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "date",
+          "shift",
+          "state",
+          "opened",
+          "opened_at",
+          "opened_on",
+          "note",
+          "ended_by",
+          "ended_at",
+          "taker",
+          "version"
+        ],
+        "title": "UnitCoverRow",
+        "type": "object"
+      },
+      "UnitCovers": {
+        "properties": {
+          "month": {
+            "description": "YYYY-MM: the one asked for, or the hospital's current month.",
+            "title": "Month",
+            "type": "string"
+          },
+          "covers": {
+            "description": "The month's, newest first, every state.",
+            "items": {
+              "$ref": "#/components/schemas/UnitCoverRow"
+            },
+            "title": "Covers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "covers"
+        ],
+        "title": "UnitCovers",
+        "type": "object"
+      },
+      "CouldTakeRow": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "worked": {
+            "description": "Hours worked this month on the roster in force, by the solver's own accounting.",
+            "title": "Worked",
+            "type": "integer"
+          },
+          "owed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hours owed this month, as My month says. Null with the hospital's hours rule off.",
+            "title": "Owed"
+          },
+          "overtime_this_year": {
+            "description": "Overtime this year: the carry-over's year to date and this month's.",
+            "title": "Overtime This Year",
+            "type": "integer"
+          },
+          "makes_whole": {
+            "description": "With her on it, the shift-day lacks nothing the solver checks.",
+            "title": "Makes Whole",
+            "type": "boolean"
+          },
+          "replaces_pin": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manager",
+                  "swap"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Her pin to a day off that day, yours or an approved swap's, which her taking the cover would replace.",
+            "title": "Replaces Pin"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "worked",
+          "owed",
+          "overtime_this_year",
+          "makes_whole",
+          "replaces_pin"
+        ],
+        "title": "CouldTakeRow",
+        "type": "object"
+      },
+      "CoverCheck": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the roster in force could not be checked, in the solver's words: then nobody is listed.",
+            "title": "Reason"
+          },
+          "lack": {
+            "description": "What the shift-day lacks on the roster in force, from the solver's own check: its headcount, a team leader, both genders. Empty when it lacks nothing.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Lack",
+            "type": "array"
+          },
+          "full": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why nobody is listed: the shift-day is at its maximum headcount.",
+            "title": "Full"
+          },
+          "nurses": {
+            "description": "The staff nurses who could take it without newly breaking a hard rule, furthest below their owed hours first, then least overtime this year, then by name.",
+            "items": {
+              "$ref": "#/components/schemas/CouldTakeRow"
+            },
+            "title": "Nurses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reason",
+          "lack",
+          "full",
+          "nurses"
+        ],
+        "title": "CoverCheck",
+        "type": "object"
+      },
+      "CoverPage": {
+        "properties": {
+          "cover": {
+            "$ref": "#/components/schemas/UnitCoverRow"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverCheck"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Worked out now, on the month as it stands. Null once the cover has ended."
+          }
+        },
+        "required": [
+          "cover",
+          "check"
+        ],
+        "title": "CoverPage",
+        "type": "object"
+      },
+      "OpenCoverBody": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "Today or later, in a month whose roster is in force.",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "One of the unit's shifts, by its code.",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Shift",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "shift"
+        ],
+        "title": "OpenCoverBody",
         "type": "object"
       },
       "BrokenFact": {

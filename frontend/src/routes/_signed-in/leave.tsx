@@ -63,7 +63,7 @@ function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
   run: LeaveRun | null
   defaultNurse: string | undefined
   onCancel: () => void
-  onDone: (message: string, first: string) => void
+  onDone: (message: string, first: string, taken: ShiftTakenOff[]) => void
 }) {
   const queryClient = useQueryClient()
   const types = useListLeaveTypes()
@@ -97,7 +97,7 @@ function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
           void queryClient.invalidateQueries({ queryKey: getGetRosterMonthQueryKey(unitId) })
           void queryClient.invalidateQueries({ queryKey: getListRosterVersionsQueryKey(unitId) })
         }
-        onDone(`The leave of ${name} is saved: ${dayRange(first, last || first)}.${pinsReplaced(saved.pins_removed)}${shiftsTakenOff(saved.shifts_taken_off)}`, first)
+        onDone(`The leave of ${name} is saved: ${dayRange(first, last || first)}.${pinsReplaced(saved.pins_removed)}${shiftsTakenOff(saved.shifts_taken_off)}`, first, saved.shifts_taken_off)
       },
       onError: (error: unknown) => showServerErrors(form, error),
     }
@@ -198,7 +198,28 @@ function shiftsTakenOff(taken: ShiftTakenOff[]): string {
   if (taken.length === 0) return ""
   const each = taken.map((day) => `${day.shift} on ${dayRange(day.date, day.date)}`).join(", ")
   const versions = [...new Set(taken.map((day) => day.version))].join(" and ")
-  return ` It took ${taken.length === 1 ? "a shift" : `${taken.length} shifts`} off the approved roster: ${each}. Version ${versions} is now in force, and the unit's nurses are told the roster has changed, not why. Find a cover on the Roster page if one is needed.`
+  const opened = taken.filter((day) => day.cover).length
+  const covers = opened === 0 ? ""
+    : opened === 1 ? " It opened a cover for one more nurse on that shift, not offered to anyone yet: it is linked below."
+      : ` It opened ${opened} covers for one more nurse on those shifts, not offered to anyone yet: they are linked below.`
+  return ` It took ${taken.length === 1 ? "a shift" : `${taken.length} shifts`} off the approved roster: ${each}. Version ${versions} is now in force, and the unit's nurses are told the roster has changed, not why.${covers}`
+}
+
+/** Each cover the leave opened, to offer from the Covers page. Apart from the status, which a link inside would not help. */
+function CoversOpened({ taken }: { taken: ShiftTakenOff[] }) {
+  const opened = taken.filter((day) => day.cover)
+  if (opened.length === 0) return null
+  return (
+    <ul aria-label="Covers the leave opened" className="flex flex-col gap-1 text-sm">
+      {opened.map((day) => (
+        <li key={day.cover}>
+          <Link to="/unit-covers" search={{ month: day.date.slice(0, 7), cover: day.cover! }} className="underline underline-offset-3">
+            Cover for {day.shift} on {dayRange(day.date, day.date)}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 /** Where a replaced pin was decides what follows: a draft still holds its shift, a submitted roster keeps it for the decision,
@@ -240,7 +261,9 @@ function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }
   const remove = useRemoveLeave()
   const { editing, start, finish, drop } = useEditing<Panel>()
   const [removing, setRemoving] = useState<LeaveRun | null>(null)
-  const [done, setDone] = useState("")
+  const [said, setSaid] = useState<{ message: string; taken: ShiftTakenOff[] }>({ message: "", taken: [] })
+  const done = said.message
+  const setDone = (message: string, taken: ShiftTakenOff[] = []) => setSaid({ message, taken })
   const focusAfter = useRef<string | null>(null)
 
   const answer: UnitLeaveMonth | undefined = leave.data
@@ -269,6 +292,7 @@ function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }
       {leave.isError && <p role="alert">The leave could not be read. Reload the page to try again.</p>}
       {/* Always rendered, because a live region mounted with its text may never be read out. */}
       <p role="status" className="text-sm text-muted-foreground empty:sr-only">{done}</p>
+      <CoversOpened taken={said.taken} />
       {answer && (
         <>
           <MonthNav month={answer.month} link={(month, label) => <Link to="/leave" search={searchFor(month, nurseId)} className={MONTH_LINK}>{label}</Link>} />
@@ -292,8 +316,8 @@ function UnitLeave({ unit, unitInAddress, month: inAddress, nurseId, mayChange }
               <CardContent>
                 <LeaveForm key={editing.run?.leave_ids[0] ?? "new"} unitId={unit.id} nurses={answer.nurses} run={editing.run}
                   defaultNurse={chosenNurse?.id} onCancel={finish}
-                  onDone={(message, first) => {
-                    setDone(message)
+                  onDone={(message, first, taken) => {
+                    setDone(message, taken)
                     if (editing.run) {
                       // The row and its button may be gone, so focus waits on the button that stays.
                       drop()

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, Link, useBlocker, useMatch, useRouteContext } from "@tanstack/react-router"
+import { createFileRoute, Link, useBlocker, useMatch, useNavigate, useRouteContext } from "@tanstack/react-router"
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -365,6 +365,7 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
   solving: "solve" | "replan" | null
   onSaved: (answer: RosterMonth, count: number) => void
 }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState<{ cell: EditableCellState; anchor: HTMLElement } | null>(null)
   const [refused, setRefused] = useState<Map<string, string>>(new Map())
   const pins = useMemo(() => new Map(draft.pins.map((pin) => [cellKey(pin.hospital_id, pin.date), pin])), [draft.pins])
@@ -447,7 +448,11 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
       <RosterGrid grid={draft} label={label} extraShifts={draft.editor.shifts} editing={editable ? { marks, onOpen: openCell } : undefined} />
       <GridLegend grid={draft} editable={editable} />
       {editable && <CellEditor cell={open?.cell ?? null} anchor={open?.anchor ?? null} onChoose={choose}
-        onUndo={() => { if (open) pending.drop(cellKey(open.cell.hospitalId, open.cell.date)); setOpen(null) }} onClose={() => setOpen(null)} />}
+        onUndo={() => { if (open) pending.drop(cellKey(open.cell.hospitalId, open.cell.date)); setOpen(null) }} onClose={() => setOpen(null)}
+        covers={approved ? {
+          shifts: draft.editor.shifts, day: longDay,
+          onOpen: (date, shift) => { setOpen(null); void navigate({ to: "/unit-covers", search: { month: date.slice(0, 7), date, shift } }) },
+        } : undefined} />}
       {editable && Object.keys(pending.edits).length > 0 && (
         <PendingPanel unitId={unitId} draft={draft} month={month} approved={approved} pending={pending} onSaved={onSaved} refused={refused} setRefused={setRefused} />
       )}

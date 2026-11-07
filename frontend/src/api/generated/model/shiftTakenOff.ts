@@ -11,4 +11,6 @@ export interface ShiftTakenOff {
   shift: string;
   /** The roster version that took it off, now in force. */
   version: number;
+  /** The cover this opened, waiting unoffered on your Covers page for one more nurse on that shift. Null for a day passed, which nobody can cover. */
+  cover: string | null;
 }

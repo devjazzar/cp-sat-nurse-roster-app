@@ -37,6 +37,7 @@ import type {
   ConfirmNurseImportBody,
   CorrectedNurse,
   CorrectionBody,
+  CoverPage,
   DraftCheck,
   EditRequestBody,
   EditsBody,
@@ -68,6 +69,7 @@ import type {
   ListPublicHolidaysParams,
   ListRamadanMonthsParams,
   ListRosterVersionsParams,
+  ListUnitCoversParams,
   ListUnitLeaveParams,
   ListUnitSolveHistoryParams,
   ListUnitSwapsParams,
@@ -97,6 +99,7 @@ import type {
   NurseAttributesRow,
   NurseRow,
   NurseWithPassword,
+  OpenCoverBody,
   Overview,
   PasswordSheet,
   PreviewNurseImportBody,
@@ -130,6 +133,7 @@ import type {
   TechnicalSettingsSchema,
   TransferBody,
   UnitBody,
+  UnitCovers,
   UnitHistory,
   UnitLeaveMonth,
   UnitName,
@@ -7741,6 +7745,400 @@ export const useRejectUnitSwap = <TError = unknown,
         TContext
       > => {
       return useMutation(getRejectUnitSwapMutationOptions(options), queryClient);
+    }
+
+export const getListUnitCoversUrl = (unitId: string,
+    params?: ListUnitCoversParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/covers?${stringifiedParams}` : `/api/units/${unitId}/covers`
+}
+
+/**
+ * @summary Unit Covers
+ */
+export const listUnitCovers = async (unitId: string,
+    params?: ListUnitCoversParams, options?: Parameters<typeof apiFetch>[1]): Promise<UnitCovers> => {
+
+  return apiFetch<UnitCovers>(getListUnitCoversUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnitCoversQueryKey = (unitId: string,
+    params?: ListUnitCoversParams,) => {
+    return [
+    `/api/units/${unitId}/covers`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListUnitCoversQueryOptions = <TData = Awaited<ReturnType<typeof listUnitCovers>>, TError = unknown>(unitId: string,
+    params?: ListUnitCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitCovers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnitCoversQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnitCovers>>> = ({ signal }) => listUnitCovers(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnitCovers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUnitCoversQueryResult = NonNullable<Awaited<ReturnType<typeof listUnitCovers>>>
+export type ListUnitCoversQueryError = unknown
+
+
+export function useListUnitCovers<TData = Awaited<ReturnType<typeof listUnitCovers>>, TError = unknown>(
+ unitId: string,
+    params: undefined |  ListUnitCoversParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitCovers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitCovers>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitCovers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitCovers<TData = Awaited<ReturnType<typeof listUnitCovers>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitCovers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnitCovers>>,
+          TError,
+          Awaited<ReturnType<typeof listUnitCovers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnitCovers<TData = Awaited<ReturnType<typeof listUnitCovers>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitCovers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Unit Covers
+ */
+
+export function useListUnitCovers<TData = Awaited<ReturnType<typeof listUnitCovers>>, TError = unknown>(
+ unitId: string,
+    params?: ListUnitCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnitCovers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUnitCoversQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getOpenUnitCoverUrl = (unitId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/covers`
+}
+
+/**
+ * For any shift-day of the roster in force, today or later, short for any reason: it waits unoffered, as one opened by
+ * leave does. Nobody is told, and the audit log has nothing of it.
+ * @summary Open Cover
+ */
+export const openUnitCover = async (unitId: string,
+    openCoverBody: OpenCoverBody, options?: Parameters<typeof apiFetch>[1]): Promise<CoverPage> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CoverPage>(getOpenUnitCoverUrl(unitId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(openCoverBody)
+  }
+);}
+
+
+
+
+
+export const getOpenUnitCoverMutationKey = () => ['openUnitCover'] as const;
+
+export const getOpenUnitCoverMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openUnitCover>>, TError,OpenUnitCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof openUnitCover>>, TError,OpenUnitCoverMutationVariables, TContext> => {
+
+const mutationKey = getOpenUnitCoverMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof openUnitCover>>, OpenUnitCoverMutationVariables> = (props) => {
+          const {unitId,data} = props ?? {};
+
+          return  openUnitCover(unitId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OpenUnitCoverMutationResult = NonNullable<Awaited<ReturnType<typeof openUnitCover>>>
+    export type OpenUnitCoverMutationBody = OpenCoverBody
+    export type OpenUnitCoverMutationError = unknown
+    export type OpenUnitCoverMutationVariables = {unitId: string;data: OpenCoverBody}
+
+    /**
+ * @summary Open Cover
+ */
+export const useOpenUnitCover = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof openUnitCover>>, TError,OpenUnitCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof openUnitCover>>,
+        TError,
+        OpenUnitCoverMutationVariables,
+        TContext
+      > => {
+      return useMutation(getOpenUnitCoverMutationOptions(options), queryClient);
+    }
+
+export const getGetUnitCoverUrl = (unitId: string,
+    coverId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/covers/${coverId}`
+}
+
+/**
+ * Judged again now, with the solver's own code in this process: nothing of the list is stored.
+ * @summary Unit Cover
+ */
+export const getUnitCover = async (unitId: string,
+    coverId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CoverPage> => {
+
+  return apiFetch<CoverPage>(getGetUnitCoverUrl(unitId,coverId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUnitCoverQueryKey = (unitId: string,
+    coverId: string,) => {
+    return [
+    `/api/units/${unitId}/covers/${coverId}`
+    ] as const;
+    }
+
+
+export const getGetUnitCoverQueryOptions = <TData = Awaited<ReturnType<typeof getUnitCover>>, TError = unknown>(unitId: string,
+    coverId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnitCover>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUnitCoverQueryKey(unitId,coverId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUnitCover>>> = ({ signal }) => getUnitCover(unitId,coverId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined && coverId !== null && coverId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUnitCover>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUnitCoverQueryResult = NonNullable<Awaited<ReturnType<typeof getUnitCover>>>
+export type GetUnitCoverQueryError = unknown
+
+
+export function useGetUnitCover<TData = Awaited<ReturnType<typeof getUnitCover>>, TError = unknown>(
+ unitId: string,
+    coverId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnitCover>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUnitCover>>,
+          TError,
+          Awaited<ReturnType<typeof getUnitCover>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUnitCover<TData = Awaited<ReturnType<typeof getUnitCover>>, TError = unknown>(
+ unitId: string,
+    coverId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnitCover>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUnitCover>>,
+          TError,
+          Awaited<ReturnType<typeof getUnitCover>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUnitCover<TData = Awaited<ReturnType<typeof getUnitCover>>, TError = unknown>(
+ unitId: string,
+    coverId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnitCover>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Unit Cover
+ */
+
+export function useGetUnitCover<TData = Awaited<ReturnType<typeof getUnitCover>>, TError = unknown>(
+ unitId: string,
+    coverId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUnitCover>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUnitCoverQueryOptions(unitId,coverId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getWithdrawUnitCoverUrl = (unitId: string,
+    coverId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/covers/${coverId}/withdraw`
+}
+
+/**
+ * Open or offered. Ticket 27 tells the nurses offered it, never why.
+ * @summary Withdraw Cover
+ */
+export const withdrawUnitCover = async (unitId: string,
+    coverId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CoverPage> => {
+
+  return apiFetch<CoverPage>(getWithdrawUnitCoverUrl(unitId,coverId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getWithdrawUnitCoverMutationKey = () => ['withdrawUnitCover'] as const;
+
+export const getWithdrawUnitCoverMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawUnitCover>>, TError,WithdrawUnitCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawUnitCover>>, TError,WithdrawUnitCoverMutationVariables, TContext> => {
+
+const mutationKey = getWithdrawUnitCoverMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawUnitCover>>, WithdrawUnitCoverMutationVariables> = (props) => {
+          const {unitId,coverId} = props ?? {};
+
+          return  withdrawUnitCover(unitId,coverId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawUnitCoverMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawUnitCover>>>
+
+    export type WithdrawUnitCoverMutationError = unknown
+    export type WithdrawUnitCoverMutationVariables = {unitId: string;coverId: string}
+
+    /**
+ * @summary Withdraw Cover
+ */
+export const useWithdrawUnitCover = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawUnitCover>>, TError,WithdrawUnitCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawUnitCover>>,
+        TError,
+        WithdrawUnitCoverMutationVariables,
+        TContext
+      > => {
+      return useMutation(getWithdrawUnitCoverMutationOptions(options), queryClient);
     }
 
 export const getGetMonthCloseUrl = (unitId: string,
