@@ -149,7 +149,7 @@ _Avoid_: sick call, replacement, fill-in, open shift, extra shift, cover request
 
 **Notification**:
 Something a user is told in the application, about a roster's submit, approval, rejection or change, a solve's end, a
-request window opening or closing, a decision on a request, and each step of a swap. Each user reads only their own. It says nothing of a nurse's leave, and a
+request window opening or closing, a decision on a request, and each step of a swap and of a cover. Each user reads only their own. It says nothing of a nurse's leave, and a
 rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 

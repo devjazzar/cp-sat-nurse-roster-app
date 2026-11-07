@@ -90,14 +90,14 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read an approved roster's versions with their reasons, and compare any two | | yes | yes | own unit | |
 | Unit rules; nurses' rostering attributes (gender aside: the CNO sets and corrects it) and opening values | | | | own unit | |
 | Read the unit rules, and the rostering attributes and opening values of a unit's nurses | | yes | yes | own unit | |
-| Request windows; decide requests; decide swaps; record, correct and remove leave | | | | own unit | |
+| Request windows; decide requests; decide swaps; open, offer and withdraw covers; record, correct and remove leave | | | | own unit | |
 | Read a unit's leave with its type | | yes | yes | own unit | |
 | Solve, edit the draft, submit, edit the approved roster, re-plan, re-close a month | | | | own unit | |
 | Exports (CSV, Excel, print page) of any roster version | | yes | yes | own unit | |
 | Reset a staff nurse's password (a manager's stays the System Admin's) | | yes | | own unit | |
 | Read the name of own unit | | | | | yes |
 | View own unit's approved roster (names and shifts only) and own summary | | | | | yes |
-| Make and withdraw requests; propose, accept and reject swaps | | | | | yes |
+| Make and withdraw requests; propose, accept and reject swaps; accept and decline covers offered to them | | | | | yes |
 | Read own leave with its type (a manager with a nurse profile too) | | | | yes | yes |
 
 Cardinalities: exactly one active CNO and one active Deputy CNO per hospital (a deactivated one
@@ -185,7 +185,7 @@ the decision, by whom, when and, for a rejection, the comment the manager reads.
 kept, which the audit log cannot hold, since a comment may name a nurse or their leave.
 
 **Roster version**: the roster's full grid (nurse × date → shift code or off) with who,
-when, why and origin (solve, manual edit, re-plan, swap, request), plus the result it came
+when, why and origin (solve, manual edit, re-plan, swap, request, cover), plus the result it came
 from when a solve produced it. The latest version of an approved roster is in force. The first approval makes version 1
 with origin `solve` and the roster's solve, and its grid is the roster's as approved, hand edits included: the pins and the
 solve history say where each cell came from. A version keeps the codes it was saved with, as a stored result does, and is
@@ -205,7 +205,7 @@ for a nurse and date. A correction or removal ends the row rather than rewriting
 this. A date must lie within the nurse's start and end dates when it is entered; a later correction to those dates leaves
 the row, flagged on the unit's list, where it counts for nothing.
 
-**Pinned cell**: unit, nurse, date, shift or off, origin (manager, accepted request, accepted swap), pinned by and when;
+**Pinned cell**: unit, nurse, date, shift or off, origin (manager, accepted request, accepted swap, accepted cover), pinned by and when;
 removed by, when and why (cleared, replaced, leave). At most one current pin for a nurse and date, and none is deleted. It
 belongs to the unit whose month it is, so a transfer leaves it behind. Leave wins over a pin: recording leave on a pinned day
 ends the pin and tells the manager, and pinning on a day of leave is refused. A pin that falls out of step with the rest (the
@@ -240,6 +240,13 @@ change, never the proposer) with their answers, state (`pending`, `awaiting_mana
 manager's reason, and the version its approval made. Only staff nurses' cells are swapped, a manager with a nurse profile's
 never; a cell is in at most one swap still waiting. A colleague's accepted request on a cell refuses the swap (the request stays her
 promise), while a manager's pin, or an earlier swap's, is replaced by the approval.
+
+**Cover** (ADR 0011): unit, roster, the version in force when it was opened (for leave, the version the leave made), date,
+shift, how it opened (`leave` or `manager`), the manager's note, state (`open`, `offered`, `taken`, `withdrawn`, `filled`,
+`expired`), who withdrew it and when it ended, and for one taken its taker and the version her acceptance made. The absent nurse
+is not on the row. Its offers: one per nurse offered (when, her answer `pending`, `accepted` or `declined`, and when she
+answered), a nurse at most once, never removed. A cover's pin is a pinned cell of origin `cover`, which the manager's editor
+refuses as it refuses a swap's or a request's ("change it there").
 
 **Solve**: unit, month, requested by, time limit, state (`queued`, `running`, `succeeded`,
 `failed`, `cancelled`), the queue's job, progress (elapsed, best cost, improvements), the
@@ -279,8 +286,8 @@ backup time and retention, close time.
   (none) ──────────────▶ draft ──────────────▶ submitted ───────────────▶ approved
                            ▲                      │                         │
                            └──────── reject ──────┘        edits, re-plans, swaps,
-                                 (comment kept)            accepted requests: new
-                                                           versions, in force at once
+                                 (comment kept)            accepted requests, covers:
+                                                           new versions, in force at once
 ```
 
 - Each solve replaces the draft's grid, unless its result has no roster or `ok` is false, which
@@ -305,7 +312,8 @@ backup time and retention, close time.
   commit) through, which `FOR UPDATE` did not, deadlocking a leave against an edit. Every new such lock is taken the same way.
 - After approval, the unit manager alone changes the roster: direct cell edits, swaps,
   re-plans from a date (earlier days are facts; the `change` weight keeps the new roster
-  close). Every change is a new version, in force immediately, and notifies the unit's nurses of the month, except whoever
+  close), and covers, which the manager offers and the first nurse to accept puts in force as a version of her own making.
+  Every change is a new version, in force immediately, and notifies the unit's nurses of the month, except whoever
   made it, that the roster changed: never why, which cells or whose.
 - A re-plan (`solves.replans`) is a solve of an approved month that has not ended, from a date that is today or later and in
   the month: the month's first day only while it is still to come, never the first day after it, which is month close. A draft
@@ -374,6 +382,29 @@ backup time and retention, close time.
    proposer at each acceptance, the manager when all have accepted, and the proposer and every colleague at a rejection, a
    withdrawal, an expiry and an approval (the manager too for a withdrawal or an expiry of one awaiting him), never whoever took
    the step, and never why one expired.
+
+### Covers
+
+1. Leave that takes a shift off the roster in force, on a day today or later, opens a cover for it, unoffered and told to
+   nobody; the manager opens one by hand for any shift-day of the roster in force, today or later. Two absences on one
+   shift-day are two covers.
+2. Its page judges, each time it is read, who could take it: the month's staff nurses off that day (in the month, within their
+   dates, not on leave, allowed the shift, no accepted request holding the day) whose grid with the shift, as a pin, newly
+   breaks no hard rule on the month as it stands, with the solver's own code; a headcount already broken counts only when
+   broken further, as for a swap. Ranked furthest below owed hours first, then least overtime this year (`covers.judging`).
+3. The manager ticks any of them and offers it, with a note: it becomes `offered` and each nurse ticked is told. An add on an
+   offered cover asks only those not yet in it; a nurse who declined is in it and is not asked again. A nurse not in the list
+   as judged then is refused by name.
+4. A nurse offered it reads its date, shift, hours and note on Covers, never why it opened or who else was asked, and accepts or
+   declines. A decline takes the cover's lock only and tells the manager; a cover everyone declined stays offered.
+5. The first acceptance takes it, under the locks an approval takes (the catalogue's, hers, the unit's, the roster's, the
+   cover's): its date read first, then its state, then judged again for her alone and refused in her own words. Her cell is a
+   pin of origin `cover` in a new version of origin `cover`, "Cover taken by {name}: {shift} on {date}.", in force at once;
+   the unit's nurses are told the roster changed, the others offered it that it is taken, the manager that she accepted. A
+   later acceptance is refused as taken. An acceptance while a re-plan of the month runs makes the re-plan end `outdated`.
+6. A waiting cover ends by the manager's withdrawal, by its date passing (every page reads the date; the hourly job and the
+   next write about it store it), or filled when a new version, whatever made it, puts one more nurse on its shift-day, one
+   cover per nurse added, oldest first; a cover's own version fills none. The nurses offered it are told it ended, never why.
 
 ### Month close and the carry-over chain (ADR 0004)
 
@@ -464,8 +495,8 @@ minute takes a lock of its own. Jobs:
   `remove_old_notifications` (older than a year, read or not), `clear_expired_sessions` (Django's `clearsessions`).
 - `expire_swaps` (hourly, minute 15): expires each waiting swap one of whose dates has passed, telling its people. Every page reads
   the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
-- `expire_covers` (hourly, minute 20): stores each waiting cover whose date has passed as expired (ticket 27 tells the nurses
-  offered it). Every page reads the date itself and every write about a cover does the same for it first.
+- `expire_covers` (hourly, minute 20): stores each waiting cover whose date has passed as expired and tells the nurses offered
+  it. Every page reads the date itself and every write about a cover does the same for it first.
 - `open_and_close_request_windows` (hourly): opens each request window whose open date has come and closes each whose close
   date has passed, telling whoever that tells. Every write about a unit's windows does the same first, so a worker that is down
   delays only the notifications.
@@ -509,10 +540,10 @@ history, health and backups); CNO (hospital rules and weights, shift catalogue, 
 holidays and Ramadan, units and managers, nurses with import and export, each unit's rules, rostering attributes and leave
 to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules,
 rostering attributes and leave to read); Unit Manager (unit rules, rostering attributes, nurses, request
-windows and requests, swaps, leave, the roster grid with solve, progress, results and
+windows and requests, swaps, covers, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff
-Nurse reads them, but no requests or swaps of their own); Staff Nurse (unit roster, own month: hours, overtime, what
-is carried, shift counts and leave with its type, requests, swaps, notifications, password). A nurse's own hours are
+Nurse reads them, but no requests, swaps or covers of their own); Staff Nurse (unit roster, own month: hours, overtime, what
+is carried, shift counts and leave with its type, requests, swaps, covers offered to them, notifications, password). A nurse's own hours are
 worked out from the version in force on the month as it stands, with the solver's own arithmetic, for this month and later;
 a month already over shows its leave only. Every role has the bell and Change password. The Deputy CNO, Unit Manager and Staff Nurse also read
 the shift catalogue, leave types, holidays and Ramadan; the System Admin may open those pages
@@ -543,7 +574,7 @@ authentication backend. Generated passwords shown once, forced change at first l
 Minimum length 10 with Django's common-password and similarity checks, lockout for 15
 minutes after 5 failed logins, sessions expire after 12 hours of inactivity (polling a solve's
 progress is not activity), no two-factor authentication in v1. Every login, failed login and every change to settings, accounts,
-rosters, requests and swaps goes to the audit log. So does each taking of the staff list, which holds everyone's gender:
+rosters, requests, swaps and covers goes to the audit log. So does each taking of the staff list, which holds everyone's gender:
 who took it and how many nurses it held, and nothing from the file. Its import template holds no one's data and is not
 logged. So does each taking of a roster version's CSV or Excel file (`roster.exported`): who took which unit's month, which
 version and which format, and nothing from the file. A roster's print page makes no file and shows only what its reader can
@@ -556,9 +587,10 @@ accepted, rejected, edited, cancelled), never its date, its shift or either reas
 request that leave replaced, and a version a request made, have no entry of their own, since one beside the leave's or the
 request's would date it. So is a swap: whose it is (the proposer's) and who moved it how (`swap.proposed`, `accepted`, `rejected`,
 `withdrawn`, `approved`), never its cells, dates, note or reasons; an approval also writes `roster.changed`. An expiry has no
-entry: it is nobody's act, and one beside the version that caused it could date a colleague's leave. A cover is logged as the manager's
-`cover.withdrawn`, with the unit as its target, never its date, shift or note; its opening, by leave or by hand, its filling and
-its expiry have no entry, since one beside the leave's would date it.
+entry: it is nobody's act, and one beside the version that caused it could date a colleague's leave. A cover is logged as who moved it how:
+`cover.offered` and `cover.withdrawn` (the manager, the unit as target) and `cover.accepted` and `cover.declined` (the nurse, her
+hospital ID as target), never its date, shift or note; an acceptance also writes `roster.changed`. Its opening, by leave or by
+hand, its filling and its expiry have no entry, since one beside the leave's would date it.
 
 ### Nurse import and the staff list
 
