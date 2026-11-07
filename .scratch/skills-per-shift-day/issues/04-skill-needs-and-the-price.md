@@ -1,0 +1,15 @@
+# 04: Skill needs among the unit rules, the price among the weights
+
+**What to build:** A unit manager writes skill needs among his unit rules: a shift the unit works, a skill, a weekday minimum and a weekend minimum, several per unit, and one flag making them all hard or soft, hard by default. The CNO sets the skill shortfall weight among the hospital weights, the price per nurse short per shift-day when a unit's needs are soft. What the forms save passes the solver's loader as version 2. A shift a need names cannot be dropped from the unit; a skill a live unit's need names cannot be retired; a skill rename is carried through every unit's needs.
+
+**Blocked by:** 01 Solver: skill rules and solve input version 2; 02 The skill catalogue
+
+**Status:** ready-for-agent
+
+- [ ] The unit rules carry `skill_needs` and `skill_needs_hard`; seeded empty and hard; the hospital rules' weights carry `skill_shortfall`, seeded at zero. The test that holds the saved blocks to the solver's own fields covers them.
+- [ ] A need is refused when it names a shift outside the unit's shifts or a retired skill, or names the same shift and skill twice; minimums are non-negative integers within the solver's parameter limit.
+- [ ] Dropping a shift from the unit is refused while a need names it, naming the need, as it is while a pin uses it; retiring a skill is refused while a live unit's need names it, naming the units, as retiring a shift is; a skill rename runs through every unit's needs in the same transaction, audited per unit.
+- [ ] The unit rules page gains a skill needs table (add, edit, remove) and the hard flag beside night rest's; the hospital rules page gains the weight; the CNO and Deputy CNO read a unit's needs read-only as the other rules.
+- [ ] Audit: unit rule and hospital rule changes keep logging their values; skill needs say nothing about a person.
+- [ ] The architecture document's unit rules and hospital settings entries name skill needs and the weight.
+- [ ] Tests at the web API seam for the rules, the refusals, the guards and the rename; frontend tests for the table and the flag through the app test file.
