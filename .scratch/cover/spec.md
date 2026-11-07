@@ -4,7 +4,7 @@ Status: ready-for-agent
 Type: feature
 Published: 2026-11-07 by /to-spec
 Grilling: sixteen questions in three rounds on 2026-11-07, every one answered as recommended. Decisions: `GLOSSARY.md` (Cover)
-and `docs/adr/0010-a-cover-adds-one-nurse-and-the-first-acceptance-wins.md`. Where this spec and `docs/ARCHITECTURE.md`,
+and `docs/adr/0011-a-cover-adds-one-nurse-and-the-first-acceptance-wins.md`. Where this spec and `docs/ARCHITECTURE.md`,
 `GLOSSARY.md` or an ADR disagree, those win and this spec is wrong.
 
 ## Problem Statement
