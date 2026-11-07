@@ -218,8 +218,8 @@ git push origin main
 
 Always the full ref: a tag of the same name would win over a bare branch name. `--ff-only` refuses if `main` moved; then the
 session rebases and pushes, you verify again. Never merge with a merge commit. Pushing `main` with the pull request's head on
-it marks the pull request **merged** on GitHub by itself (no button pressed), deletes its branch there (the repository is set
-to), and runs both workflows once more on `main`.
+it marks the pull request **merged** on GitHub by itself (no button pressed) and runs both workflows once more on `main`.
+Then delete the branch there: `git push origin --delete <branch>`.
 
 ### 4.8 Refresh the dev stack
 
@@ -419,8 +419,8 @@ For when a new main session has to pick the routine up:
    (`gh pr diff <number>`).
 3. Anything red: one message back to the session; check again on its new head.
 4. `git fetch origin && git merge --ff-only refs/remotes/origin/<branch>`, then `git push origin main` (the pull request
-   turns merged by itself); refresh the dev stack by section 2's table; `curl` the health answer.
+   turns merged by itself) and `git push origin --delete <branch>`; refresh the dev stack by section 2's table; `curl` the
+   health answer.
 5. The **Worth your review** points to the user, numbered, each with a recommendation.
 6. Append `**Reviewed by the user (date):** …` to the ticket; commit on `main` and push.
-7. Every few tickets: remove the worktrees and local branches that are on `main` (GitHub deletes the pushed branch at the
-   merge).
+7. Every few tickets: remove the worktrees and local branches that are on `main`.
