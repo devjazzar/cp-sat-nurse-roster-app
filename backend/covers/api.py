@@ -1,6 +1,7 @@
 """The unit manager's covers: the unit's covers of a month, one cover's page (its shift-day's lack and who could take it, judged
-again each time it is read, and the nurses offered it with their answers), opening one by hand, offering it and withdrawing it. Only the unit's manager reads or acts on them
-(docs/ARCHITECTURE.md section 3); the System Admin, the CNO and the Deputy CNO see none."""
+again each time it is read, and the nurses offered it with their answers), opening one by hand, offering it and withdrawing
+it. Only the unit's manager reads or acts on them (docs/ARCHITECTURE.md section 3); the System Admin, the CNO and the Deputy
+CNO see none."""
 from __future__ import annotations
 
 import datetime as dt

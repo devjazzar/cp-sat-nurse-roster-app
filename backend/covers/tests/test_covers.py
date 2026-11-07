@@ -11,7 +11,7 @@ from audit.models import AuditEntry
 from covers.models import Cover, CoverState
 from covers.tasks import expire_covers
 from covers.tests.conftest import (MONTH, cover_page, covers_of, offered, ok, open_cover, opened, record_leave, refusals,
-                                   rules_require, withdraw)
+                                   rules_require, wider_day, withdraw)
 from notifications.tests.test_events import as_user
 from nurses.models import NurseProfile, Placement
 from requesting.tests.conftest import asked, decided as request_decided, opened as opened_window
@@ -104,12 +104,6 @@ class TestWhoCouldTakeIt:
         ok(record_leave(mona, in_force, "Badr", 9), 201)
 
         assert "Amal" not in listed(cover_page(mona, in_force, covers_of(mona, in_force)[0]["id"]))
-
-
-def wider_day(unit):
-    """Day may hold two nurses, so a Day worked by one has room for one more."""
-    unit.rules["headcounts"][0].update(weekday_max=2, weekend_max=2)
-    unit.save()
 
 
 def amal_could(page) -> bool:

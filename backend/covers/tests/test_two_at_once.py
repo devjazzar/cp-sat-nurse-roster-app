@@ -9,8 +9,7 @@ import pytest
 from django.db import transaction
 
 from covers.models import Cover
-from covers.tests.conftest import answer, offered, opened, record_leave, withdraw
-from covers.tests.test_offers import badrs_day, the_25th
+from covers.tests.conftest import answer, badrs_day, offered, opened, record_leave, the_25th, withdraw
 from notifications.tests.test_events import as_user
 from rosters.models import RosterVersion
 from nurses.tests.test_two_at_once import alongside

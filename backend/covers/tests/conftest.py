@@ -81,3 +81,20 @@ def answer(client, cover_id, what):
 
 def answered(client, cover_id, what) -> dict:
     return ok(answer(client, cover_id, what))
+
+
+def wider_day(unit):
+    """Day may hold two nurses, so a Day worked by one has room for one more."""
+    unit.rules["headcounts"][0].update(weekday_max=2, weekend_max=2)
+    unit.save()
+
+
+def badrs_day(client, unit) -> str:
+    """Badr's leave on the 9th, and the cover it opens for Day there."""
+    ok(record_leave(client, unit, "Badr", 9), 201)
+    return covers_of(client, unit)[0]["id"]
+
+
+def the_25th(client, unit) -> str:
+    wider_day(unit)
+    return opened(client, unit, 25, "D")["cover"]["id"]

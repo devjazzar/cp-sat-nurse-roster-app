@@ -7,9 +7,8 @@ import pytest
 from audit.models import AuditEntry
 from covers.models import Cover, CoverState
 from covers.tasks import expire_covers
-from covers.tests.conftest import (MONTH, answer, answered, cover_page, covers_of, my_covers, offer, offered, ok, opened,
-                                   record_leave, refusals, withdraw)
-from covers.tests.test_covers import wider_day
+from covers.tests.conftest import (MONTH, answer, answered, badrs_day, cover_page, my_covers, offer, offered, ok, opened,
+                                   record_leave, refusals, the_25th, wider_day, withdraw)
 from notifications.models import Event, Notification
 from notifications.tests.test_events import as_user, told
 from rosters.models import PinnedCell, PinOrigin, Roster, VersionOrigin
@@ -22,17 +21,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture(autouse=True)
 def _scene(before_june, solver):
     pass
-
-
-def badrs_day(client, unit) -> str:
-    """Badr's leave on the 9th, and the cover it opens for Day there."""
-    ok(record_leave(client, unit, "Badr", 9), 201)
-    return covers_of(client, unit)[0]["id"]
-
-
-def the_25th(client, unit) -> str:
-    wider_day(unit)
-    return opened(client, unit, 25, "D")["cover"]["id"]
 
 
 def entries() -> list[tuple[str, str, str]]:

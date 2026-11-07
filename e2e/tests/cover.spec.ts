@@ -40,6 +40,7 @@ test("a sick call: the manager offers the cover on the desktop, and a colleague 
   await expect(manager.getByText(/^You offered the cover for .* to 1 nurse\. Each is told\.$/)).toBeVisible()
 
   const theirs = await anotherPhone(browser, page, colleague)
+  // Covers from the phone's Menu, then the month the cover is in, which may not be the hospital's current one.
   await go(theirs, "Covers")
   await theirs.goto(`/covers?month=${month}`)
   await expect(theirs.getByText("Your manager's note: Thank you for helping out.").first()).toBeVisible()

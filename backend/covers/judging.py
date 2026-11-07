@@ -114,9 +114,11 @@ class CoverMonth(ApprovedMonth):
             return [f"You already work {what} on {on}, so you cannot take this cover."]
         if why is not None:
             return [{
-                "not_on_grid": f"You have no row on the {self.unit.name} roster for {self.month:%B %Y}, so you cannot take this cover.",
+                "not_on_grid": f"You have no row on the {self.unit.name} roster for {self.month:%B %Y}, so you cannot take "
+                               "this cover.",
                 "not_staff": "Only a staff nurse takes a cover.",
-                "not_in_month": f"You have no days on the {self.unit.name} roster in {self.month:%B %Y}, so you cannot take this cover.",
+                "not_in_month": f"You have no days on the {self.unit.name} roster in {self.month:%B %Y}, so you cannot take "
+                                "this cover.",
                 "outside_dates": f"{on} is outside your dates on the roster, so you cannot take this cover.",
                 "leave": f"You are on leave on {on}, so you cannot take this cover.",
                 "shift_not_allowed": f"{self.shift.code} is not one of the shifts you work, so you cannot take this cover.",

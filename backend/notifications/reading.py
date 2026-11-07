@@ -14,6 +14,7 @@ from accounts.models import Role, User
 from closes.models import MonthClose
 from notifications.models import Event, Notification, SolveOutcome
 from covers.models import Cover
+from covers.steps import which as cover_shift_day
 from notifications.sending import CoverStep, SwapStep
 from requesting.models import Request, RequestState, RequestWindow, Step
 from rosters.pins import long_date
@@ -167,7 +168,7 @@ def _cover_words(note: Notification, names: Names, by: str) -> str:
     """Read from the cover when shown: its shift and date, which the nurse offered it reads on Covers. Never why it was short,
     who else was asked, who took it or why it ended."""
     cover = names.covers.get(note.payload.get("cover_id"))
-    which = f"{cover.shift.display_name} ({cover.shift.code}) on {long_date(cover.date)}" if cover else "a shift"
+    which = cover_shift_day(cover) if cover else "a shift"
     match note.payload.get("step"):
         case CoverStep.OFFERED:
             return f"{by} offered you a cover: {which}. Accept or decline it on Covers."
