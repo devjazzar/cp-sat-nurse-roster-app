@@ -263,3 +263,7 @@ backend's and the solver's suites, the frontend's six parallel runs and `e2e/ci.
   during implementation, its number is 0016: 0010 to 0015 are taken by the grilling sessions running alongside this one.
 - The main session merges the grilling branches afterwards; the line in the architecture's pinned versions and any mention
   of the cards under the page in section 8 belong to it.
+
+**Reviewed by the user (2026-11-07):** all five decisions the spec added beyond the grilling are kept: a month the shifted
+Ramadan leaves is fixed to none; the 35-day and 1–14 bounds; the submission records Ramadan days and holidays at submit; the
+existing per-month and holiday writes notify managers too; no Eid al-Fitr proposal for a Ramadan with fewer than 29 days.
