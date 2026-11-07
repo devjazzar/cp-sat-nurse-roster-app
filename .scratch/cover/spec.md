@@ -48,7 +48,7 @@ shift-day, never about whose absence made it short: no nurse learns why it was s
 11. As a Unit Manager, I want the list to leave out anyone whose taking the shift would newly break a hard rule (rest, run, succession, a forbidden pair, an overtime cap, the shift-day's maximum headcount), judged with the solver's own check, so that an acceptance never breaks the roster.
 12. As a Unit Manager, I want a hard rule the roster in force already breaks not to count against a nurse, so that a shift-day already short does not empty its own list.
 13. As a Unit Manager, I want a nurse whose accepted request holds that day off left out, so that a promise the hospital made to her is kept.
-14. As a Unit Manager, I want a nurse I pinned off that day still listed, with the pin replaced if she takes the cover, so that my own pin does not stop my own offer.
+14. As a Unit Manager, I want a nurse I pinned off that day, or whom an approved swap pinned off, still listed, with the pin replaced if she takes the cover, so that an earlier pin does not stop my offer.
 15. As a Unit Manager with a nurse profile, I want myself not listed, so that I take a shift by editing the roster, never by offering it to myself.
 16. As a Unit Manager, I want the list ranked by who stands furthest below her owed hours this month, then by least overtime this year, so that the fairest choice is at the top.
 17. As a Unit Manager, I want each nurse's hours against her owed hours this month and her overtime this year shown beside her name, so that I can explain the order to anyone.
@@ -135,8 +135,8 @@ shift-day, never about whose absence made it short: no nurse learns why it was s
 - **Who could take it, and the ranking,** in one judging module, the one place a cover is judged and worded, as swaps have:
   - the month's staff nurses (not a manager with a nurse profile) whose cell that day is empty, whose day the pin judge allows
     (in the month, within dates, not on leave) and whose placement allows the shift; a current pin of origin `request` on the
-    day leaves her out; a manager's pin is noted as replaced; a cell in a waiting swap is left in (the swap expires if she
-    takes the cover, as any version expires it);
+    day leaves her out; a manager's pin, or a swap's, is noted as replaced, as a swap's approval replaces both; a cell in a
+    waiting swap is left in (the swap expires if she takes the cover, as any version expires it);
   - for each, the grid with her cell set to the shift, the cell put in as a pin, checked in `web`'s process with the solver's
     own code against the solve input of the month as it stands; a hard violation not already in the roster in force's own
     check leaves her out; a grid or rules the loader refuses is an answer shown, not an error;
@@ -164,8 +164,8 @@ shift-day, never about whose absence made it short: no nurse learns why it was s
   nurses offered it told.
 - **Filled:** in the one function that makes a version, under the roster's row lock, after the swaps' hook: for each
   shift-day on which the new grid holds more nurses than the grid before, one waiting cover of that shift-day, oldest first,
-  per nurse added, becomes `filled`; its nurses offered are told. The version a cover's own acceptance makes adds its taker,
-  and that cover is `taken` first, so it is not counted. No audit entry.
+  per nurse added, becomes `filled`; its nurses offered are told. A version of origin `cover` fills nothing: it changes one
+  cell, its taker's, which its own cover accounts for, so a second cover of the same shift-day stays offered. No audit entry.
 - **Expiry:** a waiting cover whose date is before today on the hospital's clock reads as expired on every page and in every
   write about it first; the hourly job `expire_covers` (minute 20, beside `expire_swaps` at 15) stores it and tells the nurses
   offered it. No audit entry.
@@ -206,7 +206,7 @@ shift-day, never about whose absence made it short: no nurse learns why it was s
     submitted roster opens none; a date passed opens none;
   - open by hand: refused for a date passed, a shift the unit does not work, a month with no roster in force;
   - who could: off that day only; leave, dates, allowed shifts, an accepted request for the day off keep a nurse out; a
-    manager's pin is noted replaced; a manager with a nurse profile absent; a hard rule newly broken keeps her out and one
+    manager's pin and a swap's are noted replaced; a manager with a nurse profile absent; a hard rule newly broken keeps her out and one
     already broken does not; the lack read as the roster's check says; the mark on those who make it whole; a shift-day at
     its maximum lists nobody;
   - ranking: below owed first, then least overtime, then name, on a scene where the figures differ;
@@ -218,7 +218,8 @@ shift-day, never about whose absence made it short: no nurse learns why it was s
   - decline: the answer, the entry, the manager told; an add does not ask her again;
   - withdraw: open and offered; told; the entry;
   - filled: a manager's edit putting a nurse on the shift-day fills one cover, oldest first; two covers on one shift-day, one
-    edit, one filled; an approved swap and a re-plan fill the same way; the cover's own version fills nothing;
+    edit, one filled; an approved swap and a re-plan fill the same way; the cover's own version fills nothing: two covers on
+    one shift-day, one taken, the other stays offered;
   - expiry: the page reads it, the job stores and tells; no entry;
   - the role walk in the authorization test for every endpoint;
   - two at once, on real connections: the last two acceptances, the second refused as taken; an acceptance against leave on
