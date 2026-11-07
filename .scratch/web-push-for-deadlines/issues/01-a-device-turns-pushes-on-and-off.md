@@ -1,0 +1,24 @@
+# 01: A device turns pushes on and off
+
+**What to build:** A signed-in user opens the Notifications page and finds a section about this device. On a browser that can receive pushes they tap **Turn on**; the browser asks its permission inside that tap, the device subscribes with the installation's own public key, and the page says "Pushes are on for this device." and on how many devices pushes are on in all. **Turn off** ends this device's push subscription; **Turn off on every device** ends every one of theirs, from any device. On an iPhone or iPad not added to the Home Screen the page says to add it first; a browser without push support, or one where notifications are blocked, is told so in a line. Pressing Log out turns this device off first; a session that expires on its own leaves it on. Deactivating an account ends all its push subscriptions. The audit log shows who turned pushes on and off and when, and nothing of the device. The installation's key pair is made at first start with no step of the hospital's, and a command replaces it after a compromise, after which each device re-subscribes silently at its next start of the app. Nothing is sent yet: that is ticket 02.
+
+Spec: `.scratch/web-push-for-deadlines/spec.md`. Words: `GLOSSARY.md` (Push subscription, Push). Reasons: `docs/adr/0012-web-push-carries-no-personal-data.md`.
+
+**Blocked by:** None (can start immediately)
+
+**Status:** ready-for-agent
+
+- [ ] A one-row key pair (VAPID) in the notifications app, made by `prepare` at first start when none exists and logged; kept across later starts and restored with a backup
+- [ ] A management command `rotate_push_keys` replaces the pair, deletes no push subscription, and writes an audit entry from the server with no actor
+- [ ] The push subscription table: user, the push service's address (unique), the browser's two keys, turned on at, failures in a row, last success; no user agent, device name or IP; UUIDv7 key
+- [ ] API, for the signed-in user only, none taking a user: read this device's state (a POST taking the browser's address if any; answers the public key, whether this device is on, how many devices are on); turn on (address, keys, optional replaced address; creates, moves an address held by another user to this one, or replaces the old address; idempotent); turn off this device (the same answer held or not); turn off every device
+- [ ] Audit entries `push.turned_on` and `push.turned_off` (actor the user, target their username, nothing of the device); none for a repeated turn on, a replaced address, or an ending by the server
+- [ ] Log out ends this device's subscription (the page unsubscribes in the browser and tells the server before signing out, and signs out whether or not that call succeeded); an expired session ends none
+- [ ] Deactivation ends every subscription of the user, in both the single deactivation and the end-of-day one, beside ending their sessions
+- [ ] The Notifications page's section "On this device" in its states, by feature detection and permission state only: no push support; an iPhone or iPad not running as a Home Screen web app; permission denied; off (what a push tells, and Turn on); on (Pushes are on for this device, and Turn off); the device count and Turn off on every device
+- [ ] Turn on runs inside the click: permission, subscribe with the server's public key (`userVisibleOnly`), post the subscription, show the new state; a refusal shows the blocked state; failures are said in the page's status line
+- [ ] At app start for a signed-in user with permission granted and a browser subscription present: a subscription the server holds but bound to another public key is replaced silently (unsubscribe, subscribe with the new key, turn on with the old address as replaced); one the server does not hold is left alone and shows as off
+- [ ] The service worker's `pushsubscriptionchange` listener re-subscribes with the current public key and tells the server the new address with the old one it replaces; still no `fetch` listener, and its test asserts that instead of the exact two listeners
+- [ ] Controls 44 px on a touch screen; the section's state announced in a status region
+- [ ] Tests at the agreed seams: the backend suite (key pair made once and kept, rotation with its audit entry, the four calls in every case including another user's address, each a 401 signed out, the audit entries, Log out, both deactivation paths); the frontend app-level suite with `PushManager`, `Notification`, the service worker registration and the standalone mode stubbed (the six states, Turn on's steps and a refusal, the app-start replacement and the not-held case, Turn off and Turn off on every device, Log out, 44 px); the service worker's test (`pushsubscriptionchange`, no `fetch`)
+- [ ] `makemigrations --check` clean; the OpenAPI document matches the export and the client is regenerated; six parallel frontend runs pass

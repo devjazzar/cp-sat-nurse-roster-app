@@ -153,6 +153,14 @@ request window opening or closing, a decision on a request, and each step of a s
 rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 
+**Push subscription**:
+A device's standing permission to be sent pushes for one user, held as the address the browser's push service gave it and the keys that go with it. It belongs to whoever last turned pushes on there; turning them off, pressing Log out, a deactivation, an address the push service says is gone, or ten failed sends in a row ends it.
+_Avoid_: device token, endpoint, device
+
+**Push**:
+One message sent to a push subscription, through the browser's push service, saying only which kind of thing waits for the user (a swap to answer, requests open, a roster to approve) and nothing else: never a name, a date or a unit. Only a notification with a deadline is pushed; the rest stay on the bell. Tapping it opens the kind's page.
+_Avoid_: push notification, alert
+
 ### Solving
 
 **Solve**:
