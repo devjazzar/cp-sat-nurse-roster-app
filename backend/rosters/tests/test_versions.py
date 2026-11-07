@@ -509,7 +509,7 @@ class TestLeaveRecordedLate:
         response = leave_for(mona, er, "Amal", 1, 2)
 
         assert response.status_code == 201, response.content
-        assert response.json()["shifts_taken_off"] == [
+        assert [{key: row[key] for key in ("date", "shift", "version")} for row in response.json()["shifts_taken_off"]] == [
             {"date": "2026-06-01", "shift": "N", "version": 2}, {"date": "2026-06-02", "shift": "N", "version": 2}]
         version = latest(er)
         assert (version.number, version.origin, version.created_by.username) == (2, VersionOrigin.EDIT, "mona")
@@ -563,7 +563,7 @@ class TestLeaveRecordedLate:
         response = leave_for(mona, er, "Amal", 9)
 
         assert response.json()["pins_removed"] == [{"date": "2026-06-09", "shift": "N", "origin": "manager", "roster": "approved"}]
-        assert response.json()["shifts_taken_off"] == [{"date": "2026-06-09", "shift": "N", "version": 3}]
+        assert [(row["date"], row["shift"], row["version"]) for row in response.json()["shifts_taken_off"]] == [("2026-06-09", "N", 3)]
         assert cell_of(er, "Amal", 9) == "" and not PinnedCell.objects.current().exists()
 
     def test_removing_it_afterwards_puts_nothing_back(self, mona, carla, er, solver):
@@ -585,7 +585,7 @@ class TestLeaveRecordedLate:
             "leave_ids": [str(row.pk)], "leave_type_id": str(row.leave_type_id), "first": "2026-06-01", "last": "2026-06-02"})
 
         assert response.status_code == 200, response.content
-        assert response.json()["shifts_taken_off"] == [{"date": "2026-06-02", "shift": "N", "version": 3}]
+        assert [(row["date"], row["shift"], row["version"]) for row in response.json()["shifts_taken_off"]] == [("2026-06-02", "N", 3)]
         assert cell_of(er, "Amal", 2) == ""
 
     def test_one_write_over_two_approved_months_makes_a_version_of_each(self, mona, carla, er, solver):

@@ -12,6 +12,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from django.db import connection
+
 from accounts.models import User
 from nurses import membership
 from nurses.models import NurseProfile
@@ -74,6 +76,15 @@ def cells_changed(version: RosterVersion, previous: RosterVersion | None) -> int
     return len(differences(previous.grid, version.grid)) if previous else None
 
 
+def _key_share(unit: Unit) -> None:
+    """A cover this opens refers to its unit, whose foreign key is checked at commit with `FOR KEY SHARE`. Taken here, before
+    any roster, so it keeps the order unit, roster: an edit or a rename holding the unit while it waits on this roster is
+    waited for instead of deadlocked with. The weakest lock there is, so a leave write of another unit's nurse, or a read of
+    the unit, never waits on it."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM units_unit WHERE id = %s FOR KEY SHARE", [unit.pk])
+
+
 @dataclass(frozen=True)
 class TakenOff:
     roster: Roster
@@ -89,8 +100,9 @@ def take_off_for_leave(nurse: NurseProfile, unit: Unit, days: Iterable[dt.date],
     cannot change it, and month close (ticket 21) reads the leave itself. Each shift taken off on a day today or later opens a
     cover (ticket 26), after the version, unoffered and told to nobody. Call it under the nurse's lock, as every leave write
     holds it: this takes each roster's row lock after it, never the catalogue's, so the order stays catalogue, nurse, unit,
-    roster. The nurses' locks are `FOR NO KEY UPDATE`, so the notifications' foreign keys to colleagues' users, checked at
-    commit, never wait on a colleague's edit that waits on this roster."""
+    roster, with the unit's `FOR KEY SHARE` before the rosters for the covers it opens. The nurses' locks are `FOR NO KEY
+    UPDATE`, so the notifications' foreign keys to colleagues' users, checked at commit, never wait on a colleague's edit that
+    waits on this roster."""
     from covers import opening  # covers reads rosters, so not at the top.
 
     hospital_id = nurse.user.username
@@ -99,6 +111,8 @@ def take_off_for_leave(nurse: NurseProfile, unit: Unit, days: Iterable[dt.date],
         if day.replace(day=1) >= membership.this_month():
             by_month.setdefault(day.replace(day=1), []).append(day)
     taken = []
+    if by_month:
+        _key_share(unit)
     for month, month_days in by_month.items():
         approved = Roster.objects.select_for_update(of=("self",)).filter(state=RosterState.APPROVED)
         roster = approved.filter(unit=unit, month=month).first()

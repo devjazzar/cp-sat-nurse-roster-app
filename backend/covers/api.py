@@ -146,8 +146,10 @@ def no_roster_in_force(unit, month: dt.date) -> str:
 def open_cover(request: HttpRequest, unit_id: UUID, body: OpenCoverBody) -> Status:
     """For any shift-day of the roster in force, today or later, short for any reason: it waits unoffered, as one opened by
     leave does. Nobody is told, and the audit log has nothing of it."""
-    unit = unit_in_scope(request.user, unit_id)
     with transaction.atomic():
+        # The unit's lock before the roster's, as an edit takes them: the cover's foreign key to the unit is checked at commit,
+        # and a rename holds every unit while it waits on the rosters.
+        unit = unit_in_scope(request.user, unit_id, for_update=True)
         refused = opening.refusal(unit, body.date, body.shift)
         if refused:
             refuse(((refused[0],), refused[1]))
