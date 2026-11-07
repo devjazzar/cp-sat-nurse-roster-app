@@ -119,6 +119,8 @@ class ShiftTakenOff(Schema):
     date: dt.date
     shift: str = Field(description="The shift's code the roster in force held that day.")
     version: int = Field(description="The roster version that took it off, now in force.")
+    cover: UUID | None = Field(description="The cover this opened, waiting unoffered on your Covers page for one more nurse on "
+                                           "that shift. Null for a day passed, which nobody can cover.")
 
 
 class SavedLeave(LeaveRun):
@@ -296,7 +298,8 @@ class _Begun:
 
     @property
     def shifts_taken_off(self) -> list[ShiftTakenOff]:
-        return [ShiftTakenOff(date=day, shift=code, version=taken.version.number)
+        return [ShiftTakenOff(date=day, shift=code, version=taken.version.number,
+                              cover=taken.covers[day].pk if day in taken.covers else None)
                 for taken in self.taken_off for day, code in taken.days]
 
 

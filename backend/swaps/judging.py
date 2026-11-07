@@ -12,19 +12,17 @@ What is left is the one bit a refusal is: a nurse who proposes the same change d
 colleague cannot take a shift, without learning why. That comes with refusing at once, which the ticket asks for."""
 from __future__ import annotations
 
-import copy
 import datetime as dt
 from dataclasses import dataclass, field
 
 from accounts.models import Role
-from hospital.models import Shift
 from nurses import membership
 from nurses.models import NurseProfile
 from requesting.models import what_of
-from rosters.drafts import current_code
+from rosters.approved import ApprovedMonth, Change, already_broken, violation_key, with_pins
 from rosters.editing import Checked, scored
-from rosters.models import PinnedCell, PinOrigin, Roster
-from rosters.pins import Judge, long_date
+from rosters.models import PinOrigin, Roster
+from rosters.pins import long_date
 from rosters.versions import Grid
 from solves.input import assemble
 from solves.result import in_dates
@@ -32,18 +30,6 @@ from swaps.models import WAITING, Swap, SwapCell
 
 # A shift-day rule with no nurse that says nothing of anyone: how many work it, which any reader of the roster can count.
 SAID_AS_IT_IS = {"headcount"}
-
-
-@dataclass(frozen=True)
-class Change:
-    """One cell asked for: a nurse's date and what it should hold, a shift's code or None for a day off."""
-    hospital_id: str
-    date: dt.date
-    shift: str | None
-
-    @property
-    def day(self) -> str:
-        return self.date.isoformat()
 
 
 @dataclass(frozen=True)
@@ -93,37 +79,16 @@ def cannot_work_for(name: str, day: dt.date | None) -> str:
     return f"This swap cannot work for {name} on {long_date(day)}." if day else f"This swap cannot work for {name}."
 
 
-class SwapMonth:
+class SwapMonth(ApprovedMonth):
     """An approved roster's month as a swap reads it, read once for all of a swap's cells. `exclude` is the swap being judged
     again, whose own cells are not another swap's."""
 
     def __init__(self, roster: Roster, exclude: Swap | None = None):
-        self.roster, self.unit, self.month = roster, roster.unit, roster.month
-        self.judge = Judge(self.unit, self.month)
-        self.serving = {nurse.user.username: nurse for nurse in self.judge.nurses.values()}
-        on_grid = NurseProfile.objects.filter(user__username__in=list(roster.grid)).select_related("user")
-        self.on_grid = {nurse.user.username: nurse for nurse in on_grid}
-        worked = Shift.objects.filter(active=True, code__in=self.unit.rules.get("shifts", []))
-        self.shifts = {shift.code: shift for shift in worked}
-        self.pins = {(pin.nurse_id, pin.date): pin for pin in PinnedCell.objects.current().in_month(self.month)
-                     .filter(unit=self.unit).select_related("shift")}
+        super().__init__(roster)
         waiting = SwapCell.objects.filter(swap__roster=roster, swap__state__in=WAITING)
         if exclude is not None:
             waiting = waiting.exclude(swap=exclude)
         self.in_other_swaps = set(waiting.values_list("nurse_id", "date"))
-
-    def cell(self, hospital_id: str, day: dt.date) -> str:
-        return self.roster.grid.get(hospital_id, {}).get(day.isoformat(), "")
-
-    def shift_of(self, code: str | None) -> Shift | None:
-        return self.shifts.get(current_code(code)) if code else None
-
-    def grid_after(self, changes: list[Change]) -> Grid:
-        grid = copy.deepcopy(self.roster.grid)
-        for change in changes:
-            shift = self.shift_of(change.shift)
-            grid[change.hospital_id][change.day] = shift.code if shift else ""
-        return grid
 
 
 def _cell_problem(month: SwapMonth, change: Change, index: int, proposer: NurseProfile | None) -> Problem | None:
@@ -173,24 +138,6 @@ def _cell_problem(month: SwapMonth, change: Change, index: int, proposer: NurseP
     return None
 
 
-def _with_pins(solve_input: dict, month: SwapMonth, changes: list[Change]) -> dict:
-    """The input as approval would make it: each changed cell a pin, so the solver's `pin` rule holds the new cell, and a
-    manager's pin there, which approval replaces, does not count against it."""
-    edited = copy.deepcopy(solve_input)
-    rows = {row["id"]: row for row in edited["nurses"]}
-    for change in changes:
-        row = rows.get(change.hospital_id)
-        if row is not None:
-            shift = month.shift_of(change.shift)
-            row.setdefault("pinned", {})[change.day] = shift.code if shift else ""
-    return edited
-
-
-def _violation_key(violation: dict) -> tuple:
-    """The solver's text tells the shifts of one day apart, and says how far a rule is broken: one broken further is new."""
-    return violation["rule"], violation["nurse"], violation["date"], violation["text"]
-
-
 def _violation_problem(violation: dict, month: SwapMonth, changes: list[Change], proposer: NurseProfile | None) -> Problem:
     text = in_dates(violation["text"], month.month)
     day = dt.date.fromisoformat(violation["date"]) if violation["date"] else None
@@ -224,13 +171,13 @@ def judge(roster: Roster, changes: list[Change], proposer: NurseProfile | None, 
     solve_input = assemble(month.unit, month.month).input
     judged.grid = month.grid_after(changes)
     judged.before = scored(solve_input, roster.grid)
-    judged.after = scored(_with_pins(solve_input, month, changes), judged.grid)
+    judged.after = scored(with_pins(solve_input, month, changes), judged.grid)
     if judged.after.reason:
         judged.problems.append(Problem(f"The swap cannot be checked: {in_dates(judged.after.reason, month.month)}",
                                        "This swap cannot be checked against the roster now. Ask your manager."))
         return judged
-    already = {_violation_key(row) for row in judged.before.answer["violations"]} if judged.before.answer else set()
+    already = already_broken(judged.before)
     for violation in judged.after.answer["violations"]:
-        if _violation_key(violation) not in already:
+        if violation_key(violation) not in already:
             judged.problems.append(_violation_problem(violation, month, changes, proposer))
     return judged

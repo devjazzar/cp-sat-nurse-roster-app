@@ -105,7 +105,7 @@ def test_every_periodic_job_takes_a_lock_under_its_own_name(transactional_db):
     from procrastinate.contrib.django import app
 
     periodic = [task.task for task in app.periodic_registry.periodic_tasks.values()]
-    assert {task.name.rsplit(".", 1)[-1] for task in periodic} >= {"close_month", "recover_lost_jobs", "expire_swaps",
+    assert {task.name.rsplit(".", 1)[-1] for task in periodic} >= {"close_month", "recover_lost_jobs", "expire_swaps", "expire_covers",
                                                                    "open_and_close_request_windows", "close_ended_nurses"}
     for task in periodic:
         task.defer(timestamp=0)

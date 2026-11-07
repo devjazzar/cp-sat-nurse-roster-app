@@ -6,7 +6,7 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Literal
 
-from solver_service.grid import validate_grid
+from solver_service.grid import nurses_of, validate_grid
 
 from hospital.models import Shift
 from rosters.drafts import current_code, in_current_codes
@@ -126,6 +126,15 @@ def scored(solve_input: dict, grid: dict[str, dict[str, str]]) -> Checked:
         return Checked(None, validate_grid(*_on_the_month(solve_input, grid)))
     except ValueError as e:
         return Checked(str(e))
+
+
+def accounted(solve_input: dict, grid: dict[str, dict[str, str]]) -> dict | None:
+    """Each nurse's hours on this grid, with the solver's own arithmetic (`nurse_roster.result.nurse_accounting`, a result's
+    `nurses` block, which My month's `rosters.own_month` matches). None when the loader refuses the grid or the rules."""
+    try:
+        return nurses_of(*_on_the_month(solve_input, grid))
+    except ValueError:
+        return None
 
 
 def with_edits(solve_input: dict, month: DraftEdits, edits: list[Edit]) -> dict:

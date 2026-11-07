@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from accounts.models import User
 from nurses import membership
@@ -20,6 +21,9 @@ from rosters.pins import long_date
 from solves.models import Solve
 from units.models import Unit
 
+if TYPE_CHECKING:
+    from covers.models import Cover
+
 Grid = dict[str, dict[str, str]]
 
 
@@ -27,8 +31,10 @@ def make_version(roster: Roster, grid: Grid, origin: str, by: User, reason: str 
                  solve: Solve | None = None) -> RosterVersion:
     """The next number, with `grid` in today's codes, which becomes `Roster.grid` too. Hold the roster's row lock, so that two
     changes at once each get their own number in the order they commit. A live swap one of whose cells this changes expires here
-    (ticket 20), whatever made the version, and its people are told it expired, never why."""
+    (ticket 20), whatever made the version, and its people are told it expired, never why. Then a waiting cover of a shift-day
+    this puts one more nurse on is filled (ticket 26), one per nurse added, oldest first."""
     from closes.tasks import project  # The month close reads rosters, so not at the top.
+    from covers.expiring import on_new_version as fill_covers  # covers reads rosters, so not at the top.
     from swaps.expiring import on_new_version  # swaps reads rosters, so not at the top.
 
     latest = roster.versions.first()
@@ -38,6 +44,7 @@ def make_version(roster: Roster, grid: Grid, origin: str, by: User, reason: str 
                                            solve=solve, created_by=by, reason=reason)
     if latest is not None:
         on_new_version(roster, latest.grid, grid)  # Not `roster.grid`, which a direct edit has written already.
+        fill_covers(roster, latest.grid, grid, origin)
     project(roster.unit, roster.month)
     return version
 
@@ -72,16 +79,20 @@ class TakenOff:
     roster: Roster
     version: RosterVersion
     days: list[tuple[dt.date, str]]
+    covers: dict[dt.date, Cover] = field(default_factory=dict)
 
 
 def take_off_for_leave(nurse: NurseProfile, unit: Unit, days: Iterable[dt.date], by: User) -> list[TakenOff]:
     """Leave wins over a shift. On each approved roster of this unit for a month not yet over, a shift the roster in force holds
     on one of these days is taken off, as a new version with origin `edit` by whoever recorded the leave. Its reason says leave
     and never the type. No pin is made: the leave is the fact a re-plan keeps. A month that is over keeps its grid, as an edit
-    cannot change it, and month close (ticket 21) reads the leave itself. Call it under the nurse's lock, as every leave write
+    cannot change it, and month close (ticket 21) reads the leave itself. Each shift taken off on a day today or later opens a
+    cover (ticket 26), after the version, unoffered and told to nobody. Call it under the nurse's lock, as every leave write
     holds it: this takes each roster's row lock after it, never the catalogue's, so the order stays catalogue, nurse, unit,
     roster. The nurses' locks are `FOR NO KEY UPDATE`, so the notifications' foreign keys to colleagues' users, checked at
     commit, never wait on a colleague's edit that waits on this roster."""
+    from covers import opening  # covers reads rosters, so not at the top.
+
     hospital_id = nurse.user.username
     by_month: dict[dt.date, list[dt.date]] = {}
     for day in sorted(set(days)):
@@ -100,5 +111,6 @@ def take_off_for_leave(nurse: NurseProfile, unit: Unit, days: Iterable[dt.date],
             grid[hospital_id][day.isoformat()] = ""
         name = nurse.user.full_name or hospital_id
         reason = f"Leave recorded for {name} took their shift off {', '.join(long_date(day) for day, _ in off)}."
-        taken.append(TakenOff(roster, make_version(roster, grid, VersionOrigin.EDIT, by, reason), off))
+        version = make_version(roster, grid, VersionOrigin.EDIT, by, reason)
+        taken.append(TakenOff(roster, version, off, opening.for_leave(roster, version, off)))
     return taken
