@@ -3,11 +3,13 @@
 # the races, the clock, the PWA), then deploy/tests/operations.sh on a stack of its own. The job fails on any failure.
 #
 # Every step after the runner's own setup is e2e/ci.sh, which runs the same way from a checkout: what passes there passes here.
-# There is no remote yet, so this has not run on GitHub (ticket 24's comment says what was run instead).
+# It runs on every pull request and on main: a ticket branch runs here through its pull request
+# (docs/guides/local-development.md, section 4.6), and pushing main after the fast-forward runs it once more on main.
 name: Browser checks
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

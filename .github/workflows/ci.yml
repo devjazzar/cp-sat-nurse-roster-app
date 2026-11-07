@@ -1,8 +1,20 @@
+# The three suites and the image build, on every pull request and on main. A ticket branch runs here through its pull
+# request (docs/guides/local-development.md, section 4.6); pushing main after the fast-forward runs it once more on main.
 name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same branch or pull request cancels the run still going on the old one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   UV_VERSION: "0.13.7"
@@ -81,6 +93,13 @@ jobs:
       - name: Tests
         working-directory: frontend
         run: npm test
+      - name: Six runs at once (a test that passes alone and fails under load fails here)
+        working-directory: frontend
+        run: |
+          pids=(); for i in 1 2 3 4 5 6; do npm test > "run-$i.log" 2>&1 & pids+=($!); done
+          failed=0; for p in "${pids[@]}"; do wait "$p" || failed=1; done
+          grep -h -E "^ +Tests " run-*.log
+          [[ $failed == 0 ]] || { grep -h -E "^ FAIL " run-*.log | sort -u; exit 1; }
 
   image:
     runs-on: ubuntu-latest

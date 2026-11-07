@@ -130,8 +130,11 @@ Either variable alone runs only its own stack's projects. `stack.sh` also moves 
 runs a periodic job now in its worker (`fire <project> <module.tasks.job>`) and finds a sound swap (`swap`); the checks use
 them, and its header says how.
 
-**Everything CI runs** (`.github/workflows/browser-checks.yml`): the image, both stacks, every Playwright project, then the
-deploy scripts' test, and everything removed. About 11 minutes here; it fails if anything fails.
+**CI** is GitHub Actions, on every pull request and on `main`: `.github/workflows/ci.yml` (the solver's, the backend's and
+the frontend's suites, the frontend's six times at once, the OpenAPI document and client matching, the image build) and
+`.github/workflows/browser-checks.yml`, which runs `e2e/ci.sh`: the image, both stacks, every Playwright project, then the
+deploy scripts' test, and everything removed. The same script runs from a checkout, about 11 minutes here; it fails if
+anything fails.
 
 ```bash
 e2e/ci.sh

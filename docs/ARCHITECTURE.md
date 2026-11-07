@@ -642,12 +642,14 @@ A stack's hospital date can be moved for them (`e2e/stack.sh clock`): `nurses.me
 `E2E_CLOCK_FILE` names, a variable only `e2e/compose.e2e.yaml` passes, which `deploy/compose.yaml` gives no service and which
 has no URL. The hourly jobs are then run at once by the stack's own worker (`e2e/stack.sh fire`).
 
-CI is `.github/workflows/browser-checks.yml`, which runs `e2e/ci.sh`: the image, both stacks, every Playwright project and
-`deploy/tests/operations.sh`, on every push. The backend's, the solver's and the frontend's suites are not in it yet, and there
-is no remote for it to run on. Planned: GitHub Actions runs the four suites on every push and, on a version tag, builds the
-image and pushes it to a private GitHub Container Registry; each hospital's VPS logs in once with a read-only token
-and pins the version in `.env`. The orval client is regenerated in CI from the backend's
-OpenAPI document so an incompatible API change fails the build.
+CI is GitHub Actions on the private repository, on every pull request and on `main` (since 2026-11-08; ticket 26 was the last
+verified on a local copy): `.github/workflows/ci.yml` runs the solver's, the backend's (on a PostgreSQL 18 service, with
+`makemigrations --check`) and the frontend's suites, the frontend's six times at once, checks that the orval client and
+`openapi.json` match the backend's export so an incompatible API change fails the build, and builds the image;
+`.github/workflows/browser-checks.yml` runs `e2e/ci.sh`: the image, both stacks, every Playwright project and
+`deploy/tests/operations.sh`. A ticket branch is checked through its pull request; `main` is fast-forwarded to it and pushed
+(`docs/guides/local-development.md`). Planned: on a version tag, build the image and push it to a private GitHub Container
+Registry; each hospital's VPS logs in once with a read-only token and pins the version in `.env`.
 
 ## 11. Pinned versions (2026-11-04)
 

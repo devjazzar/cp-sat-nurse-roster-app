@@ -15,6 +15,8 @@ told so in [CLAUDE.md](../../CLAUDE.md) and [docs/agents/](../agents/); you are 
 - **uv 0.13 and Python 3.14, Node 26**: the versions pinned in the README. `uv sync --all-packages --python 3.14` once
   from the root installs every Python package; `cd frontend && npm ci` and `cd e2e && npm ci && npx playwright install
   chromium` install the two Node trees.
+- **The `gh` CLI**, signed in to the GitHub account that owns the repository (`gh auth status`): the ticket sessions open
+  pull requests with it and the main session reads their checks.
 - **The Claude desktop app** (Code tab), with:
   - the engineering skills in `~/.claude/skills/`: `grill-with-docs`, `to-spec`, `to-tickets`, `implement`,
     `implement-spec`, `code-review`, `tdd`, and the rest `setup-matt-pocock-skills` set up. `docs/agents/` holds what that
@@ -131,8 +133,9 @@ start a session from a turn that came in remotely.
 
 Two things the brief always carries, because they went wrong once each:
 
-- **The ticket session never touches `main` or the dev stack.** It commits on its branch, rebases on `main` if `main`
-  moved, and reports its branch and head. The main session does the merge.
+- **The ticket session never touches `main` or the dev stack.** It commits on its branch, pushes it to `origin` and opens a
+  draft pull request, which is where CI runs (section 4.6); it rebases on `main` if `main` moved, and reports its pull
+  request and head. The main session does the merge.
 - **It must say plainly what the dev stack needs** (section 2's table) and what it did **not** verify.
 
 When the ticket is the whole spec, or the spec's tickets are many and small, `/implement-spec` is the alternative: one
@@ -148,10 +151,11 @@ What the brief asks the session to do, so you know what to expect in its report:
    previous ticket's comment, which is the latest model of a write-up.
 2. **`tdd` at the agreed seams**: red → green, one slice at a time, tests through public interfaces only. Typecheck and single
    test files as it goes.
-3. **The full suites once at the end**: backend `pytest` on a throwaway PostgreSQL 18 container of its own; the solver's
-   `pytest` if it touched `solver/`; frontend `npm test` six times in parallel (section 5.2) and `npm run build`;
-   `e2e/ci.sh` with its own `E2E_CI_PREFIX`. `makemigrations --check` clean. If the API changed, `frontend/openapi.json`
-   and the generated client regenerated and matching the export (section 5.4).
+3. **The full suites once at the end**, locally: backend `pytest` on a throwaway PostgreSQL 18 container of its own; the
+   solver's `pytest` if it touched `solver/`; frontend `npm test` and `npm run build`. `makemigrations --check` clean. If the
+   API changed, `frontend/openapi.json` and the generated client regenerated and matching the export (section 5.4). The
+   browser checks it runs locally are the single Playwright files it changed, on its scratch stack; **the whole of
+   `e2e/ci.sh`, and the six parallel frontend runs, run on GitHub** (section 4.6), not on your machine.
 4. **`/code-review` against the base commit** it was cut from: two axes, standards and spec, in parallel subagents. It fixes
    what they find or says why not.
 5. **`/codex:adversarial-review --base <base commit>`**: a second model challenging the approach, the assumptions and the
@@ -167,47 +171,55 @@ What the brief asks the session to do, so you know what to expect in its report:
 
 If something only you can answer blocks it, it sends one short question to the main session and stops. Answer it there.
 
-### 4.6 Verify on a clean copy
+### 4.6 Verify: CI on GitHub, on the pull request
 
-The session's report is a report, not proof. In the main session, on a `git archive` of the branch's head, never on the
-worktree or the checkout:
+The session's report is a report, not proof. The proof is GitHub Actions on the pull request's head, a clean checkout on a
+machine that is not yours: two workflows, both on every pull request and on `main`.
+
+| Workflow | Jobs | What it proves | Time |
+|---|---|---|---|
+| **CI** (`.github/workflows/ci.yml`) | `solver`, `backend`, `frontend`, `image` | the solver's suite; the backend's on a PostgreSQL 18 service with `makemigrations --check`; the frontend's OpenAPI document and generated client matching the backend's export, the typecheck and build, the suite once and then **six times at once**; the image builds | about 10 min, in parallel |
+| **Browser checks** (`.github/workflows/browser-checks.yml`) | `browser-checks` | `e2e/ci.sh`: the image, a seeded stack and an empty one, every Playwright project, `deploy/tests/operations.sh`, everything removed | about 15 min |
+
+In the main session, once the ticket session reports:
 
 ```bash
-scripts/verify-backend.sh <head> /tmp/verify-tNN 55461
+gh pr checks <number> --watch
+```
+
+Both workflows green on the head the session reported is the verification. A new push to the branch cancels the run still
+going and starts another, so a report whose head moved since is checked again. `gh run view <id> --log-failed` reads a red
+job's log; the browser checks upload Playwright's traces of what failed as an artifact.
+
+Then **read the diff against the ticket and the spec** yourself (`gh pr diff <number>`, or `git diff main...refs/heads/
+<branch> -- <the files that matter>` after `git fetch`): the API change, the guard, the wording. The reviews ran in the
+session; this is the one pair of eyes outside it.
+
+When something fails, send the session **one** message naming the job, the test, the exact failure and what else passed,
+and tell it to commit the fix on its branch, push, and report the new head once the checks are green. Ticket 24's parallel
+failure was a real ordering bug in the grid, found only by six runs sharing a machine, and fixed in the component, not the
+test; that is what the six-runs step is for.
+
+**When GitHub is not an option** (down, or the minutes are spent), the local scripts do the same on a `git archive` of the
+head, never on the worktree or the checkout: `scripts/verify-backend.sh <head> /tmp/verify-tNN 55461`,
+`scripts/verify-frontend.sh /tmp/verify-tNN`, then `cd /tmp/verify-tNN && E2E_CI_PREFIX=nr-verify-tNN e2e/ci.sh`. About
+12, 3 and 12 minutes, in the background, in that order; afterwards `docker ps -a | grep nr-verify-tNN` and `docker volume ls
+| grep nr-verify-tNN` print nothing.
+
+### 4.7 Fast-forward `main`, and push it
+
+```bash
+git fetch origin && git merge --ff-only refs/remotes/origin/<branch>
 ```
 
 ```bash
-scripts/verify-frontend.sh /tmp/verify-tNN
-```
-
-```bash
-cd /tmp/verify-tNN && E2E_CI_PREFIX=nr-verify-tNN e2e/ci.sh
-```
-
-The three take about 12, 3 and 12 minutes; run them in the background, in that order (`ci.sh` is the load the parallel
-frontend runs need to be free of). `verify-backend.sh` exports the commit, starts a throwaway PostgreSQL on the port you
-give (a different one for each copy alive at the same time), checks the OpenAPI export, the migrations, the backend's and
-the solver's suites, and stops the container. `verify-frontend.sh` runs the suite alone, six times at once, then the build.
-`e2e/ci.sh` is everything CI runs: the image, a seeded stack and an empty one, every Playwright project, the operations
-test, everything removed. Check nothing is left: `docker ps -a | grep nr-verify-tNN` and `docker volume ls | grep
-nr-verify-tNN` print nothing.
-
-Then **read the diff against the ticket and the spec** yourself (`git diff main...refs/heads/<branch> -- <the files that
-matter>`): the API change, the guard, the wording. The reviews ran in the session; this is the one pair of eyes outside it.
-
-When something fails, send the session **one** message naming the test, the exact failure, how to reproduce it, and what
-else passed, and tell it to commit the fix on its branch and report the new head. Then verify again from the top: ticket 24's
-parallel failure was a real ordering bug in the grid, found only by six runs sharing the machine, and fixed in the component,
-not the test.
-
-### 4.7 Fast-forward `main`
-
-```bash
-git merge --ff-only refs/heads/<branch>
+git push origin main
 ```
 
 Always the full ref: a tag of the same name would win over a bare branch name. `--ff-only` refuses if `main` moved; then the
-session rebases, you verify again. Never merge with a merge commit, never push: there is no remote, by choice.
+session rebases and pushes, you verify again. Never merge with a merge commit. Pushing `main` with the pull request's head on
+it marks the pull request **merged** on GitHub by itself (no button pressed), deletes its branch there (the repository is set
+to), and runs both workflows once more on `main`.
 
 ### 4.8 Refresh the dev stack
 
@@ -252,7 +264,7 @@ tickets are in; the ticket sessions stay in the sidebar and can be archived.
 | **frontend** `cd frontend && npm test` | Vitest over the real routes and the generated client, `fetch` stubbed per test | `npm ci` | 1 min; 2 min for six at once |
 | **operations** `deploy/tests/operations.sh <project>` | a production-composed stack of its own: health, `/metrics`, JSON logs, the clock off, backup, retention, restore, the password reset | Docker | 5 min |
 | **browser** `e2e/` (Playwright) | a seeded stack and an empty one, built from the checkout, their own ports | Docker, `npx playwright install chromium` | 7 min for all 68 |
-| **everything CI runs** `e2e/ci.sh` | the image, both stacks, every Playwright project, then `operations.sh`, everything removed | fixed ports 18180–18183 and 18543–18545 | 11–12 min |
+| **everything the browser-checks workflow runs** `e2e/ci.sh` | the image, both stacks, every Playwright project, then `operations.sh`, everything removed | fixed ports 18180–18183 and 18543–18545; on GitHub for every pull request, locally only when GitHub is not an option | 11–12 min here, about 15 on GitHub |
 
 A ticket session runs the backend suite on a throwaway container (`docker run -d --rm -p 127.0.0.1:<port>:5432 -e
 POSTGRES_USER=nurse_roster -e POSTGRES_DB=nurse_roster -e POSTGRES_PASSWORD=<x> postgres:18`, then `POSTGRES_HOST=127.0.0.1
@@ -330,9 +342,13 @@ Use the `implement` skill on ticket NN, `.scratch/<release>/issues/NN-<slug>.md`
 
 ## Where to work
 - You are in your own git worktree on your own branch, cut from `main` at `<base>`. Commit there.
-- Do not commit to `main`, merge or push. There is no remote, by the user's choice.
-- If `main` moves, rebase on it before your final report so your branch can be fast-forwarded.
-- The session that started you checks your branch and brings it into `main`.
+- Do not commit to `main` or merge into it. Push your branch to `origin` after your first commit and open a **draft pull
+  request** against `main` (`gh pr create --draft --fill`); keep pushing as you go. GitHub Actions runs on it: the three
+  suites, the image, six frontend runs at once, and the browser checks (`e2e/ci.sh`). Do not run `e2e/ci.sh` on this
+  machine; run the Playwright files you changed on your scratch stack.
+- If `main` moves, rebase on it and push before your final report so your branch can be fast-forwarded.
+- Before your final report: `gh pr checks --watch` until both workflows are green on your head, then mark the pull request
+  ready (`gh pr ready`). The session that started you checks the diff and brings your branch into `main`.
 
 ## Second opinions
 The user asked for Fable as advisor where one is needed: the `advisor` tool, or an Agent with `model: "fable"`.
@@ -349,12 +365,12 @@ Give it the code and the question, not your conclusion.
 <the seams from the spec, by name>
 
 ## How to work
-- `tdd` at those seams. Typecheck and single test files regularly; the full suites once at the end: backend `pytest` on a
-  throwaway PostgreSQL 18 container of your own; the solver's if you touch `solver/`; frontend `npm test` and `npm run build`;
-  `e2e/ci.sh` with your own `E2E_CI_PREFIX` (its ports are fixed, check none is in use). `makemigrations --check` clean.
-  If the API changes, regenerate `frontend/openapi.json` and the client and confirm they match the export.
+- `tdd` at those seams. Typecheck and single test files regularly; the full suites once at the end, locally: backend
+  `pytest` on a throwaway PostgreSQL 18 container of your own; the solver's if you touch `solver/`; frontend `npm test` and
+  `npm run build`. `makemigrations --check` clean. If the API changes, regenerate `frontend/openapi.json` and the client and
+  confirm they match the export. The whole browser suite and the six parallel frontend runs are GitHub's, on your pull request.
 - Frontend tests follow ticket 11's comment: no raised timeouts, no fake timers with `start`, no wait that proves something
-  did not happen. Run six `npm test` at once before reporting; the main session will.
+  did not happen. CI runs six `npm test` at once: a test that passes alone and fails there has found a real bug.
 - When done: `code-review` against `<base>`, then `/codex:adversarial-review --base <base>`. Fix what they find or say why not.
 - Hold the screens against `better-interface`, `better-writing`, `better-accessibility` by hand.
 - Drive the real thing on your own scratch compose project. Remove only what you created.
@@ -373,9 +389,10 @@ Ticket NN only. Start nothing else. Where a later ticket owns something, leave a
 - Never `down -v` on any project but your own scratch one.
 
 ## Final report
-Lead with the branch and head. First 400 characters: what was delivered, whether the suites pass. Say plainly if you changed
-`deploy/compose.yaml`, the `Dockerfile`, the solver or a dependency (the dev stack then needs a rebuild). Detail in the
-ticket comment. If something only the user can answer blocks you, send ONE short question to the session that started you.
+Lead with the pull request's number, the branch and the head. First 400 characters: what was delivered, whether the local
+suites pass and both GitHub workflows are green on that head. Say plainly if you changed `deploy/compose.yaml`, the
+`Dockerfile`, the solver or a dependency (the dev stack then needs a rebuild). Detail in the ticket comment. If something only
+the user can answer blocks you, send ONE short question to the session that started you.
 ```
 
 ## Appendix B: the ticket comment
@@ -398,10 +415,12 @@ Appended under `## Comments`, in this order, each a bold lead-in. Ticket 24's is
 For when a new main session has to pick the routine up:
 
 1. Read the ticket session's full report (`list_events` on its session).
-2. `scripts/verify-backend.sh <head> <dir> <port>`, `scripts/verify-frontend.sh <dir>`, `e2e/ci.sh` on the copy, in the
-   background; read the diff against the spec meanwhile.
-3. Anything red: one message back to the session, verify again from the top.
-4. `git merge --ff-only refs/heads/<branch>`; refresh the dev stack by section 2's table; `curl` the health answer.
+2. `gh pr checks <number> --watch`: both workflows green on the head it reported. Read the diff against the spec meanwhile
+   (`gh pr diff <number>`).
+3. Anything red: one message back to the session; check again on its new head.
+4. `git fetch origin && git merge --ff-only refs/remotes/origin/<branch>`, then `git push origin main` (the pull request
+   turns merged by itself); refresh the dev stack by section 2's table; `curl` the health answer.
 5. The **Worth your review** points to the user, numbered, each with a recommendation.
-6. Append `**Reviewed by the user (date):** …` to the ticket; commit on `main`.
-7. Every few tickets: remove the worktrees and branches that are on `main`.
+6. Append `**Reviewed by the user (date):** …` to the ticket; commit on `main` and push.
+7. Every few tickets: remove the worktrees and local branches that are on `main` (GitHub deletes the pushed branch at the
+   merge).
