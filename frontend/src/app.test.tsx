@@ -329,7 +329,8 @@ const untilSignedIn = (answer: Answer) => {
   let signedIn = false
   return {
     read: () => (signedIn ? answer : UNAUTHORIZED),
-    login: (me: unknown) => () => { signedIn = true; return { body: { time_zone: "Asia/Riyadh", ...(me as object) } } },
+    /** The login's answer: from then on, the reads are answered. */
+    loginAs: (me: unknown) => () => { signedIn = true; return { body: { time_zone: "Asia/Riyadh", ...(me as object) } } },
   }
 }
 async function signInAgain(user: ReturnType<typeof userEvent.setup>) {
@@ -353,7 +354,7 @@ describe("a session that ends behind the user's back", () => {
     const { user, router } = start("/audit-log?action=auth.login", admin({
       "GET /api/audit/entries": audit.read,
       "GET /api/audit/filter-options": { body: { actions: ["auth.login"], users: ["admin"] } },
-      "POST /api/auth/login": audit.login(ME),
+      "POST /api/auth/login": audit.loginAs(ME),
     }))
     await screen.findByText(SIGNED_OUT)
 
@@ -372,7 +373,7 @@ describe("a session that ends behind the user's back", () => {
       ...session(ME),
       "GET /api/audit/entries": audit.read,
       "GET /api/audit/filter-options": { body: { actions: ["auth.login"], users: ["admin"] } },
-      "POST /api/auth/login": audit.login(NURSE),
+      "POST /api/auth/login": audit.loginAs(NURSE),
     }))
     await screen.findByText(SIGNED_OUT)
 
@@ -384,7 +385,7 @@ describe("a session that ends behind the user's back", () => {
 
   it("the forced password change still comes first", async () => {
     const health = untilSignedIn({ body: HEALTH })
-    const { user, router } = start("/health", admin({ "GET /api/ops/health": health.read, "POST /api/auth/login": health.login(FORCED) }))
+    const { user, router } = start("/health", admin({ "GET /api/ops/health": health.read, "POST /api/auth/login": health.loginAs(FORCED) }))
     await screen.findByText(SIGNED_OUT)
 
     await signInAgain(user)
@@ -4986,12 +4987,12 @@ describe("the roster page", () => {
 
     // Ticket 25: without a session, staying could save nothing, so nothing is asked.
     it("a session that ends on saving goes straight to the login page, and signing in comes back to the month", async () => {
-      const units = untilSignedIn({ body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] })
-      let ended = false
+      // The session ends at the save: every read after it is refused until the manager signs in again.
+      let signedIn = true
       const { user, router } = start("/roster?month=2026-06", editing({
-        "GET /api/units": () => (ended ? units.read() : { body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] }),
-        [`POST ${UNIT}/roster/pins`]: () => { ended = true; return UNAUTHORIZED },
-        "POST /api/auth/login": units.login(MANAGER),
+        "GET /api/units": () => (signedIn ? { body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] } : UNAUTHORIZED),
+        [`POST ${UNIT}/roster/pins`]: () => { signedIn = false; return UNAUTHORIZED },
+        "POST /api/auth/login": () => { signedIn = true; return { body: { time_zone: "Asia/Riyadh", ...MANAGER } } },
       }))
       await user.click(await cellNamed("Amal Saleh, 5 June: Off"))
       await user.click(await screen.findByRole("menuitem", { name: "Pin a day off" }))
