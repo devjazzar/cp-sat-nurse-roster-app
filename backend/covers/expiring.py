@@ -17,14 +17,11 @@ from django.utils import timezone
 
 from nurses import membership
 from rosters.drafts import in_current_codes
-from rosters.models import Roster
+from rosters.models import Roster, VersionOrigin
 from rosters.versions import Grid
 
 from covers.models import WAITING, Cover, CoverState
 
-# A version a cover's acceptance makes (ticket 27 adds the choice, `VersionOrigin.COVER`). It changes one cell, its taker's,
-# which its own cover accounts for, so it fills no other: a second cover of the same shift-day stays offered.
-COVER_ORIGIN = "cover"
 
 
 def state_now(cover: Cover) -> str:
@@ -62,7 +59,9 @@ def _on_each_shift_day(grid: Grid) -> Counter:
 def on_new_version(roster: Roster, before: Grid, after: Grid, origin: str) -> list[Cover]:
     """For each shift-day on which `after` holds more nurses than `before`, one waiting cover of that shift-day per nurse added,
     oldest first, is filled. A cover whose date has passed is not waiting, and is left for the job to expire."""
-    if origin == COVER_ORIGIN:
+    if origin == VersionOrigin.COVER:
+        # A cover's own acceptance changes one cell, its taker's, which its cover accounts for: a second cover of the same
+        # shift-day stays offered.
         return []
     added = _on_each_shift_day(after) - _on_each_shift_day(before)
     if not added:

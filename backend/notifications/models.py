@@ -16,6 +16,7 @@ class Event(models.TextChoices):
     REQUEST_DECIDED = "request_decided"
     SWAP_STEP = "swap_step"
     MONTH_CLOSED = "month_closed"
+    COVER_STEP = "cover_step"
 
 
 class SolveOutcome(models.TextChoices):

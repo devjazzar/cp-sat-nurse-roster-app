@@ -15,6 +15,7 @@ class PinOrigin(models.TextChoices):
     MANAGER = "manager"
     REQUEST = "request"
     SWAP = "swap"
+    COVER = "cover"
 
 
 class PinEnded(models.TextChoices):
@@ -29,6 +30,7 @@ class VersionOrigin(models.TextChoices):
     REPLAN = "replan"
     SWAP = "swap"
     REQUEST = "request"
+    COVER = "cover"
 
 
 class Decision(models.TextChoices):

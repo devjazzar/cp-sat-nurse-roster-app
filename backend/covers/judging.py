@@ -17,25 +17,19 @@ acceptance again for its nurse alone, through `exclusion`, and words a refusal f
 from __future__ import annotations
 
 import datetime as dt
-import re
 from dataclasses import dataclass, field
 
 from nurse_roster.request import load_request
 
 from accounts.models import Role
 from hospital.models import Shift
-from rosters.approved import ApprovedMonth, Change, already_broken, violation_key, with_pins
+from rosters.approved import ApprovedMonth, Change, headcount, newly_broken, shift_day, with_pins
 from rosters.editing import Checked, accounted, scored
 from rosters.models import PinOrigin, Roster
 from rosters.pins import long_date
 from solves.input import assemble
 from solves.result import in_dates
 
-# The solver's rules of a shift-day as a whole, and how its text names the shift-day: "headcount: day 8 D = 0, want 1..1",
-# "team leader: day 8 D has none", "gender: day 8 D has only {'F'}" (`nurse_roster/validate.py`).
-SHIFT_DAY_RULES = ("headcount", "team_leader", "gender")
-_SHIFT_DAY = re.compile(r"^[a-z ]+: day -?\d+ (\S+) ")
-_HEADCOUNT = re.compile(r"= (\d+), want (\d+)\.\.(\d+)")
 LACKS = {"team_leader": "No team leader", "gender": "Not both genders"}
 
 
@@ -63,51 +57,13 @@ class CoverJudged:
     nurses: list[CouldTake] = field(default_factory=list)
 
 
-def _shift_day(violation: dict) -> tuple[str, str] | None:
-    """The shift-day a violation of a shift-day rule is about, as (date, shift code), or None for any other."""
-    if violation["rule"] not in SHIFT_DAY_RULES or violation["nurse"] or not violation["date"]:
-        return None
-    found = _SHIFT_DAY.match(violation["text"])
-    return (violation["date"], found[1]) if found else None
-
-
-def _headcount(violation: dict) -> tuple[int, int, int]:
-    """A headcount's (present, minimum, maximum), from the solver's text."""
-    present, low, high = (int(number) for number in _HEADCOUNT.search(violation["text"]).groups())
-    return present, low, high
-
-
-def _beyond(violation: dict) -> int:
-    """How far a headcount is outside its range."""
-    present, low, high = _headcount(violation)
-    return low - present if present < low else present - high
-
-
-def newly_broken(before: Checked, after: Checked) -> list[dict]:
-    """What `after` breaks that `before` did not, or breaks further. The solver's text says how far a rule is broken, so one
-    broken further reads as new (`rosters.approved.violation_key`); a headcount is compared by how far it is outside its range,
-    since its text changes as it comes nearer."""
-    old = before.answer["violations"] if before.answer else []
-    already = already_broken(before)
-    headcounts = {_shift_day(row): _beyond(row) for row in old if row["rule"] == "headcount" and _shift_day(row)}
-    new = []
-    for violation in after.answer["violations"]:
-        where = _shift_day(violation)
-        if violation["rule"] == "headcount" and where in headcounts:
-            if _beyond(violation) > headcounts[where]:
-                new.append(violation)
-        elif violation_key(violation) not in already:
-            new.append(violation)
-    return new
-
-
 def _on(violations: list[dict], day: dt.date, code: str) -> list[dict]:
-    return [row for row in violations if _shift_day(row) == (day.isoformat(), code)]
+    return [row for row in violations if shift_day(row) == (day.isoformat(), code)]
 
 
 def _lack_words(violation: dict, month: dt.date) -> str:
     if violation["rule"] == "headcount":
-        present, low, high = _headcount(violation)
+        present, low, high = headcount(violation)
         said = (f"Below its minimum headcount: {present} of at least {low}" if present < low
                 else f"Above its maximum headcount: {present} of at most {high}")
     else:

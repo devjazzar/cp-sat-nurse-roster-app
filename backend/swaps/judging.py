@@ -19,7 +19,7 @@ from accounts.models import Role
 from nurses import membership
 from nurses.models import NurseProfile
 from requesting.models import what_of
-from rosters.approved import ApprovedMonth, Change, already_broken, violation_key, with_pins
+from rosters.approved import ApprovedMonth, Change, newly_broken, with_pins
 from rosters.editing import Checked, scored
 from rosters.models import PinOrigin, Roster
 from rosters.pins import long_date
@@ -159,7 +159,7 @@ def _violation_problem(violation: dict, month: SwapMonth, changes: list[Change],
 def judge(roster: Roster, changes: list[Change], proposer: NurseProfile | None, exclude: Swap | None = None) -> Judged:
     """Every reason the swap cannot work: each cell's, and when every cell can hold its change, what the grid would newly break
     on the month as it stands, with the solver's own code. A hard rule the roster in force already breaks is not the swap's,
-    since an edit may save one (ticket 16)."""
+    since an edit may save one (ticket 16), and a headcount already broken counts only when broken further."""
     month = SwapMonth(roster, exclude)
     judged = Judged()
     for index, change in enumerate(changes):
@@ -176,8 +176,6 @@ def judge(roster: Roster, changes: list[Change], proposer: NurseProfile | None, 
         judged.problems.append(Problem(f"The swap cannot be checked: {in_dates(judged.after.reason, month.month)}",
                                        "This swap cannot be checked against the roster now. Ask your manager."))
         return judged
-    already = already_broken(judged.before)
-    for violation in judged.after.answer["violations"]:
-        if violation_key(violation) not in already:
-            judged.problems.append(_violation_problem(violation, month, changes, proposer))
+    for violation in newly_broken(judged.before, judged.after):
+        judged.problems.append(_violation_problem(violation, month, changes, proposer))
     return judged

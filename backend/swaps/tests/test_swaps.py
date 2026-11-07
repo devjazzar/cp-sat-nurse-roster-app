@@ -159,6 +159,33 @@ class TestComposing:
         assert "mona" not in {row["hospital_id"] for row in offered}
 
 
+class TestAShortShiftDay:
+    """A headcount the roster in force already breaks is judged by how far it is outside its range, as a cover's is
+    (`rosters.approved.newly_broken`): the solver's text changes with the count, so comparing the text would count one more
+    nurse on a short shift-day as breaking it anew."""
+
+    def test_a_swap_bringing_a_short_shift_day_nearer_its_minimum_is_not_refused_for_it(self, in_force, nurse, mona):
+        # Day on the 9th wants three nurses and has Badr alone; Emad, off that day, adds himself and it stays short.
+        in_force.rules["headcounts"][0].update(weekday_min=3, weekday_max=3, weekend_min=3, weekend_max=3)
+        in_force.save()
+
+        swap = proposed(nurse("Emad"), cell("Emad", 9, "D"))
+
+        assert swap["state"] == "awaiting_manager"
+        decided(mona, in_force, swap["id"], "approve")
+        assert Swap.objects.get().state == SwapState.APPROVED
+        assert in_force_grid(in_force)["Emad"]["2026-06-09"] == "D"
+
+    def test_one_taking_a_nurse_off_a_short_shift_day_breaks_it_further_and_is_refused(self, in_force, nurse):
+        # Badr off Day on the 9th, which has him alone of three wanted, onto Night beside Dana.
+        in_force.rules["headcounts"][0].update(weekday_min=3, weekday_max=3, weekend_min=3, weekend_max=3)
+        in_force.save()
+
+        said = refusals(propose(nurse("Badr"), cell("Badr", 9, "N")))
+
+        assert "This swap breaks the unit's rules: headcount: 2026-06-09 D = 0, want 3..3" in said
+
+
 class TestTheProposersOwnFacts:
     """The proposer's own facts may be named to them."""
 
