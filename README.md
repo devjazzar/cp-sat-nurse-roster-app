@@ -46,6 +46,9 @@ variable is ignored.
 
 ## Develop
 
+How a feature goes from an idea to `main` here, with the agent skills, the ticket sessions in worktrees and the checks on a
+clean copy, is [docs/guides/local-development.md](docs/guides/local-development.md). The stack:
+
 ```bash
 cd deploy
 docker compose -f compose.yaml -f compose.dev.yaml up --build
@@ -155,5 +158,7 @@ cd frontend && npm run generate:api
 | `frontend/` | Vite, React, shadcn/ui on Base UI |
 | `deploy/` | Compose files, Caddyfile, `.env.example`, the install guide and its scripts, the compose-level test |
 | `e2e/` | The Playwright checks, the stacks they run against (`stack.sh`), their seed, and what CI runs (`ci.sh`) |
+| `scripts/` | `verify-backend.sh` and `verify-frontend.sh`: a commit's suites on a clean copy, as a ticket branch is checked before it reaches `main` |
+| `docs/guides/` | How to develop a feature here with agents |
 | `.github/workflows/` | CI: `browser-checks.yml` runs `e2e/ci.sh` |
 | `Dockerfile` | One multi-stage build, one image, three containers |
