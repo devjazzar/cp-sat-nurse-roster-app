@@ -127,7 +127,7 @@ runs a periodic job now in its worker (`fire <project> <module.tasks.job>`) and 
 them, and its header says how.
 
 **Everything CI runs** (`.github/workflows/browser-checks.yml`): the image, both stacks, every Playwright project, then the
-deploy scripts' test, and everything removed. About half an hour; it fails if anything fails.
+deploy scripts' test, and everything removed. About 11 minutes here; it fails if anything fails.
 
 ```bash
 e2e/ci.sh

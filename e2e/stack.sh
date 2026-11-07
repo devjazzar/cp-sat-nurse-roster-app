@@ -18,7 +18,8 @@
 #   e2e/stack.sh rebuild <project>       build the image again from this checkout and restart on it, keeping the data
 #   e2e/stack.sh redeploy <project>      a new deploy, as far as a browser can tell: a new marker in index.html and a changed
 #                                        service worker, then `web` restarted
-#   e2e/stack.sh down <project>          remove the containers, volumes, image and e2e/.stack/<project>.*
+#   e2e/stack.sh down <project>          remove the containers, volumes, image and e2e/.stack/<project>.* (a journey's notebook
+#                                        among them)
 #
 # E2E_PORT (default 18080) is web over HTTP on 127.0.0.1, the checks' origin; E2E_HTTPS_PORT (default 18443) is Caddy.
 # Needs Docker with Compose v2.24 or later, openssl and python3.
@@ -156,7 +157,7 @@ raise SystemExit(0 if latest and latest.status == 'succeeded' else f'$task ended
     [[ -e $env_file ]] || { echo "Nothing of $project here." >&2; exit 2; }
     compose down -v --remove-orphans
     docker image rm "$project-app:e2e" >/dev/null 2>&1 || true
-    rm -f "$env_file" "$state/$project.json"
+    rm -f "$env_file" "$state/$project.json" "$state/$project".*.json
     ;;
   *)
     echo "$usage" >&2; exit 2 ;;
