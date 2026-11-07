@@ -117,6 +117,10 @@ _Avoid_: absence, day off, vacation
 The recorded reason for a leave (sick, annual, educational, and so on), from a list the CNO keeps. Every type counts the same for a nurse's hours.
 _Avoid_: absence type, leave category
 
+**Day view**:
+One date across every unit, for the CNO and the Deputy CNO: each unit's headcount on each shift against its range, its team leader and gender requirements met or not where it has them, who is on leave and the month's overtime, all from the roster in force, checked on the month as it stands with the solver's own code. A unit whose month has no roster in force shows its state alone; a date in a closed month shows the close's facts. Read-only; it floats nobody.
+_Avoid_: dashboard, staffing board, bed board, daily board
+
 ### Requests
 
 **Request**:
