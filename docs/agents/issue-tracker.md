@@ -7,6 +7,7 @@ Issues and specs for this repo live as markdown files in `.scratch/`.
 - One feature per directory: `.scratch/<feature-slug>/`
 - The spec is `.scratch/<feature-slug>/spec.md`
 - Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`, never a single combined tickets file
+- In this repo the feature folders are releases: `nurse-rostering-v1` (tickets 01–25) and `nurse-rostering-v2` (26–46, one spec per feature under `specs/`, indexed by its `spec.md`). Ticket numbers continue across releases, so "ticket 33" names one file in the repo. A new feature's spec goes under the current release's `specs/`, its tickets under its `issues/`, numbered on from the last
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
 

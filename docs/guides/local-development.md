@@ -58,14 +58,18 @@ said "restart" when the close imported solver code baked into the image).
 
 | Where | What |
 |---|---|
-| `.scratch/<feature>/spec.md` | The spec `/to-spec` writes: problem, solution, user stories, implementation and testing decisions, out of scope. `Status: ready-for-agent` at the top |
-| `.scratch/<feature>/issues/NN-<slug>.md` | One ticket a file, numbered from `01`, with `**Blocked by:**`, `**Status:**` and the checklist of criteria. Everything that happens to a ticket is appended under `## Comments`: notes from other tickets, the session's write-up, your review |
+| `.scratch/<release>/specs/<feature>.md` | The spec `/to-spec` writes: problem, solution, user stories, implementation and testing decisions, out of scope. `Status: ready-for-agent` at the top |
+| `.scratch/<release>/issues/NN-<slug>.md` | One ticket a file, numbered on from the last ticket in the repo, with `**Blocked by:**`, `**Status:**` and the checklist of criteria. Everything that happens to a ticket is appended under `## Comments`: notes from other tickets, the session's write-up, your review |
+| `.scratch/<release>/spec.md` | The release's index: each feature, its spec, its tickets, the order to build in |
 | `GLOSSARY.md`, `docs/adr/NNNN-*.md` | What `/grill-with-docs` adds as terms and decisions settle |
 | `docs/ARCHITECTURE.md` | Updated by the ticket whose work moved the design |
 | commits on `main` | The ticket's commits, fast-forwarded, then one commit recording your review |
 
-`.scratch/nurse-rostering-v1/` is v1: its spec and tickets 01–25. A new feature gets its own folder, with its own
-`spec.md` and `issues/`.
+`.scratch/nurse-rostering-v1/` is v1: its spec and tickets 01–25. `.scratch/nurse-rostering-v2/` is v2: seven features,
+each with a spec under `specs/`, tickets 26–46 under `issues/`, and `spec.md` as the index. A new feature joins the current
+release: its spec under `specs/`, its tickets numbered on from the last. (The grilling sessions wrote to `.scratch/<feature>/`
+on their branches, and the main session moved and renumbered them at the merge; tell a `/to-spec` session the release's
+paths and the next free number, and it writes there directly.)
 
 ## 4. The workflow, step by step
 
@@ -96,8 +100,8 @@ grilling of ticket 24's two findings, eight questions in two rounds.
 
 No interview: it synthesises the grilling. It first **proposes the test seams** and waits for your yes: the public
 boundaries the feature will be tested at, existing ones preferred, the fewer the better (ticket 25: the API's `Me`, the
-frontend's app-level Vitest suite, and ticket 24's Playwright checks). Then it writes `.scratch/<feature>/spec.md`, marked
-`ready-for-agent`, and commits it.
+frontend's app-level Vitest suite, and ticket 24's Playwright checks). Then it writes the spec under the release's `specs/`,
+marked `ready-for-agent`, and commits it.
 
 Read the user stories: a story you did not ask for is a decision the agent took for you. Keep it or strike it now; after
 this, the spec is law for the sessions.
@@ -105,7 +109,7 @@ this, the spec is law for the sessions.
 ### 4.3 Cut the tickets: `/to-tickets`
 
 ```
-/to-tickets .scratch/<feature>/spec.md
+/to-tickets .scratch/<release>/specs/<feature>.md
 ```
 
 Vertical slices, each a complete path through schema, API, UI and tests, each demoable alone, each sized for one fresh
@@ -322,7 +326,7 @@ fail if the committed document does not match the export.
 The main session writes it; this is what it must contain. `<base>` is `main`'s head the worktree is cut from.
 
 ```
-Use the `implement` skill on ticket NN, `.scratch/<feature>/issues/NN-<slug>.md`, and state its title first.
+Use the `implement` skill on ticket NN, `.scratch/<release>/issues/NN-<slug>.md`, and state its title first.
 
 ## Where to work
 - You are in your own git worktree on your own branch, cut from `main` at `<base>`. Commit there.
@@ -335,7 +339,7 @@ The user asked for Fable as advisor where one is needed: the `advisor` tool, or 
 Give it the code and the question, not your conclusion.
 
 ## What to read
-1. The ticket and every comment. 2. The spec, `.scratch/<feature>/spec.md`: it is decided, build it as written.
+1. The ticket and every comment. 2. The spec, `.scratch/<release>/specs/<feature>.md`: it is decided, build it as written.
 3. `docs/ARCHITECTURE.md`, `GLOSSARY.md`, `docs/adr/`. 4. The previous ticket's comment, the latest model of a write-up.
 
 ## What the ticket asks, to answer one by one in your ticket comment

@@ -6,7 +6,8 @@ hospital, as one `docker compose` stack on one server.
 
 The agreed design is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), the vocabulary is
 [GLOSSARY.md](GLOSSARY.md), the reasons are in [docs/adr](docs/adr/) and the work is cut into
-tickets under `.scratch/nurse-rostering-v1/issues/`.
+tickets under `.scratch/nurse-rostering-v1/issues/` (01–25, done) and `.scratch/nurse-rostering-v2/issues/` (26–46, the
+seven features of v2; `.scratch/nurse-rostering-v2/spec.md` is their index).
 
 ## Run the stack
 
