@@ -93,13 +93,26 @@ jobs:
       - name: Tests
         working-directory: frontend
         run: npm test
+      # Each run on one worker: six runs with the default pool are more processes than the runner's four cores and memory
+      # take, and the load, not the worker count, is what this step is for.
       - name: Six runs at once (a test that passes alone and fails under load fails here)
         working-directory: frontend
         run: |
-          pids=(); for i in 1 2 3 4 5 6; do npm test > "run-$i.log" 2>&1 & pids+=($!); done
+          pids=(); for i in 1 2 3 4 5 6; do npm test -- --maxWorkers=1 > "run-$i.log" 2>&1 & pids+=($!); done
           failed=0; for p in "${pids[@]}"; do wait "$p" || failed=1; done
-          grep -h -E "^ +Tests " run-*.log
-          [[ $failed == 0 ]] || { grep -h -E "^ FAIL " run-*.log | sort -u; exit 1; }
+          grep -h -E "^ +Tests " run-*.log || true
+          if [[ $failed != 0 ]]; then
+            grep -h -E "^ FAIL " run-*.log | sort -u || true
+            for f in run-*.log; do echo "== $f"; tail -n 25 "$f"; done
+            exit 1
+          fi
+      - name: The six runs' logs, when one failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-parallel-runs
+          path: frontend/run-*.log
+          retention-days: 7
 
   image:
     runs-on: ubuntu-latest

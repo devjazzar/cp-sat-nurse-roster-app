@@ -523,11 +523,13 @@ def test_cutoff_may_be_the_day_after_the_month(tmp_path, capsys):
 def test_deterministic_is_reported_from_the_stop_cause():
     """A run the wall-clock guard or a cancellation ended is not reproducible, however short."""
     raw = fixture()
-    raw["solver"] = {"time_limit_seconds": 0.004, "reproducible": True}   # 0.04 s of wall: no
-    req = load_request(raw)                                                # budget is spent
+    raw["solver"] = {"time_limit_seconds": 0.004, "reproducible": True}   # 0.04 s of wall ends it
+    req = load_request(raw)
     rm = build_model(req.problem)
     sol = solve(rm, req.problem, **req.solver.solve_kwargs(8))
-    assert sol.stopped_by == "time_limit" and sol.deterministic_time < 0.004
+    # On a slow machine the deterministic budget can trip in the same run; `stop_cause` then still counts the wall clock, so
+    # nothing is claimed of the deterministic time (it failed on GitHub's runners with the claim `< 0.004`).
+    assert sol.stopped_by == "time_limit"
     res = build_result(req, rm, sol, precheck=[], workers=8)
     assert res["solver"]["reproducible"] and not res["solver"]["deterministic"]
     assert res["solver"]["stopped_by"] == "time_limit"

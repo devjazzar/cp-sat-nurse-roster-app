@@ -50,6 +50,18 @@ in_web() {
   compose exec -T "$@" web python manage.py shell < "$here/$script" | sed -n "s/^$marker //p"
 }
 
+# Waits for a running service's own health check, up to two minutes, without `up`, which may recreate the container.
+healthy() {
+  local id
+  id=$(compose ps -q "$1")
+  for _ in $(seq 120); do
+    [[ $(docker inspect -f '{{.State.Health.Status}}' "$id" 2>/dev/null) == healthy ]] && return 0
+    sleep 1
+  done
+  echo "$1 is not healthy after two minutes." >&2
+  return 1
+}
+
 set_clock() {
   [[ $1 =~ ^-?[0-9]+$ ]] || { echo "The clock moves by a whole number of days." >&2; exit 2; }
   compose exec -T -u root web sh -c "printf '%s\n' '$1' > /e2e-clock/days"
@@ -149,8 +161,10 @@ raise SystemExit(0 if latest and latest.status == 'succeeded' else f'$task ended
     marker="$(date +%s)-$RANDOM"
     compose exec -T web sh -c "sed -i 's|<head>|<head><meta name=\"e2e-deploy\" content=\"$marker\">|' /app/spa/index.html \
       && printf '\n// e2e deploy %s\n' $marker >> /app/spa/sw.js"
+    # A restart and a wait for its health check, never `up`: on GitHub's runners `up -d --wait web` recreated the container
+    # (and the solver's) from the image, and the edited files were gone with it; the browser then got the old page.
     compose restart web >/dev/null
-    compose up -d --wait web >/dev/null
+    healthy web
     echo "$marker"
     ;;
   down)
