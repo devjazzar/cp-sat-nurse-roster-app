@@ -16,4 +16,6 @@ export const NotificationLinkPage = {
   requests: 'requests',
   swaps: 'swaps',
   unit_swaps: 'unit_swaps',
+  covers: 'covers',
+  unit_covers: 'unit_covers',
 } as const;

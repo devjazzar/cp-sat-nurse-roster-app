@@ -1,5 +1,5 @@
 """The unit manager's covers: the unit's covers of a month, one cover's page (its shift-day's lack and who could take it, judged
-again each time it is read), opening one by hand and withdrawing one. Only the unit's manager reads or acts on them
+again each time it is read, and the nurses offered it with their answers), opening one by hand, offering it and withdrawing it. Only the unit's manager reads or acts on them
 (docs/ARCHITECTURE.md section 3); the System Admin, the CNO and the Deputy CNO see none."""
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from django.utils import timezone
 from ninja import Field, Query, Router, Schema, Status
 from ninja.errors import HttpError
 
-from audit.log import record
 from hospital.api import StrictSchema, refuse
 from hospital.catalogue_api import IsoDate
 from rosters.models import Roster, RosterState
@@ -21,22 +20,14 @@ from rosters.review import name_of
 from solves.api import MonthFilter, chosen_month, manager
 from units.scope import unit_in_scope
 
-from covers import opening
+from covers import opening, steps
 from covers.expiring import expire_passed, state_now
 from covers.judging import CoverJudged, judge
-from covers.models import WAITING, Cover, CoverState
+from covers.models import WAITING, Cover, CoverOffer
 
 router = Router(tags=["covers"])
 
 CoverStateText = Literal["open", "offered", "taken", "withdrawn", "filled", "expired"]
-
-WHY_NOT_WITHDRAW = {
-    CoverState.TAKEN: "This cover has been taken, so it cannot be withdrawn. Edit the roster to change who works the shift.",
-    CoverState.WITHDRAWN: "This cover has already been withdrawn.",
-    CoverState.FILLED: "A new version of the roster has filled this cover, so there is nothing to withdraw.",
-    CoverState.EXPIRED: "This cover's date has passed, so there is nothing to withdraw.",
-}
-
 
 class UnitCoverRow(Schema):
     id: UUID
@@ -105,9 +96,24 @@ class CoverCheck(Schema):
                                                    "by name.")
 
 
+class CoverOfferRow(Schema):
+    hospital_id: str
+    full_name: str
+    answer: Literal["pending", "accepted", "declined"] = Field(description="`pending`: not answered yet.")
+    offered_at: dt.datetime
+    answered_at: dt.datetime | None
+
+
 class CoverPage(Schema):
     cover: UnitCoverRow
     check: CoverCheck | None = Field(description="Worked out now, on the month as it stands. Null once the cover has ended.")
+    offers: list[CoverOfferRow] = Field(description="Every nurse it was offered to, by name, with her answer so far.")
+
+
+def _offer_row(row: CoverOffer) -> CoverOfferRow:
+    return CoverOfferRow(hospital_id=row.nurse.user.username, full_name=row.nurse.user.full_name, answer=row.answer,
+                         offered_at=timezone.localtime(row.offered_at),
+                         answered_at=timezone.localtime(row.answered_at) if row.answered_at else None)
 
 
 def _check(judged: CoverJudged) -> CoverCheck:
@@ -121,7 +127,8 @@ def _page(unit, cover_id: UUID) -> CoverPage:
     cover = _with_rows(Cover.objects.filter(pk=cover_id, unit=unit)).select_related("roster__unit").first()
     if cover is None:
         raise Http404("There is no such cover in your unit.")
-    page = CoverPage(cover=unit_row(cover), check=None)
+    page = CoverPage(cover=unit_row(cover), check=None,
+                     offers=[_offer_row(row) for row in cover.offers.select_related("nurse__user")])
     if page.cover.state in WAITING:
         page.check = _check(judge(cover.roster, cover.date, cover.shift))
     return page
@@ -162,19 +169,30 @@ def open_cover(request: HttpRequest, unit_id: UUID, body: OpenCoverBody) -> Stat
     return Status(201, _page(unit, cover.pk))
 
 
-@router.post("/{unit_id}/covers/{cover_id}/withdraw", response=CoverPage, auth=manager, operation_id="withdrawUnitCover")
-def withdraw_cover(request: HttpRequest, unit_id: UUID, cover_id: UUID) -> CoverPage:
-    """Open or offered. Ticket 27 tells the nurses offered it, never why."""
+class OfferCoverBody(StrictSchema):
+    nurses: list[str] = Field(max_length=500, description="Hospital IDs, each in the list of who could take it as judged now.")
+    note: str = Field("", max_length=500, description="Optional; the nurses offered it read it. Kept as first written: an add "
+                                                      "leaves it.")
+
+
+@router.post("/{unit_id}/covers/{cover_id}/offer", response=CoverPage, auth=manager, operation_id="offerUnitCover")
+def offer_cover(request: HttpRequest, unit_id: UUID, cover_id: UUID, body: OfferCoverBody) -> CoverPage:
+    """Open: it becomes offered to these nurses. Offered: those not yet in it are added, a nurse who declined staying as she
+    answered. A nurse not in the list as judged now is refused by name (422). Only those added are told."""
     unit = unit_in_scope(request.user, unit_id)
     with transaction.atomic():  # Its own, so a refusal below keeps the expiry stored.
         expire_passed(Cover.objects.filter(pk=cover_id, unit=unit))
     with transaction.atomic():
-        cover = Cover.objects.select_for_update().filter(pk=cover_id, unit=unit).first()
-        if cover is None:
-            raise Http404("There is no such cover in your unit.")
-        if not cover.waiting:
-            raise HttpError(409, WHY_NOT_WITHDRAW[cover.state])
-        cover.state, cover.ended_by, cover.ended_at = CoverState.WITHDRAWN, request.user, timezone.now()
-        cover.save(update_fields=["state", "ended_by", "ended_at"])
-        record("cover.withdrawn", actor=request.user, target=unit.name, request=request)
+        steps.offer(request.user, unit, cover_id, body.nurses, body.note.strip(), request)
+    return _page(unit, cover_id)
+
+
+@router.post("/{unit_id}/covers/{cover_id}/withdraw", response=CoverPage, auth=manager, operation_id="withdrawUnitCover")
+def withdraw_cover(request: HttpRequest, unit_id: UUID, cover_id: UUID) -> CoverPage:
+    """Open or offered. The nurses offered it are told, never why."""
+    unit = unit_in_scope(request.user, unit_id)
+    with transaction.atomic():  # Its own, so a refusal below keeps the expiry stored.
+        expire_passed(Cover.objects.filter(pk=cover_id, unit=unit))
+    with transaction.atomic():
+        steps.withdraw(request.user, unit, cover_id, request)
     return _page(unit, cover_id)

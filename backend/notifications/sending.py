@@ -15,6 +15,7 @@ from nurses import membership
 from units.models import Unit
 
 if TYPE_CHECKING:
+    from covers.models import Cover
     from requesting.models import Request, RequestWindow
     from swaps.models import Swap
 
@@ -139,4 +140,32 @@ def swap_step(swap: "Swap", step: SwapStep, by: User | None, *, awaiting: bool =
             users = [proposer, *colleagues, *([swap.unit.manager] if awaiting else [])]
     users = [user for user in users if user is not None and (by is None or user.pk != by.pk)]
     notify(users, Event.SWAP_STEP, **_about(swap.unit, swap.roster.month), swap_id=str(swap.pk), step=str(step),
+           **({"by": str(by.pk)} if by is not None else {}))
+
+
+class CoverStep(TextChoices):
+    """A step a cover took, as its people are told: a payload's `step`, so no migration."""
+    OFFERED = "offered"
+    DECLINED = "declined"
+    ACCEPTED = "accepted"
+    TAKEN = "taken"
+    WITHDRAWN = "withdrawn"
+    FILLED = "filled"
+    EXPIRED = "expired"
+
+
+def cover_step(cover: "Cover", step: CoverStep, by: User | None, *, nurses: Iterable[User] = ()) -> None:
+    """Ticket 27: the nurses added when it is `offered` (`nurses`); the unit's manager at a decline and at the acceptance; every
+    nurse offered it, a nurse who declined included, when it is taken by another, withdrawn, filled or expired. Never whoever
+    took the step, who knows. The payload holds identifiers and the step only: the words read the cover when shown, and never
+    say why it was short, who else was asked or why it ended. `by` is None for a fill and an expiry, which are nobody's act."""
+    match step:
+        case CoverStep.OFFERED:
+            users = list(nurses)
+        case CoverStep.DECLINED | CoverStep.ACCEPTED:
+            users = [cover.unit.manager]
+        case _:
+            users = [offer.nurse.user for offer in cover.offers.select_related("nurse__user")]
+    users = [user for user in users if user is not None and (by is None or user.pk != by.pk)]
+    notify(users, Event.COVER_STEP, **_about(cover.unit, cover.date.replace(day=1)), cover_id=str(cover.pk), step=str(step),
            **({"by": str(by.pk)} if by is not None else {}))

@@ -3932,7 +3932,14 @@ export const OpenUnitCoverResponse = zod.object({
   "makes_whole": zod.boolean().describe('With her on it, the shift-day lacks nothing the solver checks.'),
   "replaces_pin": zod.union([zod.enum(['manager', 'swap']),zod.null()]).describe('Her pin to a day off that day, yours or an approved swap\'s, which her taking the cover would replace.')
 })).describe('The staff nurses who could take it without newly breaking a hard rule, furthest below their owed hours first, then least overtime this year, then by name.')
-}),zod.null()]).describe('Worked out now, on the month as it stands. Null once the cover has ended.')
+}),zod.null()]).describe('Worked out now, on the month as it stands. Null once the cover has ended.'),
+  "offers": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'declined']).describe('`pending`: not answered yet.'),
+  "offered_at": zod.iso.datetime({"offset":true}),
+  "answered_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()])
+})).describe('Every nurse it was offered to, by name, with her answer so far.')
 })
 
 
@@ -3974,12 +3981,81 @@ export const GetUnitCoverResponse = zod.object({
   "makes_whole": zod.boolean().describe('With her on it, the shift-day lacks nothing the solver checks.'),
   "replaces_pin": zod.union([zod.enum(['manager', 'swap']),zod.null()]).describe('Her pin to a day off that day, yours or an approved swap\'s, which her taking the cover would replace.')
 })).describe('The staff nurses who could take it without newly breaking a hard rule, furthest below their owed hours first, then least overtime this year, then by name.')
-}),zod.null()]).describe('Worked out now, on the month as it stands. Null once the cover has ended.')
+}),zod.null()]).describe('Worked out now, on the month as it stands. Null once the cover has ended.'),
+  "offers": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'declined']).describe('`pending`: not answered yet.'),
+  "offered_at": zod.iso.datetime({"offset":true}),
+  "answered_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()])
+})).describe('Every nurse it was offered to, by name, with her answer so far.')
 })
 
 
 /**
- * Open or offered. Ticket 27 tells the nurses offered it, never why.
+ * Open: it becomes offered to these nurses. Offered: those not yet in it are added, a nurse who declined staying as she
+ * answered. A nurse not in the list as judged now is refused by name (422). Only those added are told.
+ * @summary Offer Cover
+ */
+export const OfferUnitCoverParams = zod.object({
+  "unit_id": zod.uuid(),
+  "cover_id": zod.uuid()
+})
+
+export const offerUnitCoverBodyNursesMax = 500;
+
+export const offerUnitCoverBodyNoteDefault = ``;
+export const offerUnitCoverBodyNoteMax = 500;
+
+
+
+export const OfferUnitCoverBody = zod.object({
+  "nurses": zod.array(zod.string()).max(offerUnitCoverBodyNursesMax).describe('Hospital IDs, each in the list of who could take it as judged now.'),
+  "note": zod.string().max(offerUnitCoverBodyNoteMax).default(offerUnitCoverBodyNoteDefault).describe('Optional; the nurses offered it read it. Kept as first written: an add leaves it.')
+})
+
+export const OfferUnitCoverResponse = zod.object({
+  "cover": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('The shift\'s code now.'),
+  "state": zod.enum(['open', 'offered', 'taken', 'withdrawn', 'filled', 'expired']).describe('As it stands now: a waiting cover whose date has passed is expired.'),
+  "opened": zod.enum(['leave', 'manager']).describe('`leave`: leave took the shift off the roster in force, as version `opened_on`. `manager`: you opened it by hand.'),
+  "opened_at": zod.iso.datetime({"offset":true}),
+  "opened_on": zod.int().describe('The roster version in force when it was opened; for leave, the one the leave made.'),
+  "note": zod.string(),
+  "ended_by": zod.union([zod.string(),zod.null()]).describe('Who withdrew it. Null otherwise: taken, filled and expired are nobody\'s act.'),
+  "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "taker": zod.union([zod.string(),zod.null()]).describe('The nurse who took it.'),
+  "version": zod.union([zod.int(),zod.null()]).describe('The roster version its acceptance made.')
+}),
+  "check": zod.union([zod.object({
+  "reason": zod.union([zod.string(),zod.null()]).describe('Why the roster in force could not be checked, in the solver\'s words: then nobody is listed.'),
+  "lack": zod.array(zod.string()).describe('What the shift-day lacks on the roster in force, from the solver\'s own check: its headcount, a team leader, both genders. Empty when it lacks nothing.'),
+  "full": zod.union([zod.string(),zod.null()]).describe('Why nobody is listed: the shift-day is at its maximum headcount.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "worked": zod.int().describe('Hours worked this month on the roster in force, by the solver\'s own accounting.'),
+  "owed": zod.union([zod.int(),zod.null()]).describe('Hours owed this month, as My month says. Null with the hospital\'s hours rule off.'),
+  "overtime_this_year": zod.int().describe('Overtime this year: the carry-over\'s year to date and this month\'s.'),
+  "makes_whole": zod.boolean().describe('With her on it, the shift-day lacks nothing the solver checks.'),
+  "replaces_pin": zod.union([zod.enum(['manager', 'swap']),zod.null()]).describe('Her pin to a day off that day, yours or an approved swap\'s, which her taking the cover would replace.')
+})).describe('The staff nurses who could take it without newly breaking a hard rule, furthest below their owed hours first, then least overtime this year, then by name.')
+}),zod.null()]).describe('Worked out now, on the month as it stands. Null once the cover has ended.'),
+  "offers": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'declined']).describe('`pending`: not answered yet.'),
+  "offered_at": zod.iso.datetime({"offset":true}),
+  "answered_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()])
+})).describe('Every nurse it was offered to, by name, with her answer so far.')
+})
+
+
+/**
+ * Open or offered. The nurses offered it are told, never why.
  * @summary Withdraw Cover
  */
 export const WithdrawUnitCoverParams = zod.object({
@@ -4016,7 +4092,14 @@ export const WithdrawUnitCoverResponse = zod.object({
   "makes_whole": zod.boolean().describe('With her on it, the shift-day lacks nothing the solver checks.'),
   "replaces_pin": zod.union([zod.enum(['manager', 'swap']),zod.null()]).describe('Her pin to a day off that day, yours or an approved swap\'s, which her taking the cover would replace.')
 })).describe('The staff nurses who could take it without newly breaking a hard rule, furthest below their owed hours first, then least overtime this year, then by name.')
-}),zod.null()]).describe('Worked out now, on the month as it stands. Null once the cover has ended.')
+}),zod.null()]).describe('Worked out now, on the month as it stands. Null once the cover has ended.'),
+  "offers": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "answer": zod.enum(['pending', 'accepted', 'declined']).describe('`pending`: not answered yet.'),
+  "offered_at": zod.iso.datetime({"offset":true}),
+  "answered_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()])
+})).describe('Every nurse it was offered to, by name, with her answer so far.')
 })
 
 
@@ -4467,6 +4550,78 @@ export const RejectSwapResponse = zod.object({
   "ended_by": zod.union([zod.string(),zod.null()]).describe('Who rejected, withdrew or decided it. Null while it waits, and for an expiry.'),
   "ended_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
   "reason": zod.string().describe('The manager\'s, for a decision, which everyone in it reads.')
+})
+
+
+/**
+ * @summary My Covers
+ */
+export const listMyCoversQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ListMyCoversQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(listMyCoversQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM. The hospital\'s current month when left out.')
+})
+
+export const ListMyCoversResponse = zod.object({
+  "month": zod.string().describe('YYYY-MM: the one asked for, or the hospital\'s current month.'),
+  "covers": zod.array(zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('The shift\'s code now.'),
+  "hours": zod.int().describe('The shift\'s hours.'),
+  "note": zod.string().describe('The manager\'s words to the nurses offered it.'),
+  "state": zod.enum(['open', 'offered', 'taken', 'withdrawn', 'filled', 'expired']).describe('As it stands now: a waiting cover whose date has passed is expired. `taken` says nothing of by whom: `my_answer` says whether it was you.'),
+  "my_answer": zod.enum(['pending', 'accepted', 'declined']),
+  "answered_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()])
+})).describe('Those waiting for your answer, of every month, soonest first; then the month\'s others, answered or ended, latest date first.')
+})
+
+
+/**
+ * The first acceptance takes it: your cell holds its shift in the roster in force at once. Refused (409) once it has been
+ * taken, withdrawn, filled or its date has passed, or when you could no longer take it, in your own words.
+ * @summary Accept Cover
+ */
+export const AcceptCoverParams = zod.object({
+  "cover_id": zod.uuid()
+})
+
+export const AcceptCoverResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('The shift\'s code now.'),
+  "hours": zod.int().describe('The shift\'s hours.'),
+  "note": zod.string().describe('The manager\'s words to the nurses offered it.'),
+  "state": zod.enum(['open', 'offered', 'taken', 'withdrawn', 'filled', 'expired']).describe('As it stands now: a waiting cover whose date has passed is expired. `taken` says nothing of by whom: `my_answer` says whether it was you.'),
+  "my_answer": zod.enum(['pending', 'accepted', 'declined']),
+  "answered_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()])
+})
+
+
+/**
+ * Your manager is told. You are not asked again.
+ * @summary Decline Cover
+ */
+export const DeclineCoverParams = zod.object({
+  "cover_id": zod.uuid()
+})
+
+export const DeclineCoverResponse = zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "unit": zod.string(),
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('The shift\'s code now.'),
+  "hours": zod.int().describe('The shift\'s hours.'),
+  "note": zod.string().describe('The manager\'s words to the nurses offered it.'),
+  "state": zod.enum(['open', 'offered', 'taken', 'withdrawn', 'filled', 'expired']).describe('As it stands now: a waiting cover whose date has passed is expired. `taken` says nothing of by whom: `my_answer` says whether it was you.'),
+  "my_answer": zod.enum(['pending', 'accepted', 'declined']),
+  "answered_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()])
 })
 
 
@@ -5072,9 +5227,10 @@ export const ListNotificationsResponse = zod.object({
   "event": zod.string(),
   "text": zod.string(),
   "link": zod.union([zod.object({
-  "page": zod.enum(['roster', 'my_roster', 'unit_roster', 'my_month', 'requests', 'swaps', 'unit_swaps']),
+  "page": zod.enum(['roster', 'my_roster', 'unit_roster', 'my_month', 'requests', 'swaps', 'unit_swaps', 'covers', 'unit_covers']),
   "month": zod.string(),
-  "unit_id": zod.union([zod.uuid(),zod.null()]).optional()
+  "unit_id": zod.union([zod.uuid(),zod.null()]).optional(),
+  "cover_id": zod.union([zod.uuid(),zod.null()]).optional().describe('The cover a manager\'s `unit_covers` link shows.')
 }),zod.null()]).describe('The reader\'s own page for it. Null when they no longer have one.'),
   "created_at": zod.iso.datetime({"offset":true}),
   "read": zod.boolean()

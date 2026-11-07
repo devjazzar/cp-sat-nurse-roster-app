@@ -12,8 +12,11 @@ The list is ranked by how far below her owed hours this month each stands, then 
 the figures from the solver's own per-nurse accounting on the roster in force, the arithmetic My month uses. Nothing of it is
 stored: it is read again each time it is asked for.
 
-Only the unit's manager reads any of this, as they read the leave and the attributes it rests on. Ticket 27 judges an
-acceptance again for its nurse alone, through `exclusion`, and words a refusal for her."""
+Only the unit's manager reads the list, as they read the leave and the attributes it rests on. An acceptance is judged again
+for its nurse alone (`CoverMonth.refusal_for`), the same way, and refused in her own words: what is hers is said in full (her
+leave, her dates, her shifts, her request, a rule broken on her own row) and so is what My roster shows (a cell's shift, the
+shift-day's headcount); a rule resting on a colleague, a team leader or both genders on the shift-day, is said only as the
+unit's rules on that day, as a swap's proposer reads it (`swaps.judging`)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -23,7 +26,7 @@ from nurse_roster.request import load_request
 
 from accounts.models import Role
 from hospital.models import Shift
-from rosters.approved import ApprovedMonth, Change, headcount, newly_broken, shift_day, with_pins
+from rosters.approved import ApprovedMonth, Change, headcount_of, newly_broken, shift_day, with_pins
 from rosters.editing import Checked, accounted, scored
 from rosters.models import PinOrigin, Roster
 from rosters.pins import long_date
@@ -63,7 +66,7 @@ def _on(violations: list[dict], day: dt.date, code: str) -> list[dict]:
 
 def _lack_words(violation: dict, month: dt.date) -> str:
     if violation["rule"] == "headcount":
-        present, low, high = headcount(violation)
+        present, low, high = headcount_of(violation)
         said = (f"Below its minimum headcount: {present} of at least {low}" if present < low
                 else f"Above its maximum headcount: {present} of at most {high}")
     else:
@@ -100,6 +103,41 @@ class CoverMonth(ApprovedMonth):
         if pin is not None and pin.origin == PinOrigin.REQUEST:
             return "request"
         return None
+
+    def refusal_for(self, hospital_id: str) -> list[str]:
+        """Why she cannot take it now, in her own words: nothing when she can."""
+        on = long_date(self.day)
+        why = self.exclusion(hospital_id)
+        if why == "works":
+            held = self.shifts.get(self.cell(hospital_id, self.day))
+            what = f"{held.display_name} ({held.code})" if held else self.cell(hospital_id, self.day)
+            return [f"You already work {what} on {on}, so you cannot take this cover."]
+        if why is not None:
+            return [{
+                "not_on_grid": f"You have no row on the {self.unit.name} roster for {self.month:%B %Y}, so you cannot take this cover.",
+                "not_staff": "Only a staff nurse takes a cover.",
+                "not_in_month": f"You have no days on the {self.unit.name} roster in {self.month:%B %Y}, so you cannot take this cover.",
+                "outside_dates": f"{on} is outside your dates on the roster, so you cannot take this cover.",
+                "leave": f"You are on leave on {on}, so you cannot take this cover.",
+                "shift_not_allowed": f"{self.shift.code} is not one of the shifts you work, so you cannot take this cover.",
+                "request": f"Your accepted request holds your cell on {on}, so you cannot take this cover.",
+            }[why]]
+        if self.before.reason:
+            return ["This cover cannot be checked against the roster now. Ask your manager."]
+        after, broken = self.with_her(hospital_id)
+        if after.reason:
+            return ["This cover cannot be checked against the roster now. Ask your manager."]
+        said = []
+        for violation in broken:
+            text = in_dates(violation["text"], self.month)
+            if violation["nurse"] == hospital_id:
+                said.append(f"This breaks a rule for you: {text}")
+            elif violation["rule"] == "headcount":
+                said.append(f"Taking this cover would break the unit's rules: {text}")
+            else:
+                # A colleague's rule, or a team leader or both genders on a shift-day, would say who holds which attribute.
+                said.append(f"You cannot take this cover: the shifts on {on} would break the unit's rules.")
+        return list(dict.fromkeys(said))
 
     def with_her(self, hospital_id: str) -> tuple[Checked, list[dict]]:
         """Her grid's check, and the hard rules it newly breaks."""

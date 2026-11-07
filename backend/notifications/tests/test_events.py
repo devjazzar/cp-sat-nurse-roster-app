@@ -51,7 +51,7 @@ class TestSubmitted:
             [note] = told(approver)
             assert note["event"] == "roster_submitted"
             assert note["text"] == "Mona Ali submitted the ER roster for June 2026."
-            assert note["link"] == {"page": "unit_roster", "unit_id": str(er.pk), "month": "2026-06"}
+            assert note["link"] == {"page": "unit_roster", "unit_id": str(er.pk), "month": "2026-06", "cover_id": None}
             assert note["read"] is False
             assert unread(approver) == 1
         assert told(mona, "roster_submitted") == [] and told(as_user("Amal")) == []
@@ -75,11 +75,11 @@ class TestApproved:
 
         [to_mona] = told(mona, "roster_approved")
         assert to_mona["text"] == "Carla CNO approved the ER roster for June 2026."
-        assert to_mona["link"] == {"page": "roster", "month": "2026-06", "unit_id": None}
+        assert to_mona["link"] == {"page": "roster", "month": "2026-06", "unit_id": None, "cover_id": None}
         for nurse in ("Amal", "Badr", "Dana", "Emad", "Faris"):
             [note] = told(as_user(nurse))
             assert note["text"] == to_mona["text"]
-            assert note["link"] == {"page": "my_roster", "month": "2026-06", "unit_id": None}
+            assert note["link"] == {"page": "my_roster", "month": "2026-06", "unit_id": None, "cover_id": None}
         # The approvers were told of the submit only.
         assert [note["event"] for note in told(dina)] == ["roster_submitted"]
 
@@ -133,7 +133,7 @@ class TestRejected:
 
         [note] = told(mona, "roster_rejected")
         assert note["text"] == "Dina Deputy rejected the ER roster for June 2026. The comment is with the draft."
-        assert note["link"] == {"page": "roster", "month": "2026-06", "unit_id": None}
+        assert note["link"] == {"page": "roster", "month": "2026-06", "unit_id": None, "cover_id": None}
         for nurse in ("Amal", "Badr"):
             assert told(as_user(nurse)) == []
         assert told(admin) == []
@@ -164,7 +164,7 @@ class TestSolveEnded:
         [note] = told(mona)
         assert note["event"] == "solve_ended"
         assert note["text"] == "The solve of the ER roster for June 2026 has finished, and its roster is now the draft."
-        assert note["link"] == {"page": "roster", "month": "2026-06", "unit_id": None}
+        assert note["link"] == {"page": "roster", "month": "2026-06", "unit_id": None, "cover_id": None}
         assert told(carla) == [] and told(as_user("Amal")) == []
 
     def test_a_failed_solve_is_told_too(self, mona, er, solver):

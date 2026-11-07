@@ -3921,6 +3921,65 @@
         ]
       }
     },
+    "/api/units/{unit_id}/covers/{cover_id}/offer": {
+      "post": {
+        "operationId": "offerUnitCover",
+        "summary": "Offer Cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "cover_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Cover Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverPage"
+                }
+              }
+            }
+          }
+        },
+        "description": "Open: it becomes offered to these nurses. Offered: those not yet in it are added, a nurse who declined staying as she\nanswered. A nurse not in the list as judged now is refused by name (422). Only those added are told.",
+        "tags": [
+          "covers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferCoverBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units/{unit_id}/covers/{cover_id}/withdraw": {
       "post": {
         "operationId": "withdrawUnitCover",
@@ -3959,7 +4018,7 @@
             }
           }
         },
-        "description": "Open or offered. Ticket 27 tells the nurses offered it, never why.",
+        "description": "Open or offered. The nurses offered it are told, never why.",
         "tags": [
           "covers"
         ],
@@ -4454,6 +4513,134 @@
         "description": "Ends it, for everyone in it.",
         "tags": [
           "swaps"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/covers/mine": {
+      "get": {
+        "operationId": "listMyCovers",
+        "summary": "My Covers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM. The hospital's current month when left out.",
+              "title": "Month"
+            },
+            "required": false,
+            "description": "YYYY-MM. The hospital's current month when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCovers"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "covers"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/covers/mine/{cover_id}/accept": {
+      "post": {
+        "operationId": "acceptCover",
+        "summary": "Accept Cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cover_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Cover Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCoverRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "The first acceptance takes it: your cell holds its shift in the roster in force at once. Refused (409) once it has been\ntaken, withdrawn, filled or its date has passed, or when you could no longer take it, in your own words.",
+        "tags": [
+          "covers"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/covers/mine/{cover_id}/decline": {
+      "post": {
+        "operationId": "declineCover",
+        "summary": "Decline Cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cover_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Cover Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCoverRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Your manager is told. You are not asked again.",
+        "tags": [
+          "covers"
         ],
         "security": [
           {
@@ -12088,6 +12275,54 @@
         "title": "CoverCheck",
         "type": "object"
       },
+      "CoverOfferRow": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "answer": {
+            "description": "`pending`: not answered yet.",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined"
+            ],
+            "title": "Answer",
+            "type": "string"
+          },
+          "offered_at": {
+            "format": "date-time",
+            "title": "Offered At",
+            "type": "string"
+          },
+          "answered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered At"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "answer",
+          "offered_at",
+          "answered_at"
+        ],
+        "title": "CoverOfferRow",
+        "type": "object"
+      },
       "CoverPage": {
         "properties": {
           "cover": {
@@ -12103,11 +12338,20 @@
               }
             ],
             "description": "Worked out now, on the month as it stands. Null once the cover has ended."
+          },
+          "offers": {
+            "description": "Every nurse it was offered to, by name, with her answer so far.",
+            "items": {
+              "$ref": "#/components/schemas/CoverOfferRow"
+            },
+            "title": "Offers",
+            "type": "array"
           }
         },
         "required": [
           "cover",
-          "check"
+          "check",
+          "offers"
         ],
         "title": "CoverPage",
         "type": "object"
@@ -12134,6 +12378,32 @@
           "shift"
         ],
         "title": "OpenCoverBody",
+        "type": "object"
+      },
+      "OfferCoverBody": {
+        "additionalProperties": false,
+        "properties": {
+          "nurses": {
+            "description": "Hospital IDs, each in the list of who could take it as judged now.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Nurses",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "description": "Optional; the nurses offered it read it. Kept as first written: an add leaves it.",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nurses"
+        ],
+        "title": "OfferCoverBody",
         "type": "object"
       },
       "BrokenFact": {
@@ -13001,6 +13271,136 @@
           "nurses"
         ],
         "title": "SwapComposer",
+        "type": "object"
+      },
+      "MyCoversFilter": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM. The hospital's current month when left out.",
+            "title": "Month"
+          }
+        },
+        "title": "MyCoversFilter",
+        "type": "object"
+      },
+      "MyCoverRow": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "The shift's code now.",
+            "title": "Shift",
+            "type": "string"
+          },
+          "hours": {
+            "description": "The shift's hours.",
+            "title": "Hours",
+            "type": "integer"
+          },
+          "note": {
+            "description": "The manager's words to the nurses offered it.",
+            "title": "Note",
+            "type": "string"
+          },
+          "state": {
+            "description": "As it stands now: a waiting cover whose date has passed is expired. `taken` says nothing of by whom: `my_answer` says whether it was you.",
+            "enum": [
+              "open",
+              "offered",
+              "taken",
+              "withdrawn",
+              "filled",
+              "expired"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "my_answer": {
+            "enum": [
+              "pending",
+              "accepted",
+              "declined"
+            ],
+            "title": "My Answer",
+            "type": "string"
+          },
+          "answered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered At"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "unit",
+          "date",
+          "shift",
+          "hours",
+          "note",
+          "state",
+          "my_answer",
+          "answered_at"
+        ],
+        "title": "MyCoverRow",
+        "type": "object"
+      },
+      "MyCovers": {
+        "properties": {
+          "month": {
+            "description": "YYYY-MM: the one asked for, or the hospital's current month.",
+            "title": "Month",
+            "type": "string"
+          },
+          "covers": {
+            "description": "Those waiting for your answer, of every month, soonest first; then the month's others, answered or ended, latest date first.",
+            "items": {
+              "$ref": "#/components/schemas/MyCoverRow"
+            },
+            "title": "Covers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "covers"
+        ],
+        "title": "MyCovers",
         "type": "object"
       },
       "OverviewFilter": {
@@ -14287,7 +14687,9 @@
               "my_month",
               "requests",
               "swaps",
-              "unit_swaps"
+              "unit_swaps",
+              "covers",
+              "unit_covers"
             ],
             "title": "Page",
             "type": "string"
@@ -14307,6 +14709,19 @@
               }
             ],
             "title": "Unit Id"
+          },
+          "cover_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cover a manager's `unit_covers` link shows.",
+            "title": "Cover Id"
           }
         },
         "required": [

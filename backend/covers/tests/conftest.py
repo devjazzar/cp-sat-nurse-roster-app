@@ -60,3 +60,24 @@ def rules_require(unit, **rules):
 
 def day_shift() -> Shift:
     return Shift.objects.get(code="D")
+
+
+def offer(client, unit, cover_id, *hospital_ids, note=""):
+    return post(client, url(unit, f"/covers/{cover_id}/offer"), {"nurses": list(hospital_ids), "note": note})
+
+
+def offered(client, unit, cover_id, *hospital_ids, note="") -> dict:
+    return ok(offer(client, unit, cover_id, *hospital_ids, note=note))
+
+
+def my_covers(client, month=MONTH) -> list[dict]:
+    return ok(client.get("/api/covers/mine", {"month": month} if month else {}))["covers"]
+
+
+def answer(client, cover_id, what):
+    """`accept` or `decline`, by a nurse offered it."""
+    return post(client, f"/api/covers/mine/{cover_id}/{what}", {})
+
+
+def answered(client, cover_id, what) -> dict:
+    return ok(answer(client, cover_id, what))

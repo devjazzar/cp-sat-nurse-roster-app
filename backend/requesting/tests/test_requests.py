@@ -124,7 +124,7 @@ class TestTheWindowsDates:
 
         assert texts(mona, "window_closed") == [
             "The request window for the ER roster for June 2026 has closed, and 2 requests wait for your decision."]
-        assert told(mona, "window_closed")[0]["link"] == {"page": "requests", "month": "2026-06", "unit_id": None}
+        assert told(mona, "window_closed")[0]["link"] == {"page": "requests", "month": "2026-06", "unit_id": None, "cover_id": None}
         rows = requests_in(mona, er, windows(mona, er)["windows"][0]["id"])
         decided(mona, er, rows[0]["id"], "reject", reason="Short of staff.")
         assert texts(mona, "window_closed") == [
@@ -436,7 +436,7 @@ class TestDeciding:
         assert (pin.code, pin.origin, pin.pinned_by.username) == ("N", PinOrigin.REQUEST, "mona")
         assert input_row(assemble(er, dt.date(2026, 6, 1)).input, "Amal")["pinned"] == {"2026-06-03": "N"}
         assert texts(amal, "request_decided") == ["Mona Ali accepted your request for Night (N) on 3 June 2026."]
-        assert told(amal, "request_decided")[0]["link"] == {"page": "my_month", "month": "2026-06", "unit_id": None}
+        assert told(amal, "request_decided")[0]["link"] == {"page": "my_month", "month": "2026-06", "unit_id": None, "cover_id": None}
         assert [note for note in told(as_user("Badr")) if note["event"] != "window_opened"] == []
         assert mine(amal)["requests"][0]["steps"][-1]["reason"] == "Fine by me."
 

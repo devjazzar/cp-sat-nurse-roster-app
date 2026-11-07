@@ -593,7 +593,7 @@ class TestNotifications:
         assert [item["text"] for item in emad] == [
             "Mona Ali approved the swap Badr proposed on the ER roster for June 2026. Its cells are in the roster in force.",
             "Badr proposed a swap on the ER roster for June 2026 that changes your cells. Accept or reject it on Swaps."]
-        assert emad[0]["link"] == {"page": "swaps", "month": MONTH, "unit_id": None}
+        assert emad[0]["link"] == {"page": "swaps", "month": MONTH, "unit_id": None, "cover_id": None}
         badr = told(nurse("Badr"), "swap_step")
         assert [item["text"] for item in badr] == [
             "Mona Ali approved the swap you proposed on the ER roster for June 2026. Its cells are in the roster in force.",
@@ -601,7 +601,7 @@ class TestNotifications:
         manager = told(mona, "swap_step")
         assert [item["text"] for item in manager] == [
             "The swap Badr proposed on the ER roster for June 2026 waits for your decision."]
-        assert manager[0]["link"] == {"page": "unit_swaps", "month": MONTH, "unit_id": None}
+        assert manager[0]["link"] == {"page": "unit_swaps", "month": MONTH, "unit_id": None, "cover_id": None}
 
     def test_payloads_hold_identifiers_and_the_step_only(self, in_force, nurse, mona):
         swap = awaiting(nurse)

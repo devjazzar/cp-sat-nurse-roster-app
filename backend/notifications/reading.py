@@ -13,7 +13,8 @@ from django.db.models import Count, Q
 from accounts.models import Role, User
 from closes.models import MonthClose
 from notifications.models import Event, Notification, SolveOutcome
-from notifications.sending import SwapStep
+from covers.models import Cover
+from notifications.sending import CoverStep, SwapStep
 from requesting.models import Request, RequestState, RequestWindow, Step
 from rosters.pins import long_date
 from swaps.models import Swap
@@ -24,9 +25,10 @@ WINDOW_EVENTS = (Event.WINDOW_OPENED, Event.WINDOW_CLOSED_EARLY, Event.REQUEST_D
 
 @dataclass(frozen=True)
 class Link:
-    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps"]
+    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps", "covers", "unit_covers"]
     month: str
     unit_id: UUID | None = None
+    cover_id: UUID | None = None
 
 
 class Names:
@@ -47,6 +49,8 @@ class Names:
         self.closes = {str(close.pk): close for close in MonthClose.objects.filter(pk__in=close_ids)}
         swap_ids = {note.payload.get("swap_id") for note in notes} - {None}
         self.swaps = {str(row.pk): row for row in Swap.objects.filter(pk__in=swap_ids).select_related("proposer__user")}
+        cover_ids = {note.payload.get("cover_id") for note in notes} - {None}
+        self.covers = {str(row.pk): row for row in Cover.objects.filter(pk__in=cover_ids).select_related("shift")}
 
 
 def _month_name(month: str) -> str:
@@ -159,6 +163,29 @@ def _swap_words(note: Notification, names: Names, roster: str, by: str) -> str:
     return f"A swap on the {roster} has moved."
 
 
+def _cover_words(note: Notification, names: Names, by: str) -> str:
+    """Read from the cover when shown: its shift and date, which the nurse offered it reads on Covers. Never why it was short,
+    who else was asked, who took it or why it ended."""
+    cover = names.covers.get(note.payload.get("cover_id"))
+    which = f"{cover.shift.display_name} ({cover.shift.code}) on {long_date(cover.date)}" if cover else "a shift"
+    match note.payload.get("step"):
+        case CoverStep.OFFERED:
+            return f"{by} offered you a cover: {which}. Accept or decline it on Covers."
+        case CoverStep.DECLINED:
+            return f"{by} declined the cover for {which}."
+        case CoverStep.ACCEPTED:
+            return f"{by} accepted the cover for {which}. It is in the roster in force."
+        case CoverStep.TAKEN:
+            return f"The cover for {which} offered to you has been taken."
+        case CoverStep.WITHDRAWN:
+            return f"{by} withdrew the cover for {which} offered to you."
+        case CoverStep.FILLED:
+            return f"The cover for {which} offered to you is no longer needed."
+        case CoverStep.EXPIRED:
+            return f"The cover for {which} offered to you has expired."
+    return f"The cover for {which} has moved."
+
+
 def _close_words(note: Notification, names: Names, roster: str) -> str:
     """How many hard rules the facts broke, read from the close; never which, since one can be a nurse's leave."""
     close = names.closes.get(note.payload.get("close_id"))
@@ -193,6 +220,8 @@ def text_of(note: Notification, names: Names) -> str:
             return _close_words(note, names, roster)
         case Event.SWAP_STEP:
             return _swap_words(note, names, roster, by)
+        case Event.COVER_STEP:
+            return _cover_words(note, names, by)
     return "Something has changed."
 
 
@@ -208,6 +237,10 @@ def link_of(note: Notification, reader: User, names: Names) -> Link | None:
         if unit.manager_id == reader.pk:
             return Link("unit_swaps", month)
         return Link("swaps", month) if reader.role == Role.STAFF_NURSE else None
+    if note.event == Event.COVER_STEP:
+        if unit.manager_id == reader.pk:
+            return Link("unit_covers", month, cover_id=payload.get("cover_id"))
+        return Link("covers", month) if reader.role == Role.STAFF_NURSE else None
     if note.event == Event.WINDOW_CLOSED:
         return Link("requests", month) if unit.manager_id == reader.pk else None
     if reader.role in (Role.CNO, Role.DEPUTY_CNO):

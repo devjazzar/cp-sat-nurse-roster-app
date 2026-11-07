@@ -162,13 +162,17 @@ def test_each_swap_endpoint_is_for_these_roles_only():
     assert {name: roles for name, roles in guarded.items() if "swaps" in name} == SWAP_ROLES
 
 
-# Covers (ticket 26): only the unit's manager reads, opens and withdraws the unit's. Nobody else reads any: not the System
-# Admin, and not the CNO or the Deputy CNO. Ticket 27 adds the nurse's own.
+# Covers (tickets 26 and 27): the unit's manager reads, opens, offers and withdraws the unit's; a staff nurse reads those offered
+# to her and answers them. Nobody else reads any: not the System Admin, and not the CNO or the Deputy CNO.
 COVER_ROLES = {
     "GET /api/units/{unit_id}/covers": MANAGER,
     "GET /api/units/{unit_id}/covers/{cover_id}": MANAGER,
     "POST /api/units/{unit_id}/covers": MANAGER,
+    "POST /api/units/{unit_id}/covers/{cover_id}/offer": MANAGER,
     "POST /api/units/{unit_id}/covers/{cover_id}/withdraw": MANAGER,
+    "GET /api/covers/mine": NURSE,
+    "POST /api/covers/mine/{cover_id}/accept": NURSE,
+    "POST /api/covers/mine/{cover_id}/decline": NURSE,
 }
 
 

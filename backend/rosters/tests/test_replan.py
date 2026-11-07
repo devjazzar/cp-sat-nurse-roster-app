@@ -589,7 +589,7 @@ class TestWhatTheBellSays:
     def said(self, client, solve) -> dict:
         from notifications.tests.test_events import told
         [note] = [note for note in told(client, "solve_ended") if note["text"].startswith("The re-plan")]
-        assert note["link"] == {"page": "roster", "month": MONTH, "unit_id": None}
+        assert note["link"] == {"page": "roster", "month": MONTH, "unit_id": None, "cover_id": None}
         return note["text"]
 
     def test_applied(self, mona, er, solver, in_force):

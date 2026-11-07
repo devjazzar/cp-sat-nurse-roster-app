@@ -471,7 +471,7 @@ class TestNursesAreTold:
         [note] = ok(nurses("Badr").get("/api/notifications"))["items"][:1]
         assert note["event"] == "roster_changed"
         assert note["text"] == "Mona Ali changed the ER roster for June 2026."
-        assert note["link"] == {"page": "my_roster", "unit_id": None, "month": "2026-06"}
+        assert note["link"] == {"page": "my_roster", "unit_id": None, "month": "2026-06", "cover_id": None}
 
     def test_it_carries_no_reason_cell_name_or_version(self, mona, carla, er, solver):
         approved(mona, carla, er, solver)

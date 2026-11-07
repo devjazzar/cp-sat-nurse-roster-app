@@ -5,20 +5,17 @@ import datetime as dt
 
 import pytest
 
-from django.db import transaction
 
 from accounts.models import Role, User
 from audit.models import AuditEntry
 from covers.models import Cover, CoverState
 from covers.tasks import expire_covers
-from covers.tests.conftest import (MONTH, cover_page, covers_of, ok, open_cover, opened, record_leave, refusals, rules_require,
-                                   withdraw)
+from covers.tests.conftest import (MONTH, cover_page, covers_of, offered, ok, open_cover, opened, record_leave, refusals,
+                                   rules_require, withdraw)
 from notifications.tests.test_events import as_user
 from nurses.models import NurseProfile, Placement
 from requesting.tests.conftest import asked, decided as request_decided, opened as opened_window
-from rosters.models import Roster
 from rosters.tests.test_pins import icu, off, pin
-from rosters.versions import make_version
 from rosters.tests.test_review import solved, submitted
 from rosters.tests.test_versions import changed
 from swaps.tests.conftest import SOUND_SWAP, acted, cell as swap_cell, decided, proposed
@@ -302,13 +299,14 @@ class TestWithdrawing:
     @pytest.mark.parametrize("state", ["open", "offered"])
     def test_the_manager_withdraws_a_waiting_cover_with_an_entry_naming_the_unit(self, in_force, mona, state):
         cover = opened(mona, in_force, 9, "N")["cover"]
-        Cover.objects.filter(pk=cover["id"]).update(state=state)  # Ticket 27 offers it.
+        if state == "offered":
+            offered(mona, in_force, cover["id"], "Amal")
 
         page = ok(withdraw(mona, in_force, cover["id"]))
 
         assert (page["cover"]["state"], page["cover"]["ended_by"], page["check"]) == ("withdrawn", "Mona Ali", None)
         assert page["cover"]["ended_at"] is not None
-        assert audited() == [("cover.withdrawn", "mona", "ER")]
+        assert audited()[-1] == ("cover.withdrawn", "mona", "ER")
 
     def test_an_ended_cover_cannot_be_withdrawn(self, in_force, mona):
         cover = opened(mona, in_force, 9, "N")["cover"]
@@ -397,16 +395,3 @@ class TestFilled:
 
         assert {(row["date"], row["state"]) for row in covers_of(mona, in_force)} == {
             ("2026-06-09", "filled"), ("2026-06-13", "open")}
-
-    def test_a_version_a_covers_acceptance_makes_fills_nothing(self, in_force, mona):
-        """Ticket 27 makes these versions, of origin `cover`; the rule is the fill's, so it is held here. The taker's own
-        cover accounts for her: a second cover of the shift-day waits on."""
-        opened(mona, in_force, 9, "N")
-        roster = Roster.objects.get()
-        grid = {nurse: dict(row) for nurse, row in roster.grid.items()}
-        grid["Amal"]["2026-06-09"] = "N"
-
-        with transaction.atomic():
-            make_version(Roster.objects.select_for_update().get(pk=roster.pk), grid, "cover", User.objects.get(username="mona"))
-
-        assert states() == ["open"]

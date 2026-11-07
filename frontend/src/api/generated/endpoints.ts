@@ -65,6 +65,7 @@ import type {
   LeaveTypeSchema,
   ListAuditEntriesParams,
   ListHospitalSolveHistoryParams,
+  ListMyCoversParams,
   ListMySwapsParams,
   ListPublicHolidaysParams,
   ListRamadanMonthsParams,
@@ -82,6 +83,8 @@ import type {
   Me,
   MonthBody,
   MonthCloseView,
+  MyCoverRow,
+  MyCovers,
   MyLeaveMonth,
   MyMonth,
   MyRequestRow,
@@ -99,6 +102,7 @@ import type {
   NurseAttributesRow,
   NurseRow,
   NurseWithPassword,
+  OfferCoverBody,
   OpenCoverBody,
   Overview,
   PasswordSheet,
@@ -8064,6 +8068,99 @@ export function useGetUnitCover<TData = Awaited<ReturnType<typeof getUnitCover>>
 
 
 
+export const getOfferUnitCoverUrl = (unitId: string,
+    coverId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/covers/${coverId}/offer`
+}
+
+/**
+ * Open: it becomes offered to these nurses. Offered: those not yet in it are added, a nurse who declined staying as she
+ * answered. A nurse not in the list as judged now is refused by name (422). Only those added are told.
+ * @summary Offer Cover
+ */
+export const offerUnitCover = async (unitId: string,
+    coverId: string,
+    offerCoverBody: OfferCoverBody, options?: Parameters<typeof apiFetch>[1]): Promise<CoverPage> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CoverPage>(getOfferUnitCoverUrl(unitId,coverId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(offerCoverBody)
+  }
+);}
+
+
+
+
+
+export const getOfferUnitCoverMutationKey = () => ['offerUnitCover'] as const;
+
+export const getOfferUnitCoverMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof offerUnitCover>>, TError,OfferUnitCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof offerUnitCover>>, TError,OfferUnitCoverMutationVariables, TContext> => {
+
+const mutationKey = getOfferUnitCoverMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof offerUnitCover>>, OfferUnitCoverMutationVariables> = (props) => {
+          const {unitId,coverId,data} = props ?? {};
+
+          return  offerUnitCover(unitId,coverId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OfferUnitCoverMutationResult = NonNullable<Awaited<ReturnType<typeof offerUnitCover>>>
+    export type OfferUnitCoverMutationBody = OfferCoverBody
+    export type OfferUnitCoverMutationError = unknown
+    export type OfferUnitCoverMutationVariables = {unitId: string;coverId: string;data: OfferCoverBody}
+
+    /**
+ * @summary Offer Cover
+ */
+export const useOfferUnitCover = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof offerUnitCover>>, TError,OfferUnitCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof offerUnitCover>>,
+        TError,
+        OfferUnitCoverMutationVariables,
+        TContext
+      > => {
+      return useMutation(getOfferUnitCoverMutationOptions(options), queryClient);
+    }
+
 export const getWithdrawUnitCoverUrl = (unitId: string,
     coverId: string,) => {
 
@@ -8074,7 +8171,7 @@ export const getWithdrawUnitCoverUrl = (unitId: string,
 }
 
 /**
- * Open or offered. Ticket 27 tells the nurses offered it, never why.
+ * Open or offered. The nurses offered it are told, never why.
  * @summary Withdraw Cover
  */
 export const withdrawUnitCover = async (unitId: string,
@@ -9155,6 +9252,265 @@ export const useRejectSwap = <TError = unknown,
         TContext
       > => {
       return useMutation(getRejectSwapMutationOptions(options), queryClient);
+    }
+
+export const getListMyCoversUrl = (params?: ListMyCoversParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/covers/mine?${stringifiedParams}` : `/api/covers/mine`
+}
+
+/**
+ * @summary My Covers
+ */
+export const listMyCovers = async (params?: ListMyCoversParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyCovers> => {
+
+  return apiFetch<MyCovers>(getListMyCoversUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyCoversQueryKey = (params?: ListMyCoversParams,) => {
+    return [
+    `/api/covers/mine`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMyCoversQueryOptions = <TData = Awaited<ReturnType<typeof listMyCovers>>, TError = unknown>(params?: ListMyCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCovers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyCoversQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyCovers>>> = ({ signal }) => listMyCovers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyCovers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMyCoversQueryResult = NonNullable<Awaited<ReturnType<typeof listMyCovers>>>
+export type ListMyCoversQueryError = unknown
+
+
+export function useListMyCovers<TData = Awaited<ReturnType<typeof listMyCovers>>, TError = unknown>(
+ params: undefined |  ListMyCoversParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCovers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyCovers>>,
+          TError,
+          Awaited<ReturnType<typeof listMyCovers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyCovers<TData = Awaited<ReturnType<typeof listMyCovers>>, TError = unknown>(
+ params?: ListMyCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCovers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyCovers>>,
+          TError,
+          Awaited<ReturnType<typeof listMyCovers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyCovers<TData = Awaited<ReturnType<typeof listMyCovers>>, TError = unknown>(
+ params?: ListMyCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCovers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Covers
+ */
+
+export function useListMyCovers<TData = Awaited<ReturnType<typeof listMyCovers>>, TError = unknown>(
+ params?: ListMyCoversParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCovers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMyCoversQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptCoverUrl = (coverId: string,) => {
+
+
+
+
+  return `/api/covers/mine/${coverId}/accept`
+}
+
+/**
+ * The first acceptance takes it: your cell holds its shift in the roster in force at once. Refused (409) once it has been
+ * taken, withdrawn, filled or its date has passed, or when you could no longer take it, in your own words.
+ * @summary Accept Cover
+ */
+export const acceptCover = async (coverId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MyCoverRow> => {
+
+  return apiFetch<MyCoverRow>(getAcceptCoverUrl(coverId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptCoverMutationKey = () => ['acceptCover'] as const;
+
+export const getAcceptCoverMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptCover>>, TError,AcceptCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptCover>>, TError,AcceptCoverMutationVariables, TContext> => {
+
+const mutationKey = getAcceptCoverMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptCover>>, AcceptCoverMutationVariables> = (props) => {
+          const {coverId} = props ?? {};
+
+          return  acceptCover(coverId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptCoverMutationResult = NonNullable<Awaited<ReturnType<typeof acceptCover>>>
+
+    export type AcceptCoverMutationError = unknown
+    export type AcceptCoverMutationVariables = {coverId: string}
+
+    /**
+ * @summary Accept Cover
+ */
+export const useAcceptCover = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptCover>>, TError,AcceptCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acceptCover>>,
+        TError,
+        AcceptCoverMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcceptCoverMutationOptions(options), queryClient);
+    }
+
+export const getDeclineCoverUrl = (coverId: string,) => {
+
+
+
+
+  return `/api/covers/mine/${coverId}/decline`
+}
+
+/**
+ * Your manager is told. You are not asked again.
+ * @summary Decline Cover
+ */
+export const declineCover = async (coverId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MyCoverRow> => {
+
+  return apiFetch<MyCoverRow>(getDeclineCoverUrl(coverId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeclineCoverMutationKey = () => ['declineCover'] as const;
+
+export const getDeclineCoverMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineCover>>, TError,DeclineCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declineCover>>, TError,DeclineCoverMutationVariables, TContext> => {
+
+const mutationKey = getDeclineCoverMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declineCover>>, DeclineCoverMutationVariables> = (props) => {
+          const {coverId} = props ?? {};
+
+          return  declineCover(coverId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclineCoverMutationResult = NonNullable<Awaited<ReturnType<typeof declineCover>>>
+
+    export type DeclineCoverMutationError = unknown
+    export type DeclineCoverMutationVariables = {coverId: string}
+
+    /**
+ * @summary Decline Cover
+ */
+export const useDeclineCover = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineCover>>, TError,DeclineCoverMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof declineCover>>,
+        TError,
+        DeclineCoverMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeclineCoverMutationOptions(options), queryClient);
     }
 
 export const getGetRosterOverviewUrl = (params?: GetRosterOverviewParams,) => {

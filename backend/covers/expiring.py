@@ -4,8 +4,7 @@ new version puts one more nurse on its shift-day, whatever made the version.
 A date is read by every page (`state_now`), so nothing waits on the worker; the stored state follows in the hourly job
 (`covers.tasks`) or the next write about the cover, whichever comes first (`expire_passed`), under each cover's row lock, so it
 happens once. A version is made in one place, `rosters.versions.make_version`, which calls `on_new_version` under the roster's row
-lock, after the swaps' hook. Neither is audited: both are nobody's act. Ticket 27 tells the nurses offered one that it ended,
-never why."""
+lock, after the swaps' hook. Neither is audited: both are nobody's act. The nurses offered one are told it ended, never why."""
 from __future__ import annotations
 
 from collections import Counter
@@ -15,6 +14,7 @@ from uuid import UUID
 from django.db.models import QuerySet
 from django.utils import timezone
 
+from notifications import sending
 from nurses import membership
 from rosters.drafts import in_current_codes
 from rosters.models import Roster, VersionOrigin
@@ -33,14 +33,17 @@ def state_now(cover: Cover) -> str:
 
 def _locked(ids: Iterable[UUID]) -> list[Cover]:
     """In the order every write that locks several takes them, so two never wait on each other."""
-    return list(Cover.objects.select_for_update().filter(pk__in=list(ids), state__in=WAITING).order_by("opened_at", "pk"))
+    return list(Cover.objects.select_for_update(of=("self",)).select_related("unit")
+                .filter(pk__in=list(ids), state__in=WAITING).order_by("opened_at", "pk"))
 
 
 def _end(rows: Iterable[Cover], state: CoverState) -> list[Cover]:
+    step = sending.CoverStep.EXPIRED if state == CoverState.EXPIRED else sending.CoverStep.FILLED
     ended = []
     for cover in rows:
         cover.state, cover.ended_at = state, timezone.now()
         cover.save(update_fields=["state", "ended_at"])
+        sending.cover_step(cover, step, None)
         ended.append(cover)
     return ended
 
@@ -69,7 +72,7 @@ def on_new_version(roster: Roster, before: Grid, after: Grid, origin: str) -> li
     # Only the covers' rows: the shifts joined are catalogue rows, whose locks come before the roster's.
     waiting = (Cover.objects.select_for_update(of=("self",))
                .filter(roster=roster, state__in=WAITING, date__gte=membership.today())
-               .select_related("shift").order_by("opened_at", "pk"))
+               .select_related("shift", "unit").order_by("opened_at", "pk"))
     filled, left = [], dict(added)
     for cover in waiting:
         key = (cover.date.isoformat(), cover.shift.code)

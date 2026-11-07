@@ -29,6 +29,7 @@ from solves.history_api import router as solve_history_router
 from swaps.api import router as swaps_router
 from swaps.mine_api import router as my_swaps_router
 from covers.api import router as covers_router
+from covers.mine_api import router as my_covers_router
 from units.api import router as units_router
 from units.rules_api import router as unit_rules_router
 
@@ -53,6 +54,7 @@ api.add_router("/units", covers_router)
 api.add_router("/units", closes_router)
 api.add_router("/requests", my_requests_router)
 api.add_router("/swaps", my_swaps_router)
+api.add_router("/covers", my_covers_router)
 api.add_router("/rosters", rosters_reading_router)
 api.add_router("/solve-history", hospital_solves_router)
 api.add_router("/nurses", nurses_router)

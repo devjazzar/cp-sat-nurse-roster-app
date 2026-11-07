@@ -95,7 +95,7 @@ def shift_day(violation: dict) -> tuple[str, str] | None:
     return (violation["date"], found[1]) if found else None
 
 
-def headcount(violation: dict) -> tuple[int, int, int]:
+def headcount_of(violation: dict) -> tuple[int, int, int]:
     """A headcount's (present, minimum, maximum), from the solver's text."""
     present, low, high = (int(number) for number in _HEADCOUNT.search(violation["text"]).groups())
     return present, low, high
@@ -103,7 +103,7 @@ def headcount(violation: dict) -> tuple[int, int, int]:
 
 def _beyond(violation: dict) -> int:
     """How far a headcount is outside its range."""
-    present, low, high = headcount(violation)
+    present, low, high = headcount_of(violation)
     return low - present if present < low else present - high
 
 
