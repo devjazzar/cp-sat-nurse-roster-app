@@ -112,7 +112,7 @@ test("leave recorded while a re-plan waits: the re-plan ends without undoing it,
   })
 })
 
-test("a manager deactivated while editing is asked, on saving, whether to leave the unsaved changes for the login page; the CNO gives the unit back", async ({ browser, page }) => {
+test("a manager deactivated while editing goes, on saving, straight to the login page, which says so; signing in again returns to the roster", async ({ browser, page }) => {
   const { rostered } = notebook.read()
   await as(page, people.manager.username)
   await go(page, "Roster")
@@ -128,13 +128,12 @@ test("a manager deactivated while editing is asked, on saving, whether to leave 
 
   await page.getByLabel("Why", { exact: true }).fill("Cover agreed on the phone")
   await page.getByRole("button", { name: "Save as a new version" }).click()
-  // The save is refused for the session that ended, and the app goes to the login page: the page's guard asks first, since
-  // the changes would be lost. It does not say why (a finding of ticket 24's, for the user).
-  const leaving = page.getByRole("alertdialog", { name: "Leave without saving your changes?" })
-  await expect(leaving).toContainText("Your changes to the draft are not saved yet. If you leave, they are lost.")
-  await leaving.getByRole("button", { name: "Leave without saving" }).click()
-  await expect(page).toHaveURL(/\/login$/)
-  await expect(page.getByRole("button", { name: "Log in" })).toBeVisible()
+  // Ticket 25: the save is refused for the session that ended, and the app goes straight to the login page, with no question
+  // first, since staying could save nothing. The login page says why it is there.
+  await expect(page.getByRole("alert")).toHaveText("You were signed out. Changes you had not saved are lost. Sign in to carry on.")
+  await expect(page).toHaveURL((url) => url.pathname === "/login")
+  await expect(page.getByLabel("Username")).toBeFocused()
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
 
   // Putting it back: reactivated by the System Admin, and given the unit again by the CNO, since deactivating took it off.
   await admin.getByRole("button", { name: `Reactivate ${people.manager.username}` }).click()
@@ -150,6 +149,13 @@ test("a manager deactivated while editing is asked, on saving, whether to leave 
   await expect(cno.getByRole("row", { name: new RegExp(`${UNIT}.*${people.manager.name}`) })).toBeVisible()
   await cno.context().close()
 
-  await as(page, people.manager.username)
-  await expect(page.getByText(`Your unit is ${UNIT}.`)).toBeVisible()
+  // Signing in on the same login page goes back to the Roster page, with nothing of the changes kept.
+  await page.getByLabel("Username").fill(people.manager.username)
+  await page.getByLabel("Password").fill(notebook.read().chosen[people.manager.username])
+  await page.getByRole("button", { name: "Log in" }).click()
+  await expect(page).toHaveURL((url) => url.pathname === "/roster")
+  await expect(page.getByRole("heading", { level: 1, name: `Roster of ${UNIT}` })).toBeVisible()
+  await expect(page.getByRole("heading", { level: 2, name: monthName(rostered) })).toBeVisible()
+  await expect(page.getByRole("region", { name: /not saved yet/ })).toHaveCount(0)
+  await expect(page.getByText("You were signed out.", { exact: false })).toHaveCount(0)
 })

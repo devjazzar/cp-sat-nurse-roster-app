@@ -508,12 +508,18 @@ holidays and Ramadan, units and managers, nurses with import and export, each un
 to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules,
 rostering attributes and leave to read); Unit Manager (unit rules, rostering attributes, nurses, request
 windows and requests, swaps, leave, the roster grid with solve, progress, results and
-explanations, submit, versions, exports, month close); Staff Nurse (unit roster, own month: hours, overtime, what
+explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff
+Nurse reads them, but no requests or swaps of their own); Staff Nurse (unit roster, own month: hours, overtime, what
 is carried, shift counts and leave with its type, requests, swaps, notifications, password). A nurse's own hours are
 worked out from the version in force on the month as it stands, with the solver's own arithmetic, for this month and later;
 a month already over shows its leave only. Every role has the bell and Change password. The Deputy CNO, Unit Manager and Staff Nurse also read
 the shift catalogue, leave types, holidays and Ramadan; the System Admin may open those pages
-but has no link to them, because nothing in that role's work calls for it.
+but has no link to them, because nothing in that role's work calls for it. A session that ends behind the user's back (the
+idle limit, a deactivation, a password changed elsewhere: any 401 while the app believes someone is signed in) goes straight
+to the login page from any page, without the roster page's unsaved-changes question, since staying could save nothing. The
+login page says "You were signed out. Changes you had not saved are lost. Sign in to carry on.", only then, and signing in
+again goes back to the page the user was on (an address in the app, carried in the login page's address), which sends a role
+that may no longer open it home. Nothing of unsaved edits is kept in the browser.
 
 What a solve shows afterwards: every piece of information the result holds: precheck
 warnings, penalties per rule, per-nurse cost and hours accounting, the explanation of the

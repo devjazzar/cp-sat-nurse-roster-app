@@ -45,9 +45,14 @@ for (const [username, role] of [["carla", "CNO"], ["hala", "Deputy CNO"]] as con
   })
 }
 
-test("a manager with a nurse profile reads their own row on My roster and their month on My month", async ({ page }) => {
+test("a manager with a nurse profile opens My roster and My month from the header, and reads their own row and month", async ({ page }) => {
   await signIn(page, "omar")
-  // Their header reaches neither page (a finding of ticket 24's): they are at these addresses.
+  // Ticket 25: the header reaches both, before the unit's pages.
+  await go(page, "My roster")
+  await expect(page.getByRole("heading", { level: 1, name: `Roster of ${stack.large_unit}` })).toBeVisible()
+  await go(page, "My month")
+  await expect(page.getByRole("heading", { level: 1, name: "My month" })).toBeVisible()
+  // Then the seeded month, which may not be the one either page opens on.
   await page.goto(`/my-roster?month=${stack.approved_month}`)
   const grid = page.getByRole("region", { name: `Roster of ${stack.large_unit}, ${monthName(stack.approved_month)}` })
   await expect(grid.getByRole("rowheader", { name: `${stack.names.omar} (you)` })).toBeVisible()

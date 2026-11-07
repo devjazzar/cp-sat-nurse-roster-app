@@ -984,10 +984,10 @@ describe("each role's navigation and home", () => {
   })
 
   // Ticket 25. A Unit Manager with a nurse profile is on their unit's rosters, so their own roster and month are theirs to
-  // read too: beside the unit's Roster, and no request or swap of a Staff Nurse's.
+  // read too: first, apart from the unit's pages, and no request or swap of a Staff Nurse's.
   describe("a Unit Manager with a nurse profile", () => {
     const MANAGER_NURSE = { ...ME, username: "omar", full_name: "Omar Said", role: "unit_manager", has_nurse_profile: true }
-    const MANAGER_LINKS = ["Home", "Roster", "My roster", "My month", "Solve history", "Requests", "Swaps", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"]
+    const MANAGER_LINKS = ["Home", "My roster", "My month", "Roster", "Solve history", "Requests", "Swaps", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"]
     const managerNurse = (extra = {}) => ({
       ...session(MANAGER_NURSE),
       "GET /api/units": { body: [{ id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }] },
