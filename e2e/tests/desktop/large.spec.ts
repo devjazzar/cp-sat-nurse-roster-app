@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { another, monthName, shortDay, signIn, soundSwap, stack } from "../../support"
+import { another, monthName, proposeSwap, shortDay, signIn, soundSwap, stack } from "../../support"
 import { replanTheLargeUnit } from "../replan"
 
 // Ticket 24: a large unit, ICU's sixty-four nurses (e2e/seed.py), as its manager and nurses use it. Its draft's grid is long
@@ -55,15 +55,7 @@ test("a swap in the sixty-four-nurse unit is checked on the spot when proposed, 
   const swap = soundSwap(stack, ICU, stack.approved_month)
   await signIn(page, swap.proposer)
   await page.goto(`/swaps?month=${stack.approved_month}`)
-  const cell = (index: number, field: "nurse" | "date" | "shift") => page.locator(`#swap-cell-${index}-${field}`)
-  await cell(0, "date").selectOption(swap.date)
-  await cell(0, "shift").selectOption("")
-  await page.getByRole("button", { name: "Add a cell" }).click()
-  await cell(1, "nurse").selectOption(swap.colleague)
-  await cell(1, "date").selectOption(swap.date)
-  await cell(1, "shift").selectOption(swap.shift)
-  await page.getByRole("button", { name: "Propose the swap" }).click()
-  await expect(page.getByText(`Your swap is proposed. ${stack.names[swap.colleague]} is asked to accept it, then your manager decides.`)).toBeVisible()
+  await proposeSwap(page, swap, stack.names[swap.colleague])
 
   // The manager reads it checked on the month as it stands, before its colleague has answered.
   const manager = await another(browser, page, "omar")

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { addDays, daysBetween, fire, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, moveClock, shortDay, soundSwap } from "../../../support"
+import { addDays, daysBetween, fire, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, moveClock, proposeSwap, shortDay, soundSwap } from "../../../support"
 import { alongside, as, nameOf, notebook, people, UNIT } from "../people"
 
 // Ticket 24: what happens by date alone, on what the desktop journey left. The checks' clock (`e2e/stack.sh clock`, the
@@ -69,15 +69,7 @@ test("a swap still waiting when its date passes expires, and the hourly job tell
   const swap = soundSwap(on, UNIT, rostered)
   await as(page, swap.proposer)
   await page.goto(`/swaps?month=${rostered}`)
-  const cell = (index: number, field: "nurse" | "date" | "shift") => page.locator(`#swap-cell-${index}-${field}`)
-  await cell(0, "date").selectOption(swap.date)
-  await cell(0, "shift").selectOption("")
-  await page.getByRole("button", { name: "Add a cell" }).click()
-  await cell(1, "nurse").selectOption(swap.colleague)
-  await cell(1, "date").selectOption(swap.date)
-  await cell(1, "shift").selectOption(swap.shift)
-  await page.getByRole("button", { name: "Propose the swap" }).click()
-  await expect(page.getByText(`Your swap is proposed. ${nameOf(swap.colleague)} is asked to accept it, then your manager decides.`)).toBeVisible()
+  await proposeSwap(page, swap, nameOf(swap.colleague))
   const mine = page.getByRole("heading", { level: 3, name: `Your swap on ${shortDay(swap.date)}: Waiting for its colleagues` })
   await expect(mine).toBeVisible()
 

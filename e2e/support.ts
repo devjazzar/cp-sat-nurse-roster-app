@@ -89,16 +89,27 @@ export async function firstSignIn(page: Page, username: string, given: string): 
 /** Opens one of the role's pages from the header, as a person would: the one-row links on a wide screen, the Menu on a phone. */
 export async function go(page: Page, name: string) {
   const menu = page.getByRole("button", { name: "Menu" })
-  if (await menu.isVisible()) {
-    await menu.click()
-    await page.getByRole("navigation", { name: "Main menu" }).getByRole("link", { name, exact: true }).click()
-  } else {
-    await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name, exact: true }).click()
-  }
+  const onPhone = await menu.isVisible()
+  if (onPhone) await menu.click()
+  const link = page.getByRole("navigation", onPhone ? { name: "Main menu" } : { name: "Main", exact: true }).getByRole("link", { name, exact: true })
+  // The page left has a heading too, and the router changes the address before it draws the new page: what is waited for
+  // is the address the link goes to, then the new page's own heading in place of the old one.
+  const path = new URL((await link.getAttribute("href"))!, page.url()).pathname
+  const leaving = new URL(page.url()).pathname !== path ? await page.getByRole("heading", { level: 1 }).textContent() : null
+  await link.click()
+  await expect(page).toHaveURL((url) => url.pathname === path)
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+  if (leaving !== null) await expect(page.getByRole("heading", { level: 1 })).not.toHaveText(leaving)
   await expect(page.getByText("Loading…")).toHaveCount(0)
   // On a phone, no page a journey opens makes the page itself scroll sideways.
   if (page.viewportSize()!.width < 640) await expectNoSidewaysScroll(page)
+}
+
+/** A page's "Previous month" or "Next month", waited for as `go` is: the month in the address, then its heading. */
+export async function toMonth(page: Page, which: "Previous month" | "Next month", month: string) {
+  await page.getByRole("navigation", { name: "Month" }).getByRole("link", { name: which }).click()
+  await expect(page).toHaveURL((url) => url.searchParams.get("month") === month)
+  await expect(page.getByRole("navigation", { name: "Month" }).getByRole("heading", { level: 2, name: monthName(month) })).toBeVisible()
 }
 
 /** Chooses the one option of a select whose words match, whatever else its label says ("Rana Haddad (rana)"). */
@@ -130,6 +141,20 @@ export async function another(browser: Browser, page: Page, username: string): P
 
 /** A second person on their own phone: a context of their own, the same size as the test's. */
 export const anotherPhone = (browser: Browser, page: Page, username: string) => another(browser, page, username)
+
+/** A nurse's two-cell swap on the Swaps page already open at its month: her shift on the day to a colleague off that day.
+ *  `colleague` is how the page names them. */
+export async function proposeSwap(page: Page, swap: Swap, colleague: string) {
+  const cell = (index: number, field: "nurse" | "date" | "shift") => page.locator(`#swap-cell-${index}-${field}`)
+  await cell(0, "date").selectOption(swap.date)
+  await cell(0, "shift").selectOption("")
+  await page.getByRole("button", { name: "Add a cell" }).click()
+  await cell(1, "nurse").selectOption(swap.colleague)
+  await cell(1, "date").selectOption(swap.date)
+  await cell(1, "shift").selectOption(swap.shift)
+  await page.getByRole("button", { name: "Propose the swap" }).click()
+  await expect(page.getByText(`Your swap is proposed. ${colleague} is asked to accept it, then your manager decides.`)).toBeVisible()
+}
 
 /** The page itself never scrolls sideways: whatever is wider scrolls inside its own region. */
 export async function expectNoSidewaysScroll(page: Page) {

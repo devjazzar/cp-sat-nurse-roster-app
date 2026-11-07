@@ -37,10 +37,8 @@ for (const [username, role] of [["carla", "CNO"], ["hala", "Deputy CNO"]] as con
       await expect(page.getByRole("heading", { level: 1, name: `Roster of ${unit}` })).toBeVisible()
       const grid = page.getByRole("region", { name: `Approved roster of ${unit}, ${monthName(stack.approved_month)}` })
       await expect(grid.getByRole("rowheader").first()).toBeVisible()
-      // Every nurse is on it; a long roster is windowed, so its rows are counted, not read.
-      const count = await grid.getByRole("grid").or(grid.getByRole("table")).first().getAttribute("aria-rowcount")
-      if (count) expect(Number(count)).toBe(nurses + 1)
-      else expect(await grid.getByRole("rowheader").count()).toBe(nurses)
+      // Every nurse is on it, with the header row: a long roster is windowed, so its rows are counted, not read.
+      await expect(grid.locator("table")).toHaveAttribute("aria-rowcount", String(nurses + 1))
       await expect(page.getByRole("table", { name: "Versions of this roster, newest first" }).getByRole("row", { name: /^1 / })).toBeVisible()
       await page.goBack()
     }
@@ -56,7 +54,8 @@ test("a manager with a nurse profile reads their own row on My roster and their 
   await page.goto(`/my-month?month=${stack.approved_month}`)
   await expect(page.getByRole("heading", { level: 1, name: "My month" })).toBeVisible()
   await expect(page.getByRole("heading", { level: 3, name: "Hours and shifts" })).toBeVisible()
-  await expect(page.getByText(`From version 1 of the ${stack.large_unit} roster, approved `)).toBeVisible()
+  // The version in force: a re-plan of ICU (large.spec) may have made a later one.
+  await expect(page.getByText(new RegExp(`From version \\d+ of the ${stack.large_unit} roster, approved `))).toBeVisible()
   await expect(page.getByRole("term").filter({ hasText: "Hours worked" })).toBeVisible()
   // A staff nurse's requests are not a manager's: only their hours, shifts and leave.
   await expect(page.getByRole("region", { name: /^Your requests for / })).toHaveCount(0)

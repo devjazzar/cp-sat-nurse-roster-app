@@ -3,7 +3,7 @@ import { expect, type Browser, type Page } from "@playwright/test"
 import { firstSignIn, go, journeyStack as on, newBrowser, Notebook, signIn, type Swap } from "../../support"
 
 /** Who the journey makes, what it keeps in its notebook (e2e/.stack/<project>.journey.json) for the steps after. */
-export const UNIT = "Ward B"
+export const UNIT = "Maternity"
 
 export const people = {
   cno: { username: "nadia", name: "Nadia Faris", role: "CNO" },

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { compose, go, journeyStack as on, monthName } from "../../../support"
+import { compose, go, journeyStack as on, monthName, toMonth } from "../../../support"
 import { alongside, as, notebook, people, SOLVED, UNIT } from "../people"
 
 // Ticket 24: a solve whose solver is gone, on what the desktop journey left. The `solver` service is stopped before the solve
@@ -15,8 +15,7 @@ test("a solve fails when the solver cannot be reached, and the System Admin's so
   try {
     await as(page, people.manager.username)
     await go(page, "Roster")
-    await page.getByRole("navigation", { name: "Month" }).getByRole("link", { name: "Next month" }).click()
-    await expect(page.getByRole("heading", { level: 2, name: monthName(requested) })).toBeVisible()
+    await toMonth(page, "Next month", requested)
     await page.getByLabel("Time limit (seconds)").fill("5")
     await page.getByRole("button", { name: "Start solve" }).click()
     await expect(page.getByText(/^The solve failed, and the draft is as it was\. You can run it again\. It says: /)).toBeVisible(SOLVED)

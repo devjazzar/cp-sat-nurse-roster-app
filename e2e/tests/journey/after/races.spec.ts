@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test"
 
-import { choose, compose, go, journeyStack as on, monthName, shortDay, soundSwap, type Swap } from "../../../support"
+import { choose, compose, go, journeyStack as on, monthName, proposeSwap, shortDay, soundSwap, type Swap } from "../../../support"
 import { alongside, as, nameOf, notebook, people, SOLVED, UNIT } from "../people"
 
 // Ticket 24: races, on what the desktop journey left. The server's tests force the order on real connections; here the order is
@@ -10,17 +10,15 @@ import { alongside, as, nameOf, notebook, people, SOLVED, UNIT } from "../people
 
 test.describe.configure({ mode: "serial", timeout: 120_000 })
 
-/** The catalogue's seeded shifts the journey's unit works. */
-const SHIFT_NAMES: Record<string, string> = { D: "Day", N: "Night" }
-
 /** The manager's edit of two cells of the approved roster, as the swap's: the proposer's shift to the colleague. */
 async function editAsTheSwap(page: Page, swap: Swap) {
   const grid = page.getByRole("grid")
   const day = Number(swap.date.slice(8))
-  for (const [nurse, choice] of [[swap.proposer, "Pin a day off"], [swap.colleague, `Pin ${SHIFT_NAMES[swap.shift]}`]] as const) {
-    await grid.getByRole("button", { name: new RegExp(`^${nameOf(nurse)}, ${day} [A-Z][a-z]+:`) }).click()
-    await page.getByRole("menuitem", { name: choice, exact: true }).click()
-  }
+  await grid.getByRole("button", { name: new RegExp(`^${nameOf(swap.proposer)}, ${day} [A-Z][a-z]+:`) }).click()
+  await page.getByRole("menuitem", { name: "Pin a day off", exact: true }).click()
+  // A shift's item shows its code, then "Pin" and its name.
+  await grid.getByRole("button", { name: new RegExp(`^${nameOf(swap.colleague)}, ${day} [A-Z][a-z]+:`) }).click()
+  await page.getByRole("menuitem").filter({ hasText: new RegExp(`^${swap.shift}Pin `) }).click()
 }
 
 test("two changes to the approved roster at once: the second, from a page loaded before the first, is the next version", async ({ browser, page }) => {
@@ -56,15 +54,7 @@ test("two changes to the approved roster at once: the second, from a page loaded
 async function aSwapWaitingForTheManager(browser: Browser, page: Page, swap: Swap, month: string) {
   const proposer = await alongside(browser, page, swap.proposer)
   await proposer.goto(`/swaps?month=${month}`)
-  const cell = (index: number, field: "nurse" | "date" | "shift") => proposer.locator(`#swap-cell-${index}-${field}`)
-  await cell(0, "date").selectOption(swap.date)
-  await cell(0, "shift").selectOption("")
-  await proposer.getByRole("button", { name: "Add a cell" }).click()
-  await cell(1, "nurse").selectOption(swap.colleague)
-  await cell(1, "date").selectOption(swap.date)
-  await cell(1, "shift").selectOption(swap.shift)
-  await proposer.getByRole("button", { name: "Propose the swap" }).click()
-  await expect(proposer.getByText(`Your swap is proposed. ${nameOf(swap.colleague)} is asked to accept it, then your manager decides.`)).toBeVisible()
+  await proposeSwap(proposer, swap, nameOf(swap.colleague))
   await proposer.context().close()
   const colleague = await alongside(browser, page, swap.colleague)
   await colleague.goto(`/swaps?month=${month}`)
@@ -73,11 +63,12 @@ async function aSwapWaitingForTheManager(browser: Browser, page: Page, swap: Swa
   await colleague.context().close()
 }
 
-test("a swap approved while a re-plan waits: the re-plan ends without undoing it, and its page says why", async ({ browser, page }) => {
-  const { rostered } = notebook.read()
-  await aSwapWaitingForTheManager(browser, page, soundSwap(on, UNIT, rostered, `${rostered}-08`), rostered)
+const OUTDATED = "The roster in force or the month changed while the re-plan ran, so its roster was not put in force: it would have undone that change. Re-plan again to take it in."
 
-  // The worker is stopped, so the re-plan stays on the queue until the swap is in force: the order is the test's, not a race's.
+/** The manager starts a re-plan with the worker stopped, so it stays on the queue while `meanwhile` changes the month; the
+ *  worker is then started, and the re-plan ends. The order is the test's, not a race's. */
+async function whileARePlanWaits(browser: Browser, page: Page, meanwhile: (other: Page) => Promise<void>) {
+  const { rostered } = notebook.read()
   compose(on, "stop", "worker")
   try {
     await as(page, people.manager.username)
@@ -86,19 +77,39 @@ test("a swap approved while a re-plan waits: the re-plan ends without undoing it
     await page.getByRole("region", { name: "Re-plan from a date" }).getByLabel("Time limit (seconds)").fill("5")
     await page.getByRole("button", { name: /^Re-plan/ }).click()
     await expect(page.getByText("Next in the hospital's queue.")).toBeVisible()
+    const other = await alongside(browser, page, people.manager.username)
+    await meanwhile(other)
+    await other.context().close()
+  } finally {
+    compose(on, "up", "-d", "--wait", "worker")
+  }
+  await expect(page.getByText(OUTDATED)).toBeVisible(SOLVED)
+}
 
-    const swaps = await alongside(browser, page, people.manager.username)
+test("a swap approved while a re-plan waits: the re-plan ends without undoing it, and its page says why", async ({ browser, page }) => {
+  const { rostered } = notebook.read()
+  await aSwapWaitingForTheManager(browser, page, soundSwap(on, UNIT, rostered, `${rostered}-08`), rostered)
+  await whileARePlanWaits(browser, page, async (swaps) => {
     await go(swaps, "Swaps")
     await swaps.getByRole("button", { name: "Approve", exact: true }).click()
     await swaps.getByRole("alertdialog").getByRole("button", { name: "Approve the swap" }).click()
     await expect(swaps.getByText(/^You approved .* is now in force, its cells pinned\./)).toBeVisible()
-    await swaps.context().close()
-  } finally {
-    compose(on, "up", "-d", "--wait", "worker")
-  }
-
-  await expect(page.getByText("The roster in force or the month changed while the re-plan ran, so its roster was not put in force: it would have undone that change. Re-plan again to take it in.")).toBeVisible(SOLVED)
+  })
   await expect(page.getByRole("table", { name: "Versions of this roster, newest first" }).getByRole("row").nth(1)).toContainText("Swap")
+})
+
+test("leave recorded while a re-plan waits: the re-plan ends without undoing it, and its page says why", async ({ browser, page }) => {
+  const { rostered } = notebook.read()
+  const [, , lina] = people.nurses
+  await whileARePlanWaits(browser, page, async (leave) => {
+    await leave.goto(`/leave?month=${rostered}`)
+    await leave.getByRole("button", { name: "Record leave" }).click()
+    await leave.getByLabel("Nurse").selectOption({ label: lina.name })
+    await leave.getByLabel("Leave type").selectOption({ label: "Emergency" })
+    await leave.getByLabel("First day").fill(`${rostered}-27`)
+    await leave.getByRole("button", { name: "Save" }).click()
+    await expect(leave.getByRole("button", { name: new RegExp(`^Remove leave of ${lina.name}, `) })).toBeVisible()
+  })
 })
 
 test("a manager deactivated while editing is asked, on saving, whether to leave the unsaved changes for the login page; the CNO gives the unit back", async ({ browser, page }) => {

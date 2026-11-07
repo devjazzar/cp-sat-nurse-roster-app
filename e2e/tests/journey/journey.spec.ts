@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { addDays, choose, dayBefore, firstSignIn, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, reset, shortDay, soundSwap } from "../../support"
+import { addDays, choose, dayBefore, firstSignIn, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, proposeSwap, reset, shortDay, soundSwap, toMonth } from "../../support"
 import { alongside, as, nameOf, notebook, openFromRosters, people, SOLVED, UNIT } from "./people"
 
 // Ticket 24: the hospital's first month, from an empty stack, as the hospital will use it. The System Admin logs in for the first
@@ -150,8 +150,7 @@ test("the manager opens a request window; a nurse reads the roster in force and 
   // Home speaks of this month, which has no roster: the hospital's first is next month's.
   await expect(nurse.getByText(`No roster yet for ${monthName(today.slice(0, 7))}.`)).toBeVisible()
   await nurse.getByRole("main").getByRole("link", { name: "My roster" }).click()
-  await nurse.getByRole("navigation", { name: "Month" }).getByRole("link", { name: "Next month" }).click()
-  await expect(nurse.getByRole("heading", { level: 2, name: monthName(rostered) })).toBeVisible()
+  await toMonth(nurse, "Next month", rostered)
   const grid = nurse.getByRole("region", { name: `Roster of ${UNIT}, ${monthName(rostered)}` })
   await expect(grid.getByRole("rowheader", { name: `${sara.name} (you)` })).toBeVisible()
   for (const colleague of people.nurses.slice(1)) await expect(grid.getByRole("rowheader", { name: colleague.name })).toBeVisible()
@@ -187,25 +186,14 @@ test("a nurse proposes a swap, the colleague in it accepts, the manager approves
   notebook.write({ swap })
   await as(page, swap.proposer)
   await go(page, "Swaps")
-  await page.getByRole("navigation", { name: "Month" }).getByRole("link", { name: "Next month" }).click()
-  await expect(page.getByRole("heading", { level: 2, name: monthName(rostered) })).toBeVisible()
+  await toMonth(page, "Next month", rostered)
   await expect(page.getByRole("heading", { level: 2, name: "Your swaps" })).toBeVisible()
-  const cell = (index: number, field: "nurse" | "date" | "shift") => page.locator(`#swap-cell-${index}-${field}`)
-  await cell(0, "date").selectOption(swap.date)
-  await cell(0, "shift").selectOption("")
-  await page.getByRole("button", { name: "Add a cell" }).click()
-  await cell(1, "nurse").selectOption(swap.colleague)
-  await cell(1, "date").selectOption(swap.date)
-  await cell(1, "shift").selectOption(swap.shift)
-  await page.getByRole("button", { name: "Propose the swap" }).click()
-  await expect(page.getByText(`Your swap is proposed. ${nameOf(swap.colleague)} is asked to accept it, then your manager decides.`)).toBeVisible()
+  await proposeSwap(page, swap, nameOf(swap.colleague))
 
   const colleague = await alongside(browser, page, swap.colleague)
   await go(colleague, "Swaps")
   // A nurse's Swaps opens on this month; the swap is on next month's roster.
-  await colleague.getByRole("navigation", { name: "Month" }).getByRole("link", { name: "Next month" }).click()
-  await expect(colleague.getByRole("heading", { level: 2, name: monthName(rostered) })).toBeVisible()
-  await expect(colleague.getByRole("heading", { level: 2, name: monthName(rostered) })).toBeVisible()
+  await toMonth(colleague, "Next month", rostered)
   await colleague.getByRole("button", { name: new RegExp(`^Accept ${nameOf(swap.proposer)}'s swap on `) }).click()
   await expect(colleague.getByText(`You accepted ${nameOf(swap.proposer)}'s swap. Everyone in it has now accepted, so it waits for the manager.`)).toBeVisible()
 
@@ -226,8 +214,7 @@ test("a nurse proposes a swap, the colleague in it accepts, the manager approves
   await expect(versions.getByRole("row", { name: /^2 \(in force\) Swap/ })).toBeVisible()
   for (const [who, shown] of [[colleague, swap.shift], [page, "Off"]] as const) {
     await go(who, "My roster")
-    await who.getByRole("navigation", { name: "Month" }).getByRole("link", { name: "Next month" }).click()
-    await expect(who.getByRole("heading", { level: 2, name: monthName(rostered) })).toBeVisible()
+    await toMonth(who, "Next month", rostered)
     const grid = who.getByRole("region", { name: `Roster of ${UNIT}, ${monthName(rostered)}` })
     const mine = grid.getByRole("row", { name: /\(you\)/ })
     await expect(mine.getByRole("cell").nth(Number(swap.date.slice(8)) - 1)).toHaveText(shown)

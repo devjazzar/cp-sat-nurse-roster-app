@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { go, monthName } from "../../../support"
-import { alongside, as, notebook, openFromRosters, people } from "../people"
+import { alongside, as, notebook, openFromRosters, people, SOLVED } from "../people"
 
 // Ticket 24: a re-plan that changes the roster in force, and the Deputy CNO reading it, on what the desktop journey left. Leave
 // recorded late on a day a nurse works takes her off it, so the day falls short of its headcount; the manager re-plans the
@@ -32,7 +32,7 @@ test("leave recorded late, a re-plan that covers it, and the Deputy CNO reading 
   await replan.getByLabel("Time limit (seconds)").fill("10")
   await replan.getByRole("button", { name: /^Re-plan/ }).click()
   await expect(page.getByRole("status").filter({ hasText: /^The re-plan (finished|stopped) with a cost of \d+, and its roster is now in force as a new version\./ }))
-    .toBeVisible({ timeout: 90_000 })
+    .toBeVisible(SOLVED)
   const versions = page.getByRole("table", { name: "Versions of this roster, newest first" })
   const replanned = versions.getByRole("row", { name: /^\d+ \(in force\) Re-planned / })
   await expect(replanned).toBeVisible()

@@ -21,7 +21,7 @@ test("the System Admin reads the health page and downloads a backup from its car
   const [download] = await Promise.all([page.waitForEvent("download"), link.click()])
   const path = await download.path()
   expect(statSync(path).size, "the backup downloaded is not empty").toBeGreaterThan(0)
-  expect(download.suggestedFilename()).toMatch(/\.(dump|sql|gz|backup)$|^nurse-roster/)
+  expect(download.suggestedFilename()).toMatch(/^nurse-roster-\d{8}T\d{6}Z\.dump$/)
 })
 
 test("another role is refused the backup file, and sent home from the health page", async ({ browser, page }) => {

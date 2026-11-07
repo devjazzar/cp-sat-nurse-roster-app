@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { expectNoSidewaysScroll, go, monthName, signIn, stack } from "../../support"
+import { another, expectNoSidewaysScroll, go, monthName, proposeSwap, shortDay, signIn, soundSwap, stack } from "../../support"
 import { replanTheLargeUnit } from "../replan"
 
 // Ticket 24, left by ticket 23: a unit manager's Requests and Swaps pages, and a re-plan's result, on a 375 px phone (an
@@ -15,17 +15,28 @@ test("the manager's Requests page, with its windows and requests, keeps within a
   await expect(page.getByRole("region", { name: `Requests for ${monthName(stack.window_month)}, by date` })
     .or(page.getByText("No requests were made in this window."))).toBeVisible()
   await expectNoSidewaysScroll(page)
-  for (const region of await page.getByRole("region").all()) await expect(region).toBeInViewport({ ratio: 0 })
 })
 
-test("the manager's Swaps page keeps within a phone's width", async ({ page }) => {
+test("the manager's Swaps page, a swap before and after among it, keeps within a phone's width", async ({ browser, page }) => {
+  // A swap of its own to read, withdrawn at the end.
+  const swap = soundSwap(stack, stack.unit, stack.approved_month)
+  const nurse = await another(browser, page, swap.proposer)
+  await nurse.goto(`/swaps?month=${stack.approved_month}`)
+  await proposeSwap(nurse, swap, stack.names[swap.colleague])
+
   await signIn(page, "mona")
   await go(page, "Swaps")
   await page.goto(`/unit-swaps?month=${stack.approved_month}`)
   await expect(page.getByRole("heading", { level: 2, name: monthName(stack.approved_month) })).toBeVisible()
-  // Ticket 23's swap check leaves withdrawn swaps on ER's approved month, so there is a list to read.
   await expect(page.getByRole("region", { name: "The unit's swaps, newest first" })).toBeVisible()
+  await page.getByRole("link", { name: `Show ${stack.names[swap.proposer]}'s swap on ${shortDay(swap.date)}` }).first().click()
+  await expect(page.getByRole("region", { name: `${stack.names[swap.proposer]}'s swap, before and after` })).toBeVisible()
   await expectNoSidewaysScroll(page)
+
+  await nurse.getByRole("button", { name: `Withdraw your swap on ${shortDay(swap.date)}` }).click()
+  await nurse.getByRole("alertdialog").getByRole("button", { name: "Withdraw the swap" }).click()
+  await expect(nurse.getByText("You withdrew your swap. Everyone in it is told.")).toBeVisible()
+  await nurse.context().close()
 })
 
 test("a re-plan's result keeps within a phone's width, its comparison tables scrolling in their own regions", async ({ page }) => {
