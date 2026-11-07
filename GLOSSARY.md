@@ -64,7 +64,7 @@ Runs the one unit the CNO assigned to the account, one per unit, and a unit wait
 _Avoid_: head nurse, charge nurse, supervisor
 
 **Staff Nurse**:
-A nurse's role. Sees her unit's approved roster, makes requests during a request window and proposes swaps.
+A nurse's role. Sees her unit's approved roster, makes requests during a request window, proposes swaps and reads her own skills with their expiries.
 _Avoid_: nurse user, regular nurse
 
 **Password sheet**:
@@ -236,7 +236,7 @@ The last day a nurse's skill counts; every skill of a kind the catalogue says ex
 _Avoid_: expiration date, valid until, renewal date, lapsed
 
 **Required to work**:
-A mark on a skill in the catalogue: a nurse without a valid one works no shift that day. Her hours stay owed, as for any nurse whose days cannot hold them.
+A mark on a skill in the catalogue: a nurse who holds one that has expired works no shift that day. Her hours stay owed, as for any nurse whose days cannot hold them. A nurse with no record of it is rostered as before, and the gap is listed for the CNO to fill.
 _Avoid_: mandatory credential, blocking credential, licence check
 
 **Skill need**:

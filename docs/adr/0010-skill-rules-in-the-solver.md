@@ -29,7 +29,10 @@ instead, since the app's history depends on it. Version 2 is the only version th
 
 ## Consequences
 
-- An expiry reaches the solver as a date inside the month, or not at all: a skill expired before
-  the month is left out, one valid past its last day is held all month.
+- A nurse's skill reaches the solver with its expiry, or with none where it does not expire or is
+  valid past the month's last day. A skill expired before the month is sent with its past expiry,
+  not left out: the bar on a required skill applies only to a skill held and expired (a nurse with
+  no record of it is rostered as before), so absence has to mean "no record". The expiry is the one
+  dated field the loader accepts before the month; a date after it is refused as elsewhere.
 - The solver's precheck, explain and validate words gain the two rules, and the swap judging keeps
   a colleague's skills behind the same hidden form as her other facts.
