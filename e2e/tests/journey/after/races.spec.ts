@@ -129,9 +129,11 @@ test("a manager deactivated while editing goes, on saving, straight to the login
   await page.getByLabel("Why", { exact: true }).fill("Cover agreed on the phone")
   await page.getByRole("button", { name: "Save as a new version" }).click()
   // Ticket 25: the save is refused for the session that ended, and the app goes straight to the login page, with no question
-  // first, since staying could save nothing. The login page says why it is there.
-  await expect(page.getByRole("alert")).toHaveText("You were signed out. Changes you had not saved are lost. Sign in to carry on.")
+  // first, since staying could save nothing. The login page says why it is there. The roster page's own alerts show until it
+  // has gone, so its form is waited for first.
+  await expect(page.getByRole("button", { name: "Log in" })).toBeVisible()
   await expect(page).toHaveURL((url) => url.pathname === "/login")
+  await expect(page.getByRole("alert")).toHaveText("You were signed out. Changes you had not saved are lost. Sign in to carry on.")
   await expect(page.getByLabel("Username")).toBeFocused()
   await expect(page.getByRole("alertdialog")).toHaveCount(0)
 
