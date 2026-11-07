@@ -3,7 +3,7 @@
 Status: ready-for-agent
 Type: feature
 Published: 2026-11-07 by /to-spec
-Decided: the grilling of 2026-11-07 (13 questions, two rounds), recorded in `docs/adr/0010-preferences-are-priced-never-pinned.md`
+Decided: the grilling of 2026-11-07 (13 questions, two rounds), recorded in `docs/adr/0013-preferences-are-priced-never-pinned.md`
 and `GLOSSARY.md` (Preference, Kept)
 
 Vocabulary: `GLOSSARY.md`. Decisions and their reasons: `docs/ARCHITECTURE.md` and `docs/adr/`. Where this spec and those
@@ -186,7 +186,7 @@ rule. He decides nothing on them.
 - `docs/ARCHITECTURE.md`: section 1 and section 12 no longer list soft preferences as out of scope; section 4 gains the
   Preference entity and the unit's preference cap; section 5's Requests lifecycle gains the preference steps; section 6
   notes the solver contract's new field; section 7's chain paragraph names the carried count; section 8's screens name the
-  Preferences card and the manager's read-only list. ADR 0010 and the glossary are already written.
+  Preferences card and the manager's read-only list. ADR 0013 and the glossary are already written.
 - `frontend/openapi.json` and the generated client are regenerated.
 
 ## Testing Decisions
@@ -228,7 +228,7 @@ rule. He decides nothing on them.
 ## Out of Scope
 
 - A preferred shift on a day: the solver prices a day, and a specific shift stays a request.
-- A multiplier by the count unkept, a longer memory than one month, or a price that differs by unit: ADR 0010 rejected them.
+- A multiplier by the count unkept, a longer memory than one month, or a price that differs by unit: ADR 0013 rejected them.
 - A manager's decision on preferences, a notification for them, or a reason on them.
 - Preferences for a manager with a nurse profile; swaps touching preferences in any way.
 - Showing the nurse the solver's cost or any colleague's preferences.
