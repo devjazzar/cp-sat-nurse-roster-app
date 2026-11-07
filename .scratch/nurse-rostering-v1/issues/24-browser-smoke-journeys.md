@@ -206,3 +206,5 @@
   - no new dependency anywhere.
   - `deploy/tests/operations.sh` gained a check, and `.github/workflows/` and `e2e/ci.sh` are new.
 - **To run it all:** `e2e/ci.sh`, or the README's lines for two stacks of your own.
+
+**Reviewed by the user (2026-11-07):** all points marked **Worth your review** are kept as built: the checks' clock (whole days, test stacks only, structural Caddy proof); hourly jobs fired at once in the real worker; two stacks with the empty one reset before each journey; the desktop journey depending on the phone one; ICU at 64 nurses; CI as GitHub Actions running `e2e/ci.sh`; races ordered, not raced; the `support.ts` helper changes. The two findings (a manager-nurse's links to My roster and My month; what an ended session says during an edit) go to the user's grilling before any ticket is written.
