@@ -129,7 +129,11 @@ _Avoid_: request period, submission window
 
 **Swap**:
 A nurse's proposal to change a set of cells on her unit's approved roster: her own and those of any colleagues needed to make the change work. It needs every involved colleague's acceptance, then the unit manager's; approved, it becomes pinned cells in a new roster version. It expires when one of its dates passes or a new version changes one of its cells. A refusal tells the proposer nothing of a colleague that My roster would not show. Rejected, withdrawn or expired, it stays on record.
-_Avoid_: exchange, trade, shift change, cover
+_Avoid_: exchange, trade, shift change
+
+**Cover**:
+One more nurse needed on one shift on one date of the roster in force, which the unit manager offers to the staff nurses who could take it without breaking a hard rule, ranked by who stands furthest below her owed hours this month, then least overtime this year. Leave that takes a shift off the roster in force opens one by itself, unoffered; the manager may open one by hand for any shift-day today or later. The first nurse to accept takes it, and her acceptance is a pinned cell in a new roster version. A cover is about the shift-day, never about whose absence made it short: a nurse offered one reads the date, the shift and the manager's note, and nothing of why or of who else was asked. One not taken expires when its date passes.
+_Avoid_: sick call, replacement, fill-in, open shift, extra shift, cover request
 
 **Notification**:
 Something a user is told in the application, about a roster's submit, approval, rejection or change, a solve's end, a
