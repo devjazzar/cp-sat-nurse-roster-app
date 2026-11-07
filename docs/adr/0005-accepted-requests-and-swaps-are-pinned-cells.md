@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-11-04
+amended: 2026-11-07
 ---
 # An accepted request or swap becomes a pinned cell, not a soft preference
 
@@ -13,3 +14,5 @@ solver's precheck reports before a solve and the manager resolves by cancelling 
 
 The soft request kinds stay available in the solver and may be offered later as a weaker,
 unapproved "preference"; v1 does not expose them.
+
+Amended 2026-11-07: the soft kinds are now exposed as preferences, decided in ADR 0010. A request is still a pin.

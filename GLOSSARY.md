@@ -64,7 +64,7 @@ Runs the one unit the CNO assigned to the account, one per unit, and a unit wait
 _Avoid_: head nurse, charge nurse, supervisor
 
 **Staff Nurse**:
-A nurse's role. Sees her unit's approved roster, makes requests during a request window and proposes swaps.
+A nurse's role. Sees her unit's approved roster, makes requests and preferences during a request window and proposes swaps.
 _Avoid_: nurse user, regular nurse
 
 **Password sheet**:
@@ -121,10 +121,18 @@ _Avoid_: absence type, leave category
 
 **Request**:
 A nurse's wish about one date of a coming month, made during a request window and accepted or rejected by her unit manager: either a day off or a specific shift. Accepted, it is a promise the roster keeps, as a pinned cell; rejected, withdrawn, cancelled, replaced by leave recorded on its date, or expired because its month closed before a decision, it stays on record and never reaches the solver. Only she and her unit manager read it and its reasons.
-_Avoid_: solve request, preference, wish, day request
+_Avoid_: solve request, wish, day request
+
+**Preference**:
+A nurse's wish about one date of a coming month, made during a request window beside her requests: a day off, or a working day of any shift. Nobody decides it and it is never a pin; the solver keeps it at a price, the soft rule's weight, doubled for a nurse one of whose preferences the month before did not keep. A date holds one wish, a request or a preference; while the window is open she may withdraw one or ask for it as a request instead. The unit caps how many a nurse makes a month. Only she and her unit manager read them.
+_Avoid_: wish, soft request, desired day, undesired day
+
+**Kept**:
+What a preference is once the roster in force gives the nurse what she preferred on its date, however that roster came about; otherwise it is not kept. One on a date she is on leave is neither.
+_Avoid_: honoured, satisfied, granted
 
 **Request window**:
-The days, from an open date to a close date on the hospital's clock, that a unit manager opens for the unit's nurses to make requests for one target month. A unit has at most one waiting to open or open at a time.
+The days, from an open date to a close date on the hospital's clock, that a unit manager opens for the unit's nurses to make requests and preferences for one target month. A unit has at most one waiting to open or open at a time.
 _Avoid_: request period, submission window
 
 **Swap**:
@@ -144,7 +152,7 @@ One run of the solver on one solve input, producing one result.
 _Avoid_: run, job, generation
 
 **Solve input**:
-Everything the solver needs for one unit and one month: the hospital rules, the unit rules, the nurses with their carry-over, leave, accepted requests and pinned cells, and the time limit.
+Everything the solver needs for one unit and one month: the hospital rules, the unit rules, the nurses with their carry-over, leave, preferences, accepted requests and pinned cells, and the time limit.
 _Avoid_: request, request JSON, problem, payload
 
 **Result**:
@@ -152,7 +160,7 @@ What a solve returns: the roster, the hard rules it breaks, its cost, each nurse
 _Avoid_: solution, output
 
 **Carry-over**:
-The per-nurse values one month hands to the next: hours owed or worked ahead, fairness balances, overtime so far this year, and her recent shift history.
+The per-nurse values one month hands to the next: hours owed or worked ahead, fairness balances, overtime so far this year, her recent shift history, and how many of her preferences the month did not keep.
 _Avoid_: balance, state, history
 
 **Opening values**:
@@ -192,7 +200,7 @@ The rules every unit rosters by: the shift catalogue, hours per day, Ramadan and
 _Avoid_: general rules, general settings, global settings
 
 **Unit rules**:
-The rules of one unit: its shifts, headcounts, team leader and gender requirements, score targets, rest and run limits, fairness and request limits.
+The rules of one unit: its shifts, headcounts, team leader and gender requirements, score targets, rest and run limits, fairness limits, and the request and preference caps.
 _Avoid_: department rules, department settings, unit settings
 
 **Shift**:
