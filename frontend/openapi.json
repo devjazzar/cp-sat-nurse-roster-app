@@ -5512,6 +5512,11 @@
             "title": "Must Change Password",
             "type": "boolean"
           },
+          "has_nurse_profile": {
+            "description": "Whether they are on rosters themselves. A Staff Nurse always is; a Unit Manager may be, and then also reads My roster and My month.",
+            "title": "Has Nurse Profile",
+            "type": "boolean"
+          },
           "time_zone": {
             "description": "The hospital's time zone, for a page that must pick a default by the hospital's clock before it can ask the API anything, such as the year the holidays page opens on.",
             "title": "Time Zone",
@@ -5523,6 +5528,7 @@
           "full_name",
           "role",
           "must_change_password",
+          "has_nurse_profile",
           "time_zone"
         ],
         "title": "Me",

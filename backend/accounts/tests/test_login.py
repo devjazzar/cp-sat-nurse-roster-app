@@ -1,3 +1,4 @@
+import datetime as dt
 from datetime import timedelta
 
 import pytest
@@ -7,6 +8,7 @@ from django.utils import timezone
 
 from accounts.models import LoginAttempts, Role, User
 from audit.models import AuditEntry
+from nurses.models import Gender, NurseProfile
 from conftest import PASSWORD, post
 
 pytestmark = pytest.mark.django_db
@@ -39,12 +41,26 @@ class TestSession:
         r = login(client)
         assert r.status_code == 200
         me = {"username": "someone", "full_name": "Some One", "role": "cno", "must_change_password": False,
-              "time_zone": "Asia/Riyadh"}
+              "has_nurse_profile": False, "time_zone": "Asia/Riyadh"}
         assert r.json() == me
         assert client.get("/api/auth/session").json() == {"user": me}
 
         assert client.post("/api/auth/logout").status_code == 204
         assert client.get("/api/auth/session").json() == {"user": None}
+
+    @pytest.mark.parametrize(("role", "profile"), [
+        (Role.UNIT_MANAGER, True), (Role.UNIT_MANAGER, False), (Role.STAFF_NURSE, True),
+        (Role.CNO, False), (Role.DEPUTY_CNO, False), (Role.SYSTEM_ADMIN, False),
+    ])
+    def test_me_says_whether_there_is_a_nurse_profile(self, make_user, role, profile):
+        # Only a Unit Manager's header and Home act on it: a manager on their unit's rosters reads My roster and My month.
+        user = make_user(role=role)
+        if profile:
+            NurseProfile.objects.create(user=user, gender=Gender.FEMALE, start_date=dt.date(2026, 1, 1))
+        client = Client()
+
+        assert login(client).json()["has_nurse_profile"] is profile
+        assert client.get("/api/auth/session").json()["user"]["has_nurse_profile"] is profile
 
     def test_logout_needs_a_session(self):
         assert Client().post("/api/auth/logout").status_code == 401

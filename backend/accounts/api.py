@@ -47,8 +47,14 @@ class Me(Schema):
     full_name: str
     role: Role
     must_change_password: bool
+    has_nurse_profile: bool = Field(description="Whether they are on rosters themselves. A Staff Nurse always is; a Unit "
+                                               "Manager may be, and then also reads My roster and My month.")
     time_zone: str = Field(description="The hospital's time zone, for a page that must pick a default by the hospital's "
                                        "clock before it can ask the API anything, such as the year the holidays page opens on.")
+
+    @staticmethod
+    def resolve_has_nurse_profile(user) -> bool:
+        return hasattr(user, "nurse_profile")
 
     @staticmethod
     def resolve_time_zone(user) -> str:

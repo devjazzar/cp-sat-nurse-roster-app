@@ -128,6 +128,7 @@ export const GetSessionResponse = zod.object({
   "full_name": zod.string(),
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "must_change_password": zod.boolean(),
+  "has_nurse_profile": zod.boolean().describe('Whether they are on rosters themselves. A Staff Nurse always is; a Unit Manager may be, and then also reads My roster and My month.'),
   "time_zone": zod.string().describe('The hospital\'s time zone, for a page that must pick a default by the hospital\'s clock before it can ask the API anything, such as the year the holidays page opens on.')
 }),zod.null()])
 })
@@ -151,6 +152,7 @@ export const LoginResponse = zod.object({
   "full_name": zod.string(),
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "must_change_password": zod.boolean(),
+  "has_nurse_profile": zod.boolean().describe('Whether they are on rosters themselves. A Staff Nurse always is; a Unit Manager may be, and then also reads My roster and My month.'),
   "time_zone": zod.string().describe('The hospital\'s time zone, for a page that must pick a default by the hospital\'s clock before it can ask the API anything, such as the year the holidays page opens on.')
 })
 
@@ -174,6 +176,7 @@ export const ChangePasswordResponse = zod.object({
   "full_name": zod.string(),
   "role": zod.enum(['system_admin', 'cno', 'deputy_cno', 'unit_manager', 'staff_nurse']),
   "must_change_password": zod.boolean(),
+  "has_nurse_profile": zod.boolean().describe('Whether they are on rosters themselves. A Staff Nurse always is; a Unit Manager may be, and then also reads My roster and My month.'),
   "time_zone": zod.string().describe('The hospital\'s time zone, for a page that must pick a default by the hospital\'s clock before it can ask the API anything, such as the year the holidays page opens on.')
 })
 
