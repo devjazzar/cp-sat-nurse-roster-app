@@ -124,6 +124,9 @@
 
 **What was found, and fixed.** Only what the ticket allowed: small, clearly a bug, with a test.
 - **In a long roster grid, the keyboard lost focus** (`components/roster-grid.tsx`). The grid is windowed above 60 rows. PageDown, End, or an arrow past the rows drawn moved the active cell and scrolled to it, but the cell was not drawn yet when focus was given. Focus fell to the page's body, and the next key did nothing. Now the move waits for the cell to be drawn. Found by `large.spec`. A Vitest test in `app.test.tsx` gives jsdom a scroller and a scroll, and fails without the fix.
+  - **A second cause, found when six `npm test` runs shared a machine** (reported by the session that verifies the branch; the test failed 6 of 6 there and passed alone). The virtualizer's scroll can render the grid once more inside the key's handler, before the new active cell is set. On that render the old cell is still drawn, so the move was spent focusing it, and the cell moved to never got focus.
+  - Now the move remembers the cell it is for, and only that cell, once drawn, takes the focus.
+  - The test waits for each focus rather than reading it once. It passed 12 of 12 in two rounds of six parallel `npm test` runs, and fails without the fix. `large.spec` passed again in Chromium on a fresh seeded stack.
 - **Ticket 23's check counted the health page's own read** (`pwa.spec`). The System Admin's home is the Health page, which reads `/api/ops/health` itself, sometimes after the watch began, so "exactly two" failed now and then. It is now "at least our two". The proof that nothing came from a cache, "not from the disk cache", is unchanged.
 
 **Findings for you, not fixed (beyond "small and clearly a bug"):**

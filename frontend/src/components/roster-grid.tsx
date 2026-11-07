@@ -93,7 +93,8 @@ export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: G
   const scroller = useRef<HTMLDivElement>(null)
   const shifts = useMemo(() => new Map([...extraShifts, ...grid.shifts].map((shift) => [shift.code, shift])), [grid.shifts, extraShifts])
   const [active, setActive] = useState({ row: 0, col: 0 })
-  const moved = useRef(false)
+  /** The cell an arrow key moved to, until it has focus. */
+  const movedTo = useRef<{ row: number; col: number } | null>(null)
   const columns = useMemo<ColumnDef<typeof features, GridRow>[]>(() => [
     { id: "nurse", header: NURSE_HEADER, accessorFn: (row) => row.full_name || row.hospital_id },
     ...grid.days.map((day, index) => ({
@@ -120,12 +121,15 @@ export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: G
   const cellId = (row: number, col: number) => `cell-${row}-${col}`
 
   // Only after an arrow key: a page that re-renders must not take focus from wherever the manager is. In a windowed grid the
-  // cell moved to may not be drawn yet, until the scroll to it renders its row, so the move waits for it (ticket 24).
+  // cell moved to may not be drawn yet, until the scroll to it renders its row, so the move waits for that cell (ticket 24).
+  // It is the cell itself that is waited for, not whichever is active: the virtualizer's scroll can render the grid once more
+  // before the new active cell is set, and that render must not spend the move on the old one.
   useEffect(() => {
-    if (!moved.current) return
-    const cell = document.getElementById(cellId(active.row, active.col))
+    const to = movedTo.current
+    if (!to) return
+    const cell = document.getElementById(cellId(to.row, to.col))
     if (!cell) return
-    moved.current = false
+    movedTo.current = null
     cell.focus()
   })
 
@@ -139,7 +143,7 @@ export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: G
     const mirrored = getComputedStyle(event.currentTarget).direction === "rtl" && event.key.startsWith("Arrow") && to.row === row
     const next = mirrored ? { row, col: col - (to.col - col) } : to
     const clamped = { row: Math.min(Math.max(next.row, 0), last.row), col: Math.min(Math.max(next.col, 0), last.col) }
-    moved.current = true
+    movedTo.current = clamped
     if (windowed) virtualizer.scrollToIndex(clamped.row)
     setActive(clamped)
   }

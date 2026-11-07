@@ -4645,10 +4645,12 @@ describe("the roster page", () => {
         const first = await cellNamed("Nurse 0, 1 June: Day")
         expect(screen.queryByRole("button", { name: "Nurse 199, 1 June: Day" })).not.toBeInTheDocument()
         first.focus()
+        // The row is drawn after the scroll, and focus moves to its cell once it is: each is waited for.
+        const focused = (name: string) => waitFor(() => expect(screen.getByRole("button", { name })).toHaveFocus())
         await user.keyboard("{PageDown}")
-        expect(await cellNamed("Nurse 199, 1 June: Day")).toHaveFocus()
+        await focused("Nurse 199, 1 June: Day")
         await user.keyboard("{PageUp}")
-        expect(await cellNamed("Nurse 0, 1 June: Day")).toHaveFocus()
+        await focused("Nurse 0, 1 June: Day")
       } finally {
         vi.restoreAllMocks()
         delete (Element.prototype as Partial<Element>).scrollTo
