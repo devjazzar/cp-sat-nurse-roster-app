@@ -464,6 +464,8 @@ minute takes a lock of its own. Jobs:
   `remove_old_notifications` (older than a year, read or not), `clear_expired_sessions` (Django's `clearsessions`).
 - `expire_swaps` (hourly, minute 15): expires each waiting swap one of whose dates has passed, telling its people. Every page reads
   the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
+- `expire_covers` (hourly, minute 20): stores each waiting cover whose date has passed as expired (ticket 27 tells the nurses
+  offered it). Every page reads the date itself and every write about a cover does the same for it first.
 - `open_and_close_request_windows` (hourly): opens each request window whose open date has come and closes each whose close
   date has passed, telling whoever that tells. Every write about a unit's windows does the same first, so a worker that is down
   delays only the notifications.
@@ -480,7 +482,7 @@ be replaced without touching the API, the solver client or the solver.
 Django 6.1 (to 6.2 LTS in April 2027), Django Ninja for the JSON API with an OpenAPI
 document, PostgreSQL 18, cookie sessions, CSRF. Django's admin site is not exposed. Apps, one
 per domain area: accounts, hospital, units, nurses, rosters, requests (`requesting`, since `requests` is a well-known
-library's import name), swaps, solves, closes, notifications, audit, ops. A `solve input` assembler builds the solver JSON from the database
+library's import name), swaps, covers, solves, closes, notifications, audit, ops. A `solve input` assembler builds the solver JSON from the database
 and stores it verbatim with every solve; a `result` reader stores and interprets results.
 
 ### Frontend (ADR 0008)
@@ -554,7 +556,9 @@ accepted, rejected, edited, cancelled), never its date, its shift or either reas
 request that leave replaced, and a version a request made, have no entry of their own, since one beside the leave's or the
 request's would date it. So is a swap: whose it is (the proposer's) and who moved it how (`swap.proposed`, `accepted`, `rejected`,
 `withdrawn`, `approved`), never its cells, dates, note or reasons; an approval also writes `roster.changed`. An expiry has no
-entry: it is nobody's act, and one beside the version that caused it could date a colleague's leave.
+entry: it is nobody's act, and one beside the version that caused it could date a colleague's leave. A cover is logged as the manager's
+`cover.withdrawn`, with the unit as its target, never its date, shift or note; its opening, by leave or by hand, its filling and
+its expiry have no entry, since one beside the leave's would date it.
 
 ### Nurse import and the staff list
 

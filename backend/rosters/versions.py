@@ -82,7 +82,8 @@ def _key_share(unit: Unit) -> None:
     waited for instead of deadlocked with. The weakest lock there is, so a leave write of another unit's nurse, or a read of
     the unit, never waits on it."""
     with connection.cursor() as cursor:
-        cursor.execute("SELECT 1 FROM units_unit WHERE id = %s FOR KEY SHARE", [unit.pk])
+        # The ORM takes no `FOR KEY SHARE`.
+        cursor.execute(f"SELECT 1 FROM {Unit._meta.db_table} WHERE id = %s FOR KEY SHARE", [unit.pk])
 
 
 @dataclass(frozen=True)

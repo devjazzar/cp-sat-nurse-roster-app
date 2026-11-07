@@ -8,7 +8,7 @@ import datetime as dt
 from hospital.models import Shift
 from nurses import membership
 from rosters.drafts import current_code
-from rosters.models import Roster, RosterState, RosterVersion
+from rosters.models import Roster, RosterVersion
 from rosters.pins import long_date
 from units.models import Unit
 
@@ -30,14 +30,14 @@ def refusal(unit: Unit, day: dt.date, code: str) -> tuple[str, str] | None:
     """Why the manager may not open a cover for this shift-day, with the field it is about, or None."""
     if day < membership.today():
         return "date", f"{long_date(day)} has passed, so it cannot be covered."
-    if current_code(code) not in unit.rules.get("shifts", []) or not Shift.objects.filter(code=current_code(code)).exists():
+    worked = Shift.objects.filter(code=current_code(code), active=True).exists()
+    if current_code(code) not in unit.rules.get("shifts", []) or not worked:
         return "shift", f"{code} is not one of this unit's shifts."
     return None
 
 
 def by_hand(roster: Roster, day: dt.date, code: str) -> Cover:
-    """On the roster in force, for a shift-day `refusal` allows. Hold the roster's row lock, so the version it reads as in force
-    is the one a fill would compare against."""
-    assert roster.state == RosterState.APPROVED
+    """On the roster in force, for a shift-day `refusal` allows. Hold the unit's row lock, then the roster's, so the version it
+    reads as in force is the one a fill would compare against."""
     return Cover.objects.create(unit=roster.unit, roster=roster, opened_on=roster.versions.first(), date=day,
                                 shift=Shift.objects.get(code=current_code(code)), opened=Opened.MANAGER)

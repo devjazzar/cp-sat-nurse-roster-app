@@ -47,14 +47,14 @@ const LINK = "underline underline-offset-3"
 const STATUS = "unit-covers-status"
 const OPEN_BUTTON = "open-cover"
 
-function opening(cover: UnitCoverRow): string {
+function openedWords(cover: UnitCoverRow): string {
   const when = hospitalTime(cover.opened_at)
   return cover.opened === "leave"
     ? `Opened ${when} by leave, which took the shift off the roster in force as version ${cover.opened_on}.`
     : `Opened ${when} by you, on version ${cover.opened_on}.`
 }
 
-function ending(cover: UnitCoverRow): string {
+function endedWords(cover: UnitCoverRow): string {
   const when = cover.ended_at ? `, ${hospitalTime(cover.ended_at)}` : ""
   switch (cover.state) {
     case "withdrawn": return ` Withdrawn by ${cover.ended_by ?? "you"}${when}.`
@@ -67,9 +67,10 @@ function ending(cover: UnitCoverRow): string {
 
 function WhoCould({ check }: { check: CoverCheck }) {
   if (check.reason) return <p>Who could take it cannot be worked out now. {check.reason}</p>
+  const lacking = check.lack.length > 0
   return (
     <>
-      {check.lack.length > 0 ? (
+      {lacking ? (
         <div className="flex flex-col gap-1">
           <p>On the roster in force this shift-day lacks:</p>
           <ul className="list-disc ps-5 text-sm">{check.lack.map((lack) => <li key={lack}>{lack}</li>)}</ul>
@@ -84,7 +85,8 @@ function WhoCould({ check }: { check: CoverCheck }) {
               <TableHead>Nurse</TableHead>
               <TableHead>Hours this month</TableHead>
               <TableHead>Overtime this year</TableHead>
-              <TableHead>Makes the shift-day whole</TableHead>
+              {/* Each would, when it lacks nothing. */}
+              {lacking && <TableHead>Makes the shift-day whole</TableHead>}
               <TableHead>Note</TableHead>
             </TableRow>
           </TableHeader>
@@ -94,7 +96,7 @@ function WhoCould({ check }: { check: CoverCheck }) {
                 <TableCell>{nurse.full_name || nurse.hospital_id}</TableCell>
                 <TableCell className="tabular-nums">{hoursWords(nurse)}</TableCell>
                 <TableCell className="tabular-nums">{overtimeWords(nurse)}</TableCell>
-                <TableCell>{nurse.makes_whole ? "Yes" : "No"}</TableCell>
+                {lacking && <TableCell>{nurse.makes_whole ? "Yes" : "No"}</TableCell>}
                 <TableCell>{nurse.replaces_pin ? REPLACES_PIN[nurse.replaces_pin] : ""}</TableCell>
               </TableRow>
             ))}
@@ -139,7 +141,7 @@ function CoverDetail({ unitId, coverId, names, onDone }: {
       {page.isError && <p role="alert">This cover could not be read. Reload the page to try again.</p>}
       {cover && answer && (
         <>
-          <p className="text-sm text-muted-foreground">{opening(cover)}{ending(cover)}</p>
+          <p className="text-sm text-muted-foreground">{openedWords(cover)}{endedWords(cover)}</p>
           {answer.check && <WhoCould check={answer.check} />}
           {cover.state === "open" && <p>It is not offered to anyone yet.</p>}
           {WAITING.includes(cover.state) && (

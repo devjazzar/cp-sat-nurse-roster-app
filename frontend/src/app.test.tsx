@@ -6959,6 +6959,13 @@ describe("covers", () => {
     expect(screen.queryByRole("region", { name: "Who could take it, fairest first" })).not.toBeInTheDocument()
   })
 
+  it("a shift-day that lacks nothing lists who could without the mark, which each would have", async () => {
+    start("/unit-covers?month=2026-12&cover=c1", manager({ "GET /api/units/u1/covers/c1": { body: { ...PAGE, check: { ...CHECK, lack: [] } } } }))
+
+    const list = await screen.findByRole("region", { name: "Who could take it, fairest first" })
+    expect(within(list).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Nurse", "Hours this month", "Overtime this year", "Note"])
+  })
+
   it("a roster the solver's code cannot read is said, not an error", async () => {
     start("/unit-covers?month=2026-12&cover=c1", manager({
       "GET /api/units/u1/covers/c1": { body: { ...PAGE, check: { reason: "The roster in force cannot be checked: unknown shift X.", lack: [], full: null, nurses: [] } } },

@@ -24,8 +24,7 @@ from nurse_roster.request import load_request
 
 from accounts.models import Role
 from hospital.models import Shift
-from nurses.models import NurseProfile
-from rosters.approved import ApprovedMonth, Change, violation_key, with_pins
+from rosters.approved import ApprovedMonth, Change, already_broken, violation_key, with_pins
 from rosters.editing import Checked, accounted, scored
 from rosters.models import PinOrigin, Roster
 from rosters.pins import long_date
@@ -42,7 +41,6 @@ LACKS = {"team_leader": "No team leader", "gender": "Not both genders"}
 
 @dataclass(frozen=True)
 class CouldTake:
-    nurse: NurseProfile
     hospital_id: str
     name: str
     worked: int
@@ -52,7 +50,8 @@ class CouldTake:
     replaces: str | None  # The origin of her pin to a day off there, which her taking it replaces.
 
     @property
-    def below_owed(self) -> int:
+    def balance(self) -> int:
+        """Hours worked less hours owed this month: furthest below first. Nothing is owed with the hours rule off."""
         return self.worked - self.owed if self.owed is not None else 0
 
 
@@ -72,9 +71,15 @@ def _shift_day(violation: dict) -> tuple[str, str] | None:
     return (violation["date"], found[1]) if found else None
 
 
+def _headcount(violation: dict) -> tuple[int, int, int]:
+    """A headcount's (present, minimum, maximum), from the solver's text."""
+    present, low, high = (int(number) for number in _HEADCOUNT.search(violation["text"]).groups())
+    return present, low, high
+
+
 def _beyond(violation: dict) -> int:
     """How far a headcount is outside its range."""
-    present, low, high = (int(number) for number in _HEADCOUNT.search(violation["text"]).groups())
+    present, low, high = _headcount(violation)
     return low - present if present < low else present - high
 
 
@@ -83,7 +88,7 @@ def newly_broken(before: Checked, after: Checked) -> list[dict]:
     broken further reads as new (`rosters.approved.violation_key`); a headcount is compared by how far it is outside its range,
     since its text changes as it comes nearer."""
     old = before.answer["violations"] if before.answer else []
-    already = {violation_key(row) for row in old}
+    already = already_broken(before)
     headcounts = {_shift_day(row): _beyond(row) for row in old if row["rule"] == "headcount" and _shift_day(row)}
     new = []
     for violation in after.answer["violations"]:
@@ -102,7 +107,7 @@ def _on(violations: list[dict], day: dt.date, code: str) -> list[dict]:
 
 def _lack_words(violation: dict, month: dt.date) -> str:
     if violation["rule"] == "headcount":
-        present, low, high = (int(number) for number in _HEADCOUNT.search(violation["text"]).groups())
+        present, low, high = _headcount(violation)
         said = (f"Below its minimum headcount: {present} of at least {low}" if present < low
                 else f"Above its maximum headcount: {present} of at most {high}")
     else:
@@ -189,9 +194,9 @@ def judge(roster: Roster, day: dt.date, shift: Shift) -> CoverJudged:
         nurse, row = month.on_grid[hospital_id], figures[hospital_id]
         pin = month.pins.get((nurse.pk, day))
         judged.nurses.append(CouldTake(
-            nurse=nurse, hospital_id=hospital_id, name=nurse.user.full_name or hospital_id, worked=row["hours_worked"],
+            hospital_id=hospital_id, name=nurse.user.full_name or hospital_id, worked=row["hours_worked"],
             owed=row["required"] if counted else None, overtime_this_year=row["carry_over"]["ytd_overtime"],
             makes_whole=not _on(after.answer["violations"], day, shift.code),
             replaces=pin.origin if pin is not None else None))
-    judged.nurses.sort(key=lambda could: (could.below_owed, could.overtime_this_year, could.name.casefold(), could.hospital_id))
+    judged.nurses.sort(key=lambda could: (could.balance, could.overtime_this_year, could.name.casefold(), could.hospital_id))
     return judged
