@@ -7104,6 +7104,7 @@ describe("covers", () => {
     expect(rowsOf(await screen.findByRole("region", { name: "Nurses offered it, with their answers" }))).toEqual([["Emad Nasser", "Declined, 2026-12-08 08:30:00"]])
     expect(screen.queryByRole("checkbox", { name: "Offer it to Emad Nasser" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Note (optional)")).not.toBeInTheDocument()
+    expect(screen.getByText("Your note to the nurses offered it: Thank you.")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Add to the offer" }))
 
     expect(await screen.findByText("You added 1 nurse to the cover for Day (D) on 9 Dec 2026. Each is told.")).toBeInTheDocument()

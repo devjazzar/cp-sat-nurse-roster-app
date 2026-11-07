@@ -212,6 +212,7 @@ function CoverDetail({ unitId, coverId, names, onDone }: {
       {cover && answer && (
         <>
           <p className="text-sm text-muted-foreground">{openedWords(cover)}{endedWords(cover)}</p>
+          {cover.note && <p className="text-sm">Your note to the nurses offered it: {cover.note}</p>}
           {answer.check && (
             <WhoCould check={answer.check} offered={offered} ticks={WAITING.includes(cover.state) ? {
               unticked,
@@ -423,7 +424,7 @@ function UnitCoversPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-medium">{chosen ? `Covers in ${chosen.name}` : "Covers"}</h1>
       <p className="text-muted-foreground">
-        A cover asks for one more nurse on one shift of the roster in force. Leave that takes a shift off the roster opens one by itself, and you can open one for any shift from today on. Each cover lists the staff nurses who could take it without breaking a hard rule, furthest below their owed hours first, and says what its shift still lacks.
+        A cover asks for one more nurse on one shift of the roster in force. Leave that takes a shift off the roster opens one by itself, and you can open one for any shift from today on. Each cover lists the staff nurses who could take it without breaking a hard rule, furthest below their owed hours first, and says what its shift still lacks. Offer it to any of them: the first to accept takes it, in a new version of the roster.
       </p>
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">Your unit could not be read. Reload the page to try again.</p>}
