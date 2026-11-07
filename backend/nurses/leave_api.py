@@ -107,7 +107,7 @@ class UnitLeaveMonth(Schema):
 class RemovedPin(Schema):
     date: dt.date
     shift: str = Field(description="The shift's code. Empty for a day off.")
-    origin: Literal["manager", "request", "swap"] = Field(description="An accepted request's pin is the nurse's: the request "
+    origin: Literal["manager", "request", "swap", "cover"] = Field(description="An accepted request's pin is the nurse's: the request "
                                                                       "stays on record, replaced by leave, and they are told.")
     roster: Literal["none", "draft", "submitted", "approved"] = Field(
         description="The state of the unit's roster of the pin's month, which decides what the page says follows: a draft "

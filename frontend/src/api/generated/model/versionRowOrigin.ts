@@ -14,4 +14,5 @@ export const VersionRowOrigin = {
   replan: 'replan',
   swap: 'swap',
   request: 'request',
+  cover: 'cover',
 } as const;

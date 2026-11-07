@@ -79,7 +79,7 @@ class DraftPin(Schema):
     full_name: str
     date: dt.date
     shift: str = Field(description="The shift's code. Empty for a day off.")
-    origin: Literal["manager", "request", "swap"]
+    origin: Literal["manager", "request", "swap", "cover"]
     set_aside: AsideWhy | None = Field(description="Why this pin counts for nothing at present and reaches no solve. It is kept, "
                                                    "and counts again if that stops being so. Null for a pin that counts.")
 
@@ -469,7 +469,7 @@ def save_version(request: HttpRequest, unit_id: UUID, body: VersionBody) -> Rost
 
 class VersionRow(Schema):
     number: int
-    origin: Literal["solve", "edit", "replan", "swap", "request"]
+    origin: Literal["solve", "edit", "replan", "swap", "request", "cover"]
     created_by: str
     created_at: dt.datetime
     reason: str = Field(description="Empty for version 1, which the approval made. It can say a cell was leave, so only the "

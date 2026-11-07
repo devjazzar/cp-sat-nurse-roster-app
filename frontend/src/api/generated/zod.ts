@@ -1525,7 +1525,7 @@ export const RecordLeaveResponse = zod.object({
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.'),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.'),
   "roster": zod.enum(['none', 'draft', 'submitted', 'approved']).describe('The state of the unit\'s roster of the pin\'s month, which decides what the page says follows: a draft still holds the shift until it is edited or solved again, a submitted roster keeps it for the decision, and on an approved one the leave has taken it off as a version.')
 })).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
   "shifts_taken_off": zod.array(zod.object({
@@ -1575,7 +1575,7 @@ export const ChangeLeaveResponse = zod.object({
   "pins_removed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.'),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']).describe('An accepted request\'s pin is the nurse\'s: the request stays on record, replaced by leave, and they are told.'),
   "roster": zod.enum(['none', 'draft', 'submitted', 'approved']).describe('The state of the unit\'s roster of the pin\'s month, which decides what the page says follows: a draft still holds the shift until it is edited or solved again, a submitted roster keeps it for the decision, and on an approved one the leave has taken it off as a version.')
 })).describe('Pins of this unit these dates replaced, as leave wins over a pin. The page says so, and the draft goes on saying so until a newer solve.'),
   "shifts_taken_off": zod.array(zod.object({
@@ -1958,7 +1958,7 @@ export const GetRosterMonthResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
@@ -2182,7 +2182,7 @@ export const SaveDraftPinsResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
@@ -2362,7 +2362,7 @@ export const SaveRosterVersionResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
@@ -2414,7 +2414,7 @@ export const ListRosterVersionsQueryParams = zod.object({
 
 export const ListRosterVersionsResponseItem = zod.object({
   "number": zod.int(),
-  "origin": zod.enum(['solve', 'edit', 'replan', 'swap', 'request']),
+  "origin": zod.enum(['solve', 'edit', 'replan', 'swap', 'request', 'cover']),
   "created_by": zod.string(),
   "created_at": zod.iso.datetime({"offset":true}),
   "reason": zod.string().describe('Empty for version 1, which the approval made. It can say a cell was leave, so only the unit\'s manager and the approvers read it.'),
@@ -2584,7 +2584,7 @@ export const SubmitRosterResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
@@ -2746,7 +2746,7 @@ export const ApproveRosterResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
@@ -2910,7 +2910,7 @@ export const RejectRosterResponse = zod.object({
   "full_name": zod.string(),
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
-  "origin": zod.enum(['manager', 'request', 'swap']),
+  "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
   "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({

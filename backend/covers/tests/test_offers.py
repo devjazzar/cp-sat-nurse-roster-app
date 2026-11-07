@@ -232,6 +232,19 @@ class TestAccepting:
         pins = PinnedCell.objects.filter(nurse__user__username="Badr", date="2026-06-09").order_by("pinned_at")
         assert [(row.origin, row.removed_why) for row in pins] == [(PinOrigin.MANAGER, "replaced"), (PinOrigin.COVER, "")]
 
+    def test_every_page_reading_its_pin_and_version_reads_them_and_leave_on_her_day_ends_the_pin(self, in_force, mona):
+        """The roster as the manager reads it, the version list, and leave recorded on the taker's day since: leave wins over a
+        cover's pin as over any."""
+        cover_id = the_25th(mona, in_force)
+        offered(mona, in_force, cover_id, "Emad")
+        answered(as_user("Emad"), cover_id, "accept")
+
+        roster = ok(mona.get(f"/api/units/{in_force.pk}/roster", {"month": MONTH}))
+        assert [pin["origin"] for pin in roster["draft"]["pins"] if pin["hospital_id"] == "Emad"] == ["cover"]
+        assert ok(mona.get(f"/api/units/{in_force.pk}/roster/versions", {"month": MONTH}))[0]["origin"] == "cover"
+        saved = ok(record_leave(mona, in_force, "Emad", 25), 201)
+        assert [(pin["date"], pin["origin"]) for pin in saved["pins_removed"]] == [("2026-06-25", "cover")]
+
     def test_the_managers_editor_refuses_a_cell_a_covers_pin_holds(self, in_force, mona):
         cover_id = the_25th(mona, in_force)
         offered(mona, in_force, cover_id, "Emad")

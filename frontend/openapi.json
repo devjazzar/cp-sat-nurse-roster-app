@@ -8056,7 +8056,8 @@
             "enum": [
               "manager",
               "request",
-              "swap"
+              "swap",
+              "cover"
             ],
             "title": "Origin",
             "type": "string"
@@ -9091,7 +9092,8 @@
             "enum": [
               "manager",
               "request",
-              "swap"
+              "swap",
+              "cover"
             ],
             "title": "Origin",
             "type": "string"
@@ -9855,7 +9857,8 @@
               "edit",
               "replan",
               "swap",
-              "request"
+              "request",
+              "cover"
             ],
             "title": "Origin",
             "type": "string"

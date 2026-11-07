@@ -12,4 +12,5 @@ export const DraftPinOrigin = {
   manager: 'manager',
   request: 'request',
   swap: 'swap',
+  cover: 'cover',
 } as const;

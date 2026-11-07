@@ -19,6 +19,7 @@ const ORIGIN: Record<VersionRow["origin"], string> = {
   replan: "Re-planned",
   swap: "Swap",
   request: "Request",
+  cover: "Cover taken",
 }
 
 const shown = (code: string) => code || "Off"
