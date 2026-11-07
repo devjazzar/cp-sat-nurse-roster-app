@@ -108,3 +108,5 @@ The spec also requires that the page to return to is an address inside the app, 
 - `navigation(user)` in `roles.ts` replaces the exported `NAVIGATION`: a header that depends on more than the role goes there.
 - A test that ends a session in `app.test.tsx` can use `untilSignedIn` and `signInAgain`.
 - **For a later ticket, not done:** a manager with a nurse profile reads "Roster of ICU" on both Roster and My roster. Story 5's worry is about telling them apart; a heading of its own for My roster would settle it.
+
+**Reviewed by the user (2026-11-07):** all four points marked **Worth your review** are kept as built: "the roster of June 2026" in the question; the header order Home, My roster, My month, Roster, …; the ending read from the login page's address (`?ended=true&back=…`), with its bookmark and search side effects; someone else signing in going to the last page if their role may open it.
