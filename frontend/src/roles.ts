@@ -35,14 +35,15 @@ const REQUESTS = { to: "/requests", label: "Requests" } as const
 const MY_MONTH = { to: "/my-month", label: "My month" } as const
 const MY_ROSTER = { to: "/my-roster", label: "My roster" } as const
 const MY_SWAPS = { to: "/swaps", label: "Swaps" } as const
+const MY_COVERS = { to: "/covers", label: "Covers" } as const
 const UNIT_SWAPS = { to: "/unit-swaps", label: "Swaps" } as const
 const UNIT_COVERS = { to: "/unit-covers", label: "Covers" } as const
 const ROSTERS = { to: "/rosters", label: "Rosters" } as const
-const NURSE_PAGES = linkOptions([HOME, MY_MONTH, MY_ROSTER, MY_SWAPS, ...CATALOGUE])
+const NURSE_PAGES = linkOptions([HOME, MY_MONTH, MY_ROSTER, MY_SWAPS, MY_COVERS, ...CATALOGUE])
 const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, REQUESTS, UNIT_SWAPS, UNIT_COVERS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, ...CATALOGUE])
 /** A manager on their unit's rosters reads their own roster and month too: first, as a Staff Nurse's are, and apart from the
- *  unit's pages, since My roster's heading names the unit as Roster's does. A Staff Nurse's requests and swaps are not
- *  theirs: only staff nurses' cells are swapped. */
+ *  unit's pages, since My roster's heading names the unit as Roster's does. A Staff Nurse's requests, swaps and covers are
+ *  not theirs: only staff nurses' cells are swapped or offered. */
 const MANAGER_NURSE_PAGES = linkOptions([HOME, MY_ROSTER, MY_MONTH, ...MANAGER_PAGES.filter((page) => page !== HOME)])
 const DEPUTY_PAGES = linkOptions([HOME, ROSTERS, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
 const CNO_PAGES = linkOptions([HOME, ROSTERS, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])

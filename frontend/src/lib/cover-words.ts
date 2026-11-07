@@ -1,7 +1,7 @@
-import type { CouldTakeRow, UnitCoverRowState } from "@/api/generated/model"
+import type { CouldTakeRow, CoverOfferRow, MyCoverRow, UnitCoverRowState } from "@/api/generated/model"
 import { shortDay } from "@/lib/utils"
 
-/** How a cover's state reads, on the manager's page and, with ticket 27, the nurse's. */
+/** How a cover's state reads on the manager's page. */
 export const COVER_STATE: Record<UnitCoverRowState, string> = {
   open: "Not offered yet",
   offered: "Offered",
@@ -35,4 +35,26 @@ export const overtimeWords = (nurse: CouldTakeRow) => hours(nurse.overtime_this_
 export const REPLACES_PIN: Record<NonNullable<CouldTakeRow["replaces_pin"]>, string> = {
   manager: "Your pin to a day off that day would be replaced.",
   swap: "An approved swap's pin to a day off that day would be replaced.",
+}
+
+/** Where a cover offered to a nurse stands, as she reads it: never who took it, why it was short or why it ended. */
+export function myCoverWords(cover: MyCoverRow): string {
+  if (cover.my_answer === "accepted") return "You took it"
+  if (cover.my_answer === "declined") return "You declined it"
+  switch (cover.state) {
+    case "taken": return "Taken by another nurse"
+    case "withdrawn": return "Withdrawn"
+    case "filled": return "No longer needed"
+    case "expired": return "Expired"
+    default: return "Waiting for your answer"
+  }
+}
+
+/** Offered to her and not answered yet, while it still waits for a nurse. */
+export const waitsForMe = (cover: MyCoverRow) => cover.my_answer === "pending" && WAITING.includes(cover.state)
+
+export const OFFER_ANSWER: Record<CoverOfferRow["answer"], string> = {
+  pending: "Not answered yet",
+  accepted: "Accepted",
+  declined: "Declined",
 }

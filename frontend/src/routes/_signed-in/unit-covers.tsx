@@ -8,21 +8,22 @@ import { z } from "zod"
 import { ApiError } from "@/api/fetcher"
 import {
   getGetUnitCoverQueryKey, getListUnitCoversQueryKey, useGetUnitCover, useGetUnitRules, useListShifts, useListUnitCovers,
-  useOpenUnitCover, useWithdrawUnitCover,
+  useOfferUnitCover, useOpenUnitCover, useWithdrawUnitCover,
 } from "@/api/generated/endpoints"
-import { Role, type CoverCheck, type CoverPage, type UnitCoverRow } from "@/api/generated/model"
+import { Role, type CoverCheck, type CoverOfferRow, type CoverPage, type UnitCoverRow } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { FormField, SelectField } from "@/components/form-field"
+import { CHECKBOX, FormField, SelectField } from "@/components/form-field"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FieldGroup } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import { useChosenUnit } from "@/components/unit-picker"
-import { COVER_STATE, coverName, hoursWords, overtimeWords, REPLACES_PIN, WAITING } from "@/lib/cover-words"
+import { COVER_STATE, coverName, hoursWords, OFFER_ANSWER, overtimeWords, REPLACES_PIN, WAITING } from "@/lib/cover-words"
 import { NO_CONNECTION, shiftNames } from "@/lib/request-words"
-import { plainRefusal, showServerErrors } from "@/lib/server-errors"
+import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
@@ -65,7 +66,13 @@ function endedWords(cover: UnitCoverRow): string {
   }
 }
 
-function WhoCould({ check }: { check: CoverCheck }) {
+/** Who could take it, with a tick for each not yet offered it (all ticked until the manager unticks one) and, for one already
+ *  in it, her answer so far. `ticks` is null once the cover has ended, or when it cannot be offered now. */
+function WhoCould({ check, offered, ticks }: {
+  check: CoverCheck
+  offered: Record<string, CoverOfferRow>
+  ticks: { unticked: Set<string>; toggle: (hospitalId: string, on: boolean) => void } | null
+}) {
   if (check.reason) return <p>Who could take it cannot be worked out now. {check.reason}</p>
   const lacking = check.lack.length > 0
   return (
@@ -82,6 +89,7 @@ function WhoCould({ check }: { check: CoverCheck }) {
         <Table container={scrollableRegion("Who could take it, fairest first")}>
           <TableHeader>
             <TableRow>
+              {ticks && <TableHead>Offer</TableHead>}
               <TableHead>Nurse</TableHead>
               <TableHead>Hours this month</TableHead>
               <TableHead>Overtime this year</TableHead>
@@ -91,21 +99,62 @@ function WhoCould({ check }: { check: CoverCheck }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {check.nurses.map((nurse) => (
-              <TableRow key={nurse.hospital_id}>
-                <TableCell>{nurse.full_name || nurse.hospital_id}</TableCell>
-                <TableCell className="tabular-nums">{hoursWords(nurse)}</TableCell>
-                <TableCell className="tabular-nums">{overtimeWords(nurse)}</TableCell>
-                {lacking && <TableCell>{nurse.makes_whole ? "Yes" : "No"}</TableCell>}
-                <TableCell>{nurse.replaces_pin ? REPLACES_PIN[nurse.replaces_pin] : ""}</TableCell>
-              </TableRow>
-            ))}
+            {check.nurses.map((nurse) => {
+              const name = nurse.full_name || nurse.hospital_id
+              const theirs = offered[nurse.hospital_id]
+              return (
+                <TableRow key={nurse.hospital_id}>
+                  {ticks && (
+                    <TableCell>
+                      {theirs ? `Offered: ${OFFER_ANSWER[theirs.answer].toLowerCase()}` : (
+                        <label className="flex items-center pointer-coarse:min-h-11">
+                          <input type="checkbox" className={CHECKBOX} aria-label={`Offer it to ${name}`}
+                            checked={!ticks.unticked.has(nurse.hospital_id)}
+                            onChange={(event) => ticks.toggle(nurse.hospital_id, event.target.checked)} />
+                        </label>
+                      )}
+                    </TableCell>
+                  )}
+                  <TableCell>{name}</TableCell>
+                  <TableCell className="tabular-nums">{hoursWords(nurse)}</TableCell>
+                  <TableCell className="tabular-nums">{overtimeWords(nurse)}</TableCell>
+                  {lacking && <TableCell>{nurse.makes_whole ? "Yes" : "No"}</TableCell>}
+                  <TableCell>{nurse.replaces_pin ? REPLACES_PIN[nurse.replaces_pin] : ""}</TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       )}
     </>
   )
 }
+
+function Answers({ offers }: { offers: CoverOfferRow[] }) {
+  return (
+    <section aria-labelledby="cover-answers" className="flex flex-col gap-2">
+      <h3 id="cover-answers" className="text-sm font-medium">Offered to</h3>
+      <Table container={scrollableRegion("Nurses offered it, with their answers")}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nurse</TableHead>
+            <TableHead>Answer</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {offers.map((offer) => (
+            <TableRow key={offer.hospital_id}>
+              <TableCell>{offer.full_name || offer.hospital_id}</TableCell>
+              <TableCell>{OFFER_ANSWER[offer.answer]}{offer.answered_at ? `, ${hospitalTime(offer.answered_at)}` : ""}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
+  )
+}
+
+const OFFER_REFUSAL = "cover-offer-refusal"
 
 function CoverDetail({ unitId, coverId, names, onDone }: {
   unitId: string
@@ -116,18 +165,39 @@ function CoverDetail({ unitId, coverId, names, onDone }: {
   const queryClient = useQueryClient()
   const page = useGetUnitCover(unitId, coverId)
   const withdraw = useWithdrawUnitCover()
+  const offer = useOfferUnitCover()
   const [asking, setAsking] = useState(false)
+  const [unticked, setUnticked] = useState<Set<string>>(new Set())
+  const [note, setNote] = useState("")
+  const offerAlert = useRef<HTMLDivElement>(null)
   const focusAfter = useRef<string | null>(null)
   const answer: CoverPage | undefined = page.data
   const cover = answer?.cover
   const name = cover ? coverName(cover, names) : ""
+  const offered = Object.fromEntries((answer?.offers ?? []).map((row) => [row.hospital_id, row]))
+  const check = answer?.check
+  const offerable = check && !check.reason && !check.full ? check.nurses.filter((nurse) => !offered[nurse.hospital_id]) : []
+  const ticked = offerable.filter((nurse) => !unticked.has(nurse.hospital_id))
+  const adding = cover?.state === "offered"
+  const offerRefusals = [...serverErrors(offer.error).map((error) => error.message), ...(plainRefusal(offer.error) ? [plainRefusal(offer.error)!] : [])]
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: getListUnitCoversQueryKey(unitId) }),
+    queryClient.invalidateQueries({ queryKey: getGetUnitCoverQueryKey(unitId, coverId) }),
+  ])
+
+  const offerIt = () => offer.mutate({ unitId, coverId, data: { nurses: ticked.map((nurse) => nurse.hospital_id), note: adding ? "" : note } }, {
+    onSuccess: async () => {
+      await refresh()
+      const count = ticked.length === 1 ? "1 nurse" : `${ticked.length} nurses`
+      setUnticked(new Set())
+      onDone(adding ? `You added ${count} to the cover for ${name}. Each is told.` : `You offered the cover for ${name} to ${count}. Each is told.`)
+    },
+    onError: () => offerAlert.current?.focus(),
+  })
 
   const confirm = () => withdraw.mutate({ unitId, coverId }, {
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: getListUnitCoversQueryKey(unitId) }),
-        queryClient.invalidateQueries({ queryKey: getGetUnitCoverQueryKey(unitId, coverId) }),
-      ])
+      await refresh()
       focusAfter.current = STATUS
       setAsking(false)
       onDone(`You withdrew the cover for ${name}. Nothing on the roster changes.`)
@@ -142,8 +212,44 @@ function CoverDetail({ unitId, coverId, names, onDone }: {
       {cover && answer && (
         <>
           <p className="text-sm text-muted-foreground">{openedWords(cover)}{endedWords(cover)}</p>
-          {answer.check && <WhoCould check={answer.check} />}
+          {answer.check && (
+            <WhoCould check={answer.check} offered={offered} ticks={WAITING.includes(cover.state) ? {
+              unticked,
+              toggle: (hospitalId, on) => setUnticked((was) => {
+                const next = new Set(was)
+                if (on) next.delete(hospitalId)
+                else next.add(hospitalId)
+                return next
+              }),
+            } : null} />
+          )}
           {cover.state === "open" && <p>It is not offered to anyone yet.</p>}
+          {WAITING.includes(cover.state) && offerable.length > 0 && (
+            <form noValidate className="flex max-w-xl flex-col gap-3" onSubmit={(event) => { event.preventDefault(); offerIt() }}>
+              {!adding && (
+                <Field>
+                  <FieldLabel htmlFor="cover-note">Note (optional)</FieldLabel>
+                  <Textarea id="cover-note" rows={2} maxLength={500} aria-describedby="cover-note-description" value={note}
+                    onChange={(event) => setNote(event.target.value)} />
+                  <FieldDescription id="cover-note-description">
+                    Each nurse offered it reads it beside the date and the shift. They are never told why the shift is short or who else was asked.
+                  </FieldDescription>
+                </Field>
+              )}
+              <div ref={offerAlert} id={OFFER_REFUSAL} tabIndex={-1} className="outline-none">
+                {offerRefusals.length > 0 && (
+                  <div role="alert" className="flex flex-col gap-1 text-sm text-destructive">
+                    {offerRefusals.map((message) => <p key={message}>{message}</p>)}
+                  </div>
+                )}
+                {offer.isError && !(offer.error instanceof ApiError) && <p role="alert" className="text-sm text-destructive">{NO_CONNECTION}</p>}
+              </div>
+              <div>
+                <Button type="submit" disabled={offer.isPending}>{adding ? "Add to the offer" : "Offer the cover"}</Button>
+              </div>
+            </form>
+          )}
+          {answer.offers.length > 0 && <Answers offers={answer.offers} />}
           {WAITING.includes(cover.state) && (
             <div>
               <Button id="cover-withdraw" variant="outline" aria-label={`Withdraw the cover for ${name}`}
