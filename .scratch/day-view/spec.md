@@ -3,7 +3,7 @@
 Status: ready-for-agent
 Type: enhancement
 Published: 2026-11-07 by /to-spec
-Tickets: to be cut by /to-tickets; one vertical slice is likely enough.
+Ticket: `.scratch/day-view/issues/01-day-view.md` (one slice).
 
 Spec drawn from the grilling of 2026-11-07 (two rounds, every answer as recommended). Vocabulary: `GLOSSARY.md`, whose
 **Day view** entry this branch adds. Decisions and their reasons: `docs/ARCHITECTURE.md` and `docs/adr/`. Where this spec
