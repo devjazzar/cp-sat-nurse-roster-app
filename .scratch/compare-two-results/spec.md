@@ -3,6 +3,7 @@
 Status: ready-for-agent
 Type: enhancement
 Published: 2026-11-07 by /to-spec
+Ticket: `.scratch/compare-two-results/issues/01-compare-two-results.md`
 
 Spec drawn from the grilling of 2026-11-07 (sixteen questions in two rounds, every recommendation taken). Vocabulary:
 `GLOSSARY.md`. Decisions and their reasons: `docs/ARCHITECTURE.md` and `docs/adr/`. Where this spec and those documents
