@@ -20,7 +20,7 @@ A user who appears on a unit's rosters: any user with a nurse profile. Every sta
 _Avoid_: staff, employee, staff member
 
 **Nurse profile**:
-A user's roster identity: her hospital ID, her unit and her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding). Her username is her hospital ID. The CNO sets and corrects her gender; her unit manager sets the rest. The CNO and the Deputy CNO read them; the System Admin never does, and nor do nurses, but for one exception: the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts, and nothing else of her attributes.
+A user's roster identity: her hospital ID, her unit, her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding) and her skills. Her username is her hospital ID. The CNO sets and corrects her gender and her skills; her unit manager sets the rest. The CNO and the Deputy CNO read them; the System Admin never does, and nor do nurses, but for two exceptions: the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts, and she reads her own skills with their expiries, since they are hers to renew; nothing else of her attributes.
 _Avoid_: staff record, employee record, nurse record
 
 **Start date**, **End date**:
@@ -52,7 +52,7 @@ The hospital IT role. Creates the accounts of the CNO, the Deputy CNO and the un
 _Avoid_: admin, superuser, IT
 
 **CNO**:
-The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses and corrects their genders and start dates, and the names of staff nurses; and may approve or reject submitted rosters like the Deputy CNO.
+The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the skill catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses and corrects their genders, start dates and skills, and the names of staff nurses; and may approve or reject submitted rosters like the Deputy CNO.
 _Avoid_: nursing director, matron
 
 **Deputy CNO**:
@@ -188,11 +188,11 @@ _Avoid_: max time limit, limit
 ### Rules
 
 **Hospital rules**:
-The rules every unit rosters by: the shift catalogue, hours per day, Ramadan and breastfeeding reductions, weekend days, forbidden successions, overtime caps and the weights.
+The rules every unit rosters by: the shift catalogue, the skill catalogue, hours per day, Ramadan and breastfeeding reductions, weekend days, forbidden successions, overtime caps and the weights.
 _Avoid_: general rules, general settings, global settings
 
 **Unit rules**:
-The rules of one unit: its shifts, headcounts, team leader and gender requirements, score targets, rest and run limits, fairness and request limits.
+The rules of one unit: its shifts, headcounts, team leader and gender requirements, skill needs, score targets, rest and run limits, fairness and request limits.
 _Avoid_: department rules, department settings, unit settings
 
 **Shift**:
@@ -226,6 +226,22 @@ _Avoid_: permitted shifts, eligible shifts
 **Team leader**:
 A nurse who may lead a shift. A unit may require one on every shift.
 _Avoid_: in-charge, senior
+
+**Skill**:
+A named ability or certificate from the hospital's skill catalogue, which the CNO keeps, that a nurse may hold and a skill need may count. Whether it expires, and whether it is required to work, is said in the catalogue.
+_Avoid_: credential, certification, qualification, licence, competency
+
+**Expiry**:
+The last day a nurse's skill counts; every skill of a kind the catalogue says expires has one. From the next day the skill is expired: it counts toward no skill need and, if required to work, keeps her off every shift.
+_Avoid_: expiration date, valid until, renewal date, lapsed
+
+**Required to work**:
+A mark on a skill in the catalogue: a nurse without a valid one works no shift that day. Her hours stay owed, as for any nurse whose days cannot hold them.
+_Avoid_: mandatory credential, blocking credential, licence check
+
+**Skill need**:
+A unit rule: on a shift the unit works, at least so many nurses holding a skill each weekday and each weekend day, counting nurses on exactly that shift. Hard or soft by the unit's choice, as night rest is; the price when soft is the skill shortfall weight.
+_Avoid_: skill requirement, skill coverage, skill mix, competency mix
 
 **Ramadan days**:
 The dates of a month on which a Ramadan-reduced nurse owes fewer hours. Derived from the Umm al-Qura calendar unless the CNO fixes them after the moon sighting.
