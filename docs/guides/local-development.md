@@ -178,8 +178,10 @@ machine that is not yours: two workflows, both on every pull request and on `mai
 
 | Workflow | Jobs | What it proves | Time |
 |---|---|---|---|
-| **CI** (`.github/workflows/ci.yml`) | `solver`, `backend`, `frontend`, `image` | the solver's suite; the backend's on a PostgreSQL 18 service with `makemigrations --check`; the frontend's OpenAPI document and generated client matching the backend's export, the typecheck and build, the suite once and then **six times at once**; the image builds | about 10 min, in parallel |
+| **CI** (`.github/workflows/ci.yml`) | `solver`, `backend`, `frontend`, `image` | the solver's suite; the backend's on a PostgreSQL 18 service with `makemigrations --check`; the frontend's OpenAPI document and generated client matching the backend's export, the typecheck and build, the suite once and then **six times at once** (one worker each); the image builds | about 6 min, the four jobs in parallel |
 | **Browser checks** (`.github/workflows/browser-checks.yml`) | `browser-checks` | `e2e/ci.sh`: the image, a seeded stack and an empty one, every Playwright project, `deploy/tests/operations.sh`, everything removed | about 15 min |
+
+Together they cost about 30 runner minutes a push; a private repository on GitHub's Free plan has 2,000 a month.
 
 In the main session, once the ticket session reports:
 

@@ -7,7 +7,7 @@
 **Status:** ready-for-agent
 
 - [x] Playwright journeys per role against the compose stack with the real solver on a small unit
-- [ ] CI job builds the image, starts the stack, runs the journeys, and fails the build on any failure
+- [x] CI job builds the image, starts the stack, runs the journeys, and fails the build on any failure
 - [x] Journeys run at desktop and phone sizes
 
 ## Comments
@@ -208,3 +208,5 @@
 - **To run it all:** `e2e/ci.sh`, or the README's lines for two stacks of your own.
 
 **Reviewed by the user (2026-11-07):** all points marked **Worth your review** are kept as built: the checks' clock (whole days, test stacks only, structural Caddy proof); hourly jobs fired at once in the real worker; two stacks with the empty one reset before each journey; the desktop journey depending on the phone one; ICU at 64 nurses; CI as GitHub Actions running `e2e/ci.sh`; races ordered, not raced; the `support.ts` helper changes. The two findings (a manager-nurse's links to My roster and My month; what an ended session says during an edit) go to the user's grilling before any ticket is written.
+
+**CI criterion ticked (2026-11-08):** the repository is on GitHub (`MoustafaJazzar/cp-sat-nurse-roster-app`, private) and `browser-checks.yml` ran there: the first run failed its deploy check, because `up -d --wait web` recreated the container on the runner and the edited page was gone; `e2e/stack.sh redeploy` now restarts `web` and waits for its health check instead. The second run passed, 68 of 68 and every operations check, in 15 minutes (run 42420312238).
