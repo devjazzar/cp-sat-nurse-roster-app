@@ -23,7 +23,7 @@ test("every page of a staff nurse fits a phone, and the menu reaches each one", 
   await expectThumbSized(page.getByRole("link", { name: /^Notifications/ }))
   await expect(page.getByRole("navigation", { name: "Main", exact: true })).toBeHidden()
 
-  for (const [link, heading] of [["My month", "My month"], ["My roster", /^Roster of|My roster/], ["Swaps", "Swaps"], ["Shifts", "Shifts"],
+  for (const [link, heading] of [["My month", "My month"], ["My roster", /^Roster of|My roster/], ["Swaps", "Swaps"], ["Covers", "Covers"], ["Shifts", "Shifts"],
     ["Leave types", "Leave types"], ["Holidays and Ramadan", "Holidays and Ramadan"], ["Home", stack.names[nurse]]] as const) {
     await menu.click()
     const item = page.getByRole("navigation", { name: "Main menu" }).getByRole("link", { name: link, exact: true })
@@ -84,7 +84,7 @@ test("a unit manager's pages are not made for a phone, but none breaks its width
   // The password page is the nurse's check's; it has no header to come back by.
   const pages = (await page.getByRole("navigation", { name: "Main menu" }).getByRole("link").allTextContents()).filter((name) => name !== "Change password")
   await menu.click()
-  expect(pages).toContain("Roster")
+  expect(pages).toEqual(expect.arrayContaining(["Roster", "Swaps", "Covers"]))
 
   for (const name of pages) {
     await menu.click()

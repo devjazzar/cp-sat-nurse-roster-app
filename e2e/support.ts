@@ -29,6 +29,8 @@ export type Stack = {
 }
 
 export type Swap = { proposer: string; colleague: string; date: string; shift: string }
+/** A shift sick leave would take off `absent`, and a colleague the app's judging lists for the cover it opens. */
+export type SoundCover = { absent: string; colleague: string; date: string; shift: string }
 
 function readStack(variable: string): Stack | undefined {
   const project = process.env[variable]
@@ -186,6 +188,10 @@ export const fire = (on: Stack, task: string) => run("fire", on.project, task)
 /** e2e/stack.sh swap: a sound two-cell swap on a unit's approved month as the roster in force stands now, from tomorrow or
  *  from a later date. */
 export const soundSwap = (on: Stack, unit: string, month: string, from = ""): Swap => JSON.parse(run("swap", on.project, unit, month, from))
+/** e2e/stack.sh cover: a cover sick leave would open on a unit's approved month as it stands now, and a colleague who could take
+ *  it, from tomorrow or from a later date, neither nurse one of `avoid`. */
+export const soundCover = (on: Stack, unit: string, month: string, from = "", avoid: string[] = []): SoundCover =>
+  JSON.parse(run("cover", on.project, unit, month, from, avoid.join(",")))
 /** A compose command on a stack, as e2e/stack.sh runs them: `compose(stack, "stop", "solver")`. */
 export function compose(on: Stack, ...args: string[]) {
   const here = new URL(".", import.meta.url).pathname

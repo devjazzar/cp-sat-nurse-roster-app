@@ -15,6 +15,10 @@
 #   e2e/stack.sh swap <project> <unit> <YYYY-MM> [<from YYYY-MM-DD>]
 #                                        prints a sound two-cell swap on that approved month as it stands (e2e/sound_swap.py),
 #                                        on the first day it finds from tomorrow, or from the date given if later
+#   e2e/stack.sh cover <project> <unit> <YYYY-MM> [<from YYYY-MM-DD>] [<avoid id,id>]
+#                                        prints a cover sick leave would open on that approved month as it stands, and a
+#                                        colleague the app's judging lists for it (e2e/sound_cover.py), on the first day it
+#                                        finds from tomorrow, or from the date given if later; nothing is kept
 #   e2e/stack.sh rebuild <project>       build the image again from this checkout and restart on it, keeping the data
 #   e2e/stack.sh redeploy <project>      a new deploy, as far as a browser can tell: a new marker in index.html and a changed
 #                                        service worker, then `web` restarted
@@ -25,7 +29,7 @@
 # Needs Docker with Compose v2.24 or later, openssl and python3.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-usage="usage: $0 up|reset|clock|fire|swap|rebuild|redeploy|down <project> [...]"
+usage="usage: $0 up|reset|clock|fire|swap|cover|rebuild|redeploy|down <project> [...]"
 command=${1:?$usage}
 project=${2:?$usage}
 [[ $project != nurse-roster ]] || { echo "Refused: nurse-roster is the installation's own project." >&2; exit 2; }
@@ -151,6 +155,12 @@ raise SystemExit(0 if latest and latest.status == 'succeeded' else f'$task ended
     unit=${3:?usage: $0 swap <project> <unit> <YYYY-MM>}
     month=${4:?usage: $0 swap <project> <unit> <YYYY-MM>}
     in_web sound_swap.py E2E_SWAP -e UNIT="$unit" -e MONTH="$month" -e FROM="${5:-}"
+    ;;
+  cover)
+    needs_stack
+    unit=${3:?usage: $0 cover <project> <unit> <YYYY-MM>}
+    month=${4:?usage: $0 cover <project> <unit> <YYYY-MM>}
+    in_web sound_cover.py E2E_COVER -e UNIT="$unit" -e MONTH="$month" -e FROM="${5:-}" -e AVOID="${6:-}"
     ;;
   rebuild)
     needs_stack
