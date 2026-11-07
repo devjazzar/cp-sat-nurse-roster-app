@@ -67,7 +67,9 @@ def on_new_version(roster: Roster, before: Grid, after: Grid, origin: str) -> li
     added = _on_each_shift_day(after) - _on_each_shift_day(before)
     if not added:
         return []
-    waiting = (Cover.objects.select_for_update().filter(roster=roster, state__in=WAITING, date__gte=membership.today())
+    # Only the covers' rows: the shifts joined are catalogue rows, whose locks come before the roster's.
+    waiting = (Cover.objects.select_for_update(of=("self",))
+               .filter(roster=roster, state__in=WAITING, date__gte=membership.today())
                .select_related("shift").order_by("opened_at", "pk"))
     filled, left = [], dict(added)
     for cover in waiting:
