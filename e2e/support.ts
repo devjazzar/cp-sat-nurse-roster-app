@@ -89,6 +89,8 @@ export async function firstSignIn(page: Page, username: string, given: string): 
 /** Opens one of the role's pages from the header, as a person would: the one-row links on a wide screen, the Menu on a phone. */
 export async function go(page: Page, name: string) {
   const menu = page.getByRole("button", { name: "Menu" })
+  // One of the two headers first: asked at once, a page just signed into could answer neither (ticket 26's `e2e/ci.sh`).
+  await expect(menu.or(page.getByRole("navigation", { name: "Main", exact: true }))).toBeVisible()
   const onPhone = await menu.isVisible()
   if (onPhone) await menu.click()
   const link = page.getByRole("navigation", onPhone ? { name: "Main menu" } : { name: "Main", exact: true }).getByRole("link", { name, exact: true })
