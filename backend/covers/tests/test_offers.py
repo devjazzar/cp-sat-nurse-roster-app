@@ -13,8 +13,8 @@ from covers.tests.test_covers import wider_day
 from notifications.models import Event, Notification
 from notifications.tests.test_events import as_user, told
 from rosters.models import PinnedCell, PinOrigin, Roster, VersionOrigin
-from rosters.tests.test_pins import pin
-from rosters.tests.test_versions import changed
+from rosters.tests.test_pins import off, pin
+from rosters.tests.test_versions import change, changed
 
 pytestmark = pytest.mark.django_db
 
@@ -218,6 +218,28 @@ class TestAccepting:
         assert cover_page(mona, in_force, second)["cover"]["state"] == "offered", "its own version fills no other cover"
         assert refusals(answer(as_user("Emad"), second, "accept"), 409) == [
             "You already work Day (D) on 25 June 2026, so you cannot take this cover."]
+
+
+    def test_her_managers_pin_to_a_day_off_is_replaced_by_the_covers(self, in_force, mona):
+        """With room for two on Day, the manager pins Badr off his Day on the 9th; a cover there offered to him, he takes it."""
+        wider_day(in_force)
+        changed(mona, in_force, off("Badr", 9))
+        cover_id = opened(mona, in_force, 9, "D")["cover"]["id"]
+        offered(mona, in_force, cover_id, "Badr")
+
+        answered(as_user("Badr"), cover_id, "accept")
+
+        pins = PinnedCell.objects.filter(nurse__user__username="Badr", date="2026-06-09").order_by("pinned_at")
+        assert [(row.origin, row.removed_why) for row in pins] == [(PinOrigin.MANAGER, "replaced"), (PinOrigin.COVER, "")]
+
+    def test_the_managers_editor_refuses_a_cell_a_covers_pin_holds(self, in_force, mona):
+        cover_id = the_25th(mona, in_force)
+        offered(mona, in_force, cover_id, "Emad")
+        answered(as_user("Emad"), cover_id, "accept")
+
+        assert refusals(change(mona, in_force, off("Emad", 25))) == [
+            "This pin comes from an accepted cover, on 25 June 2026, so change it there."]
+        assert latest_version().number == 2
 
 
 class TestDeclining:
