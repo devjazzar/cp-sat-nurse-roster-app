@@ -9,13 +9,13 @@ technology choices rest on are in [docs/research](research/).
 
 One installation serves one hospital. Unit managers generate monthly rosters for their units
 with the CP-SAT solver, the Deputy CNO approves them, staff nurses see the approved roster, make
-requests for coming months and propose swaps. The hospital's IT runs the installation as a
+requests and preferences for coming months and propose swaps. The hospital's IT runs the installation as a
 single `docker compose` stack on one VPS. There is no multi-tenancy, no shared service between
 hospitals, and no internet access for the solver.
 
 Out of scope for v1 (designed so they can be added, not built): Arabic or any second language,
-LDAP or SSO, email or SMS, push notifications, server-side PDF, soft (unapproved) preferences,
-native mobile apps, the solver's reproducible mode in the UI.
+LDAP or SSO, email or SMS, push notifications, server-side PDF, native mobile apps, the solver's
+reproducible mode in the UI. Soft preferences, once out of scope, are in since ticket 29 (ADR 0013).
 
 ## 2. Deployment
 
@@ -90,14 +90,14 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read an approved roster's versions with their reasons, and compare any two | | yes | yes | own unit | |
 | Unit rules; nurses' rostering attributes (gender aside: the CNO sets and corrects it) and opening values | | | | own unit | |
 | Read the unit rules, and the rostering attributes and opening values of a unit's nurses | | yes | yes | own unit | |
-| Request windows; decide requests; decide swaps; open, offer and withdraw covers; record, correct and remove leave | | | | own unit | |
+| Request windows; decide requests; read the unit's preferences; decide swaps; open, offer and withdraw covers; record, correct and remove leave | | | | own unit | |
 | Read a unit's leave with its type | | yes | yes | own unit | |
 | Solve, edit the draft, submit, edit the approved roster, re-plan, re-close a month | | | | own unit | |
 | Exports (CSV, Excel, print page) of any roster version | | yes | yes | own unit | |
 | Reset a staff nurse's password (a manager's stays the System Admin's) | | yes | | own unit | |
 | Read the name of own unit | | | | | yes |
 | View own unit's approved roster (names and shifts only) and own summary | | | | | yes |
-| Make and withdraw requests; propose, accept and reject swaps; accept and decline covers offered to them | | | | | yes |
+| Make and withdraw requests; make and withdraw preferences, or ask for one as a request; propose, accept and reject swaps; accept and decline covers offered to them | | | | | yes |
 | Read own leave with its type (a manager with a nurse profile too) | | | | yes | yes |
 
 Cardinalities: exactly one active CNO and one active Deputy CNO per hospital (a deactivated one
@@ -151,7 +151,8 @@ else derived from the Umm al-Qura calendar.
 
 **Unit**: name (unique among units not archived), archived flag, manager (a user; none once
 archived), the unit rules (every field of the solver's `department` block but its name, which is
-the unit's) with a review flag, request cap per nurse per month (default 3), default time limit.
+the unit's) with a review flag, request cap per nurse per month (default 3), preference cap per nurse per month (default 10,
+0 switching preferences off), default time limit.
 
 **User**: username, full name, role, active flag, must-change-password flag.
 
@@ -220,7 +221,8 @@ month close give that roster whole to the solver, which refuses a cell on a shif
 the month begins; both days on the hospital's clock), state (`scheduled`, `open`, `closed`), who closed it early. The dates
 decide whether it is open, for every page and every write; the stored state and who is told follow them in the hourly job or the
 next write about the unit, whichever comes first (`requesting.windows`). At most one window of a unit is scheduled or open; once
-one has closed, another may target any month, the same one included. A unit whose request cap is 0 opens none.
+one has closed, another may target any month, the same one included. A window opens while either the unit's request cap or its
+preference cap is above 0; a unit with both at 0 opens none, and is told of both.
 
 **Request**: nurse, window, date, a shift or a day off, state (`pending`, `accepted`, `rejected`, `withdrawn`, `cancelled`,
 `replaced_by_leave`, `expired`), and its steps: who made, withdrew, accepted, rejected, edited or cancelled it, when, and the reason given
@@ -232,6 +234,17 @@ it. An edit changes what the pin promises and keeps what was asked. Leave record
 makes it `replaced_by_leave`, and its nurse is told. Nothing is deleted: a request the manager cancels after acceptance becomes
 `cancelled`, its pin ends and no cell changes. One still pending when its month closes becomes `expired`, with a step of no one's
 hand and the same words for everyone ("The month closed before a decision."), and its nurse is told.
+
+**Preference** (ADR 0013): nurse, window, date, kind (`day_off`, or `working_day` of any shift), state (`made`, `withdrawn`,
+`asked_instead`), when made, when ended and by whom, and for one asked for instead the request made in its place. Nobody decides
+it and it is never a pin; the live ones (`made`) of the unit's windows for the month are the solve input's `undesired_days` and
+`desired_days`, which the solver keeps at the two weights' price. A date holds one wish: at most one live preference a nurse and
+date, and none where a request of hers is pending or accepted, or the other way round, in any unit's window (a rejected,
+withdrawn, cancelled, replaced or expired request frees the date). Live preferences count against the unit's preference cap a
+nurse a month, across the month's windows, under the nurse's row lock a request's count takes; a cap lowered later keeps those
+made. A leave date or one outside her dates is refused as it is made; leave recorded later leaves it `made` (the solver ignores
+a leave day, and whether it is on leave is read, never stored). A nurse transferred out keeps hers on the old unit's record,
+counting against that unit's cap and reaching no solve. Nothing is deleted. Only the nurse and her unit's manager read them.
 
 **Swap**: unit, roster, the roster version it was proposed on, proposer, the proposer's note, the set of cell changes (nurse,
 date, the shift or off before, the new shift or off, and the pin its approval made), the participants (every colleague whose cells
@@ -351,6 +364,12 @@ backup time and retention, close time.
    cell on a draft at once; a submitted roster takes neither, nor a cancel, until its decision; on an approved roster of a
    month not over, a changed cell is a new version with origin `request`, telling the unit's nurses, and one that changes no
    cell makes no version. Each decision tells the nurse who made the request, and nobody else.
+5. In the same window a staff nurse makes preferences (a day off or a working day, no reason), up to the unit's preference
+   cap; while it is open she may withdraw one, or ask for it as a request instead: the request is made under the request cap
+   and the window's rules (for a working day, the shift she chooses), the preference ends as `asked_instead`, and a refusal
+   of the request leaves the preference as it was. Once the window closes they are fixed. Nobody decides them and nobody is
+   told of them; the manager reads each window's beneath its requests. Each solve and re-plan of the month lists the live ones,
+   and a draft solved before one was made or ended warns "preferences changed".
 
 ### Swaps
 
@@ -546,10 +565,11 @@ history, health and backups); CNO (hospital rules and weights, shift catalogue, 
 holidays and Ramadan, units and managers, nurses with import and export, each unit's rules, rostering attributes and leave
 to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules,
 rostering attributes and leave to read); Unit Manager (unit rules, rostering attributes, nurses, request
-windows and requests, swaps, covers, leave, the roster grid with solve, progress, results and
+windows, requests and the unit's preferences (read-only), swaps, covers, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff
 Nurse reads them, but no requests, swaps or covers of their own); Staff Nurse (unit roster, own month: hours, overtime, what
-is carried, shift counts and leave with its type, requests, swaps, covers offered to them, notifications, password). A nurse's own hours are
+is carried, shift counts and leave with its type, requests, a Preferences card beside them, swaps, covers offered to them,
+notifications, password). A nurse's own hours are
 worked out from the version in force on the month as it stands, with the solver's own arithmetic, for this month and later;
 a month already over shows its leave only. Every role has the bell and Change password. The Deputy CNO, Unit Manager and Staff Nurse also read
 the shift catalogue, leave types, holidays and Ramadan; the System Admin may open those pages
@@ -591,7 +611,8 @@ the staff list, a file that leaves the system. Leave is logged the same way, as 
 dates or how many, since a long run gives the type away and a date is part of a roster. So is a request: whose it is, who moved it and how (made, withdrawn,
 accepted, rejected, edited, cancelled), never its date, its shift or either reason, which can be about someone's health. A
 request that leave replaced, and a version a request made, have no entry of their own, since one beside the leave's or the
-request's would date it. So is a swap: whose it is (the proposer's) and who moved it how (`swap.proposed`, `accepted`, `rejected`,
+request's would date it. So is a preference: `preference.made`, `withdrawn` and `asked_instead`, the nurse acting and her
+hospital ID as target, never its date or kind; no notification is sent for one. So is a swap: whose it is (the proposer's) and who moved it how (`swap.proposed`, `accepted`, `rejected`,
 `withdrawn`, `approved`), never its cells, dates, note or reasons; an approval also writes `roster.changed`. An expiry has no
 entry: it is nobody's act, and one beside the version that caused it could date a colleague's leave. A cover is logged as who moved it how:
 `cover.offered` and `cover.withdrawn` (the manager, the unit as target) and `cover.accepted` and `cover.declined` (the nurse, her
@@ -645,7 +666,7 @@ public `/api/health` says only whether the database and the solver answer. Nothi
   follow the catalogue as it stands when the unit is created: a default shift the CNO renamed
   appears under its new code, and one the CNO retired is left out, which the solver refuses until
   the unit manager has chosen the unit's shifts.
-- Time limit cap 300 s; unit default time limit 60 s; a new unit's request cap 3 per nurse per month;
+- Time limit cap 300 s; unit default time limit 60 s; a new unit's request cap 3 and preference cap 10 per nurse per month;
   backup 02:00 kept 30 days; close 00:30 on the first. All editable by the role that owns them. The time
   zone, `Asia/Riyadh` by default, is the environment's `TIME_ZONE`, set at install rather than on a page.
 - A unit manager may roster any future month, not only the next.
@@ -699,5 +720,5 @@ Virtual 3, Pacer 0.24, React Hook Form 7, Zustand 5, Recharts 3, orval 8, Playwr
 ## 12. Revisit later
 
 The amount of solve information shown (now: everything), TanStack Charts and TanStack Form 2
-once mature, Arabic and RTL, LDAP/SSO, email, push notifications, soft preferences, PDF
+once mature, Arabic and RTL, LDAP/SSO, email, push notifications, PDF
 generation, the Deputy CNO's further responsibilities, the unit manager's further permissions.
