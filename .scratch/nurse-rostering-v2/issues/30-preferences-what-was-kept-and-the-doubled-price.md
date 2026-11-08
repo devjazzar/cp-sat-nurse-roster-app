@@ -4,7 +4,7 @@
 
 **Blocked by:** 28 The solver prices a preference double after an unkept month, and carries what was not kept; 29 A nurse's preferences, kept by the solver at a price
 
-**Status:** ready-for-human
+**Status:** ready-for-agent
 
 - [x] The chain carries the count as one more carried field from the result's carry-over block; a month with no roster for her hands on 0; opening values carry 0 with no new field; January does not reset it; a transfer carries it along; a re-close re-works it
 - [x] The solve input, a re-plan's included, carries each nurse's count; a nurse with a count above zero pays double in a real solve on a scratch stack, and the draft's per-nurse explanation says so
