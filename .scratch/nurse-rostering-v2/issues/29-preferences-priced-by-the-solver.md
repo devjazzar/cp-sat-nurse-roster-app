@@ -34,11 +34,11 @@ has the rest.
 
 **Implemented on 2026-11-08,** on branch `claude/ticket-29-preferences-25ac2b`, pull request
 MoustafaJazzar/cp-sat-nurse-roster-app#3, from `main` at `9435902` (`80a5558`, `02dcf5b`, `b7826f5`, `aec95da`, `7e3f2dd`,
-`4216ab7`, then this comment). The suites, locally:
-- the backend under pytest on a throwaway PostgreSQL 18 container of my own: SEE_BACKEND; `requesting` and
+`4216ab7`, then this comment, `b8ec8ff` and after). The suites, locally:
+- the backend under pytest on a throwaway PostgreSQL 18 container of my own: 2539 passed on `b8ec8ff` (the code of this head; only this comment changed since); `requesting` and
   `solves/tests/test_input.py` again after the review's fixes, 131 passed; `makemigrations --check` clean (two new migrations:
   `units/0003_unit_preference_cap`, `requesting/0003_preferences`);
-- the frontend: `npm test` 608 passed, `npm run build` clean, `tsc -b` clean;
+- the frontend: `npm test` 608 passed (again on the head after the review), `npm run build` clean, `tsc -b` clean;
 - the OpenAPI document and the generated client regenerated, and matching the export after the last change;
 - Playwright on my scratch stack `nr-t29`: `preference.spec.ts` and ticket 23's `request.spec.ts`, at 360 and 320 px, 4 passed,
   twice in a row (the second run shows the stack was left as it was);
@@ -105,8 +105,8 @@ No change to `deploy/compose.yaml`, the `Dockerfile`, the solver or any dependen
 
 **What was driven, and how.** Scratch stack `nr-t29` (`E2E_PORT=18290`), built from this branch at `7e3f2dd`: the Playwright
 check on a phone at 360 and 320 px, with ticket 23's request check beside it, twice; the real solve above through the API as
-Amal, Badr, Dana, Emad and Mona. The review's fixes after `7e3f2dd` (the transfer refusal, the words' place, the dialog's
-measuring) were not driven on the stack: the backend and frontend suites hold them, and GitHub's browser checks run the head.
+Amal, Badr, Dana, Emad and Mona. After the review's fixes the stack was rebuilt from this branch (`stack.sh rebuild`) and the
+two phone checks passed again, 4 of 4.
 
 **What was found, and fixed.**
 - Two forms on My month gave their date inputs one id, `field-date`, so the Preferences label pointed at the Requests input.
@@ -124,7 +124,7 @@ ticket's.
 
 **What was NOT checked:**
 - The cards and pages at 375 px literally (360 and 320 were), and in a desktop browser by hand: no screen-reader run.
-- The review's fixes on the stack (above). The six frontend runs at once: GitHub's.
+- The six frontend runs at once: GitHub's.
 - A close storing preferences, and the next month's projected count: ticket 30's.
 - `better-interface`, `better-writing`, `better-accessibility` were held by hand against the card and the manager's list
   (names, focus, announcements, words), not run as skills.
@@ -143,6 +143,11 @@ ticket's.
 - **Worth your review: one live preference a date in any unit,** as the spec's unique constraint has it, so one a transfer left
   on the old unit holds that date in the new unit until withdrawn there while its window is open (as a request left behind
   does). The card lists every preference of hers for the month, the old unit's included; its count is the current unit's.
+- **Worth your review: the doubled price starts with this ticket, before ticket 30 tests or shows it.** Once the lists reach
+  the solve input, the carry-over block counts unkept preferences, and the chain ticket 28 built passes that count on: a
+  nurse one of whose preferences the roster in force of a month did not keep pays double in every solve of the next month,
+  on your dev stack too after the merge, while My month says nothing of it until ticket 30. Not tested here, by the split
+  between the two tickets.
 - **Small additions:** the link from an `asked_instead` preference to its request; a preference count column on the manager's
   windows table; the request cap's place in the Preferences question. The `withdraw` of a preference is behind a question
   too, as the spec's Seam 3 has it, though a request's withdraw is not.
