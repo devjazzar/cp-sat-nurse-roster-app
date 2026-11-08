@@ -129,3 +129,5 @@ stack prices exactly as before.
   transfer, a re-close, a month with no roster and a projection with real preferences are yours (January has one). A close
   stores the whole `carry_over` block (`closes/making.py`). A doubled match's `amount` is 2 and its text ends "counts double, a preference was not kept
   last month"; the per-nurse cost carries it. `docs/ARCHITECTURE.md` section 6 already has a paragraph on the field.
+
+**Reviewed by the user (2026-11-08):** all six "Worth your review" points kept as built: the chain passes `preferences_not_kept` through with stored closes handing on 0; the name `preferences_not_kept`; optional, bounded at 62; the words "counts double, a preference was not kept last month" with a doubled day counting 2; the count ignores the weights (whether the doubled line hides at weight 0 is ticket 30's); the ER sample's N05 counting double. Merged through PR #2 (head `edeeeb5`) after both workflows passed on it; the dev stack rebuilt with `docker compose up -d --build` for the new solver.
