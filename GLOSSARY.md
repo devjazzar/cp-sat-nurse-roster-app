@@ -223,6 +223,14 @@ _Avoid_: department rules, department settings, unit settings
 A named working period with a length in hours, defined in the hospital's shift catalogue. A unit works a subset of the catalogue.
 _Avoid_: duty, slot
 
+**Run**:
+A stretch of a nurse's consecutive worked days, with a day off on each side. The unit's longest run bounds how long one may be.
+_Avoid_: block, stretch, cycle
+
+**Full run**:
+A run as long as the unit's longest run allows: three in a row where the longest run is three.
+_Avoid_: long run, maximum run
+
 **Hard rule**:
 A rule a roster must satisfy. The solver returns no roster that breaks one.
 _Avoid_: constraint, mandatory rule
