@@ -81,6 +81,12 @@ stack prices exactly as before.
 - The solver's timing-sensitive tests on GitHub's runners beyond this pull request's own runs.
 
 **Decisions taken here:**
+- **Worth your review: backend code changed, decided by the main session, not by you.** `closes/chain.py` passes
+  `preferences_not_kept` through, so **every solve input the app builds now carries it**, always 0 until preferences exist,
+  and a close stored before this change hands on 0 (`BEFORE_PREFERENCES`; without it the app's next solve input would have
+  failed on your existing closes). The alternative was to leave the chain alone and narrow six close tests to the fields it
+  carries. `docs/ARCHITECTURE.md` section 7's chain paragraph does not name the field yet: the spec gives section 7 to
+  ticket 30, and it is knowingly left there.
 - **Worth your review: the field's name, `preferences_not_kept`,** in the request and in the result's `carry_over` (one name,
   so the block is copied as is). It follows the glossary's "not kept" and the solver's style (`rest_owed`,
   `last_shift_kind`); the spec left the name to the implementer. `unkept_preferences` was the other candidate.
@@ -96,7 +102,7 @@ stack prices exactly as before.
   could then show while the price is 0; whether to hide it then is ticket 30's to decide.
 - **Problem schema 4 refuses a version-3 problem file.** No stored input is a problem file (the app stores requests,
   version 1), so nothing stored is affected; the ADR names 4.
-- **The ER sample's N05 now counts double,** so the end-to-end tests and benchmarks that use it price her two preferences
+- **Worth your review: the ER sample's N05 now counts double,** so the end-to-end tests and benchmarks that use it price her two preferences
   twice; nothing in them asserts a cost.
 
 **Review:** `code-review` against `a3cd509`, both axes.
