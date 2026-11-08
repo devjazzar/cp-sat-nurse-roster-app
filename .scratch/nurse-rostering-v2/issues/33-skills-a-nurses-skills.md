@@ -13,3 +13,15 @@
 - [ ] Audit: `nurse.skills_changed` with whose and by whom only.
 - [ ] The architecture document's roles table (CNO sets skills; managers and Deputy CNO read; the nurse reads her own) and the nurse profile entry say so.
 - [ ] Tests at the web API seam: each role's reading and writing, the refusals, a transfer, a deactivated nurse, the audit entry's shape; frontend tests for the Nurses page controls and My month.
+
+## Comments
+
+**From ticket 32 (2026-11-09), the catalogue this ticket builds on.** `hospital.models.Skill` (`name`, `expires`,
+`required_to_work`, `active`) and `SkillRename` (`skill`, `old_name`, `new_name`, `at`, `by`), API under
+`/api/hospital/skills` (`listSkills`, `createSkill`, `updateSkill`) in `hospital/catalogue_api.py`. Your refusal of
+`expires` off to on goes in `update_skill`, after `differing` and before `_write_skill`, under the
+`HospitalSettings.load(for_update=True)` lock every catalogue write already takes (so a nurse skill write that reads the
+catalogue's `expires` should take it too, or lock the skill row, for the two not to pass each other). The refusal shape is
+`refuse((("expires",), "..."))`; the page already shows a field's refusal beside its checkbox (`showServerErrors`), so the
+Skills page needs nothing more for it. `NurseSkill.skill` should be a `PROTECT` foreign key to `Skill`, as `SkillRename`'s
+is: nothing deletes a skill. A rename changes `Skill.name` only; a row keyed by the skill's id needs no carrying.

@@ -27,3 +27,13 @@ does not work, a minimum outside 0..1000 (`MAX_NURSES`), a skill name listed twi
 input carrying any of the five fields; the app's solve input must be version 2 for its needs to count.
 
 **From the review of ticket 31 (2026-11-09), decided by the user:** fairness should treat a day barred by an expired required skill as leave. Today a barred nurse's Friday share (`fair_weekend`) is not prorated for those days, so she carries a cost she cannot avoid and a lower `friday_balance` into next month. In the solver, count barred days as leave wherever fairness prorates for leave (`nurse_roster.fairness`), with a rule test in the constraint-verifier style. This is a small solver change inside this ticket.
+
+**From ticket 32 (2026-11-09), the catalogue this ticket builds on.** `hospital.models.Skill` and `SkillRename`,
+`/api/hospital/skills` in `hospital/catalogue_api.py`. Your two catalogue hooks both go in `update_skill`, after
+`differing`, under the `HospitalSettings.load(for_update=True)` lock it already holds: the retire refusal when `"active"`
+turns off (as `update_shift` does with `units_using`, naming the units, `refuse((("active",), ...))`), and carrying a rename
+through every unit's `skill_needs` when `"name" in new`, beside the `SkillRename` row it already writes, audited per unit as
+`_carry_rename_through_the_units` does for a shift. Unit rules store skills by name, so the rename has to be carried; the
+rename log is there for stored solve inputs, read on the way out (spec: a map of old to current names applied on read).
+No other skill may take a name a skill used to hold (`_refuse_a_taken_name`), so that map is one to one. The audit action
+for a catalogue change is `skill.updated` (the ticket's word; every other catalogue uses `.changed`).

@@ -13,3 +13,11 @@
 - [ ] A Skills import page beside the nurse import, same flow; the nurse import template and the staff list columns unchanged.
 - [ ] The architecture document's import section gains the skills CSV.
 - [ ] Tests at the web API seam for the template, each problem, a renewal, the token and the audit entry; frontend tests for the page through the app test file.
+
+## Comments
+
+**From ticket 32 (2026-11-09).** A skill's name is any 1 to 100 characters (stripped, no NUL), unlike a shift's code,
+which must start with a letter or digit so a spreadsheet does not read it as a formula. A CSV this app writes with skill
+names in it (the template's example rows, or an export later) should guard a cell starting with `=`, `+`, `-` or `@`,
+or the catalogue should refuse such a name: your call. Matching a file's skill to the catalogue is case-insensitive at most
+(the name is unique in any case of letters); a former name (`SkillRename.old_name`) is not a current skill.
