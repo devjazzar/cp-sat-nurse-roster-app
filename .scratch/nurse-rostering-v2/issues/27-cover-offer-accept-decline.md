@@ -96,3 +96,5 @@
 - `e2e/stack.sh cover <project> <unit> <month> [from] [avoid]` finds a cover a colleague could take, without keeping anything.
 - **The Day view (39)** can read the waiting covers as ticket 26 said; their offers are `cover.offers`.
 
+
+**Reviewed by the user (2026-11-08):** all seven "Worth your review" points kept as built: the editor's refusal wording stays until the Day view (ticket 39) gives a cover's cell a place to go; a decline is final; everyone offered is told when a cover ends; waiting offers from every month first; an Add keeps the first note; refusals at acceptance as worded; the Playwright check on ICU, leaving the stack changed but sound. Merged through PR #1 (head `5341d45`) after both workflows passed on it; the dev stack rebuilt with `docker compose up -d --build`, migrations `rosters.0005` and `notifications.0006` applied.
