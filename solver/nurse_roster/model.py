@@ -137,6 +137,7 @@ def build_model(p: Problem) -> RosterModel:
     allowed = [set(nu.allowed_shifts) if nu.allowed_shifts is not None else set(shifts)
                for nu in p.nurses]
 
+    bar = rule("skill_expired")                              # once: its test scans every nurse
     for n, nurse in enumerate(p.nurses):
         xn, on = x[n], off[n]
         flat = [v for day in xn[P:] for v in day]              # month days only
@@ -158,7 +159,7 @@ def build_model(p: Problem) -> RosterModel:
                     m.add(xn[t][s] == 0)
         for d in nurse.unavailable:
             m.add(on[P + d] == 1)
-        if rule("skill_expired"):                              # after a required skill's expiry: off
+        if bar:                                                # after a required skill's expiry: off
             for d in barred_days(p, nurse):                    # (an elapsed day is a fact, pinned)
                 if d >= cut:
                     m.add(on[P + d] == 1)
