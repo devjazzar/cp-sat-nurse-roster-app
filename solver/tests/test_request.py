@@ -67,11 +67,11 @@ def test_dates_round_trip_and_name_their_field():
 # ---- 2: loader ---------------------------------------------------------------------------------------
 def test_er_fixture_loads_and_is_the_er_configuration():
     raw = fixture()
-    assert raw["general"] == json.loads(json.dumps(asdict(er_general())))
-    assert raw["department"] == json.loads(json.dumps(asdict(er_department())))
+    assert raw["version"] == 1                                # a stored input: read as version 2, no skills
     assert [n["score"] for n in raw["nurses"]] == ER_SCORES and len(raw["nurses"]) == 25
     req = read_request(FIXTURE)
     p = req.problem
+    assert p.general == er_general() and p.department == er_department()
     assert p.days == 31 and p.first_weekday == 6 and p.department.name == "ER"
     assert p.ramadan_days == list(range(19))                  # the range object, cut to the month
     assert req.replan_from is None and req.differ == 0 and p.published is None
@@ -136,8 +136,8 @@ def _with(raw: dict, path: list, value) -> dict:
     (["version"], ..., r"request: missing field\(s\) \['version'\]"),
     (["general"], ..., r"request: missing field\(s\) \['general'\]"),
     (["solver"], ..., r"request: missing field\(s\) \['solver'\]"),
-    (["version"], 2, "request: version must be 1, got 2"),
-    (["version"], True, "request: version must be 1"),
+    (["version"], 3, "request: version must be 1 or 2, got 3"),
+    (["version"], True, "request: version must be 1 or 2"),
     (["month"], "2026-3", "request: month must be YYYY-MM"),
     (["public_holidays"], ["2026-04-01"], r"request: public_holidays\[0\]: 2026-04-01 is outside 2026-03"),
     (["public_holidays"], ["2026-03-01", "2026-03-01"], "request: public_holidays: 2026-03-01 is listed twice"),
@@ -278,7 +278,7 @@ def test_result_roster_and_carry_over_round_trip():
     assert set(res["penalties"]) == {"night_rest", "shift_switch", "dept_overtime", "nurse_overtime",
                                      "nurse_shortfall", "avoidable_shortfall", "fair_day", "fair_night", "fair_weekend",
                                      "score_deficit", "score_spread", "excess_weekend", "undesired_day",
-                                     "desired_day", "change"}
+                                     "desired_day", "change", "skill_need"}
     share, per = F.share_m(q), F.friday_slots_m(q)
     need = needed_history(q.department, q.general)
     assert need == 8

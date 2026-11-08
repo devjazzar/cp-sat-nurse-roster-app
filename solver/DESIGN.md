@@ -14,13 +14,13 @@ night-rest penalties count only when the D day is inside the month. Presolve rem
 
 ## Data contract
 
-### Request and result (`request.py`, `result.py`; request schema 1, result schema 1)
+### Request and result (`request.py`, `result.py`; request schema 2, schema 1 still read; result schema 1)
 The solver is a pure function of one **request**: one unit, one month, every rule explicit, dates
 not indices. A caller (the future app, with its database of hospital rules, units, nurses and
 results) assembles the request and stores the **result**; the solver has no database and no
 defaults that could hide a unit's numbers. Decided 2026-11-03.
 
-    {"version": 1, "month": "2026-03",
+    {"version": 2, "month": "2026-03",
      "ramadan_days": {"from": "2026-02-18", "to": "2026-03-19"},     # optional
      "public_holidays": [],
      "general": {... every GeneralRules field, "weights": {... every Weights field}},
@@ -31,12 +31,32 @@ defaults that could hide a unit's numbers. Decided 2026-11-03.
                  "leave": ["2026-03-04"], "undesired_days": [], "desired_days": [],
                  "pinned": {"2026-03-01": "D"}, "allowed_shifts": null,
                  "previous": ["D", "D", "", "N", "N", "N", "", "", "D", "D"],
-                 "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0}],
+                 "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0,
+                 "skills": {"BLS": "2026-03-14", "ICU": null}}],          # optional (version 2)
      "solver": {"time_limit_seconds": 20, "reproducible": false},
      "published": {"N01": {"2026-03-01": "D", "2026-03-02": "", ...}},   # optional
      "replan_from": "2026-03-12",                                      # optional
      "renamed_shifts": {"N": "Night"}}                                 # optional
 
+* **Version 2 (2026-11-09, skills; ADR 0010 of the app).** `general` gains `required_skills`
+  (the skill names required to work, each once) and `weights.skill_shortfall`; `department`
+  gains `skill_needs` (a list of `{"shift", "skill", "weekday_min", "weekend_min"}`, the shift
+  one of the unit's, one need a shift and skill) and `skill_needs_hard`; all four are required.
+  A nurse's `skills` (optional, absent = no record) maps each skill name to its **expiry**, the
+  last day it counts, or null for one that counts all month. The expiry is the one dated field
+  accepted before the month: a skill expired before it is sent with that date, because absence
+  has to mean "no record" (only a recorded required skill that expired keeps her off), and it
+  is read as expired before day 0 whatever the date. A date after the month is refused (the app
+  sends null), as is a skill named twice in a list or a need naming a shift the unit does not
+  work. **Version 1 is still read**, as version 2 with no skills, no needs, the needs hard, no
+  required skills and the weight 0 (`request._version_1`, on copies: a stored input is never
+  touched), because every input the app stored before is version 1: a draft is still explained
+  and a month still closed from it. A version-1 request carrying any of the five fields is
+  refused, so nothing is read half one version and half the other. This departs on purpose from
+  the internal problem's refusal of older schemas (below): the request is the app's history, the
+  problem file is not. The result's `version` stays 1: its shape did not change (its `penalties`
+  gain the key `skill_need`, as for every soft rule, and a violation may name `skill_need` or
+  `skill_expired`).
 * The server derives the day count, first weekday and Ramadan days from `month`
   (`calendar.parse_month`). `ramadan_days` has three states: absent/null = derived from the
   Umm al-Qura calendar, `[]` = none, a list of dates = exactly these; a `{"from", "to"}` range
@@ -146,13 +166,21 @@ is no CSV reader any more. The ER instance (real scores, the three single-shift 
 random generator) lives in `tests/er_fixture.py`, and `tests/fixtures/er_request_2026-03.json`
 is the committed ER request every end-to-end test and benchmark uses.
 
-### Internal problem (`problem.py`; schema 4, everything explicit)
+### Internal problem (`problem.py`; schema 5, everything explicit)
 The solver's own contract, built by the request loader (0-based day indices, derived calendar).
 `Problem.from_dict` / `to_json` round-trip it for tests and debugging; schema 3 (2026-11-03)
 requires every field of the rule objects and every nurse scalar, and refuses versions 1 and 2
 instead of migrating them (a migration could only work by filling defaults the code no longer has).
 Schema 4 (2026-11-08) adds the optional nurse scalar `preferences_not_kept` (absent = 0) and
 refuses a version-3 file like any other; the request's own version stays 1, the field optional.
+Schema 5 (2026-11-09) adds skills: `GeneralRules.required_skills`, `Weights.skill_shortfall`,
+`DepartmentRules.skill_needs` (`SkillNeed`: shift, skill, weekday_min, weekend_min) and
+`skill_needs_hard`, all required in a file, and the optional `Nurse.skills` {name: last day index
+or null}, where -1 is any day before the month. A version-4 file is refused like any other. The
+two versions move apart here: the request goes from 1 to 2 and still reads 1 (above); the problem
+goes from 4 to 5 and reads only 5, since the request loader builds every problem and no stored
+input is a problem file. (The Python dataclasses give the new fields defaults, empty and hard,
+so code that builds a problem by hand need not name them; `from_dict` still requires them.)
 * `Nurse`: id, gender, team_leader, score (0–1), ramadan_reduced, breastfeeding, ytd_overtime,
   unavailable days, `allowed_shifts` (None = any; ER: staff 4 and 11 D only, staff 13 N only),
   `previous` = the last days of the previous month (a month, from a result), oldest first, shift
@@ -240,6 +268,33 @@ in `fairness.py` so model, validator and reports agree.
 
 ER, hard: no mixed D/N work blocks — D→N and N→D added to the forbidden successions
 (`no_mixed_blocks`, 2026-10-30).
+
+Skills (2026-11-09, request version 2, ADR 0010 of the app), two rules in the registry:
+* **`skill_need`**, hard or soft by `skill_needs_hard` (as night rest is by its flag), weight
+  `skill_shortfall` (the one soft rule whose weight field is not its id; `RULES[id].weight`
+  names it), unit "nurse short of a skill need on a shift-day", on when the unit has a need.
+  Per need and day: the nurses on exactly its shift holding the skill that day
+  (`problem.skill_valid`: recorded, the day not after its expiry; `validate.skill_holders`)
+  against the weekday or weekend minimum. Hard: `Σ x ≥ min` on every free day (an elapsed day
+  is a fact, reported in `Analysis.elapsed`). Soft: `short ≥ min − Σ x`, `0 ≤ short ≤ min`, one
+  term per shift-day priced by the weight; elapsed days still counted, as every soft rule's are.
+  The match reads "skill need: day 4 N has 1 holding ICU, needs 2 (1 short)", amount the
+  nurses short. It does not count a headcount's `also_counts` shifts.
+* **`skill_expired`** (the bar), hard, unit "shift on a day a required skill has expired", on
+  when some nurse holds a required skill that expires before the month's last day. From the day
+  after the first such expiry she works no shift (`problem.barred_days`): fixed off on every free
+  day; an elapsed shift on one is a fact. `max_hours` skips barred days like leave, so the hours
+  her remaining days cannot hold are unreachable: exempt from `avoidable_shortfall` and carried
+  over whole in `hours_balance`, the existing mechanism; unlike leave they earn no credit. A
+  nurse with no record of a required skill is not barred. A shift pinned on a barred free day is
+  refused by `Problem.check` (as one on a leave day is). The match reads "skill expired: N01
+  works D on day 15, BLS is required to work and its last day was day 14" ("was before the
+  month" for one expired earlier).
+* Precheck: barred days count like leave in every capacity sum (per nurse and per day); a need
+  whose skill no nurse holds on any free day; a need whose largest minimum exceeds the nurses who
+  hold the skill and may work the shift; per free day, a minimum above the holders who may work
+  the shift that day (not on leave, pinned elsewhere or barred); per nurse, each required skill
+  expiring inside the month (before its last day), with its last day.
 
 ER, soft:
 * D/N switches above `max_switches` (2) per month: a memory Boolean per nurse-day (last worked

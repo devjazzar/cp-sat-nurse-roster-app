@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import time
+from pathlib import Path
 
 import pytest
 
@@ -287,3 +289,31 @@ def test_the_service_refuses_to_start_without_a_token(monkeypatch):
     monkeypatch.delenv("SOLVER_TOKEN", raising=False)
     with pytest.raises(RuntimeError, match="SOLVER_TOKEN"):
         create_app()
+
+
+# ---- version 2: skills ------------------------------------------------------------------------
+def test_a_version_2_input_is_solved_with_its_skills_and_scored_with_both_rules(client):
+    """The four nurses with skills (fixtures/four_nurses_skills.json): Dana's BLS, required to work, lasts to 24 June,
+    so she works no shift from the 25th; the ICU night need is soft at 50 a nurse short. The precheck says so first,
+    the result keeps her off and stays version 1, and /validate names a shift on a barred day and prices the need."""
+    skills = json.loads((Path(__file__).parent / "fixtures" / "four_nurses_skills.json").read_text())
+    skills["solver"]["time_limit_seconds"] = 2
+
+    issues = client.post("/precheck", json=skills).json()["issues"]
+    job = wait_for(client, client.post("/solve", json=skills).json()["job_id"], ended)
+
+    assert "Dana: BLS, required to work, expires inside the month: its last day is day 23, and she works no shift after it" \
+        in issues
+    result = job["result"]
+    assert job["state"] == "finished" and result["ok"] is True and result["version"] == 1
+    assert [result["roster"]["Dana"][f"2026-06-{d}"] for d in range(25, 31)] == [""] * 6
+    assert "skill_need" in result["penalties"] and "skill_expired" not in result["penalties"]
+
+    roster = copy.deepcopy(result["roster"])
+    roster["Dana"]["2026-06-27"] = "D"
+    v = client.post("/validate", json={"solve_input": skills, "roster": roster}).json()
+    assert {"rule": "skill_expired", "nurse": "Dana", "date": "2026-06-27",
+            "text": "skill expired: Dana works D on day 26, BLS is required to work and its last day was day 23"} \
+        in v["violations"]
+    need = next(r for r in v["rules"] if r["id"] == "skill_need")
+    assert need["level"] == "soft" and need["weight"] == 50 and need["weighted"] == 50 * need["raw"]

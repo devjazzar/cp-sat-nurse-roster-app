@@ -56,7 +56,7 @@ not choose. Dates are written `YYYY-MM-DD` and must fall inside the month.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "month": "2026-03",
   "ramadan_days": {"from": "2026-02-18", "to": "2026-03-19"},
   "public_holidays": [],
@@ -72,7 +72,7 @@ not choose. Dates are written `YYYY-MM-DD` and must fall inside the month.
 
 | Field | Required | Meaning |
 |---|---|---|
-| `version` | yes | Always `1`. |
+| `version` | yes | `2`. A version `1` request (written before skills) is still read, as one with no skills: no `required_skills`, a `skill_shortfall` weight of 0, no `skill_needs`, `skill_needs_hard` true and no nurse `skills`; it may not carry any of those fields. The result's own `version` stays `1`. |
 | `month` | yes | `YYYY-MM`. The solver derives the day count, the first weekday and the Ramadan days from it. |
 | `ramadan_days` | no | Absent or `null`: derived from the Umm al-Qura calendar. `[]`: no Ramadan days. A list of dates: exactly those. `{"from", "to"}`: an inclusive range (it may start or end outside the month) intersected with the month, for the dates fixed after the moon sighting. |
 | `public_holidays` | yes | Dates (may be empty). No regular hours are owed on them. |
@@ -104,6 +104,7 @@ The worker count (solver threads) is not part of the request: it is a server set
   "overtime_month_cap": 40,
   "overtime_year_cap": 720,
   "dept_overtime_cap": 400,
+  "required_skills": ["BLS"],
   "weights": { ...see below... }
 }
 ```
@@ -122,6 +123,7 @@ The worker count (solver threads) is not part of the request: it is a server set
 | `overtime_month_cap` | Hard cap on a nurse's overtime hours this month. |
 | `overtime_year_cap` | Hard cap on a nurse's overtime hours in the year (uses her `ytd_overtime`). |
 | `dept_overtime_cap` | Soft cap on the unit's total overtime hours this month. |
+| `required_skills` | Skill names required to work: a nurse whose recorded one has expired works no shift from the day after its expiry (hard, the rule `skill_expired`). Her hours stay owed, and what her remaining days cannot hold is carried over as debt (section 10). A nurse with no record of the skill is not kept off. Each name once. |
 
 `weights` are the prices of the soft rules, per unit of violation. A weight of `0` switches that
 rule off. Only their ratios matter: the solver minimises the weighted sum.
@@ -142,6 +144,7 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `undesired_day` | day a nurse asked off but works; 2 for a nurse with `preferences_not_kept` above 0. |
 | `desired_day` | day a nurse asked to work but is off; 2 for a nurse with `preferences_not_kept` above 0. |
 | `change` | cell that differs from the `published` roster in a re-plan. |
+| `skill_shortfall` | nurse a skill need is short on one shift-day (only when `skill_needs_hard` is false; the rule is `skill_need`). |
 
 ### 2.3 `department`: the unit's rules
 
@@ -176,7 +179,9 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
   "max_weekends": 3,
   "no_mixed_blocks": true,
   "max_switches": 2,
-  "switches_hard": false
+  "switches_hard": false,
+  "skill_needs": [{"shift": "N", "skill": "ICU", "weekday_min": 2, "weekend_min": 2}],
+  "skill_needs_hard": true
 }
 ```
 
@@ -200,6 +205,8 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `max_weekends` | Soft: weekend days a nurse may work per month before `excess_weekend` applies. |
 | `no_mixed_blocks` | Hard: consecutive worked days are all day shifts or all night shifts. |
 | `max_switches`, `switches_hard` | Day/night switches allowed per month (the month boundary counts); hard, or priced by `shift_switch`. |
+| `skill_needs` | Each: on `shift` (one of the unit's), at least `weekday_min` / `weekend_min` nurses holding `skill` on each weekday / weekend day, counting nurses on exactly that shift (not its `also_counts`) whose skill has not expired that day. Several per unit, but one per shift and skill. `[]`: none. |
+| `skill_needs_hard` | `true`: every skill need is a hard rule; `false`: each nurse short on a shift-day is priced by `skill_shortfall`. |
 
 The rules must not look back further than a carried history can hold: with
 `max_consecutive_shifts`, `double_cycle_rest` and `night_rest_days` combined, the look-back must
@@ -242,6 +249,7 @@ lists may be left out (absent = none).
 | `pinned` | `{date: shift}` cells fixed by the admin, or already worked (`""` = pinned off). Hard. |
 | `allowed_shifts` | `null` = any of the unit's shifts, or a list of the only shifts she works. |
 | `previous` | Her last days before the month, oldest first, shift name or `""` for off. From the carry-over (last month's whole row). A name the unit no longer defines is accepted as work of no kind, see section 9. |
+| `skills` | `{skill: expiry}`: the skills she holds, each with its expiry, the last day it counts, or `null` when it counts all month (it does not expire, or not before the month ends). A skill expired before the month is sent with its date: absent means *no record*, and only a recorded skill that expired keeps her off. The expiry is the one date accepted before the month; a date after the month is refused (send `null`). Absent = none. A shift pinned on a day after the expiry of a required skill is refused. |
 
 For a **brand-new unit** or nurse: `previous: []`, `last_shift_kind: null`, `rest_owed: 0`, `preferences_not_kept: 0`,
 `hours_balance: 0`, the balances `0.0`, `ytd_overtime` as of today.
@@ -298,6 +306,12 @@ soft rules off. Save it as `small.json` and solve it.
 ```bash
 uv run python -m nurse_roster solve small.json --out small_result.json --csv small.csv
 ```
+
+This sample is written as version 1, as every request stored before skills is, and is read as one
+with no skills. The same four nurses at version 2, with skills, are in
+`service_tests/fixtures/four_nurses_skills.json`: BLS is required to work and Dana's lasts to
+24 June, so she works no shift from the 25th; Badr's ICU lasts to the 20th; one ICU nurse is
+needed on each night, soft at 50 a nurse short.
 
 ---
 
@@ -510,8 +524,9 @@ A shortfall beyond a remainder below one shift is **avoidable shortfall**, price
 reason: what a nurse can still work is bounded by every other hard rule at once (run limits,
 rest, headcount maxima shared with her colleagues), so no hard floor could be computed per nurse
 without making some re-plans infeasible. Hours her recorded and free days could not give
-anyway (a month that has ended, a nurse on leave for the rest of it) are exempt from the
-penalty and simply become her debt.
+anyway (a month that has ended, a nurse on leave for the rest of it, the days after a required
+skill of hers expired) are exempt from the penalty and simply become her debt. Unlike leave, the
+days after an expiry earn no credit: her hours stay owed.
 
 Two consequences to keep in mind:
 

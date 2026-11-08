@@ -490,6 +490,13 @@ the two lists from her live preferences of the unit's windows. My month reads wh
 facts, so the outcomes she reads add up to the count the next month is priced on, whatever the two weights; and it reads
 whether hers count double from the same chain value the solve input takes (`rosters.own_month`).
 
+Skills changed it again (ADR 0010; the solver's problem schema 5, the solve input version 2). Version 2 adds the nurse's
+`skills` (skill name to its expiry, the last day it counts, or null; a skill expired before the month sent with its date,
+absence meaning no record), the department's `skill_needs` and `skill_needs_hard`, and the general `required_skills` and
+`weights.skill_shortfall`. The solver reads a version 1 input as version 2 with none of them (no skills, no needs, the needs
+hard, no required skills, the weight 0), so every stored solve input and close input still loads, explains and closes; the
+result's version is unchanged. Until the app writes version 2 (the skills tickets), it writes version 1 and nothing changes.
+
 ## 7. The worker and the queue (ADR 0006)
 
 Procrastinate, with its tables in the application database, run by the `worker` container at
