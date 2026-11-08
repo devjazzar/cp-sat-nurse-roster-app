@@ -460,8 +460,8 @@ caller of `POST /solve` (ADR 0009).
 The worker count defaults to the container's CPU count. The time limit of a solve is chosen
 by the unit manager up to the System Admin's cap. The reproducible mode is not exposed.
 
-The solve input's contract changed once in this repository (ADR 0013; the problem's schema 4, the solve input still version
-1): each nurse may carry `preferences_not_kept`, how many of her preferences (`undesired_days`, `desired_days`) the month
+Preferences changed the solve input's contract (ADR 0013; the solver's problem schema 4, the solve input still version 1):
+each nurse may carry `preferences_not_kept`, how many of her preferences (`undesired_days`, `desired_days`) the month
 before did not keep, absent meaning 0 so every stored solve input and close input still loads. Above 0, each of her
 preferences costs twice its weight, in the search and in the explanation, whose match says it "counts double". A result's
 `carry_over` block carries the same field for next month, counted from the month's facts with leave days left out.

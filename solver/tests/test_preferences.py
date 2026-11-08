@@ -4,7 +4,11 @@ objective and in the validator's explanation alike; the result's carry-over coun
 hers not kept for next month. Expected numbers are worked out by hand on tiny months."""
 from __future__ import annotations
 
+import json
+
 import pytest
+
+from nurse_roster.__main__ import main
 
 from nurse_roster.explain import explain, report
 from nurse_roster.model import build_model, solve
@@ -157,3 +161,20 @@ def test_an_absent_count_is_zero_so_every_stored_input_still_loads():
     raw = _june([Nurse("a")])
     del raw["nurses"][0]["preferences_not_kept"]
     assert load_request(raw).problem.nurses[0].preferences_not_kept == 0
+
+
+# ---- the CLI -------------------------------------------------------------------------------------
+def test_the_cli_says_a_preference_counted_double_and_writes_the_count(tmp_path, capsys):
+    """One nurse, one D every day: the day she asked off cannot be kept. The report says it counted double, and the
+    result carries the one day not kept for July."""
+    p = mini(30, ["D"], [Nurse("a", undesired_days=[4], preferences_not_kept=1)], weights=prices(undesired=2, desired=0),
+             headcounts=[Headcount("D", 1, 1, 1, 1)], headcount_enabled=True)
+    req, out = tmp_path / "june.json", tmp_path / "result.json"
+    req.write_text(json.dumps(request_of(p, "2026-06", time_limit=5)))
+
+    assert main(["solve", str(req), "--out", str(out), "--explain", "--workers", "2"]) == 0
+
+    printed = capsys.readouterr().out
+    assert "undesired_day 4 = 2 x 2" in printed
+    assert "a: works day 4 (asked off; counts double, a preference was not kept last month)" in printed
+    assert json.loads(out.read_text())["nurses"]["a"]["carry_over"]["preferences_not_kept"] == 1

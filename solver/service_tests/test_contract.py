@@ -52,11 +52,7 @@ def test_solve_runs_to_a_full_result(client, sample):
     assert set(result["roster"]) == {"Amal", "Badr", "Dana", "Emad"}
     assert set(result["nurses"]) == {"Amal", "Badr", "Dana", "Emad"}
     assert "carry_over" in result["nurses"]["Amal"]
-    # Dana's preferences were not all kept last month; the month carries how many of hers this one did not keep
-    dana = result["roster"]["Dana"]
-    assert result["nurses"]["Dana"]["carry_over"]["preferences_not_kept"] == \
-        (dana["2026-06-05"] != "") + (dana["2026-06-12"] == "")
-    assert {n["carry_over"]["preferences_not_kept"] for nid, n in result["nurses"].items() if nid != "Dana"} == {0}
+    assert all("preferences_not_kept" in n["carry_over"] for n in result["nurses"].values())
     assert job["best_cost"] == result["cost"]
     assert job["best_roster"] == result["roster"]
     assert job["improvements"] == result["solver"]["improvements"] >= 1
@@ -155,6 +151,20 @@ def test_validate_reports_a_broken_hard_rule(client, sample, solved):
     assert v["ok"] is False
     assert {"rule": "allowed_shifts", "nurse": "Emad", "date": "2026-06-15"}.items() <= next(
         x for x in v["violations"] if x["rule"] == "allowed_shifts").items()
+
+
+def test_a_result_carries_the_preferences_it_did_not_keep(client, sample):
+    """Dana's two preferences pinned the wrong way (worked the day she asked off, off the day she asked to work): her
+    result carries 2 for next month, every other nurse, who made none, 0."""
+    pinned = copy.deepcopy(sample)
+    dana = next(n for n in pinned["nurses"] if n["id"] == "Dana")
+    dana["pinned"] = {"2026-06-05": "D", "2026-06-12": ""}
+
+    result = wait_for(client, client.post("/solve", json=pinned).json()["job_id"], ended)["result"]
+
+    assert result["ok"] is True
+    assert {nid: n["carry_over"]["preferences_not_kept"] for nid, n in result["nurses"].items()} == \
+        {"Amal": 0, "Badr": 0, "Dana": 2, "Emad": 0}
 
 
 def test_validate_prices_a_doubled_preference_twice_and_says_so(client, sample, solved):

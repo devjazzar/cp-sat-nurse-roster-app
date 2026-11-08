@@ -264,9 +264,9 @@ def build_model(p: Problem) -> RosterModel:
                     if Q <= t + span + r < T:                  # consequence day free
                         m.add_bool_or(head + [on[t + span + r]])
 
-        # requests (soft): a worked day the nurse asked off, an off day she asked to work; each
+        # preferences (soft): a worked day the nurse asked off, an off day she asked to work; each
         # term listed once per time it counts (twice after an unkept month: preference_factor)
-        leave = set(nurse.unavailable)                         # leave supersedes a request
+        leave = set(nurse.unavailable)                         # leave supersedes a preference
         times = preference_factor(nurse)
         if rule("undesired_day"):
             pen["undesired_day"][0].extend(on[P + d].Not() for d in nurse.undesired_days if d not in leave
