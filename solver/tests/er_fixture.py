@@ -182,7 +182,8 @@ def generate(n_nurses: int = 25, days: int = 31, first_weekday: int = 0, seed: i
 
 # ---- requests ----------------------------------------------------------------------------------
 _SCALARS = ("id", "gender", "team_leader", "score", "ramadan_reduced", "breastfeeding",
-            "ytd_overtime", "hours_balance", "night_balance", "friday_balance", "last_shift_kind", "rest_owed")
+            "ytd_overtime", "hours_balance", "night_balance", "friday_balance", "last_shift_kind", "rest_owed",
+            "preferences_not_kept")
 
 
 def request_of(p: Problem, month: str, *, time_limit: float = 5, reproducible: bool = False,

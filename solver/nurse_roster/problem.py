@@ -30,8 +30,11 @@ MAX_HOURS = 10 ** 6      # overtime caps, YTD overtime, a carried hours balance
 MAX_PARAM = 1000         # rule counts (max in a row, switches), balances, caps
 MAX_REST_DAYS = 7        # night_rest_days: its clause encoding lists every day of the gap, so
                          # the model grows with the square of it; a week is beyond any real rule
-SCHEMA_VERSION = 3       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
-                         # explicit; no migration from 1 or 2 (they relied on defaults)
+SCHEMA_VERSION = 4       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
+                         # explicit; no migration from 1 or 2 (they relied on defaults). 4 (2026-11-08):
+                         # a nurse's optional `preferences_not_kept` (absent = 0) doubles the price of
+                         # her undesired and desired days (ADR 0013); a version-3 file is refused
+                         # like any other (the request, version 1, takes the field as optional)
 MAX_NAME = 100           # nurse ids and shift names (the CSV reader's field limit is 128 kB)
 _MONTH = re.compile(r"(\d{4})-(\d{2})")
 
@@ -64,6 +67,16 @@ class Nurse:
                                        # the unit has since renamed its shifts (carry_over.last_shift_kind)
     rest_owed: int = 0                 # off days still owed to the last night before `previous`
                                        # begins: the night-rest rule's memory (carry_over.rest_owed)
+    preferences_not_kept: int = 0      # her undesired / desired days the month before did not keep
+                                       # (carry_over.preferences_not_kept): above 0, each of hers this
+                                       # month costs twice its weight, whatever the count (ADR 0013)
+
+
+def preference_factor(nurse: Nurse) -> int:
+    """How many times each of the nurse's undesired and desired days counts its weight: twice
+    after a month that did not keep one of hers, else once (ADR 0013). The model and the
+    validator both read it, so a solve's cost and a validation's agree."""
+    return 2 if nurse.preferences_not_kept > 0 else 1
 
 
 @dataclass(slots=True)
@@ -340,7 +353,7 @@ class Problem:
     def from_dict(raw: dict, *, check_planning: bool = True) -> "Problem":
         """Every field of the rule objects and every nurse scalar is required: no unit's
         numbers live in the code. Only a nurse's day lists, pins, `allowed_shifts`,
-        `previous`, `last_shift_kind` and `rest_owed`, a headcount's `also_counts`, and the root's
+        `previous`, `last_shift_kind`, `rest_owed` and `preferences_not_kept`, a headcount's `also_counts`, and the root's
         holidays, Ramadan days, `published`, `planning_from` and `month` may be absent (absent = none). An explicitly empty
         list stays empty. The result is checked (`check`) so malformed input fails here, not
         in the solver. Every malformed input raises ValueError (never TypeError), with the
@@ -626,6 +639,8 @@ class Problem:
                 raise err(f"{nu.id}: last_shift_kind must be \"night\", \"day\" or null, got {nu.last_shift_kind!r}")
             if not _is_int(nu.rest_owed) or not 0 <= nu.rest_owed <= MAX_REST_DAYS:
                 raise err(f"{nu.id}: rest_owed must be an integer within 0..{MAX_REST_DAYS}")
+            if not _is_int(nu.preferences_not_kept) or not 0 <= nu.preferences_not_kept <= MAX_DAYS:
+                raise err(f"{nu.id}: preferences_not_kept must be an integer within 0..{MAX_DAYS}")
 
         need = needed_history(self.department, self.general)
         if need > MAX_HISTORY:                                # a carried history could not hold it
@@ -735,7 +750,8 @@ def _list(v, where: str) -> list:
 
 _ROOT_OPTIONAL = frozenset({"public_holidays", "ramadan_days", "published", "planning_from", "month"})
 _NURSE_OPTIONAL = frozenset({"unavailable", "undesired_days", "desired_days", "pinned",
-                             "allowed_shifts", "previous", "last_shift_kind", "rest_owed"})
+                             "allowed_shifts", "previous", "last_shift_kind", "rest_owed",
+                             "preferences_not_kept"})
 
 
 def _require(cls, raw, where: str, *, optional: frozenset | set = frozenset()) -> dict:

@@ -31,7 +31,7 @@ defaults that could hide a unit's numbers. Decided 2026-11-03.
                  "leave": ["2026-03-04"], "undesired_days": [], "desired_days": [],
                  "pinned": {"2026-03-01": "D"}, "allowed_shifts": null,
                  "previous": ["D", "D", "", "N", "N", "N", "", "", "D", "D"],
-                 "last_shift_kind": null, "rest_owed": 0}],
+                 "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0}],
      "solver": {"time_limit_seconds": 20, "reproducible": false},
      "published": {"N01": {"2026-03-01": "D", "2026-03-02": "", ...}},   # optional
      "replan_from": "2026-03-12",                                      # optional
@@ -52,7 +52,11 @@ defaults that could hide a unit's numbers. Decided 2026-11-03.
   night before `previous` begins (the night-rest rule's memory). A name in `previous` the
   unit no longer defines is accepted as work of no kind (neither night nor day; precheck
   says so); `renamed_shifts` maps the old name of a renamed shift to its current one in
-  every history. The six lists (`leave`, `undesired_days`,
+  every history. One more carried scalar may be absent (2026-11-08, ADR 0013 of the app), so a
+  request stored before it still loads: `preferences_not_kept` (absent = 0), how many of her
+  undesired and desired days the month before did not keep; above 0, each of hers this month is
+  priced twice (`problem.preference_factor`, read by the model, which lists her term twice, and by
+  the validator, whose match has amount 2 and says "counts double"). The six lists (`leave`, `undesired_days`,
   `desired_days`, `pinned`, `allowed_shifts`, `previous`) may be absent (absent = none).
   Unknown fields are errors.
 * Dates are `YYYY-MM-DD` inside the month, no duplicates; a wrong shift name, an unknown
@@ -102,7 +106,8 @@ The result (`result.build_result`, written by `solve --out`):
                         "cost": 3, "carry_over": {"hours_balance": 0, "night_balance": 0.33,
                                                   "friday_balance": -0.2, "ytd_overtime": 100,
                                                   "previous": ["N", "N", "", "", "D", "D", "D", ""],
-                                                  "last_shift_kind": "day", "rest_owed": 0}}}}
+                                                  "last_shift_kind": "day", "rest_owed": 0,
+                                                  "preferences_not_kept": 1}}}}
 
 * `carry_over` uses the request's own nurse field names: next month's request is this month's
   static nurse fields plus this block (`hours_balance` = `Problem.carry_over`, the balances =
@@ -110,7 +115,9 @@ The result (`result.build_result`, written by `solve --out`):
   month's row (more only when `precheck.needed_history` exceeds a month; capped at
   `MAX_HISTORY`), `last_shift_kind` and `rest_owed` = the two memories walked up to where that
   row begins (`validate.last_worked`, `validate.rest_owed_after`), so a history of any length
-  collapses into one month plus two scalars with nothing the rules read lost). The app resets
+  collapses into one month plus two scalars with nothing the rules read lost), and
+  `preferences_not_kept` = this month's days asked off and worked plus asked to work and off,
+  leave days out, whatever the weights (`validate.preferences_not_kept`). The app resets
   the year-to-date value and the balances at year start. Leave days are `""` in `roster` and listed under `nurses[id].leave`;
   `"L"` never appears in JSON (it is the CSV export's marker only).
 * `ok` is true exactly when the CLI exits 0 (`result.verdict`: 1 no roster, 2 hard violations,
@@ -139,15 +146,18 @@ is no CSV reader any more. The ER instance (real scores, the three single-shift 
 random generator) lives in `tests/er_fixture.py`, and `tests/fixtures/er_request_2026-03.json`
 is the committed ER request every end-to-end test and benchmark uses.
 
-### Internal problem (`problem.py`; schema 3, everything explicit)
+### Internal problem (`problem.py`; schema 4, everything explicit)
 The solver's own contract, built by the request loader (0-based day indices, derived calendar).
 `Problem.from_dict` / `to_json` round-trip it for tests and debugging; schema 3 (2026-11-03)
 requires every field of the rule objects and every nurse scalar, and refuses versions 1 and 2
 instead of migrating them (a migration could only work by filling defaults the code no longer has).
+Schema 4 (2026-11-08) adds the optional nurse scalar `preferences_not_kept` (absent = 0) and
+refuses a version-3 file like any other; the request's own version stays 1, the field optional.
 * `Nurse`: id, gender, team_leader, score (0–1), ramadan_reduced, breastfeeding, ytd_overtime,
   unavailable days, `allowed_shifts` (None = any; ER: staff 4 and 11 D only, staff 13 N only),
   `previous` = the last days of the previous month (a month, from a result), oldest first, shift
   name or "" for off, `last_shift_kind` / `rest_owed` = the switch and night-rest memories before it,
+  `preferences_not_kept` = last month's unkept preferences (above 0 doubles this month's price),
   `undesired_days` / `desired_days` (soft requests, disjoint from each other and from leave),
   `pinned` = {day: shift or ""} cells fixed by the admin or already worked (hard): the record
   of executed work, which the published plan never overrides.

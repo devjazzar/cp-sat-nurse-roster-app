@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .problem import Nurse, Problem
+from .problem import Nurse, Problem, preference_factor
 from . import fairness as F
 from .rules import HARD, RULES, Match, active, level, soft_ids, weight
 
@@ -429,17 +429,37 @@ def _change(c: Ctx) -> list[Match]:
     return out
 
 
+_DOUBLED = "; counts double, a preference was not kept last month"
+
+
+def _preference(nu: Nurse, d: int, what: str, asked: str) -> Match:
+    """A day the nurse asked off and works, or asked to work and is off: one unit, or two
+    after an unkept month (preference_factor), and its words say so."""
+    times = preference_factor(nu)
+    return Match(nu.id, d, times, f"{nu.id}: {what} day {d} ({asked}{_DOUBLED if times > 1 else ''})")
+
+
 def _undesired_day(c: Ctx) -> list[Match]:
-    return [Match(nu.id, d, 1, f"{nu.id}: works day {d} (asked off)")
+    return [_preference(nu, d, "works", "asked off")
             for n, nu in enumerate(c.p.nurses) for d in nu.undesired_days
             if c.a[n][d] >= 0 and d not in nu.unavailable]
 
 
 def _desired_day(c: Ctx) -> list[Match]:
     """A desired day that became a leave day is superseded: not charged."""
-    return [Match(nu.id, d, 1, f"{nu.id}: off on day {d} (asked to work)")
+    return [_preference(nu, d, "off on", "asked to work")
             for n, nu in enumerate(c.p.nurses) for d in nu.desired_days
             if c.a[n][d] < 0 and d not in nu.unavailable]
+
+
+def preferences_not_kept(nurse: Nurse, row: list[int]) -> int:
+    """Next month's `preferences_not_kept`, from the month's facts: her days asked off that she
+    works plus her days asked to work that she is off, a leave day counted neither way. Days,
+    not price: a nurse already doubled carries the same count. Whatever the two weights, so a
+    weight of 0 does not erase what happened."""
+    leave = set(nurse.unavailable)
+    return sum(1 for d in nurse.undesired_days if d not in leave and row[d] >= 0) \
+        + sum(1 for d in nurse.desired_days if d not in leave and row[d] < 0)
 
 
 CHECKS: dict[str, Callable[[Ctx], list[Match]]] = {

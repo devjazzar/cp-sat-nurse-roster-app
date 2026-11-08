@@ -52,6 +52,11 @@ def test_solve_runs_to_a_full_result(client, sample):
     assert set(result["roster"]) == {"Amal", "Badr", "Dana", "Emad"}
     assert set(result["nurses"]) == {"Amal", "Badr", "Dana", "Emad"}
     assert "carry_over" in result["nurses"]["Amal"]
+    # Dana's preferences were not all kept last month; the month carries how many of hers this one did not keep
+    dana = result["roster"]["Dana"]
+    assert result["nurses"]["Dana"]["carry_over"]["preferences_not_kept"] == \
+        (dana["2026-06-05"] != "") + (dana["2026-06-12"] == "")
+    assert {n["carry_over"]["preferences_not_kept"] for nid, n in result["nurses"].items() if nid != "Dana"} == {0}
     assert job["best_cost"] == result["cost"]
     assert job["best_roster"] == result["roster"]
     assert job["improvements"] == result["solver"]["improvements"] >= 1
@@ -150,6 +155,21 @@ def test_validate_reports_a_broken_hard_rule(client, sample, solved):
     assert v["ok"] is False
     assert {"rule": "allowed_shifts", "nurse": "Emad", "date": "2026-06-15"}.items() <= next(
         x for x in v["violations"] if x["rule"] == "allowed_shifts").items()
+
+
+def test_validate_prices_a_doubled_preference_twice_and_says_so(client, sample, solved):
+    roster = copy.deepcopy(solved["roster"])
+    roster["Dana"]["2026-06-05"] = "D"                 # the day she asked off, worked
+    roster["Dana"]["2026-06-12"] = ""                  # the day she asked to work, off
+
+    v = client.post("/validate", json={"solve_input": sample, "roster": roster}).json()
+
+    rules = {rule["id"]: rule for rule in v["rules"]}
+    [off] = [m for m in rules["undesired_day"]["matches"] if m["nurse"] == "Dana"]
+    [on] = [m for m in rules["desired_day"]["matches"] if m["nurse"] == "Dana"]
+    assert (off["date"], off["amount"], on["date"], on["amount"]) == ("2026-06-05", 2, "2026-06-12", 2)
+    assert "counts double" in off["text"] and "counts double" in on["text"]
+    assert rules["undesired_day"]["weighted"] == 2 * 2 and rules["desired_day"]["weighted"] == 2 * 1   # weights 2 and 1
 
 
 def test_validate_keeps_a_replans_published_roster(client, sample, solved):

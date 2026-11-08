@@ -139,8 +139,8 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `score_spread` | 0.01 score point × person above the band ceiling (band mode), or 0.01 between the strongest and weakest shift (spread mode). |
 | `excess_weekend` | weekend day worked above `max_weekends`. |
 | `shift_switch` | day/night switch above `max_switches` (only when `switches_hard` is false). |
-| `undesired_day` | day a nurse asked off but works. |
-| `desired_day` | day a nurse asked to work but is off. |
+| `undesired_day` | day a nurse asked off but works; 2 for a nurse with `preferences_not_kept` above 0. |
+| `desired_day` | day a nurse asked to work but is off; 2 for a nurse with `preferences_not_kept` above 0. |
 | `change` | cell that differs from the `published` roster in a re-plan. |
 
 ### 2.3 `department`: the unit's rules
@@ -213,14 +213,15 @@ request is refused with a clear message otherwise.
   "id": "N01", "gender": "M", "team_leader": true, "score": 0.99,
   "ramadan_reduced": false, "breastfeeding": false,
   "ytd_overtime": 100, "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0,
-  "last_shift_kind": null, "rest_owed": 0,
+  "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0,
   "leave": ["2026-03-04"], "undesired_days": [], "desired_days": [],
   "pinned": {"2026-03-01": "D"}, "allowed_shifts": null,
   "previous": ["D", "D", "", "N", "N", "N", "", "", "D", "D"]
 }
 ```
 
-The twelve scalars are required; the six lists may be left out (absent = none).
+The twelve scalars are required, `preferences_not_kept` may be left out (absent = 0); the six
+lists may be left out (absent = none).
 
 | Field | Meaning |
 |---|---|
@@ -235,13 +236,14 @@ The twelve scalars are required; the six lists may be left out (absent = none).
 | `night_balance`, `friday_balance` | Nights / weekend days above (+) or below (−) her fair share so far this year, in shifts. From the carry-over. |
 | `last_shift_kind` | `"night"`, `"day"` (any other work) or `null`: the kind of the last shift she worked *before* `previous` begins. The switch rule's memory across any number of off days. From the carry-over; `null` for a new nurse. |
 | `rest_owed` | Off days she still owes to her last night shift *before* `previous` begins; `0` when none. From the carry-over. |
+| `preferences_not_kept` | How many of her `undesired_days` and `desired_days` last month's roster did not keep (a whole number, 0 or more; absent = 0). Above 0, every one of hers this month costs **twice** its weight, whatever the count. From the carry-over; `0` for a new nurse. |
 | `leave` | Dates she is off (sick, educational, marriage, bereavement…). They are credited as worked at her regular daily rate, so leave never creates a debt. |
-| `undesired_days`, `desired_days` | Requests: dates she would rather not work / would like to work (soft). |
+| `undesired_days`, `desired_days` | Preferences: dates she would rather not work / would like to work (soft), priced by `undesired_day` / `desired_day`, twice that after an unkept month (`preferences_not_kept`). A date she is on leave is ignored; a date listed twice, or in both lists, is refused. |
 | `pinned` | `{date: shift}` cells fixed by the admin, or already worked (`""` = pinned off). Hard. |
 | `allowed_shifts` | `null` = any of the unit's shifts, or a list of the only shifts she works. |
 | `previous` | Her last days before the month, oldest first, shift name or `""` for off. From the carry-over (last month's whole row). A name the unit no longer defines is accepted as work of no kind, see section 9. |
 
-For a **brand-new unit** or nurse: `previous: []`, `last_shift_kind: null`, `rest_owed: 0`,
+For a **brand-new unit** or nurse: `previous: []`, `last_shift_kind: null`, `rest_owed: 0`, `preferences_not_kept: 0`,
 `hours_balance: 0`, the balances `0.0`, `ytd_overtime` as of today.
 
 ### 2.5 A complete minimal request
@@ -284,7 +286,7 @@ soft rules off. Save it as `small.json` and solve it.
      "leave": ["2026-06-10", "2026-06-11"]},
     {"id": "Dana", "gender": "F", "team_leader": false, "score": 0.7, "ramadan_reduced": false, "breastfeeding": true,
      "ytd_overtime": 0, "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0, "last_shift_kind": null, "rest_owed": 0,
-     "undesired_days": ["2026-06-05"]},
+     "undesired_days": ["2026-06-05"], "desired_days": ["2026-06-12"], "preferences_not_kept": 1},
     {"id": "Emad", "gender": "M", "team_leader": true, "score": 0.6, "ramadan_reduced": false, "breastfeeding": false,
      "ytd_overtime": 0, "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0, "last_shift_kind": null, "rest_owed": 0,
      "allowed_shifts": ["D"]}
@@ -358,7 +360,7 @@ proven best for the weighted objective.
              "hours_worked": 204, "overtime": 0, "shortfall": 4, "shifts": {"D": 9, "N": 8}, "cost": 8,
              "carry_over": {"hours_balance": 4, "night_balance": 0.5, "friday_balance": 0.0,
                             "ytd_overtime": 0, "previous": ["D", "", "N", "…"],
-                            "last_shift_kind": null, "rest_owed": 0}}
+                            "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0}}
   }
 }
 ```
@@ -389,7 +391,7 @@ fresh day lists. For each nurse:
 
 1. keep `id`, `gender`, `team_leader`, `score`, `ramadan_reduced`, `breastfeeding`, `allowed_shifts`;
 2. copy every key of `carry_over` as it is: `hours_balance`, `night_balance`, `friday_balance`,
-   `ytd_overtime`, `previous`, `last_shift_kind`, `rest_owed`;
+   `ytd_overtime`, `previous`, `last_shift_kind`, `rest_owed`, `preferences_not_kept`;
 3. enter next month's `leave`, `undesired_days`, `desired_days` and `pinned` (dates of the new month).
 
 Then set `month` to the new month and `ramadan_days` / `public_holidays` for it. Rules and
@@ -407,6 +409,9 @@ What the carried values mean:
   kind of the last shift ever worked, the night rest still owed), already walked up to where
   `previous` begins. They are what keep a nurse returning from a long leave honest with the
   switch and night-rest rules.
+* `preferences_not_kept`: this month's days she asked off and works plus the days she asked to
+  work and is off, a leave day counted neither way, whatever the two weights. One month's memory:
+  next month it doubles the price of her preferences when above 0, and is worked out afresh.
 
 **At the start of a year** the app (or you) resets `ytd_overtime` to 0 and the two balances to
 0.0; the solver never does that itself.

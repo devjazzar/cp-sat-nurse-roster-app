@@ -162,6 +162,13 @@ def _with(raw: dict, path: list, value) -> dict:
     (["nurses", 0, "rest_owed"], True, r"request: nurses\[0\]\.rest_owed: must be a whole number of days"),
     (["nurses", 0, "rest_owed"], 1.0, r"request: nurses\[0\]\.rest_owed: must be a whole number of days"),
     (["nurses", 0, "rest_owed"], 8, "request: N01: rest_owed must be an integer within 0..7"),
+    (["nurses", 0, "preferences_not_kept"], -1,
+     r"request: nurses\[0\]\.preferences_not_kept: must be a whole number, 0 or more, got -1"),
+    (["nurses", 0, "preferences_not_kept"], True, r"request: nurses\[0\]\.preferences_not_kept: must be a whole number"),
+    (["nurses", 0, "preferences_not_kept"], 1.0, r"request: nurses\[0\]\.preferences_not_kept: must be a whole number"),
+    (["nurses", 0, "preferences_not_kept"], "1", r"request: nurses\[0\]\.preferences_not_kept: must be a whole number"),
+    (["nurses", 0, "preferences_not_kept"], None, r"request: nurses\[0\]\.preferences_not_kept: must be a whole number"),
+    (["nurses", 0, "preferences_not_kept"], 63, "request: N01: preferences_not_kept must be an integer within 0..62"),
     (["nurses", 0, "unavailable"], [], r"request: nurses\[0\]: unknown field\(s\) \['unavailable'\]"),
     (["nurses", 0, "score"], ..., r"request: nurses\[0\]: missing field\(s\) \['score'\]"),
     (["nurses", 0, "id"], 7, r"request: nurses\[0\]\.id: must be a non-empty string, got 7"),
@@ -300,9 +307,9 @@ def test_result_roster_and_carry_over_round_trip():
     for n, m in zip(loaded.nurses, q.nurses):
         c = res["nurses"][m.id]["carry_over"]
         assert (n.hours_balance, n.night_balance, n.friday_balance, n.ytd_overtime, n.previous,
-                n.last_shift_kind, n.rest_owed) == \
+                n.last_shift_kind, n.rest_owed, n.preferences_not_kept) == \
             (c["hours_balance"], c["night_balance"], c["friday_balance"], c["ytd_overtime"], c["previous"],
-             c["last_shift_kind"], c["rest_owed"])
+             c["last_shift_kind"], c["rest_owed"], c["preferences_not_kept"])
     assert loaded.days == 31 and loaded.first_weekday == 2
 
 
@@ -388,6 +395,12 @@ def test_cli_solves_the_er_fixture_and_writes_result_and_csv(tmp_path, capsys, m
     assert res["ok"] and res["status"] in ("OPTIMAL", "FEASIBLE") and res["violations"] == []
     assert len(res["roster"]) == 25 and all(len(row) == 31 for row in res["roster"].values())
     assert res["solver"]["workers"] == 4 and res["solver"]["model"]["variables"] > 1000
+    # N05's preferences were not all kept in February: each of hers counts double, and every nurse carries a count
+    assert read_request(FIXTURE).problem.nurses[4].preferences_not_kept == 1
+    assert all(isinstance(n["carry_over"]["preferences_not_kept"], int) for n in res["nurses"].values())
+    an = explain(read_request(FIXTURE).problem, [[-1] * 31 if nid == "N05" else [0] * 31 for nid in res["roster"]])
+    assert [m.text for m in an.rules["desired_day"].matches if m.nurse == "N05"] == \
+        ["N05: off on day 15 (asked to work; counts double, a preference was not kept last month)"]
     header = c.read_text().splitlines()[0].split(",")
     assert header[:4] == ["nurse", "TL", "sex", "score"] and header[14:45] == [f"{d + 1}{w}" for d, w in
                                                                               zip(range(31), ("Su Mo Tu We Th Fr Sa " * 5).split())]

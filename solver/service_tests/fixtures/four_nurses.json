@@ -144,7 +144,11 @@
    "rest_owed": 0,
    "undesired_days": [
     "2026-06-05"
-   ]
+   ],
+   "desired_days": [
+    "2026-06-12"
+   ],
+   "preferences_not_kept": 1
   },
   {
    "id": "Emad",

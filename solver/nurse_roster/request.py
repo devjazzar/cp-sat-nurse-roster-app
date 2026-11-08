@@ -18,7 +18,7 @@ leaves, prefixed `request: <field path>: ...`.
                  "leave": ["2026-03-04"], "undesired_days": [], "desired_days": [],
                  "pinned": {"2026-03-01": "D"}, "allowed_shifts": null,
                  "previous": ["D", "D", "", "N", "N", "N", "", "", "D", "D"],
-                 "last_shift_kind": null, "rest_owed": 0}],
+                 "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0}],
      "solver": {"time_limit_seconds": 20, "reproducible": false},
      "published": {"N01": {"2026-03-01": "D", "2026-03-02": "", ...}},   # optional
      "replan_from": "2026-03-12",                                      # optional
@@ -33,7 +33,10 @@ result carries over so the history itself stays one month long: `last_shift_kind
 ("night" / "day" for any other work / null when none is known) of the last shift she worked
 before `previous` begins (the switch rule's memory; a kind, so it survives a renamed or
 retired shift), and `rest_owed`, the off days still owed to her last night before `previous`
-begins (the night-rest rule's memory, 0 when none). A name in `previous` the unit no longer
+begins (the night-rest rule's memory, 0 when none). One more carried scalar is optional, absent
+meaning 0, so a request made before it existed still loads: `preferences_not_kept`, how many of
+her `undesired_days` and `desired_days` the month before did not keep; above 0, each of hers this
+month costs twice its weight (ADR 0013; the problem's schema 4). A name in `previous` the unit no longer
 defines is accepted as work of no kind (neither night nor day; precheck says so);
 `renamed_shifts` maps the old name of a renamed shift to its current one in every history.
 `published` is the roster in force, in the shape the result's `roster` has, and
@@ -64,7 +67,7 @@ _NURSE_REQUIRED = ("id", "gender", "team_leader", "score", "ramadan_reduced", "b
                    "last_shift_kind", "rest_owed")
 _KINDS = (None, "night", "day")
 _NURSE_DATES = ("leave", "undesired_days", "desired_days")
-_NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous")
+_NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous", "preferences_not_kept")
 _SOLVER_FIELDS = ("time_limit_seconds", "reproducible")
 _DAY_REF = re.compile(r"\bday (\d+)\b")
 
@@ -258,6 +261,11 @@ def _nurse(month: MonthInfo, nd: object, where: str, shifts: list[str] | None,
     owed = nd["rest_owed"]
     if not isinstance(owed, int) or isinstance(owed, bool) or owed < 0:
         raise ValueError(f"{where}.rest_owed: must be a whole number of days, 0 or more, got {owed!r}")
+    if "preferences_not_kept" in nd:
+        unkept = nd["preferences_not_kept"]
+        if not isinstance(unkept, int) or isinstance(unkept, bool) or unkept < 0:
+            raise ValueError(f"{where}.preferences_not_kept: must be a whole number, 0 or more, got {unkept!r}")
+        n["preferences_not_kept"] = unkept
     return n
 
 

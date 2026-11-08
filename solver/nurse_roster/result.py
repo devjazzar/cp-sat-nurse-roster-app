@@ -19,7 +19,8 @@
                         "carry_over": {"hours_balance": 0, "night_balance": 0.33,
                                        "friday_balance": -0.2, "ytd_overtime": 100,
                                        "previous": ["N", "N", "", "", "D", "D", "D", ""],
-                                       "last_shift_kind": "day", "rest_owed": 0}}}}
+                                       "last_shift_kind": "day", "rest_owed": 0,
+                                       "preferences_not_kept": 1}}}}
 
 `carry_over` uses the request's own nurse field names, so next month's request is this
 month's static nurse fields plus this block (the app resets `ytd_overtime` and the balances
@@ -27,7 +28,9 @@ at year start). `previous` is this month's row; `last_shift_kind` and `rest_owed
 two memories the rules keep across any number of days (the kind of the last worked shift,
 the rest still owed to the last night) walked up to where `previous` begins, so the history
 never has to reach back for them and stays bounded. A debt the month's recorded days could
-not repay is carried whole in `hours_balance`.
+not repay is carried whole in `hours_balance`. `preferences_not_kept` counts this month's days she
+asked off and works plus those she asked to work and is off, leave days left out: one month's
+memory, which doubles next month's price of her preferences when above 0 (ADR 0013).
 Without a roster (INFEASIBLE, UNKNOWN, MODEL_INVALID, or hard violations the validator
 found) `ok` is false; `roster`, `nurses` and `cost` are null when there is no roster at all.
 `ok` is true exactly when the CLI exits 0 (see `verdict`).
@@ -47,7 +50,7 @@ from .precheck import needed_history
 from .problem import MAX_HISTORY, Problem
 from .request import Request
 from .rules import HARD, level
-from .validate import last_worked, rest_owed_after
+from .validate import last_worked, preferences_not_kept, rest_owed_after
 
 RESULT_VERSION = 1
 
@@ -183,7 +186,9 @@ def nurse_accounting(p: Problem, assignment: list[list[int]], analysis: Analysis
                            # the two memories, walked up to where next month's history begins
                            "last_shift_kind": _kind_out(before, n, dep.night_shift),
                            "rest_owed": rest_owed_after(n.rest_owed, before, dep.night_shift,
-                                                        dep.day_shift, dep.night_rest_days)}}
+                                                        dep.day_shift, dep.night_rest_days),
+                           # one month's memory: this month's days of hers not kept (ADR 0013)
+                           "preferences_not_kept": preferences_not_kept(n, row)}}
     return nurses
 
 
