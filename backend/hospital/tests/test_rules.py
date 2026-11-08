@@ -41,11 +41,16 @@ def er_request() -> dict:
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
+# The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
+# deletes this set and its subtraction below.
+VERSION_2_SKILL_FIELDS = {"required_skills", "skill_shortfall"}
+
+
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_shift_catalogues():
     fields = {field.name for field in dataclasses.fields(GeneralRules)}
 
-    assert set(DEFAULT_RULES) == fields - {"shift_hours"}
-    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)}
+    assert set(DEFAULT_RULES) == fields - {"shift_hours"} - VERSION_2_SKILL_FIELDS
+    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)} - VERSION_2_SKILL_FIELDS
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():

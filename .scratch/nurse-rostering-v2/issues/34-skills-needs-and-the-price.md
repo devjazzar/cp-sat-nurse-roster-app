@@ -13,3 +13,15 @@
 - [ ] Audit: unit rule and hospital rule changes keep logging their values; skill needs say nothing about a person.
 - [ ] The architecture document's unit rules and hospital settings entries name skill needs and the weight.
 - [ ] Tests at the web API seam for the rules, the refusals, the guards and the rename; frontend tests for the table and the flag through the app test file.
+
+## Comments
+
+**From ticket 31 (2026-11-09), for this ticket to undo.** The solver's blocks gained the version 2 fields before the app's
+did, so four backend tests that hold the app's blocks to the solver's own fields subtract a named set,
+`VERSION_2_SKILL_FIELDS`, until the app carries them: `hospital/tests/test_rules.py::test_the_rules_are_every_field_of_the_solvers_block_but_the_shift_catalogues`
+(`required_skills` and the weight `skill_shortfall`), `units/tests/test_rules_api.py::test_both_schemas_are_every_field_of_the_solvers_block_but_its_name`
+(both schemas) and `units/tests/test_unit_rules.py::test_the_rules_are_every_field_of_the_solvers_block_but_the_units_name`
+(`skill_needs`, `skill_needs_hard`). Once the hospital and unit blocks carry those fields, delete the set and its
+subtraction in each. The solver already refuses a second need for the same shift and skill, a need on a shift the unit
+does not work, a minimum outside 0..1000 (`MAX_NURSES`), a skill name listed twice in `required_skills`, and a version 1
+input carrying any of the five fields; the app's solve input must be version 2 for its needs to count.
