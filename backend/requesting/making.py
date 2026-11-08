@@ -1,6 +1,6 @@
 """Opening and closing a request window, a nurse making and withdrawing a request, and making, withdrawing and asking for a
-preference as a request instead (ADR 0013): each refusal, then the write, the audit entry and whoever is told. Call each inside a transaction. The audit log says that a window or a request moved and whose: never
-what a request asked for, its date or a reason, since a reason can be about someone's health and a date is part of a roster; nor
+preference as a request instead (ADR 0013): each refusal, then the write, the audit entry and whoever is told. Call each
+inside a transaction. The audit log says that a window or a request moved and whose: never what a request asked for, its date or a reason, since a reason can be about someone's health and a date is part of a roster; nor
 a preference's date or kind. Nobody is told of a preference."""
 from __future__ import annotations
 
@@ -153,6 +153,11 @@ def _open_window_for(nurse: NurseProfile, month: dt.date) -> RequestWindow:
     return window
 
 
+def live_request_on(nurse: NurseProfile, day: dt.date) -> bool:
+    """Any unit's: a request a transfer left behind still holds its date until its manager decides it."""
+    return Request.objects.filter(nurse=nurse, date=day, state__in=LIVE).exists()
+
+
 def live_preference_on(nurse: NurseProfile, day: dt.date) -> bool:
     """Any unit's: one a transfer left behind still holds its date, as a request does."""
     return Preference.objects.filter(nurse=nurse, date=day, state=PreferenceState.MADE).exists()
@@ -171,8 +176,7 @@ def make(user: User, day: dt.date, asked: str | None, reason: str, request: Http
     if refusal:
         refuse(((refusal[0],), refusal[1]))
     live = list(live_in(nurse, month, unit))
-    # Any unit's: a request a transfer left behind still holds its date until its manager decides it.
-    if Request.objects.filter(nurse=nurse, date=day, state__in=LIVE).exists():
+    if live_request_on(nurse, day):
         refuse((("date",), f"You already have a request on {long_date(day)}. Withdraw it to ask for something else."))
     if live_preference_on(nurse, day):
         refuse((("date",), f"You have a preference on {long_date(day)}, and a date holds one wish. Withdraw it, or ask for it "
@@ -220,7 +224,7 @@ def make_preference(user: User, day: dt.date, kind: PreferenceKind, request: Htt
     refusal = nurse_refusal(Judge(unit, month), nurse, day, None, None, verb="prefer")
     if refusal:
         refuse(((refusal[0],), refusal[1]))
-    if Request.objects.filter(nurse=nurse, date=day, state__in=LIVE).exists():
+    if live_request_on(nurse, day):
         refuse((("date",), f"You have a request on {long_date(day)}, and a date holds one wish. Withdraw the request to make a "
                            "preference instead."))
     if live_preference_on(nurse, day):
@@ -247,9 +251,9 @@ def _locked_preference(user: User, preference_id: UUID, doing: str) -> Preferenc
     return mine
 
 
-def _end(preference: Preference, state: PreferenceState, user: User, made: Request | None = None) -> None:
-    preference.state, preference.ended_at, preference.ended_by, preference.request = state, timezone.now(), user, made
-    preference.save(update_fields=["state", "ended_at", "ended_by", "request"])
+def _end(preference: Preference, state: PreferenceState, user: User) -> None:
+    preference.state, preference.ended_at, preference.ended_by = state, timezone.now(), user
+    preference.save(update_fields=["state", "ended_at", "ended_by"])
 
 
 def withdraw_preference(user: User, preference_id: UUID, request: HttpRequest) -> Preference:
@@ -264,6 +268,12 @@ def ask_instead(user: User, preference_id: UUID, asked: str | None, request: Htt
     day, the shift she chooses. Ending the preference first frees its date; a refusal of the request raises, and the caller's
     transaction then undoes the preference's end too, so it fails as a whole."""
     mine = _locked_preference(user, preference_id, "asked for as a request")
+    month = mine.date.replace(day=1)
+    current = window_for(mine.nurse, month)
+    if current is None or current.pk != mine.window_id:
+        # A transfer since: the request would land in another unit's window than the one the preference was made in.
+        raise HttpError(409, f"You are no longer on this unit's roster for {month_name(month)}, so this preference cannot "
+                             "become a request. Make the request in your new unit's window instead.")
     if mine.kind == PreferenceKind.DAY_OFF and asked:
         refuse((("shift",), "This preference is for a day off, so it is asked for as a day off."))
     if mine.kind == PreferenceKind.WORKING_DAY and not asked:

@@ -133,18 +133,18 @@ class RequestStep(models.Model):
 
 
 class PreferenceKind(models.TextChoices):
-    DAY_OFF = "day_off"
-    WORKING_DAY = "working_day", "A working day, of any shift."
+    DAY_OFF = "day_off", "A day off"
+    WORKING_DAY = "working_day", "A working day, of any shift"
 
 
 class PreferenceState(models.TextChoices):
-    MADE = "made"
-    WITHDRAWN = "withdrawn"
-    ASKED_INSTEAD = "asked_instead", "Ended by asking for it as a request (`request`)."
+    MADE = "made", "Made"
+    WITHDRAWN = "withdrawn", "Withdrawn"
+    ASKED_INSTEAD = "asked_instead", "Asked for as a request"
 
 
 class Preference(models.Model):
-    """A nurse's soft wish about one date of the window's month (ADR 0013): nobody decides it and it is never a pin; the solve
+    """What a nurse would rather have on one date of the window's month (ADR 0013): nobody decides it and it is never a pin; the solve
     input lists the live ones (`made`) as the days she asked off or to work, which the solver keeps at the weight's price.
     Whether its date is on leave is read, never stored, since leave may be removed. Nothing is deleted: one ended keeps its
     final state. Only the nurse and her unit's manager read it, and the audit log keeps neither its date nor its kind."""
@@ -174,4 +174,5 @@ class Preference(models.Model):
 
     @property
     def state_words(self) -> str:
-        return self.state.replace("_", " ")
+        """"withdrawn", "asked for as a request": for a sentence."""
+        return PreferenceState(self.state).label.lower()

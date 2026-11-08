@@ -13,7 +13,6 @@ import {
 } from "@/api/generated/endpoints"
 import { Role, type UnitRequestRow, type UnitWindows, type WindowRow } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { PREFERENCE_STATE, PREFERS } from "@/components/my-preferences"
 import { FormField, SelectField } from "@/components/form-field"
 import { monthInAddress } from "@/components/month-nav"
 import {
@@ -27,7 +26,9 @@ import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { useChosenUnit } from "@/components/unit-picker"
-import { askedFor, inSentence, herReason, lastDecision, NO_CONNECTION, shiftNames, UNIT_STATE } from "@/lib/request-words"
+import {
+  askedFor, inSentence, herReason, lastDecision, NO_CONNECTION, PREFERENCE_STATE, PREFERS, shiftNames, UNIT_STATE,
+} from "@/lib/request-words"
 import { plainRefusal, showServerErrors } from "@/lib/server-errors"
 import { monthName, scrollableRegion, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"

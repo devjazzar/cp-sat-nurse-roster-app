@@ -1,4 +1,4 @@
-import type { MyRequestRowState, RequestStepRow } from "@/api/generated/model"
+import type { MyPreferenceRowKind, MyPreferenceRowState, MyRequestRowState, RequestStepRow } from "@/api/generated/model"
 
 /** What a request asked for, or promises: a shift's code, or "" for a day off. */
 export function askedFor(code: string, names: Record<string, string> = {}): string {
@@ -38,3 +38,13 @@ export const shiftNames = (shifts: { code: string; display_name: string }[]): Re
   Object.fromEntries(shifts.map((shift) => [shift.code, shift.display_name]))
 
 export const NO_CONNECTION = "That did not work. Check your connection and try again."
+
+/** What a preference is for (ADR 0013), at the start of a cell. */
+export const PREFERS: Record<MyPreferenceRowKind, string> = { day_off: "A day off", working_day: "A working day" }
+
+/** A preference's state, said to the nurse and to her manager alike: nobody decides one. */
+export const PREFERENCE_STATE: Record<MyPreferenceRowState, string> = {
+  made: "Made",
+  withdrawn: "Withdrawn",
+  asked_instead: "Asked for as a request",
+}

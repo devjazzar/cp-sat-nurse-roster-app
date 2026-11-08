@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
-from typing import Literal
 from uuid import UUID
 
 from django.db import transaction
@@ -19,7 +18,7 @@ from hospital.catalogue_api import IsoDate
 from nurses import membership
 from nurses.models import NurseProfile
 from requesting import making
-from requesting.api import with_steps
+from requesting.api import PreferenceKindText, PreferenceStateText, with_steps
 from requesting.mine_api import MyRequestRow, MyWindow, RequestableShift, my_rows, requestable_shifts
 from requesting.models import Preference, Request, WindowState
 from requesting.windows import state_today
@@ -27,9 +26,6 @@ from rosters.reading_api import MyRosterFilter
 
 router = Router(tags=["preferences"])
 nurse_only = SignedIn(Role.STAFF_NURSE)
-
-PreferenceKindText = Literal["day_off", "working_day"]
-PreferenceStateText = Literal["made", "withdrawn", "asked_instead"]
 
 
 class MyPreferenceRow(Schema):

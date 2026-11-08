@@ -1,4 +1,4 @@
-"""Preferences through the API (ADR 0013): a staff nurse's soft wishes, a day off or a working day, made in the request window
+"""Preferences through the API (ADR 0013): what a staff nurse would rather have on a date, a day off or a working day, made in the request window
 beside her requests, up to the unit's preference cap; withdrawn, or asked for as a request instead; one wish a date across
 requests and preferences; what the manager reads; what the audit log keeps and what nobody else sees. The scene is the solver's
 four-nurse sample as ER (Amal, Badr, Dana, Emad, who may work Day only), rostering June 2026 from 15 May, as for requests."""
@@ -428,6 +428,11 @@ class TestATransfer:
         assert [row["date"] for row in preferences_in(mona, er, window["id"])] == ["2026-06-03", "2026-06-04"]
         assert refused(prefer(amal, 3), 422) == (
             "You already have a preference on 3 June 2026. Withdraw it to prefer something else.")
+        left = Preference.objects.filter(date=dt.date(2026, 6, 4)).get()
+        assert refused(ask_instead(amal, left.pk)) == (
+            "You are no longer on this unit's roster for June 2026, so this preference cannot become a request. Make the request "
+            "in your new unit's window instead.")
+        assert states(amal)[1] == ("2026-06-04", "day_off", "made")
 
 
 class TestWhatStaysPrivate:

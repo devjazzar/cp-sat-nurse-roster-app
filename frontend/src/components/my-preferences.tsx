@@ -20,22 +20,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { askedFor, inSentence, NO_CONNECTION, shiftNames } from "@/lib/request-words"
+import { askedFor, inSentence, NO_CONNECTION, PREFERENCE_STATE, PREFERS, shiftNames } from "@/lib/request-words"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { monthName, scrollableRegion, shortDay, WRAP_ON_PHONE } from "@/lib/utils"
 
 const STATUS = "my-preferences-status"
 
-/** What she prefers, at the start of a cell, and within a sentence. */
-export const PREFERS = { day_off: "A day off", working_day: "A working day" } as const
 const prefersInSentence = (kind: MyPreferenceRow["kind"]) => PREFERS[kind].toLowerCase()
-
-/** A preference's state, said to the nurse and to her manager alike. */
-export const PREFERENCE_STATE: Record<MyPreferenceRow["state"], string> = {
-  made: "Made",
-  withdrawn: "Withdrawn",
-  asked_instead: "Asked for as a request",
-}
 
 function windowWords(answer: MyPreferences): string {
   const month = monthName(answer.month)
@@ -185,7 +176,7 @@ function PreferenceQuestion({ asking, answer, focusAfter, onDone, onClose }: {
   )
 }
 
-/** A staff nurse's preferences for the month (ADR 0013): wishes nobody decides, which the solver keeps when it can, and the
+/** A staff nurse's preferences for the month (ADR 0013): days she would rather have off or work, which nobody decides and the solver keeps when it can, and the
  *  form to make one while the window is open. */
 export function MyPreferencesCard({ month }: { month: string | undefined }) {
   const mine = useGetMyPreferences(month ? { month } : undefined, { query: { placeholderData: keepPreviousData } })

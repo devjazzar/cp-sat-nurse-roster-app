@@ -57,6 +57,8 @@ test("a nurse makes a preference on her phone, asks for it as a request, and lea
   await askInstead.click()
   const question = page.getByRole("alertdialog", { name: `Ask for ${date} as a request?` })
   await expect(question).toContainText("requests a month, pending or accepted")
+  // The dialog zooms in from 95%: its size is measured once its own animations have ended, not part way.
+  await question.evaluate((dialog) => Promise.all(dialog.getAnimations({ subtree: true }).map((animation) => animation.finished)))
   await expectThumbSized(question.getByRole("button", { name: "Ask for it" }))
   await question.getByRole("button", { name: "Ask for it" }).click()
   await expect(page.getByText(`Your preference for ${date} is now a request for a day off. Your manager decides it.`)).toBeVisible()

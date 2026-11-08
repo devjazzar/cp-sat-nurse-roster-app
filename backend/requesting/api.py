@@ -29,6 +29,8 @@ from units.scope import unit_in_scope
 router = Router(tags=["requests"])
 
 RequestStateText = Literal["pending", "accepted", "rejected", "withdrawn", "cancelled", "replaced_by_leave", "expired"]
+PreferenceKindText = Literal["day_off", "working_day"]
+PreferenceStateText = Literal["made", "withdrawn", "asked_instead"]
 StepText = Literal["made", "withdrawn", "accepted", "rejected", "edited", "cancelled", "replaced_by_leave", "expired"]
 
 
@@ -184,8 +186,8 @@ class UnitPreferenceRow(Schema):
     hospital_id: str
     full_name: str
     date: dt.date
-    kind: Literal["day_off", "working_day"]
-    state: Literal["made", "withdrawn", "asked_instead"] = Field(description="Only `made` reaches a solve.")
+    kind: PreferenceKindText
+    state: PreferenceStateText = Field(description="Only `made` reaches a solve.")
 
 
 @router.get("/{unit_id}/request-windows/{window_id}/preferences", response=list[UnitPreferenceRow], auth=manager,
