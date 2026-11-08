@@ -73,6 +73,36 @@ class LeaveType(models.Model):
         constraints = [models.UniqueConstraint(Lower("name"), name="hospital_leave_type_name_any_case")]
 
 
+class Skill(models.Model):
+    """A row of the skill catalogue. `name` is what nurses' records, unit rules and solve inputs call it. Never deleted,
+    only retired: nurses' records of it and past rosters keep it."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    name = models.CharField(max_length=100)
+    expires = models.BooleanField()  # Every nurse's record of it carries an expiry.
+    required_to_work = models.BooleanField()  # A nurse whose record of it has expired works no shift that day.
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = [Lower("name")]
+        constraints = [models.UniqueConstraint(Lower("name"), name="hospital_skill_name_any_case")]
+
+
+class SkillRename(models.Model):
+    """One change of a skill's name, so that an old name in a stored solve input can be followed to the skill's current
+    one. A bigint key: it is an append-only log (ADR 0007)."""
+
+    id = models.BigAutoField(primary_key=True)
+    skill = models.ForeignKey(Skill, on_delete=models.PROTECT, related_name="renames")
+    old_name = models.CharField(max_length=100)
+    new_name = models.CharField(max_length=100)
+    at = models.DateTimeField(auto_now_add=True)
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        ordering = ["id"]
+
+
 class PublicHoliday(models.Model):
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     date = models.DateField(unique=True)

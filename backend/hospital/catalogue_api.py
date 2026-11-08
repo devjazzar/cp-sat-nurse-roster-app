@@ -1,5 +1,5 @@
-"""The CNO's lists, which every role may read: the shift catalogue, the leave types, the public holidays
-and the Ramadan dates."""
+"""The CNO's lists, which every role may read: the shift catalogue, the leave types, the skill catalogue, the public
+holidays and the Ramadan dates."""
 from __future__ import annotations
 
 import datetime as dt
@@ -20,7 +20,8 @@ from accounts.models import Role
 from audit.log import record
 from hospital.api import StrictSchema, differing, refuse, save_unless_taken
 from hospital.catalogue import derived_ramadan_dates
-from hospital.models import FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename
+from hospital.models import (FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename, Skill,
+                             SkillRename)
 from hospital.rules import changes
 from nurses.membership import carry_rename_through_allowed_shifts, this_month
 from ops.api import ClockTime
@@ -272,6 +273,92 @@ def update_leave_type(request, leave_type_id: UUID, body: LeaveTypeBody) -> Leav
             _write_leave_type(row, body)
             record("leave_type.changed", actor=request.user, target=row.name, before=old, after=new, request=request)
     return row
+
+
+# ---- skills ---------------------------------------------------------------------------------------
+class SkillBody(StrictSchema):
+    name: Name = Field(description="What nurses' records, unit rules and solve inputs call it.")
+    expires: bool = Field(description="Every nurse's record of it carries an expiry, the last day it counts.")
+    required_to_work: bool = Field(description="A nurse whose record of it has expired works no shift.")
+    active: bool = Field(description="Off retires it: it stays on this list, and nurses' records of it stay.")
+
+
+class SkillRenameSchema(Schema):
+    old_name: str
+    new_name: str
+    at: dt.datetime = Field(description="In the hospital's time zone.")
+
+    @staticmethod
+    def resolve_at(rename: SkillRename) -> dt.datetime:
+        return timezone.localtime(rename.at)
+
+
+class SkillSchema(Schema):
+    id: UUID
+    name: str
+    expires: bool
+    required_to_work: bool
+    active: bool
+    renames: list[SkillRenameSchema] = Field(description="Every change of this skill's name, oldest first.")
+
+    @staticmethod
+    def resolve_renames(skill: Skill) -> list[SkillRename]:
+        return list(skill.renames.all())
+
+
+def _skill_fields(skill: Skill) -> dict:
+    return {"name": skill.name, "expires": skill.expires, "required_to_work": skill.required_to_work,
+            "active": skill.active}
+
+
+def _write_skill(skill: Skill, body: SkillBody) -> None:
+    skill.name, skill.expires, skill.required_to_work, skill.active = (
+        body.name, body.expires, body.required_to_work, body.active)
+    skill.save()
+
+
+def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
+    """Also a name another skill used to hold, as for a shift's code: a stored solve input that says that name means
+    that skill, so it cannot start to mean this one. A skill may go back to a name of its own, or change its case."""
+    held = Skill.objects.filter(name__iexact=name).exclude(pk=skill_id).first()
+    if held:
+        refuse((("name",), f"{held.name} is already a skill"))
+    if SkillRename.objects.filter(old_name__iexact=name).exclude(skill_id=skill_id).exists():
+        refuse((("name",), f"{name} is the old name of another skill"))
+
+
+@router.get("/skills", response=list[SkillSchema], operation_id="listSkills")
+def list_skills(request) -> list[Skill]:
+    """Retired skills too: a nurse's record of one, or a past roster, still names it."""
+    return list(Skill.objects.prefetch_related("renames"))
+
+
+@router.post("/skills", response={201: SkillSchema}, auth=cno, operation_id="createSkill")
+def create_skill(request, body: SkillBody) -> tuple[int, Skill]:
+    with transaction.atomic():
+        HospitalSettings.load(for_update=True)  # One writer at a time, so a taken or old name cannot slip through.
+        _refuse_a_taken_name(body.name, None)
+        skill = Skill()
+        _write_skill(skill, body)
+        record("skill.created", actor=request.user, target=skill.name, after=_skill_fields(skill), request=request)
+    return 201, skill
+
+
+@router.put("/skills/{skill_id}", response=SkillSchema, auth=cno, operation_id="updateSkill")
+def update_skill(request, skill_id: UUID, body: SkillBody) -> Skill:
+    """A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back."""
+    with transaction.atomic():
+        HospitalSettings.load(for_update=True)
+        skill = get_object_or_404(Skill, pk=skill_id)
+        old, new = differing(_skill_fields(skill), body.model_dump())
+        if not new:
+            return skill
+        if "name" in new:
+            _refuse_a_taken_name(body.name, skill.pk)
+            SkillRename.objects.create(skill=skill, old_name=old["name"], new_name=body.name, by=request.user)
+        _write_skill(skill, body)
+        record("skill.updated", actor=request.user, target=skill.name, before=old, after=new, request=request)
+    return skill
 
 
 # ---- public holidays ------------------------------------------------------------------------------

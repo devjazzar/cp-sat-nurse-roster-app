@@ -842,6 +842,86 @@ export const UpdateLeaveTypeResponse = zod.object({
 
 
 /**
+ * Retired skills too: a nurse's record of one, or a past roster, still names it.
+ * @summary List Skills
+ */
+export const ListSkillsResponseItem = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean(),
+  "required_to_work": zod.boolean(),
+  "active": zod.boolean(),
+  "renames": zod.array(zod.object({
+  "old_name": zod.string(),
+  "new_name": zod.string(),
+  "at": zod.iso.datetime({"offset":true}).describe('In the hospital\'s time zone.')
+})).describe('Every change of this skill\'s name, oldest first.')
+})
+export const ListSkillsResponse = zod.array(ListSkillsResponseItem)
+
+
+/**
+ * @summary Create Skill
+ */
+export const createSkillBodyNameMax = 100;
+
+
+
+export const CreateSkillBody = zod.object({
+  "name": zod.string().min(1).max(createSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
+  "expires": zod.boolean().describe('Every nurse\'s record of it carries an expiry, the last day it counts.'),
+  "required_to_work": zod.boolean().describe('A nurse whose record of it has expired works no shift.'),
+  "active": zod.boolean().describe('Off retires it: it stays on this list, and nurses\' records of it stay.')
+})
+
+export const CreateSkillResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean(),
+  "required_to_work": zod.boolean(),
+  "active": zod.boolean(),
+  "renames": zod.array(zod.object({
+  "old_name": zod.string(),
+  "new_name": zod.string(),
+  "at": zod.iso.datetime({"offset":true}).describe('In the hospital\'s time zone.')
+})).describe('Every change of this skill\'s name, oldest first.')
+})
+
+
+/**
+ * A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back.
+ * @summary Update Skill
+ */
+export const UpdateSkillParams = zod.object({
+  "skill_id": zod.uuid()
+})
+
+export const updateSkillBodyNameMax = 100;
+
+
+
+export const UpdateSkillBody = zod.object({
+  "name": zod.string().min(1).max(updateSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
+  "expires": zod.boolean().describe('Every nurse\'s record of it carries an expiry, the last day it counts.'),
+  "required_to_work": zod.boolean().describe('A nurse whose record of it has expired works no shift.'),
+  "active": zod.boolean().describe('Off retires it: it stays on this list, and nurses\' records of it stay.')
+})
+
+export const UpdateSkillResponse = zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean(),
+  "required_to_work": zod.boolean(),
+  "active": zod.boolean(),
+  "renames": zod.array(zod.object({
+  "old_name": zod.string(),
+  "new_name": zod.string(),
+  "at": zod.iso.datetime({"offset":true}).describe('In the hospital\'s time zone.')
+})).describe('Every change of this skill\'s name, oldest first.')
+})
+
+
+/**
  * @summary List Public Holidays
  */
 export const listPublicHolidaysQueryYearMin = 1925;

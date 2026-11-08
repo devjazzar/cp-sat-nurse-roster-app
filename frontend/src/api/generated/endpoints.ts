@@ -133,6 +133,8 @@ import type {
   SessionState,
   ShiftBody,
   ShiftSchema,
+  SkillBody,
+  SkillSchema,
   SolvePreview,
   SolveProgress,
   SolveResult,
@@ -2486,6 +2488,286 @@ export const useUpdateLeaveType = <TError = unknown,
         TContext
       > => {
       return useMutation(getUpdateLeaveTypeMutationOptions(options), queryClient);
+    }
+
+export const getListSkillsUrl = () => {
+
+
+
+
+  return `/api/hospital/skills`
+}
+
+/**
+ * Retired skills too: a nurse's record of one, or a past roster, still names it.
+ * @summary List Skills
+ */
+export const listSkills = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SkillSchema[]> => {
+
+  return apiFetch<SkillSchema[]>(getListSkillsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSkillsQueryKey = () => {
+    return [
+    `/api/hospital/skills`
+    ] as const;
+    }
+
+
+export const getListSkillsQueryOptions = <TData = Awaited<ReturnType<typeof listSkills>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSkills>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSkillsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSkills>>> = ({ signal }) => listSkills({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSkills>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSkillsQueryResult = NonNullable<Awaited<ReturnType<typeof listSkills>>>
+export type ListSkillsQueryError = unknown
+
+
+export function useListSkills<TData = Awaited<ReturnType<typeof listSkills>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSkills>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSkills>>,
+          TError,
+          Awaited<ReturnType<typeof listSkills>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSkills<TData = Awaited<ReturnType<typeof listSkills>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSkills>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSkills>>,
+          TError,
+          Awaited<ReturnType<typeof listSkills>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSkills<TData = Awaited<ReturnType<typeof listSkills>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSkills>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Skills
+ */
+
+export function useListSkills<TData = Awaited<ReturnType<typeof listSkills>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSkills>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSkillsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSkillUrl = () => {
+
+
+
+
+  return `/api/hospital/skills`
+}
+
+/**
+ * @summary Create Skill
+ */
+export const createSkill = async (skillBody: SkillBody, options?: Parameters<typeof apiFetch>[1]): Promise<SkillSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SkillSchema>(getCreateSkillUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(skillBody)
+  }
+);}
+
+
+
+
+
+export const getCreateSkillMutationKey = () => ['createSkill'] as const;
+
+export const getCreateSkillMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSkill>>, TError,CreateSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSkill>>, TError,CreateSkillMutationVariables, TContext> => {
+
+const mutationKey = getCreateSkillMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSkill>>, CreateSkillMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSkill(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSkillMutationResult = NonNullable<Awaited<ReturnType<typeof createSkill>>>
+    export type CreateSkillMutationBody = SkillBody
+    export type CreateSkillMutationError = unknown
+    export type CreateSkillMutationVariables = {data: SkillBody}
+
+    /**
+ * @summary Create Skill
+ */
+export const useCreateSkill = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSkill>>, TError,CreateSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createSkill>>,
+        TError,
+        CreateSkillMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSkillMutationOptions(options), queryClient);
+    }
+
+export const getUpdateSkillUrl = (skillId: string,) => {
+
+
+
+
+  return `/api/hospital/skills/${skillId}`
+}
+
+/**
+ * A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back.
+ * @summary Update Skill
+ */
+export const updateSkill = async (skillId: string,
+    skillBody: SkillBody, options?: Parameters<typeof apiFetch>[1]): Promise<SkillSchema> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SkillSchema>(getUpdateSkillUrl(skillId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(skillBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateSkillMutationKey = () => ['updateSkill'] as const;
+
+export const getUpdateSkillMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSkill>>, TError,UpdateSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSkill>>, TError,UpdateSkillMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSkillMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSkill>>, UpdateSkillMutationVariables> = (props) => {
+          const {skillId,data} = props ?? {};
+
+          return  updateSkill(skillId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSkillMutationResult = NonNullable<Awaited<ReturnType<typeof updateSkill>>>
+    export type UpdateSkillMutationBody = SkillBody
+    export type UpdateSkillMutationError = unknown
+    export type UpdateSkillMutationVariables = {skillId: string;data: SkillBody}
+
+    /**
+ * @summary Update Skill
+ */
+export const useUpdateSkill = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSkill>>, TError,UpdateSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateSkill>>,
+        TError,
+        UpdateSkillMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSkillMutationOptions(options), queryClient);
     }
 
 export const getListPublicHolidaysUrl = (params: ListPublicHolidaysParams,) => {

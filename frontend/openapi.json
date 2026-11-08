@@ -976,6 +976,122 @@
         ]
       }
     },
+    "/api/hospital/skills": {
+      "get": {
+        "operationId": "listSkills",
+        "summary": "List Skills",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retired skills too: a nurse's record of one, or a past roster, still names it.",
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createSkill",
+        "summary": "Create Skill",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSchema"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/skills/{skill_id}": {
+      "put": {
+        "operationId": "updateSkill",
+        "summary": "Update Skill",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "skill_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Skill Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillSchema"
+                }
+              }
+            }
+          }
+        },
+        "description": "A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back.",
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/hospital/public-holidays": {
       "get": {
         "operationId": "listPublicHolidays",
@@ -7069,6 +7185,109 @@
           "active"
         ],
         "title": "LeaveTypeBody",
+        "type": "object"
+      },
+      "SkillRenameSchema": {
+        "properties": {
+          "old_name": {
+            "title": "Old Name",
+            "type": "string"
+          },
+          "new_name": {
+            "title": "New Name",
+            "type": "string"
+          },
+          "at": {
+            "description": "In the hospital's time zone.",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_name",
+          "new_name",
+          "at"
+        ],
+        "title": "SkillRenameSchema",
+        "type": "object"
+      },
+      "SkillSchema": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "expires": {
+            "title": "Expires",
+            "type": "boolean"
+          },
+          "required_to_work": {
+            "title": "Required To Work",
+            "type": "boolean"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "renames": {
+            "description": "Every change of this skill's name, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/SkillRenameSchema"
+            },
+            "title": "Renames",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "expires",
+          "required_to_work",
+          "active",
+          "renames"
+        ],
+        "title": "SkillSchema",
+        "type": "object"
+      },
+      "SkillBody": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "What nurses' records, unit rules and solve inputs call it.",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "expires": {
+            "description": "Every nurse's record of it carries an expiry, the last day it counts.",
+            "title": "Expires",
+            "type": "boolean"
+          },
+          "required_to_work": {
+            "description": "A nurse whose record of it has expired works no shift.",
+            "title": "Required To Work",
+            "type": "boolean"
+          },
+          "active": {
+            "description": "Off retires it: it stays on this list, and nurses' records of it stay.",
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "expires",
+          "required_to_work",
+          "active"
+        ],
+        "title": "SkillBody",
         "type": "object"
       },
       "YearFilter": {
