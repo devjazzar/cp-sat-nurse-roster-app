@@ -87,6 +87,8 @@ const ACTION_NAMES: Record<string, string> = {
   "roster.submitted": "Submitted a roster",
   "shift.changed": "Changed a shift",
   "shift.created": "Added a shift",
+  "skill.created": "Added a skill",
+  "skill.updated": "Changed a skill",
   "solve.started": "Started a solve",
   "solve.stopped": "Stopped a solve",
   "technical_settings.changed": "Changed technical settings",

@@ -78,9 +78,9 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Create / deactivate CNO, Deputy CNO, Unit Manager accounts; correct the names on them; reset their passwords | yes | | | | |
 | Technical settings: time limit cap, backup schedule, close time | yes | | | | |
 | Audit log, solve history (all units), health page, backups | yes | | | | |
-| Hospital rules and weights, shift catalogue, leave types, public holidays, Ramadan dates | | yes | | | |
+| Hospital rules and weights, shift catalogue, leave types, skill catalogue, public holidays, Ramadan dates | | yes | | | |
 | Read the hospital rules and weights | | yes | yes | | |
-| Read the shift catalogue, leave types, public holidays, Ramadan dates | yes | yes | yes | yes | yes |
+| Read the shift catalogue, leave types, skill catalogue, public holidays, Ramadan dates | yes | yes | yes | yes | yes |
 | Create, rename, archive units; assign each unit its manager | | yes | | | |
 | Read units | | yes | yes | own unit | |
 | Add nurses (form or CSV import), give a unit manager a nurse profile, correct a nurse's gender and start date and a staff nurse's name, transfer, set end dates, export staff list | | yes | | | |
@@ -145,6 +145,12 @@ at once, and no other shift may take a code a shift used to hold); a shift a liv
 a forbidden succession names, cannot be retired, and the refusal names the units.
 
 **Leave type**: name, active flag. Every type counts the same for hours.
+
+**Skill** (catalogue): name (unique in any case of letters), expires, required to work, active flag. The CNO keeps it and
+every role reads it, the System Admin included, since it names no one. Never deleted, only retired: nurses' records of it
+and past rosters keep it. The name may be renamed: each rename is recorded (old name, new name, by whom and when), and no
+other skill may take a name a skill used to hold, as for a shift's code, so that an old name in a stored solve input
+still means one skill. A change goes to the audit log with its values (`skill.created`, `skill.updated`).
 
 **Public holiday**: date, name. **Ramadan days**: per month, the CNO's fixed dates or range,
 else derived from the Umm al-Qura calendar.
@@ -578,7 +584,7 @@ Notifications page. Who is told of what is in one place, `notifications.sending`
 change. A notification links to the reader's own page for it, by what they hold when they read it. Visual design is decided later; the architecture does not depend on it.
 
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
-history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types,
+history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types, skills,
 holidays and Ramadan, units and managers, nurses with import and export, each unit's rules, rostering attributes and leave
 to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules,
 rostering attributes and leave to read); Unit Manager (unit rules, rostering attributes, nurses, request
@@ -591,7 +597,7 @@ that caused it), swaps, covers offered to them,
 notifications, password). A nurse's own hours are
 worked out from the version in force on the month as it stands, with the solver's own arithmetic, for this month and later;
 a month already over shows its leave only. Every role has the bell and Change password. The Deputy CNO, Unit Manager and Staff Nurse also read
-the shift catalogue, leave types, holidays and Ramadan; the System Admin may open those pages
+the shift catalogue, leave types, skills, holidays and Ramadan; the System Admin may open those pages
 but has no link to them, because nothing in that role's work calls for it. A session that ends behind the user's back (the
 idle limit, a deactivation, a password changed elsewhere: any 401 while the app believes someone is signed in) goes straight
 to the login page from any page, without the roster page's unsaved-changes question, since staying could save nothing. The

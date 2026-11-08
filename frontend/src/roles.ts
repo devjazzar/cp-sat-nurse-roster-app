@@ -22,6 +22,7 @@ const RULES = { to: "/hospital-rules", label: "Hospital rules" } as const
 const CATALOGUE = [
   { to: "/shifts", label: "Shifts" },
   { to: "/leave-types", label: "Leave types" },
+  { to: "/skills", label: "Skills" },
   { to: "/holidays", label: "Holidays and Ramadan" },
 ] as const
 const UNITS = { to: "/units", label: "Units" } as const

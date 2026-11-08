@@ -143,14 +143,14 @@ afterEach(() => {
 })
 
 describe("route guards", () => {
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/requests", "/swaps", "/unit-swaps", "/unit-covers", "/covers", "/change-password"])("%s sends a stranger to the login page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/skills", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/requests", "/swaps", "/unit-swaps", "/unit-covers", "/covers", "/change-password"])("%s sends a stranger to the login page", async (path) => {
     const { router } = start(path, session(null))
 
     expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/requests", "/swaps", "/unit-swaps", "/unit-covers", "/covers"])("%s sends a forced change to the password page", async (path) => {
+  it.each(["/", "/health", "/settings", "/users", "/audit-log", "/hospital-rules", "/shifts", "/leave-types", "/skills", "/holidays", "/units", "/unit-rules", "/rostering-attributes", "/nurses", "/roster", "/solve-history", "/leave", "/my-leave", "/my-month", "/rosters", "/unit-roster", "/my-roster", "/roster/print", "/my-roster/print", "/notifications", "/requests", "/swaps", "/unit-swaps", "/unit-covers", "/covers"])("%s sends a forced change to the password page", async (path) => {
     const { router } = start(path, session(FORCED))
 
     expect(await screen.findByText("Choose a new password")).toBeInTheDocument()
@@ -959,7 +959,7 @@ describe("the hospital rules page", () => {
 
 })
 
-const CATALOGUE_LINKS = ["Shifts", "Leave types", "Holidays and Ramadan"]
+const CATALOGUE_LINKS = ["Shifts", "Leave types", "Skills", "Holidays and Ramadan"]
 
 describe("each role's navigation and home", () => {
   const navLinks = () => within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link").map((link) => link.textContent)
@@ -1798,6 +1798,131 @@ describe("the leave types page", () => {
     expect(await screen.findByText("Sick")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument()
+  })
+})
+
+// Ticket 32. The CNO keeps the skill catalogue; every other role reads it, and the System Admin has no link to it.
+describe("the skills page", () => {
+  const ICU = { id: "k1", name: "ICU", expires: false, required_to_work: false, active: true, renames: [] }
+  const BLS = { id: "k2", name: "BLS", expires: true, required_to_work: true, active: true, renames: [] }
+  const listed = { "GET /api/hospital/skills": { body: [BLS, ICU] } }
+  const rowOf = async (name: string) => (await screen.findByText(name)).closest("tr") as HTMLElement
+
+  it("lists the catalogue for the CNO, with both flags and a skill's former names", async () => {
+    const renamed = { ...BLS, name: "Basic life support", renames: [{ old_name: "BLS", new_name: "Basic life support", at: "2026-11-05T10:00:00+03:00" }] }
+    start("/skills", asCno({ "GET /api/hospital/skills": { body: [renamed, { ...ICU, active: false }] } }))
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Expires", "Required to work", "Status", "Actions"])
+    const bls = await rowOf("Basic life support")
+    expect(within(bls).getByText(/until 2026-11-05/)).toHaveTextContent("Was BLS until 2026-11-05")
+    expect(within(bls).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 4)).toEqual(["Yes", "Yes", "Active"])
+    expect(within(await rowOf("ICU")).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 4)).toEqual(["No", "No", "Retired"])
+  })
+
+  it("adds a skill with both flags and empties the form", async () => {
+    const { user, calls } = start("/skills", asCno({
+      ...listed,
+      "POST /api/hospital/skills": ({ body }: { body: unknown }) => ({ status: 201, body: { ...(body as object), id: "k3", renames: [] } }),
+    }))
+
+    await user.type(await screen.findByLabelText("Name"), "ACLS")
+    expect(screen.getByLabelText("Expires")).not.toBeChecked()
+    expect(screen.getByLabelText("Required to work")).not.toBeChecked()
+    expect(screen.getByLabelText("Active")).toBeChecked()
+    await user.click(screen.getByLabelText("Expires"))
+    await user.click(screen.getByLabelText("Required to work"))
+    await user.click(screen.getByRole("button", { name: "Add skill" }))
+
+    expect(await screen.findByText("ACLS is added.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "ACLS", expires: true, required_to_work: true, active: true })
+    expect(screen.getByLabelText("Name")).toHaveValue("")
+    expect(screen.getByLabelText("Expires")).not.toBeChecked()
+  })
+
+  it("says what is wrong before asking the API, and shows a taken name beside its field", async () => {
+    const { user, calls } = start("/skills", asCno({ ...listed, "POST /api/hospital/skills": refusal(["name"], "ICU is already a skill") }))
+
+    await user.click(await screen.findByRole("button", { name: "Add skill" }))
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument()
+    expect(calls.some((call) => call.method === "POST")).toBe(false)
+
+    await user.type(screen.getByLabelText("Name"), "icu")
+    await user.click(screen.getByRole("button", { name: "Add skill" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus())
+    expect(screen.getByLabelText("Name")).toHaveAccessibleDescription(/ICU is already a skill/)
+  })
+
+  it("renames and retires a skill, then gives focus back to its button", async () => {
+    const { user, calls } = start("/skills", asCno({
+      ...listed,
+      "PUT /api/hospital/skills/k2": ({ body }: { body: unknown }) => ({ body: { ...BLS, ...(body as object) } }),
+    }))
+
+    const edit = await screen.findByRole("button", { name: "Edit BLS" })
+    await user.click(edit)
+    expect(screen.getByRole("heading", { name: "Edit BLS" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Name")).toHaveFocus()
+    expect(screen.getByLabelText("Name")).toHaveAccessibleDescription(/old name is recorded/)
+    expect(screen.getByLabelText("Expires")).toBeChecked()
+
+    await user.clear(screen.getByLabelText("Name"))
+    await user.type(screen.getByLabelText("Name"), "Basic life support")
+    await user.click(screen.getByLabelText("Active"))
+    await user.click(screen.getByRole("button", { name: "Save skill" }))
+
+    expect(await screen.findByText("Basic life support is saved.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Basic life support", expires: true, required_to_work: true, active: false })
+    expect(screen.getByRole("heading", { name: "Add a skill" })).toBeInTheDocument()
+    await waitFor(() => expect(edit).toHaveFocus())
+  })
+
+  it("cancelling an edit changes nothing", async () => {
+    const { user, calls } = start("/skills", asCno(listed))
+
+    const edit = await screen.findByRole("button", { name: "Edit ICU" })
+    await user.click(edit)
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.getByLabelText("Name")).toHaveValue("")
+    await waitFor(() => expect(edit).toHaveFocus())
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+  })
+
+  it("an empty catalogue says so, and the CNO can add the first", async () => {
+    start("/skills", asCno({ "GET /api/hospital/skills": { body: [] } }))
+
+    expect(await screen.findByText("No skills yet.")).toBeInTheDocument()
+    expect(screen.queryByRole("table")).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Add a skill" })).toBeInTheDocument()
+  })
+
+  it("says when the catalogue cannot be read", async () => {
+    start("/skills", asCno({ "GET /api/hospital/skills": { status: 500, body: {} } }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The skills could not be read. Reload the page to try again.")
+  })
+
+  it.each(["deputy_cno", "unit_manager", "staff_nurse", "system_admin"])("%s reads the catalogue and can change nothing", async (role) => {
+    start("/skills", { ...session({ ...ME, role }), ...listed })
+
+    expect(await screen.findByText("BLS")).toBeInTheDocument()
+    expect(screen.getByText(/Only the CNO can change these/)).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Skills" })).toHaveAttribute("tabindex", "0")
+    expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument()
+  })
+  it("the audit log names what was done to the catalogue", async () => {
+    const entry = (id: number, action: string) => ({ id, action, actor: "the-cno", target: "BLS", at: "2026-11-05T07:00:00+03:00", ip: null, before: null, after: null })
+    start("/audit-log", admin({
+      "GET /api/audit/entries": { body: { entries: [entry(1, "skill.created"), entry(2, "skill.updated")], next_before: null } },
+      "GET /api/audit/filter-options": { body: { users: [], actions: [] } },
+    }))
+
+    expect(await screen.findByText("Added a skill")).toBeInTheDocument()
+    expect(screen.getByText("Changed a skill")).toBeInTheDocument()
   })
 })
 

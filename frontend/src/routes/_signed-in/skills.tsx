@@ -1,0 +1,179 @@
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useQueryClient } from "@tanstack/react-query"
+import { createFileRoute, useRouteContext } from "@tanstack/react-router"
+import { useEffect, useState } from "react"
+import { useForm } from "react-hook-form"
+import { z } from "zod"
+
+import { getListSkillsQueryKey, useCreateSkill, useListSkills, useUpdateSkill } from "@/api/generated/endpoints"
+import { Role, type SkillBody, type SkillSchema } from "@/api/generated/model"
+import { createSkillBodyNameMax as NAME_MAX } from "@/api/generated/zod"
+import { CheckboxField, FormField } from "@/components/form-field"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { FieldGroup } from "@/components/ui/field"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { serverErrors, showServerErrors } from "@/lib/server-errors"
+import { useEditing } from "@/lib/use-editing"
+import { scrollableRegion } from "@/lib/utils"
+
+/** Open to every role, which may all read the catalogue: it names no one. Only the CNO gets the form. */
+export const Route = createFileRoute("/_signed-in/skills")({
+  staticData: { title: "Skills" },
+  component: SkillsPage,
+})
+
+const schema = z.object({
+  name: z.string().trim().min(1, "Enter a name.").max(NAME_MAX, `At most ${NAME_MAX} characters.`),
+  expires: z.boolean(),
+  required_to_work: z.boolean(),
+  active: z.boolean(),
+})
+
+const NEW_SKILL: SkillBody = { name: "", expires: false, required_to_work: false, active: true }
+
+function SkillForm({ skill, onDone, onCancel }: { skill: SkillSchema | null; onDone: (message: string) => void; onCancel: () => void }) {
+  const queryClient = useQueryClient()
+  const create = useCreateSkill()
+  const update = useUpdateSkill()
+  const mutation = skill ? update : create
+  const form = useForm<SkillBody>({
+    resolver: zodResolver(schema),
+    defaultValues: skill ? { name: skill.name, expires: skill.expires, required_to_work: skill.required_to_work, active: skill.active } : NEW_SKILL,
+  })
+  const { errors } = form.formState
+
+  useEffect(() => {
+    if (skill) form.setFocus("name")
+  }, [skill, form])
+
+  const saved = (message: string) => {
+    void queryClient.invalidateQueries({ queryKey: getListSkillsQueryKey() })
+    onDone(message)
+  }
+  const refused = (error: unknown) => showServerErrors(form, error)
+
+  const submit = form.handleSubmit((data) => {
+    if (skill) {
+      update.mutate({ skillId: skill.id, data }, { onSuccess: (row) => saved(`${row.name} is saved.`), onError: refused })
+    } else {
+      create.mutate({ data }, {
+        onSuccess: (row) => {
+          form.reset(NEW_SKILL)
+          saved(`${row.name} is added.`)
+        },
+        onError: refused,
+      })
+    }
+  })
+  const unexpected = mutation.isError && serverErrors(mutation.error).length === 0
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <FieldGroup>
+        <FormField label="Name" autoComplete="off" spellCheck={false}
+          description={skill ? "The old name is recorded, so what was saved under it still finds this skill." : undefined}
+          registration={form.register("name")} error={errors.name} />
+        <CheckboxField label="Expires" description="Every nurse's record of this skill carries an expiry, the last day it counts."
+          registration={form.register("expires")} error={errors.expires} />
+        <CheckboxField label="Required to work" description="A nurse whose record of this skill has expired works no shift."
+          registration={form.register("required_to_work")} error={errors.required_to_work} />
+        <CheckboxField label="Active" description="Turn this off to retire the skill. It stays on this list with nurses' records of it, and it can be made active again."
+          registration={form.register("active")} error={errors.active} />
+        {unexpected && <p role="alert" className="text-sm text-destructive">The skill could not be saved. Check your connection and try again.</p>}
+        <div className="flex gap-2">
+          <Button type="submit" disabled={mutation.isPending}>{skill ? "Save skill" : "Add skill"}</Button>
+          {skill && <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>}
+        </div>
+      </FieldGroup>
+    </form>
+  )
+}
+
+function FormerNames({ skill }: { skill: SkillSchema }) {
+  if (skill.renames.length === 0) return null
+  return (
+    <ul className="text-xs text-muted-foreground">
+      {skill.renames.map((rename) => <li key={rename.at}>Was {rename.old_name} until {rename.at.slice(0, 10)}</li>)}
+    </ul>
+  )
+}
+
+const yesNo = (value: boolean) => (value ? "Yes" : "No")
+
+function SkillsTable({ skills, onEdit }: { skills: SkillSchema[]; onEdit?: (skill: SkillSchema, button: HTMLElement) => void }) {
+  return (
+    // Nothing else in a reader's table can take focus, and a keyboard still has to scroll it.
+    <Table container={onEdit ? undefined : scrollableRegion("Skills")}>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Expires</TableHead>
+          <TableHead>Required to work</TableHead>
+          <TableHead>Status</TableHead>
+          {onEdit && <TableHead className="sticky end-0 bg-card"><span className="sr-only">Actions</span></TableHead>}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {skills.map((skill) => (
+          <TableRow key={skill.id}>
+            <TableCell>
+              <span className="font-medium">{skill.name}</span>
+              <FormerNames skill={skill} />
+            </TableCell>
+            <TableCell>{yesNo(skill.expires)}</TableCell>
+            <TableCell>{yesNo(skill.required_to_work)}</TableCell>
+            <TableCell>
+              <Badge variant={skill.active ? "secondary" : "outline"}>{skill.active ? "Active" : "Retired"}</Badge>
+            </TableCell>
+            {onEdit && (
+              <TableCell className="sticky end-0 bg-card text-end">
+                <Button variant="outline" size="sm" aria-label={`Edit ${skill.name}`} onClick={(event) => onEdit(skill, event.currentTarget)}>Edit</Button>
+              </TableCell>
+            )}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+function SkillsPage() {
+  const { user } = useRouteContext({ from: "/_signed-in" })
+  const skills = useListSkills()
+  const { editing, start, finish } = useEditing<SkillSchema>()
+  const [done, setDone] = useState("")
+  const mayChange = user.role === Role.cno
+
+  return (
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+      <h1 className="text-xl font-medium">Skills</h1>
+      <p className="text-muted-foreground">
+        The skills a nurse may hold and a unit's skill needs may count.
+        {!mayChange && " Only the CNO can change these."}
+      </p>
+      {skills.isPending && <p>Loading…</p>}
+      {skills.isError && <p role="alert">The skills could not be read. Reload the page to try again.</p>}
+      {/* Always rendered, because a live region mounted with its text may never be read out. */}
+      <p role="status" className="text-sm text-muted-foreground empty:sr-only">{done}</p>
+      {skills.data && skills.data.length === 0 && <p>No skills yet.</p>}
+      {skills.data && skills.data.length > 0 && (
+        <Card>
+          <CardContent>
+            <SkillsTable skills={skills.data} onEdit={mayChange ? (skill, button) => { setDone(""); start(skill, button) } : undefined} />
+          </CardContent>
+        </Card>
+      )}
+      {mayChange && skills.data && (
+        <Card className="max-w-xl">
+          <CardHeader><CardTitle><h2>{editing ? `Edit ${editing.name}` : "Add a skill"}</h2></CardTitle></CardHeader>
+          <CardContent>
+            <SkillForm key={editing?.id ?? "new"} skill={editing} onCancel={finish}
+              onDone={(message) => { setDone(message); finish() }} />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
