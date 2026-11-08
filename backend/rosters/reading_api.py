@@ -185,7 +185,7 @@ def _first_month(nurse: NurseProfile | None) -> dt.date:
     return min(earliest, this_month) if earliest else this_month
 
 
-def _in_force(user: User, chosen: str | None) -> _InForce:
+def in_force(user: User, chosen: str | None) -> _InForce:
     """The unit is the one the month falls under for them, so across a transfer each month shows its own unit's roster, and a
     nurse due to start sees their unit's with no row of their own. A month before this one only once it has closed."""
     month = dt.date.fromisoformat(f"{chosen}-01") if chosen else membership.this_month()
@@ -211,7 +211,7 @@ def _in_force(user: User, chosen: str | None) -> _InForce:
 @router.get("/mine", response=MyRosterMonth, auth=nurse_reader, operation_id="getMyRoster")
 def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterMonth:
     """Takes no nurse, so it answers only for the reader."""
-    found = _in_force(request.user, filters.month)
+    found = in_force(request.user, filters.month)
     answer = MyRosterMonth(**found.heading(), roster=None)
     if found.version is None:
         return answer
@@ -246,7 +246,7 @@ def my_sheet(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterSh
     """The print page of My roster: the version in force of the reader's own unit, as its files hold it, with hours and shift
     counts that come from the cells alone. A colleague's day of leave is therefore the same `""` as a day off, and only the
     reader's own row (`mine`) may say leave. No file is made, and nothing is audited."""
-    found = _in_force(request.user, filters.month)
+    found = in_force(request.user, filters.month)
     answer = MyRosterSheet(**found.heading(), sheet=None)
     if found.version is None:
         return answer
@@ -297,7 +297,7 @@ def my_month(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyMonth:
     """The reader's own hours and shift counts in the version in force, worked out on the month as it stands, so leave recorded
     since counts, and a new version (ticket 16) is read as it comes. Nothing of a colleague: the arithmetic reads the reader's
     row only. Their leave with its type is `GET /api/nurses/my-leave`, which reads any month."""
-    found = _in_force(request.user, filters.month)
+    found = in_force(request.user, filters.month)
     answer = MyMonth(**found.heading(), roster=None)
     if found.version is None:
         return answer

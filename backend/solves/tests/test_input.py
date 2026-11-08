@@ -193,6 +193,45 @@ def test_a_raised_weight_can_leave_a_one_shift_unit_for_the_solver_to_refuse(er,
     assert solver_refusal(built(er).input) is not None
 
 
+def carried_from_may(unit, hospital_id, preferences_not_kept) -> None:
+    """As if May had closed with her preferences not kept: a closed carry-over of May, the January test's pattern."""
+    from closes.models import CarryOver, CarrySource, MonthClose
+    may = dt.date(2026, 5, 1)
+    close = MonthClose.objects.filter(unit=unit, month=may).first() or MonthClose.objects.create(
+        unit=unit, month=may, version=1, input={}, result={})
+    values = {"ytd_overtime": 0, "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0, "previous": [],
+              "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": preferences_not_kept}
+    CarryOver.objects.create(nurse=NurseProfile.objects.get(user__username=hospital_id), unit=unit, month=may,
+                             source=CarrySource.CLOSED, close=close, values=values)
+
+
+class TestTheCountCarriedIn:
+    """Each nurse's count of preferences not kept the month before reaches the solver (ticket 30), and above 0 her preferences
+    cost twice the weight: priced here by the solver package's own validator on SOUND's June, with no search."""
+
+    def test_it_reaches_the_solver_and_doubles_her_price_alone(self, er):
+        from solver_service.grid import validate_grid
+        from rosters.tests.test_review import SOUND
+        carried_from_may(er, "Dana", 1)
+        carried_from_may(er, "Amal", 0)
+        preference(er, "Dana", dt.date(2026, 6, 5))   # Dana works Night on the 5th of SOUND's June,
+        preference(er, "Amal", dt.date(2026, 6, 2))   # and so does Amal on the 2nd.
+
+        solve_input = built(er).input
+
+        assert (block_of(solve_input, "Dana")["preferences_not_kept"], block_of(solve_input, "Amal")["preferences_not_kept"]) == (1, 0)
+        [rule] = [rule for rule in validate_grid(solve_input, SOUND[MONTH]["roster"])["rules"] if rule["id"] == "undesired_day"]
+        weight = HospitalSettings.load().rules["weights"]["undesired_day"]
+        assert {match["nurse"]: match["amount"] for match in rule["matches"]} == {"Amal": 1, "Dana": 2}
+        assert rule["weighted"] == 3 * weight
+        dana = next(match for match in rule["matches"] if match["nurse"] == "Dana")
+        assert dana["text"].endswith("counts double, a preference was not kept last month)")
+
+
+def block_of(solve_input, hospital_id):
+    return next(row for row in solve_input["nurses"] if row["id"] == hospital_id)
+
+
 class TestPreferences:
     """A nurse's live preferences are the days she asked off (`undesired_days`) and to work (`desired_days`), each in date
     order (ADR 0013)."""

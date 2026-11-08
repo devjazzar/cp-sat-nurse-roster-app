@@ -24,7 +24,7 @@ from rosters.tests.test_versions import changed, in_force_agrees, latest, works_
 from rosters.tests.test_pins import change_shift, icu, pin
 from requesting.models import PreferenceKind
 from solves.tests.conftest import start_solve
-from solves.tests.test_input import preference
+from solves.tests.test_input import carried_from_may, preference
 from solves import running
 from solves.models import ReplanOutcome, Solve, SolveState
 from solves.tests.conftest import MONTH, NURSES, job, result_of
@@ -243,6 +243,15 @@ class TestFactsBeforeTheDate:
 
         amal = next(row for row in solve.input["nurses"] if row["id"] == "Amal")
         assert (amal["undesired_days"], amal["desired_days"]) == (["2026-06-03", "2026-06-20"], ["2026-06-22"])
+
+    def test_her_count_of_preferences_not_kept_reaches_a_re_plan_as_it_reaches_a_solve(self, mona, er, in_force):
+        """The count carried into June doubles her price in a re-plan too (ticket 30)."""
+        carried_from_may(er, "Amal", 2)
+
+        solve = Solve.objects.get(pk=started(mona, er)["id"])
+
+        assert {row["id"]: row["preferences_not_kept"] for row in solve.input["nurses"]} == {
+            "Amal": 2, "Badr": 0, "Dana": 0, "Emad": 0}
 
     def test_a_pin_set_aside_is_no_fact_and_the_day_is_the_roster_in_forces(self, mona, er, in_force):
         """Emad works Day on the 1st. A pin on Night there, then Night taken from his allowed shifts: the pin no longer fits."""

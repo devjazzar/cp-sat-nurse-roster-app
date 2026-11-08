@@ -11,6 +11,9 @@ export const asDate = (iso: string) => new Date(`${iso}T00:00:00Z`)
 const monthAndYear = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })
 /** "January 2027" from "2027-01". */
 export const monthName = (month: string) => monthAndYear.format(asDate(`${month}-01`))
+const monthOnly = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" })
+/** "May" from "2026-05", for the month before one already named. */
+export const monthAlone = (month: string) => monthOnly.format(asDate(`${month}-01`))
 
 const dayOfMonth = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
 /** "10 November" from "2026-11-10", where the month and its year are said already. */

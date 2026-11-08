@@ -20,9 +20,10 @@ from nurses.models import NurseProfile
 from requesting import making
 from requesting.api import PreferenceKindText, PreferenceStateText, with_steps
 from requesting.mine_api import MyRequestRow, MyWindow, RequestableShift, my_rows, requestable_shifts
-from requesting.models import Preference, Request, WindowState
+from requesting.models import Preference, PreferenceState, Request, WindowState
 from requesting.windows import state_today
-from rosters.reading_api import MyRosterFilter
+from rosters.own_month import Outcome, OwnPreferences, closed_preferences, doubled_by, own_preferences
+from rosters.reading_api import MyRosterFilter, in_force
 
 router = Router(tags=["preferences"])
 nurse_only = SignedIn(Role.STAFF_NURSE)
@@ -33,6 +34,10 @@ class MyPreferenceRow(Schema):
     date: dt.date
     kind: PreferenceKindText = Field(description="A day off, or a working day of any shift.")
     state: PreferenceStateText = Field(description="`made` while it is live and reaches the solve.")
+    outcome: Outcome | None = Field(description=(
+        "What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside "
+        "her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed "
+        "from the close in force. Null before the roster is approved, and for one that never reached the unit's solve."))
 
 
 class MyPreferences(Schema):
@@ -48,10 +53,30 @@ class MyPreferences(Schema):
     first_day: dt.date | None = Field(description="The first day of the month you may prefer, within your dates.")
     last_day: dt.date | None
     preferences: list[MyPreferenceRow] = Field(description="Yours for this month, every state, by date.")
+    kept: int | None = Field(description="How many the roster in force kept. Null before it is approved.")
+    keepable: int | None = Field(description="How many it could keep: those with an outcome, less those on leave.")
+    doubled_by: str | None = Field(description=(
+        "YYYY-MM: the month one of yours was not kept in, so yours count double this month. From the carry-over the month's "
+        "solve input takes. Null when none was."))
 
 
-def _rows(preferences: Iterable[Preference]) -> list[MyPreferenceRow]:
-    return [MyPreferenceRow(id=row.pk, date=row.date, kind=row.kind, state=row.state) for row in preferences]
+def _rows(preferences: Iterable[Preference], kept: OwnPreferences | None = None) -> list[MyPreferenceRow]:
+    outcomes = kept.outcomes if kept else {}
+    return [MyPreferenceRow(id=row.pk, date=row.date, kind=row.kind, state=row.state,
+                            outcome=outcomes.get((row.date, row.kind)) if row.state == PreferenceState.MADE else None)
+            for row in preferences]
+
+
+def _kept(request: HttpRequest, chosen: str | None) -> OwnPreferences | None:
+    """What the roster in force kept, from the version My month reads (`rosters.reading_api.in_force`)."""
+    found = in_force(request.user, chosen)
+    if found.version is None:
+        return None
+    mine = found.nurse.user.username
+    if found.close is not None:
+        return closed_preferences(found.close, mine)
+    grid = found.grid
+    return own_preferences(found.unit, found.month, mine, grid[mine]) if mine in grid else None
 
 
 @router.get("/mine", response=MyPreferences, auth=nurse_only, operation_id="getMyPreferences")
@@ -59,10 +84,14 @@ def my_preferences(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyPr
     """The hospital's current month when none is given, as the rest of My month."""
     month = dt.date.fromisoformat(f"{filters.month}-01") if filters.month else membership.this_month()
     nurse = NurseProfile.objects.select_related("user").filter(user=request.user).first()
-    rows = _rows(Preference.objects.filter(nurse=nurse, date__year=month.year, date__month=month.month))
+    kept = _kept(request, month.strftime("%Y-%m"))
+    rows = _rows(Preference.objects.filter(nurse=nurse, date__year=month.year, date__month=month.month), kept)
     window = making.window_for(nurse, month) if nurse else None
+    doubled = doubled_by(nurse, month) if nurse else None
     answer = MyPreferences(month=month.strftime("%Y-%m"), window=None, preference_cap=None, request_cap=None, counted=0,
                            shifts=[], first_day=None, last_day=None, preferences=rows,
+                           kept=kept.kept if kept else None, keepable=kept.keepable if kept else None,
+                           doubled_by=doubled.strftime("%Y-%m") if doubled else None,
                            refusal=f"No request window is open for {making.month_name(month)}.")
     if window is None:
         return answer

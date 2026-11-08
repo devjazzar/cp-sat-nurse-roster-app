@@ -142,6 +142,7 @@ export * from './myMonth';
 export * from './myMonthInForce';
 export * from './myPreferenceRow';
 export * from './myPreferenceRowKind';
+export * from './myPreferenceRowOutcome';
 export * from './myPreferenceRowState';
 export * from './myPreferences';
 export * from './myRequestRow';

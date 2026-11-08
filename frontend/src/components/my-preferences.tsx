@@ -16,13 +16,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { askedFor, inSentence, NO_CONNECTION, PREFERENCE_STATE, PREFERS, shiftNames } from "@/lib/request-words"
+import { askedFor, inSentence, NO_CONNECTION, PREFERENCE_OUTCOME, PREFERENCE_STATE, PREFERS, shiftNames } from "@/lib/request-words"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
-import { monthName, scrollableRegion, shortDay, WRAP_ON_PHONE } from "@/lib/utils"
+import { monthAlone, monthName, scrollableRegion, shortDay, WRAP_ON_PHONE } from "@/lib/utils"
 
 const STATUS = "my-preferences-status"
 
@@ -41,6 +41,12 @@ function windowWords(answer: MyPreferences): string {
     case "closed":
       return `The request window for ${month} has closed${window.closed_early ? " early" : ""}, so your preferences are fixed. The solver keeps them when it can.`
   }
+}
+
+/** "4 of 5 kept" once the roster is approved, "No roster yet" before, and nothing with none of hers to keep. */
+function keptWords(answer: MyPreferences): string | null {
+  if (answer.keepable === null) return answer.preferences.some((row) => row.state === "made") ? "No roster yet" : null
+  return answer.keepable > 0 ? `${answer.kept} of ${answer.keepable} kept` : null
 }
 
 const formSchema = z.object({ date: z.iso.date("Choose a date."), kind: z.enum(["day_off", "working_day"]) })
@@ -186,6 +192,8 @@ export function MyPreferencesCard({ month }: { month: string | undefined }) {
   const focusAfter = useRef<string | null>(null)
   const answer = mine.data
   const open = answer?.window?.state === "open"
+  const kept = answer ? keptWords(answer) : null
+  const approved = answer?.keepable != null
 
   const tell = (message: string) => {
     setSaid(message)
@@ -206,6 +214,7 @@ export function MyPreferencesCard({ month }: { month: string | undefined }) {
     <Card>
       <CardHeader>
         <CardTitle><h3>Preferences</h3></CardTitle>
+        {kept && <CardAction><p className="text-sm font-medium tabular-nums">{kept}</p></CardAction>}
         <CardDescription>
           A day you would rather have off, or rather work. Nobody decides a preference: the solver keeps it when it can. Only you and your manager read it.
         </CardDescription>
@@ -218,6 +227,9 @@ export function MyPreferencesCard({ month }: { month: string | undefined }) {
         {answer && (
           <>
             <p>{windowWords(answer)}</p>
+            {answer.doubled_by && (
+              <p>One of your preferences was not kept in {monthAlone(answer.doubled_by)}, so this month yours count double.</p>
+            )}
             {open && answer.refusal && <p>{answer.refusal}</p>}
             {answer.preferences.length === 0 ? <p>You have made no preferences for {monthName(answer.month)}.</p> : (
               <Table container={scrollableRegion(`Your preferences for ${monthName(answer.month)}`)} className={WRAP_ON_PHONE}>
@@ -226,6 +238,7 @@ export function MyPreferencesCard({ month }: { month: string | undefined }) {
                     <TableHead>Date</TableHead>
                     <TableHead>You prefer</TableHead>
                     <TableHead>State</TableHead>
+                    {approved && <TableHead>Outcome</TableHead>}
                     {open && <TableHead><span className="sr-only">Actions</span></TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -235,6 +248,7 @@ export function MyPreferencesCard({ month }: { month: string | undefined }) {
                       <TableCell className="tabular-nums">{shortDay(row.date)}</TableCell>
                       <TableCell>{PREFERS[row.kind]}</TableCell>
                       <TableCell>{PREFERENCE_STATE[row.state]}</TableCell>
+                      {approved && <TableCell>{row.outcome ? PREFERENCE_OUTCOME[row.outcome] : ""}</TableCell>}
                       {open && (
                         <TableCell>
                           {row.state === "made" && (

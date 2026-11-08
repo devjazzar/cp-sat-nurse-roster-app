@@ -4380,8 +4380,12 @@ export const GetMyPreferencesResponse = zod.object({
   "id": zod.uuid(),
   "date": zod.iso.date(),
   "kind": zod.enum(['day_off', 'working_day']).describe('A day off, or a working day of any shift.'),
-  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.')
-})).describe('Yours for this month, every state, by date.')
+  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.'),
+  "outcome": zod.union([zod.enum(['kept', 'not_kept', 'on_leave']),zod.null()]).describe('What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit\'s solve.')
+})).describe('Yours for this month, every state, by date.'),
+  "kept": zod.union([zod.int(),zod.null()]).describe('How many the roster in force kept. Null before it is approved.'),
+  "keepable": zod.union([zod.int(),zod.null()]).describe('How many it could keep: those with an outcome, less those on leave.'),
+  "doubled_by": zod.union([zod.string(),zod.null()]).describe('YYYY-MM: the month one of yours was not kept in, so yours count double this month. From the carry-over the month\'s solve input takes. Null when none was.')
 })
 
 
@@ -4400,7 +4404,8 @@ export const MakePreferenceResponse = zod.object({
   "id": zod.uuid(),
   "date": zod.iso.date(),
   "kind": zod.enum(['day_off', 'working_day']).describe('A day off, or a working day of any shift.'),
-  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.')
+  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.'),
+  "outcome": zod.union([zod.enum(['kept', 'not_kept', 'on_leave']),zod.null()]).describe('What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit\'s solve.')
 })
 
 
@@ -4416,7 +4421,8 @@ export const WithdrawPreferenceResponse = zod.object({
   "id": zod.uuid(),
   "date": zod.iso.date(),
   "kind": zod.enum(['day_off', 'working_day']).describe('A day off, or a working day of any shift.'),
-  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.')
+  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.'),
+  "outcome": zod.union([zod.enum(['kept', 'not_kept', 'on_leave']),zod.null()]).describe('What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit\'s solve.')
 })
 
 
@@ -4442,7 +4448,8 @@ export const AskPreferenceAsRequestResponse = zod.object({
   "id": zod.uuid(),
   "date": zod.iso.date(),
   "kind": zod.enum(['day_off', 'working_day']).describe('A day off, or a working day of any shift.'),
-  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.')
+  "state": zod.enum(['made', 'withdrawn', 'asked_instead']).describe('`made` while it is live and reaches the solve.'),
+  "outcome": zod.union([zod.enum(['kept', 'not_kept', 'on_leave']),zod.null()]).describe('What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit\'s solve.')
 }),
   "request": zod.object({
   "id": zod.uuid(),

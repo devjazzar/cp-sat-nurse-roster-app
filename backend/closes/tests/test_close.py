@@ -24,9 +24,11 @@ from nurses.models import NurseProfile
 from ops import solver_client
 from rosters.models import PinnedCell, Roster
 from rosters.tests.test_pins import change_shift
+from requesting.models import PreferenceKind
 from rosters.tests.test_review import SOUND, approve, carla, ok, record_leave, refused, solved, submit, url  # noqa: F401
 from solves.input import assemble
 from solves.tests.conftest import MONTH
+from solves.tests.test_input import preference
 
 pytestmark = pytest.mark.django_db
 
@@ -86,6 +88,20 @@ def close_again(client, unit, month="2026-06"):
 
 def closing_due(now):
     return making.due(now)
+
+
+def amals_preferences(unit) -> None:
+    """Five of Amal's June preferences, counted by hand on SOUND's June ("NNNN.NNN...NN.....NN..DDDD..DD"): a day off on the 2nd,
+    which she works, a day off on the 5th and the 10th, which she has, a working day on the 15th, which she has off, and on the
+    23rd, which she works. Two are not kept: the 2nd and the 15th."""
+    for day, kind in ((2, PreferenceKind.DAY_OFF), (5, PreferenceKind.DAY_OFF), (10, PreferenceKind.DAY_OFF),
+                      (15, PreferenceKind.WORKING_DAY), (23, PreferenceKind.WORKING_DAY)):
+        preference(unit, "Amal", dt.date(2026, 6, day), kind)
+
+
+def not_kept(unit, month, hospital_id="Amal") -> int:
+    """What the month's solve input hands the solver for her."""
+    return next(row for row in assemble(unit, month).nurses if row["id"] == hospital_id)["preferences_not_kept"]
 
 
 class TestTheSchedule:
@@ -384,6 +400,72 @@ class TestTheChain:
         from nurse_roster.request import load_request
         loaded = load_request(july)
         assert all("N" not in nurse.previous for nurse in loaded.problem.nurses)
+
+
+class TestTheCountOfPreferencesNotKept:
+    """The chain carries each nurse's count of preferences not kept as one more carried field (ticket 30), from the solver's own
+    carry-over block. The expected counts are `amals_preferences`'s, by hand."""
+
+    def test_it_is_projected_from_the_roster_in_force(self, er, mona, carla, solver):  # noqa: F811
+        amals_preferences(er)
+        approved(mona, carla, er, solver)
+
+        assert not_kept(er, JULY) == 2
+        assert {not_kept(er, JULY, nurse) for nurse in ("Badr", "Dana", "Emad")} == {0}
+
+    def test_the_close_corrects_it_with_leave_recorded_late(self, er, mona, carla, solver, on):  # noqa: F811
+        """Leave on the 2nd, which she asked off and works: neither kept nor not kept, so one is left."""
+        amals_preferences(er)
+        approved(mona, carla, er, solver)
+        on(dt.date(2026, 7, 1))
+        assert record_leave(mona, er, "Amal", 2).status_code == 201
+
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        assert carried(close)["Amal"]["preferences_not_kept"] == 1
+        assert not_kept(er, JULY) == 1
+        assert assemble(er, JULY).carried["Amal"].source == CarrySource.CLOSED
+
+    def test_a_month_with_no_roster_hands_on_zero(self, er, mona, carla, solver):  # noqa: F811
+        from hospital.models import FixedRamadanMonth
+        for month in ("2026-07", "2026-08"):
+            FixedRamadanMonth.objects.get_or_create(month=month, defaults={"dates": []})
+        amals_preferences(er)
+        approved(mona, carla, er, solver)
+
+        assert not_kept(er, JULY) == 2
+        assert not_kept(er, AUGUST) == 0  # July has no roster: one month's memory, and nothing was kept or not in July.
+
+    def test_her_first_month_starts_from_zero(self, er):
+        """Her opening values hold no count: the months before had no roster in this application to keep anything."""
+        amals_preferences(er)
+
+        assert {not_kept(er, JUNE, nurse) for nurse in ("Amal", "Badr", "Dana", "Emad")} == {0}
+
+    def test_it_follows_a_transfer(self, er, mona, carla, solver, client_of, make_user):  # noqa: F811
+        from accounts.models import User
+        from solves.tests.conftest import make_sample_unit
+        client_of("omar", Role.UNIT_MANAGER)
+        icu = make_sample_unit("ICU", User.objects.get(username="omar"), make_user, prefix="i")
+        amals_preferences(er)
+        approved(mona, carla, er, solver)
+
+        membership.transfer(NurseProfile.objects.get(user__username="Amal"), icu, JULY)
+
+        assert not_kept(icu, JULY) == 2
+
+    def test_closing_again_re_works_it(self, er, mona, carla, solver, on):  # noqa: F811
+        amals_preferences(er)
+        approved(mona, carla, er, solver)
+        on(dt.date(2026, 7, 1))
+        [first] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+        assert carried(first)["Amal"]["preferences_not_kept"] == 2 and not_kept(er, JULY) == 2
+
+        assert record_leave(mona, er, "Amal", 2).status_code == 201
+        ok(close_again(mona, er))
+
+        assert carried(closed(er))["Amal"]["preferences_not_kept"] == 1
+        assert not_kept(er, JULY) == 1
 
 
 class TestThreeMonths:

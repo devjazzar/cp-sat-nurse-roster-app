@@ -6689,11 +6689,12 @@ describe("preferences", () => {
     month: "2026-12", window: WINDOW, preference_cap: 10, request_cap: 3, counted: 2, refusal: null,
     shifts: [{ code: "D", display_name: "Day" }, { code: "N", display_name: "Night" }], first_day: "2026-12-01", last_day: "2026-12-31",
     preferences: [
-      { id: "p1", date: "2026-12-03", kind: "day_off", state: "made" },
-      { id: "p2", date: "2026-12-05", kind: "working_day", state: "made" },
-      { id: "p3", date: "2026-12-07", kind: "day_off", state: "withdrawn" },
-      { id: "p4", date: "2026-12-09", kind: "day_off", state: "asked_instead" },
+      { id: "p1", date: "2026-12-03", kind: "day_off", state: "made", outcome: null },
+      { id: "p2", date: "2026-12-05", kind: "working_day", state: "made", outcome: null },
+      { id: "p3", date: "2026-12-07", kind: "day_off", state: "withdrawn", outcome: null },
+      { id: "p4", date: "2026-12-09", kind: "day_off", state: "asked_instead", outcome: null },
     ],
+    kept: null, keepable: null, doubled_by: null,
   }
   const REQUESTS = {
     month: "2026-12", window: WINDOW, request_cap: 3, counted: 0, refusal: null, shifts: MY_OPEN.shifts,
@@ -6823,6 +6824,59 @@ describe("preferences", () => {
     expect(await screen.findByText("The request window for December 2026 has closed, so your preferences are fixed. The solver keeps them when it can.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Make the preference" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /preference for/ })).not.toBeInTheDocument()
+  })
+
+  const APPROVED = {
+    ...MY_OPEN, window: { ...WINDOW, state: "closed" }, kept: 2, keepable: 3,
+    preferences: [
+      { id: "p1", date: "2026-12-03", kind: "day_off", state: "made", outcome: "kept" },
+      { id: "p2", date: "2026-12-05", kind: "working_day", state: "made", outcome: "not_kept" },
+      { id: "p5", date: "2026-12-06", kind: "working_day", state: "made", outcome: "kept" },
+      { id: "p3", date: "2026-12-07", kind: "day_off", state: "withdrawn", outcome: null },
+      { id: "p6", date: "2026-12-08", kind: "day_off", state: "made", outcome: "on_leave" },
+    ],
+  }
+
+  it("once the roster is approved the card says how many were kept, and marks each Kept, Not kept or On leave", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: APPROVED }))
+    await screen.findByRole("heading", { name: "Preferences" })
+
+    expect(await card().findByText("2 of 3 kept")).toBeInTheDocument()
+    const rows = within(card().getByRole("region", { name: "Your preferences for December 2026" })).getAllByRole("row")
+    expect(within(rows[0]).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Date", "You prefer", "State", "Outcome"])
+    expect(rows.slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+      ["3 Dec 2026", "A day off", "Made", "Kept"],
+      ["5 Dec 2026", "A working day", "Made", "Not kept"],
+      ["6 Dec 2026", "A working day", "Made", "Kept"],
+      ["7 Dec 2026", "A day off", "Withdrawn", ""],
+      ["8 Dec 2026", "A day off", "Made", "On leave"],
+    ])
+    expect(card().queryByText("No roster yet")).not.toBeInTheDocument()
+    expect(card().queryByText(/count double/)).not.toBeInTheDocument()
+  })
+
+  it("before the roster is approved the card says there is none yet, and marks nothing", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: MY_OPEN }))
+    await screen.findByRole("heading", { name: "Preferences" })
+
+    expect(await card().findByText("No roster yet")).toBeInTheDocument()
+    expect(card().queryByRole("columnheader", { name: "Outcome" })).not.toBeInTheDocument()
+    expect(card().queryByText(/ kept$/)).not.toBeInTheDocument()
+  })
+
+  it("tells her when her preferences count double this month, and which month caused it", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: { ...MY_OPEN, doubled_by: "2026-11" } }))
+    await screen.findByRole("heading", { name: "Preferences" })
+
+    expect(await card().findByText("One of your preferences was not kept in November, so this month yours count double.")).toBeInTheDocument()
+  })
+
+  it("says it of a month with no preferences of hers, and nothing of kept or no roster", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: { ...MY_OPEN, preferences: [], counted: 0, doubled_by: "2026-11" } }))
+    await screen.findByRole("heading", { name: "Preferences" })
+
+    expect(await card().findByText("One of your preferences was not kept in November, so this month yours count double.")).toBeInTheDocument()
+    expect(card().queryByText("No roster yet")).not.toBeInTheDocument()
   })
 
   const WINDOWS = {

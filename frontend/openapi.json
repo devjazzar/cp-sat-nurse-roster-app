@@ -13273,13 +13273,31 @@
             ],
             "title": "State",
             "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kept",
+                  "not_kept",
+                  "on_leave"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit's solve.",
+            "title": "Outcome"
           }
         },
         "required": [
           "id",
           "date",
           "kind",
-          "state"
+          "state",
+          "outcome"
         ],
         "title": "MyPreferenceRow",
         "type": "object"
@@ -13383,6 +13401,42 @@
             },
             "title": "Preferences",
             "type": "array"
+          },
+          "kept": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many the roster in force kept. Null before it is approved.",
+            "title": "Kept"
+          },
+          "keepable": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many it could keep: those with an outcome, less those on leave.",
+            "title": "Keepable"
+          },
+          "doubled_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM: the month one of yours was not kept in, so yours count double this month. From the carry-over the month's solve input takes. Null when none was.",
+            "title": "Doubled By"
           }
         },
         "required": [
@@ -13395,7 +13449,10 @@
           "shifts",
           "first_day",
           "last_day",
-          "preferences"
+          "preferences",
+          "kept",
+          "keepable",
+          "doubled_by"
         ],
         "title": "MyPreferences",
         "type": "object"

@@ -23,7 +23,7 @@ from nurses import membership
 from nurses.api import MonthText
 from nurses.models import NurseProfile
 from rosters.grids import GridDay, by_name, full_names
-from rosters.reading_api import MyRosterFilter, _in_force
+from rosters.reading_api import MyRosterFilter, in_force
 from rosters.review import name_of
 from rosters.sheets import days_of
 from swaps import steps
@@ -145,7 +145,7 @@ class SwapComposer(Schema):
 def composer(request: HttpRequest, filters: Query[MyRosterFilter]) -> SwapComposer:
     """The roster in force as My roster shows it, from today on, and the unit's shifts. The hospital's current month when none
     is given."""
-    found = _in_force(request.user, filters.month)
+    found = in_force(request.user, filters.month)
     answer = SwapComposer(month=found.month.strftime("%Y-%m"), unit=found.unit.name if found.unit else None, refusal=None,
                           days=[], shifts=[], nurses=[])
     if found.unit is None:

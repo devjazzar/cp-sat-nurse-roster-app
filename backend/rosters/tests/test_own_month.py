@@ -12,6 +12,9 @@ from rosters.models import Roster, RosterVersion, VersionOrigin
 from rosters.tests.test_review import (_scene, approve, carla, ok, record_leave, solved, submit,  # noqa: F401
                                        url)
 from notifications.tests.test_events import as_user, joining
+from closes.tests.test_close import amals_preferences
+from conftest import post
+from solves.tests.test_input import preference
 
 pytestmark = pytest.mark.django_db
 
@@ -142,3 +145,153 @@ class TestWhichMonths:
     @pytest.mark.parametrize("role", [Role.CNO, Role.DEPUTY_CNO, Role.SYSTEM_ADMIN])
     def test_other_roles_are_refused(self, role, client_of):
         assert client_of("someone", role).get("/api/rosters/mine/month").status_code == 403
+
+
+# Ticket 30: what the roster in force kept of her preferences. Amal's five June preferences are `amals_preferences`'s, counted by
+# hand on SOUND's June ("NNNN.NNN...NN.....NN..DDDD..DD"): a day off on the 2nd, which she works, and on the 5th and 10th, which
+# she has; a working day on the 15th, which she has off, and on the 23rd, which she works. 3 of 5 kept.
+JUNE_OUTCOMES = {"2026-06-02": "not_kept", "2026-06-05": "kept", "2026-06-10": "kept", "2026-06-15": "not_kept",
+                 "2026-06-23": "kept"}
+
+
+def preferences(client, chosen="2026-06") -> dict:
+    return ok(client.get("/api/preferences/mine", {"month": chosen}))
+
+
+def outcomes(answer) -> dict[str, str | None]:
+    return {row["date"]: row["outcome"] for row in answer["preferences"]}
+
+
+def counted(answer) -> tuple:
+    return answer["kept"], answer["keepable"]
+
+
+class TestWhatWasKept:
+    def test_nothing_is_kept_or_not_before_approval(self, mona, er, solver):
+        amals_preferences(er)
+        solved(mona, er, solver)
+
+        answer = preferences(as_user("Amal"))
+
+        assert set(outcomes(answer).values()) == {None} and len(answer["preferences"]) == 5
+        assert counted(answer) == (None, None)
+
+    def test_each_is_kept_or_not_by_the_roster_in_force(self, mona, er, solver, carla):
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+
+        answer = preferences(as_user("Amal"))
+
+        assert outcomes(answer) == JUNE_OUTCOMES
+        assert counted(answer) == (3, 5)
+
+    def test_what_she_reads_is_what_the_month_after_is_priced_on(self, mona, er, solver, carla):
+        """One computation: July's solve input carries as not kept the two My month says were not."""
+        from solves.input import assemble
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+
+        kept, keepable = counted(preferences(as_user("Amal")))
+
+        july = next(row for row in assemble(er, dt.date(2026, 7, 1)).nurses if row["id"] == "Amal")
+        assert keepable - kept == july["preferences_not_kept"] == 2
+
+    def test_a_day_on_leave_is_counted_neither_way(self, mona, er, solver, carla):
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+        assert record_leave(mona, er, "Amal", 2).status_code == 201
+
+        answer = preferences(as_user("Amal"))
+
+        assert outcomes(answer) == JUNE_OUTCOMES | {"2026-06-02": "on_leave"}
+        assert counted(answer) == (3, 4)
+
+    def test_a_managers_edit_that_breaks_one_counts_as_not_kept(self, mona, er, solver, carla):
+        """Version 2 puts Amal on Night on the 10th, a day she asked off."""
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+        roster = Roster.objects.get(unit=er)
+        grid = copy.deepcopy(roster.grid)
+        grid["Amal"]["2026-06-10"] = "N"
+        RosterVersion.objects.create(roster=roster, number=2, grid=grid, origin=VersionOrigin.EDIT, created_by=roster.solve.requested_by)
+
+        answer = preferences(as_user("Amal"))
+
+        assert outcomes(answer) == JUNE_OUTCOMES | {"2026-06-10": "not_kept"}
+        assert counted(answer) == (2, 5)
+
+    def test_one_withdrawn_has_no_outcome_and_counts_neither_way(self, mona, er, solver, carla):
+        from requesting.models import PreferenceState
+        """A withdrawn one on the 3rd, and one on the 5th withdrawn before the day off made again there."""
+        preference(er, "Amal", dt.date(2026, 6, 3), state=PreferenceState.WITHDRAWN)
+        preference(er, "Amal", dt.date(2026, 6, 5), state=PreferenceState.WITHDRAWN)
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+
+        answer = preferences(as_user("Amal"))
+
+        assert [(row["date"], row["state"], row["outcome"]) for row in answer["preferences"]][:3] == [
+            ("2026-06-02", "made", "not_kept"), ("2026-06-03", "withdrawn", None), ("2026-06-05", "withdrawn", None)]
+        assert ("2026-06-05", "made", "kept") in [(row["date"], row["state"], row["outcome"]) for row in answer["preferences"]]
+        assert counted(answer) == (3, 5)
+
+    def test_a_closed_month_reads_the_close_in_force(self, mona, er, solver, carla, monkeypatch):
+        """Leave on the 2nd recorded before the close is in its facts; leave on the 10th recorded after it is not, until the
+        month is closed again."""
+        from closes import making
+        from nurses import membership
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+        monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 7, 2))
+        assert record_leave(mona, er, "Amal", 2).status_code == 201
+        making.catch_up()
+        assert record_leave(mona, er, "Amal", 10).status_code == 201
+
+        closed = preferences(as_user("Amal"))
+        assert outcomes(closed) == JUNE_OUTCOMES | {"2026-06-02": "on_leave"}
+        assert counted(closed) == (3, 4)
+
+        ok(post(mona, f"/api/units/{er.pk}/close", {"month": "2026-06"}))
+
+        again = preferences(as_user("Amal"))
+        assert outcomes(again) == JUNE_OUTCOMES | {"2026-06-02": "on_leave", "2026-06-10": "on_leave"}
+        assert counted(again) == (2, 3)
+
+
+class TestCountingDouble:
+    def test_the_month_after_an_unkept_one_counts_double_and_says_which(self, mona, er, solver, carla):
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+
+        assert preferences(as_user("Amal"), "2026-07")["doubled_by"] == "2026-06"
+        assert preferences(as_user("Amal"))["doubled_by"] is None
+        assert preferences(as_user("Badr"), "2026-07")["doubled_by"] is None
+
+    def test_it_is_read_from_the_chain_the_solve_input_takes(self, mona, er, solver, carla, monkeypatch):
+        """A close with late leave on both unkept days leaves nothing to double, in July's input and in her read alike."""
+        from closes import making
+        from nurses import membership
+        from solves.input import assemble
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+        monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 7, 2))
+        for day in (2, 15):
+            assert record_leave(mona, er, "Amal", day).status_code == 201
+        making.catch_up()
+
+        july = next(row for row in assemble(er, dt.date(2026, 7, 1)).nurses if row["id"] == "Amal")
+        assert july["preferences_not_kept"] == 0
+        assert preferences(as_user("Amal"), "2026-07")["doubled_by"] is None
+
+
+class TestNothingOfAColleaguesPreferences:
+    def test_a_colleagues_preferences_change_nothing_and_none_is_named(self, mona, er, solver, carla):
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+        before = as_user("Amal").get("/api/preferences/mine", {"month": "2026-06"}).content.decode()
+
+        preference(er, "Badr", dt.date(2026, 6, 2))
+
+        after = as_user("Amal").get("/api/preferences/mine", {"month": "2026-06"}).content.decode()
+        assert after == before
+        assert not any(name in after for name in ("Badr", "Dana", "Emad"))
