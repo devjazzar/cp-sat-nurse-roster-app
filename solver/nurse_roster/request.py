@@ -66,8 +66,8 @@ from pathlib import Path
 from .calendar import MonthInfo, parse_date, parse_month
 from .problem import SCHEMA_VERSION, Problem, read_json
 
-REQUEST_VERSION = 2           # what a caller writes; READABLE: what the loader still reads
-READABLE = (1, 2)
+REQUEST_VERSION = 2           # what a caller writes; READABLE_VERSIONS: what the loader still reads
+READABLE_VERSIONS = (1, 2)
 REPRODUCIBLE_WALL_FACTOR = 10    # reproducible: wall-clock guard = this x the deterministic budget.
                                  # CP-SAT's deterministic clock runs slower than the wall clock with
                                  # one worker (4-5 s per unit measured on a 10-nurse month), so the
@@ -127,8 +127,8 @@ def load_request(raw: object) -> Request:
         raise ValueError("request: must be a JSON object")
     _keys(raw, "request", _ROOT_REQUIRED, _ROOT_OPTIONAL)
     version = raw["version"]
-    if isinstance(version, bool) or not isinstance(version, (int, float)) or version not in READABLE:
-        raise ValueError(f"request: version must be {' or '.join(map(str, READABLE))}, got {version!r}")
+    if isinstance(version, bool) or not isinstance(version, (int, float)) or version not in READABLE_VERSIONS:
+        raise ValueError(f"request: version must be {' or '.join(map(str, READABLE_VERSIONS))}, got {version!r}")
     general, department = raw["general"], raw["department"]
     if version == 1:
         general, department = _version_1(raw)

@@ -3,9 +3,8 @@ causes of infeasibility in plain words. CP-SAT only says INFEASIBLE."""
 from __future__ import annotations
 
 from . import fairness as F
-from .problem import Problem, barred_days, expired_required, needed_history, skill_valid   # noqa: F401
-                                               # (needed_history: re-exported, defined with the contract)
-from .validate import expiry_words
+from .problem import (Problem, barred_days, expired_required, expiry_words, holds_skill,  # noqa: F401
+                      needed_history)          # (needed_history: re-exported, defined with the contract)
 
 # ---- cycle-rule automaton -------------------------------------------------------------
 # state = (run, offrun, last_full, danger, need_rest)
@@ -231,24 +230,25 @@ def precheck(p: Problem) -> list[str]:
     # ---- skill needs: anyone holding the skill, enough who may work the shift, each day --------
     for k in dep.skill_needs:
         name = f"skill need {k.shift}/{k.skill}"
-        mins = {d: k.weekend_min if p.is_weekend(d) else k.weekday_min for d in free}
+        priced = "" if dep.skill_needs_hard else " (soft: each nurse short is priced by skill_shortfall)"
+        mins = {d: k.minimum(p.is_weekend(d)) for d in free}
         if not any(mins.values()):
             continue
-        holders = [n for n in p.nurses if any(skill_valid(n, k.skill, d) for d in free)]
+        holders = [n for n in p.nurses if any(holds_skill(n, k.skill, d) for d in free)]
         if not holders:
-            issues.append(f"{name}: no nurse holds {k.skill} on any free day")
+            issues.append(f"{name}: no nurse holds {k.skill} on any free day" + priced)
             continue
         able = [n for n in holders if k.shift in allowed[n.id]]
         most = max(mins.values())
         if len(able) < most:
             issues.append(f"{name}: needs {most} on some day but only {len(able)} nurse(s) hold {k.skill} "
-                          f"and may work {k.shift}")
+                          f"and may work {k.shift}" + priced)
         for d, want in mins.items():
-            today = [n for n in able if skill_valid(n, k.skill, d) and d not in off_days(n)
+            today = [n for n in able if holds_skill(n, k.skill, d) and d not in off_days(n)
                      and n.pinned.get(d, k.shift) == k.shift]
             if len(today) < want:
                 issues.append(f"day {d}: {name} needs {want} but only {len(today)} nurse(s) holding {k.skill} "
-                              f"may work {k.shift} (not on leave, pinned elsewhere or barred)")
+                              f"may work {k.shift} (not on leave, pinned elsewhere or barred)" + priced)
 
     # ---- required skills that expire inside the month: no shift after the last day ---------
     for n in p.nurses:

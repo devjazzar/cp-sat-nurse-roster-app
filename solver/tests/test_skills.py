@@ -381,3 +381,9 @@ def test_a_grid_is_scored_with_the_two_rules_named_and_dated():
                                   "text": "skill need: day 0 N has 0 holding ICU, needs 1 (1 short)"}
     # June 2026 from a Monday, four Fridays: 26 working days at 7 h (breastfeeding) = 182 h owed, one 12 h shift worked
     assert nurses_of(req, roster)["Dana"]["carry_over"]["hours_balance"] == 182 - 12
+
+
+def test_precheck_says_a_soft_need_is_priced_not_infeasible():
+    p = unit([Nurse("a", skills={"ICU": -1}), Nurse("b")], days=2)
+    assert "skill need D/ICU: no nurse holds ICU on any free day (soft: each nurse short is priced by skill_shortfall)" \
+        in precheck(p)

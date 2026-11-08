@@ -16,11 +16,11 @@ from dataclasses import asdict, dataclass, field
 
 from ortools.sat.python import cp_model
 
-from .problem import Problem, barred_days, preference_factor
+from .problem import Problem, barred_days, preference_factor, skill_holders
 from . import fairness as F
 from .explain import Analysis, explain
 from .rules import active, soft_ids, weight
-from .validate import count_switches, matrix_errors, rest_owed_after, skill_holders, switch_memory, switch_seed
+from .validate import count_switches, matrix_errors, rest_owed_after, switch_memory, switch_seed
 
 MAX_WORKERS = 128
 STOP_POLL = 0.05        # seconds between checks of the caller's stop event (see solve)
@@ -367,15 +367,15 @@ def build_model(p: Problem) -> RosterModel:
         for k in dep.skill_needs:
             a = idx[k.shift]
             for d in range(D):
-                want = k.weekend_min if weekend[d] else k.weekday_min
+                want = k.minimum(weekend[d])
                 if want == 0:
                     continue
                 have = Sum([x[n][P + d][a] for n in skill_holders(p, k.skill, d)])
                 if dep.skill_needs_hard:
                     if d >= cut:                               # an elapsed day is a fact
                         m.add(have >= want)
-                else:                                          # soft: elapsed days still count, as
-                    short = m.new_int_var(0, want, f"sk{a}_{d}_{len(pen['skill_need'][0])}")   # the validator's
+                else:                                          # soft: elapsed days still count (as in the validator)
+                    short = m.new_int_var(0, want, f"sk{a}_{d}_{len(pen['skill_need'][0])}")
                     m.add(short >= want - have)
                     pen["skill_need"][0].append(short)
 

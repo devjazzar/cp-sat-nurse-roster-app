@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .problem import Nurse, Problem, barred_days, expired_required, preference_factor, skill_valid
+from .problem import Nurse, Problem, barred_days, expired_required, expiry_words, preference_factor, skill_holders
 from . import fairness as F
 from .rules import HARD, RULES, Match, active, level, soft_ids, weight
 
@@ -241,11 +241,6 @@ def _gender(c: Ctx) -> list[Match]:
     return out
 
 
-def expiry_words(last: int) -> str:
-    """A skill's last day, in the solver's day numbering: "day 4", or "before the month"."""
-    return "before the month" if last < 0 else f"day {last}"
-
-
 def _skill_expired(c: Ctx) -> list[Match]:
     """A shift on a day after the expiry of one of her required skills (the first to expire)."""
     out = []
@@ -262,11 +257,6 @@ def _skill_expired(c: Ctx) -> list[Match]:
 
 
 # ---- hard or soft ----------------------------------------------------------------------------
-def skill_holders(p: Problem, skill: str, d: int) -> list[int]:
-    """The nurses (indices) holding `skill` on day d: recorded, not past its expiry."""
-    return [n for n, nu in enumerate(p.nurses) if skill_valid(nu, skill, d)]
-
-
 def _skill_need(c: Ctx) -> list[Match]:
     """Each shift-day a need is short: the nurses on exactly its shift holding its skill that day,
     against the weekday or weekend minimum; the amount is the nurses short."""
@@ -274,14 +264,13 @@ def _skill_need(c: Ctx) -> list[Match]:
     for k in p.department.skill_needs:
         ai = c.idx[k.shift]
         for d in range(c.D):
-            want = k.weekend_min if p.is_weekend(d) else k.weekday_min
+            want = k.minimum(p.is_weekend(d))
             have = sum(1 for n in skill_holders(p, k.skill, d) if c.a[n][d] == ai)
             if have < want:
                 out.append(Match(None, d, want - have,
                                  f"skill need: day {d} {k.shift} has {have} holding {k.skill}, needs {want} "
                                  f"({want - have} short)", elapsed=d < c.F))
     return out
-
 
 
 def _night_rest(c: Ctx) -> list[Match]:

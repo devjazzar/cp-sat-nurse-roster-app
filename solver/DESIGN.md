@@ -274,7 +274,7 @@ Skills (2026-11-09, request version 2, ADR 0010 of the app), two rules in the re
   `skill_shortfall` (the one soft rule whose weight field is not its id; `RULES[id].weight`
   names it), unit "nurse short of a skill need on a shift-day", on when the unit has a need.
   Per need and day: the nurses on exactly its shift holding the skill that day
-  (`problem.skill_valid`: recorded, the day not after its expiry; `validate.skill_holders`)
+  (`problem.holds_skill`: recorded, the day not after its expiry; `problem.skill_holders`)
   against the weekday or weekend minimum. Hard: `Σ x ≥ min` on every free day (an elapsed day
   is a fact, reported in `Analysis.elapsed`). Soft: `short ≥ min − Σ x`, `0 ≤ short ≤ min`, one
   term per shift-day priced by the weight; elapsed days still counted, as every soft rule's are.

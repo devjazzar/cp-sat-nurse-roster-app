@@ -10,10 +10,9 @@ import pytest
 from nurse_roster.explain import diff, explain, report
 from tests.er_fixture import generate
 from nurse_roster.model import build_model, solve
-from nurse_roster.problem import Headcount, Nurse, Weights
+from nurse_roster.problem import Headcount, Nurse, SkillNeed, Weights
 from nurse_roster.rules import HARD, RULES, active, level, soft_ids, weight
 from nurse_roster.validate import CHECKS, validate
-from nurse_roster.problem import SkillNeed
 from tests.test_audit import hours_general, mini, quiet
 from tests.rules_helper import penalises, violates, only
 

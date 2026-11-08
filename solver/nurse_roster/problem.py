@@ -83,12 +83,22 @@ class Nurse:
                                        # and bars nothing even when required to work (ADR 0010)
 
 
-def skill_valid(nurse: Nurse, skill: str, d: int) -> bool:
+def holds_skill(nurse: Nurse, skill: str, d: int) -> bool:
     """Whether the nurse holds `skill` on day d: recorded, and d is not after its expiry."""
     if skill not in nurse.skills:
         return False
     last = nurse.skills[skill]
     return last is None or d <= last
+
+
+def skill_holders(p: "Problem", skill: str, d: int) -> list[int]:
+    """The nurses (indices) holding `skill` on day d."""
+    return [n for n, nu in enumerate(p.nurses) if holds_skill(nu, skill, d)]
+
+
+def expiry_words(last: int) -> str:
+    """A skill's last day, in the solver's day numbering: "day 4", or "before the month"."""
+    return "before the month" if last < 0 else f"day {last}"
 
 
 def expired_required(p: "Problem", nurse: Nurse) -> list[tuple[str, int]]:
@@ -166,6 +176,9 @@ class SkillNeed:
     skill: str
     weekday_min: int
     weekend_min: int
+
+    def minimum(self, weekend: bool) -> int:
+        return self.weekend_min if weekend else self.weekday_min
 
 
 @dataclass(slots=True)
