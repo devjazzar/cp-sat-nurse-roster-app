@@ -151,3 +151,5 @@ as the four ER nurses, Mona and Carla, then in the browser pane as Amal:
 (`OwnPreferences.outcomes` by date and kind), and the doubled month is `doubled_by`. A manager's view of what was kept would
 reuse them per nurse. The solver's `counted_in` for `undesired_day` still says "requested-off day worked" (ticket 29's
 finding), now beside the doubled words.
+
+**Reviewed by the user (2026-11-08):** all four Worth your review points kept as built (the doubled line whatever the weights; "4 of 5 kept" beside the heading; "No roster yet" only with a preference made; a date outside her dates reads On leave). PR #4 at head `a07d92a`, fast-forwarded into `main`; no migration.
