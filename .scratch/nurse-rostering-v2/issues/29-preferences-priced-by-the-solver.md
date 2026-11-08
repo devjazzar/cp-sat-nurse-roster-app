@@ -19,3 +19,15 @@
 - [ ] Audit entries `preference.made`, `preference.withdrawn`, `preference.asked_instead` target the nurse with no date or kind; no notification; a colleague's whole My month, print sheet and roster file unchanged; the authorization walk names every new endpoint
 - [ ] Tests at the agreed seams: the backend API suite (requesting, two-at-once at the cap, solves' input, units' cap, authorization), the frontend app-level suite (six runs at once), and one Playwright phone check: a day-off preference made, asked for as a request, the request withdrawn, the preference made again and withdrawn, leaving the stack as it was
 - [ ] `docs/ARCHITECTURE.md` sections 1, 4, 5, 8 and 12 updated; the OpenAPI document and the generated client regenerated
+
+## Comments
+
+**From ticket 28 (2026-11-08),** the solver's side this ticket feeds. The solve input's nurse fields stay `undesired_days`
+(her live day-off preferences) and `desired_days` (working-day ones), ISO dates of the month. A day she is on leave is
+ignored by the solver; a day listed twice, or in both lists, is refused (`request: nurses[i].desired_days: … is listed
+twice`, `request: nurses[i]: … is both desired and undesired`), so one wish a date must hold in the input too. The doubled
+price's field, `preferences_not_kept`, is already in every nurse's solve input, passed through the chain from the month
+before (`closes/chain.py`, 0 until preferences exist); once this ticket fills the lists, the next month's projection counts
+them, and ticket 30 tests and shows it. A doubled match in
+the explanation has `amount` 2 and its text ends "counts double, a preference was not kept last month". Ticket 28's comment
+has the rest.

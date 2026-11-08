@@ -307,6 +307,18 @@ class TestTheChain:
         assert {row["id"]: {key: row[key] for key in CARRIED} for row in july.nurses} == carried(close)
         assert {carry.source for carry in july.carried.values()} == {CarrySource.CLOSED}
 
+    def test_a_close_stored_before_the_count_existed_hands_on_zero(self, june, er, on):
+        on(dt.date(2026, 7, 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+        for row in close.carry_overs.all():                   # as a close made before ticket 28 stored it
+            row.values = {key: value for key, value in row.values.items() if key != "preferences_not_kept"}
+            row.save(update_fields=["values"])
+
+        july = assemble(er, JULY)
+
+        assert {row["preferences_not_kept"] for row in july.nurses} == {0}
+        assert {carry.source for carry in july.carried.values()} == {CarrySource.CLOSED}
+
     def test_a_later_draft_solved_before_the_close_is_warned_of(self, june, mona, er, solver, on):
         solved(mona, er, solver, "2026-07")
         on(dt.date(2026, 7, 1))
@@ -323,7 +335,7 @@ class TestTheChain:
         amal = NurseProfile.objects.get(user__username="Amal")
         close = MonthClose.objects.create(unit=er, month=dt.date(2026, 12, 1), version=1, input={}, result={})
         values = {"ytd_overtime": 40, "hours_balance": 6, "night_balance": 1.5, "friday_balance": -0.5, "previous": ["N", ""],
-                  "last_shift_kind": "night", "rest_owed": 1}
+                  "last_shift_kind": "night", "rest_owed": 1, "preferences_not_kept": 1}   # January keeps the count
         CarryOver.objects.create(nurse=amal, unit=er, month=close.month, source=CarrySource.CLOSED, close=close, values=values)
 
         row = next(row for row in assemble(er, dt.date(2027, 1, 1)).nurses if row["id"] == "Amal")

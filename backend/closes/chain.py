@@ -22,8 +22,12 @@ from rosters.models import Roster, RosterState
 logger = logging.getLogger(__name__)
 
 # A solve input's nurse fields that one month hands to the next: a result's `carry_over` block, field for field.
-CARRIED = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance", "previous", "last_shift_kind", "rest_owed")
-NO_HISTORY = {"previous": [], "last_shift_kind": None, "rest_owed": 0}
+# `preferences_not_kept` (ticket 28) is passed through as is: 0 until the app feeds preferences (tickets 29 and 30).
+CARRIED = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance", "previous", "last_shift_kind", "rest_owed",
+           "preferences_not_kept")
+NO_HISTORY = {"previous": [], "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": 0}
+# A close stored before the solver carried the count (ticket 28) has none: it hands on 0, as nothing was priced then.
+BEFORE_PREFERENCES = {"preferences_not_kept": 0}
 NEW_YEAR = {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0}
 
 
@@ -102,7 +106,8 @@ class Chain:
         holds her, or her start: the months before had no roster in this application to carry anything."""
         closed = latest_closed(nurse, month)
         if closed is not None:
-            carried, step = Carried(closed.values, CarrySource.CLOSED, closed.month, closed.month.year), next_month(closed.month)
+            carried = Carried(BEFORE_PREFERENCES | closed.values, CarrySource.CLOSED, closed.month, closed.month.year)
+            step = next_month(closed.month)
         else:
             carried, step = Carried(opening(nurse), CarrySource.OPENING, None, _added(nurse).year), self._first_roster(nurse, month)
         while step is not None and step < month:
