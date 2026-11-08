@@ -869,9 +869,9 @@ export const createSkillBodyNameMax = 100;
 
 export const CreateSkillBody = zod.object({
   "name": zod.string().min(1).max(createSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
-  "expires": zod.boolean().describe('Every nurse\'s record of it carries an expiry, the last day it counts.'),
-  "required_to_work": zod.boolean().describe('A nurse whose record of it has expired works no shift.'),
-  "active": zod.boolean().describe('Off retires it: it stays on this list, and nurses\' records of it stay.')
+  "expires": zod.boolean().describe('Every nurse who holds it has an expiry for it, the last day it counts.'),
+  "required_to_work": zod.boolean().describe('From the day after its expiry, a nurse holding it works no shift.'),
+  "active": zod.boolean().describe('Off retires it: it stays on this list, and the nurses who hold it keep it.')
 })
 
 export const CreateSkillResponse = zod.object({
@@ -902,9 +902,9 @@ export const updateSkillBodyNameMax = 100;
 
 export const UpdateSkillBody = zod.object({
   "name": zod.string().min(1).max(updateSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
-  "expires": zod.boolean().describe('Every nurse\'s record of it carries an expiry, the last day it counts.'),
-  "required_to_work": zod.boolean().describe('A nurse whose record of it has expired works no shift.'),
-  "active": zod.boolean().describe('Off retires it: it stays on this list, and nurses\' records of it stay.')
+  "expires": zod.boolean().describe('Every nurse who holds it has an expiry for it, the last day it counts.'),
+  "required_to_work": zod.boolean().describe('From the day after its expiry, a nurse holding it works no shift.'),
+  "active": zod.boolean().describe('Off retires it: it stays on this list, and the nurses who hold it keep it.')
 })
 
 export const UpdateSkillResponse = zod.object({

@@ -7266,17 +7266,17 @@
             "type": "string"
           },
           "expires": {
-            "description": "Every nurse's record of it carries an expiry, the last day it counts.",
+            "description": "Every nurse who holds it has an expiry for it, the last day it counts.",
             "title": "Expires",
             "type": "boolean"
           },
           "required_to_work": {
-            "description": "A nurse whose record of it has expired works no shift.",
+            "description": "From the day after its expiry, a nurse holding it works no shift.",
             "title": "Required To Work",
             "type": "boolean"
           },
           "active": {
-            "description": "Off retires it: it stays on this list, and nurses' records of it stay.",
+            "description": "Off retires it: it stays on this list, and the nurses who hold it keep it.",
             "title": "Active",
             "type": "boolean"
           }

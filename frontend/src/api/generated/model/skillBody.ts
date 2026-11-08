@@ -12,10 +12,10 @@ export interface SkillBody {
      * @maxLength 100
      */
   name: string;
-  /** Every nurse's record of it carries an expiry, the last day it counts. */
+  /** Every nurse who holds it has an expiry for it, the last day it counts. */
   expires: boolean;
-  /** A nurse whose record of it has expired works no shift. */
+  /** From the day after its expiry, a nurse holding it works no shift. */
   required_to_work: boolean;
-  /** Off retires it: it stays on this list, and nurses' records of it stay. */
+  /** Off retires it: it stays on this list, and the nurses who hold it keep it. */
   active: boolean;
 }

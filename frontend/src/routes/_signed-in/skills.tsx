@@ -75,11 +75,11 @@ function SkillForm({ skill, onDone, onCancel }: { skill: SkillSchema | null; onD
         <FormField label="Name" autoComplete="off" spellCheck={false}
           description={skill ? "The old name is recorded, so what was saved under it still finds this skill." : undefined}
           registration={form.register("name")} error={errors.name} />
-        <CheckboxField label="Expires" description="Every nurse's record of this skill carries an expiry, the last day it counts."
+        <CheckboxField label="Expires" description="Every nurse who holds this skill has an expiry for it, the last day it counts."
           registration={form.register("expires")} error={errors.expires} />
-        <CheckboxField label="Required to work" description="A nurse whose record of this skill has expired works no shift."
+        <CheckboxField label="Required to work" description="From the day after its expiry, a nurse holding this skill works no shift."
           registration={form.register("required_to_work")} error={errors.required_to_work} />
-        <CheckboxField label="Active" description="Turn this off to retire the skill. It stays on this list with nurses' records of it, and it can be made active again."
+        <CheckboxField label="Active" description="Turn this off to retire the skill. It stays on this list, the nurses who hold it keep it, and it can be made active again."
           registration={form.register("active")} error={errors.active} />
         {unexpected && <p role="alert" className="text-sm text-destructive">The skill could not be saved. Check your connection and try again.</p>}
         <div className="flex gap-2">

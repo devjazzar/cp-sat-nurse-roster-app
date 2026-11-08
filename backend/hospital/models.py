@@ -80,7 +80,7 @@ class Skill(models.Model):
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     name = models.CharField(max_length=100)
     expires = models.BooleanField()  # Every nurse's record of it carries an expiry.
-    required_to_work = models.BooleanField()  # A nurse whose record of it has expired works no shift that day.
+    required_to_work = models.BooleanField()  # From the day after its expiry, a nurse holding it works no shift.
     active = models.BooleanField(default=True)
 
     class Meta:

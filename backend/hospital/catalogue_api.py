@@ -278,9 +278,9 @@ def update_leave_type(request, leave_type_id: UUID, body: LeaveTypeBody) -> Leav
 # ---- skills ---------------------------------------------------------------------------------------
 class SkillBody(StrictSchema):
     name: Name = Field(description="What nurses' records, unit rules and solve inputs call it.")
-    expires: bool = Field(description="Every nurse's record of it carries an expiry, the last day it counts.")
-    required_to_work: bool = Field(description="A nurse whose record of it has expired works no shift.")
-    active: bool = Field(description="Off retires it: it stays on this list, and nurses' records of it stay.")
+    expires: bool = Field(description="Every nurse who holds it has an expiry for it, the last day it counts.")
+    required_to_work: bool = Field(description="From the day after its expiry, a nurse holding it works no shift.")
+    active: bool = Field(description="Off retires it: it stays on this list, and the nurses who hold it keep it.")
 
 
 class SkillRenameSchema(Schema):
@@ -314,7 +314,8 @@ def _skill_fields(skill: Skill) -> dict:
 def _write_skill(skill: Skill, body: SkillBody) -> None:
     skill.name, skill.expires, skill.required_to_work, skill.active = (
         body.name, body.expires, body.required_to_work, body.active)
-    skill.save()
+    # The constraint still decides should anything ever write without the catalogue's lock.
+    save_unless_taken(skill, "name", f"{body.name} is already a skill")
 
 
 def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
@@ -323,8 +324,9 @@ def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
     held = Skill.objects.filter(name__iexact=name).exclude(pk=skill_id).first()
     if held:
         refuse((("name",), f"{held.name} is already a skill"))
-    if SkillRename.objects.filter(old_name__iexact=name).exclude(skill_id=skill_id).exists():
-        refuse((("name",), f"{name} is the old name of another skill"))
+    held_before = SkillRename.objects.filter(old_name__iexact=name).exclude(skill_id=skill_id).first()
+    if held_before:
+        refuse((("name",), f"{held_before.old_name} is the old name of another skill"))
 
 
 @router.get("/skills", response=list[SkillSchema], operation_id="listSkills")

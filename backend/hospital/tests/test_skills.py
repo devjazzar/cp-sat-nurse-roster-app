@@ -144,7 +144,7 @@ def test_a_name_another_skill_used_to_hold_cannot_be_taken(cno):
     update(cno, "BLS", name="Basic life support")
 
     created = create(cno, name="bls")
-    assert refused_fields(created) == {("name",)} and messages(created) == ["bls is the old name of another skill"]
+    assert refused_fields(created) == {("name",)} and messages(created) == ["BLS is the old name of another skill"]
     assert refused_fields(update(cno, "ICU", name="BLS")) == {("name",)}
 
 
