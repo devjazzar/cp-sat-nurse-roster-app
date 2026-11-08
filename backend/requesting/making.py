@@ -1,6 +1,7 @@
-"""Opening and closing a request window, and a nurse making and withdrawing a request: each refusal, then the write, the audit
-entry and whoever is told. Call each inside a transaction. The audit log says that a window or a request moved and whose: never
-what a request asked for, its date or a reason, since a reason can be about someone's health and a date is part of a roster."""
+"""Opening and closing a request window, a nurse making and withdrawing a request, and making, withdrawing and asking for a
+preference as a request instead (ADR 0013): each refusal, then the write, the audit entry and whoever is told. Call each inside a transaction. The audit log says that a window or a request moved and whose: never
+what a request asked for, its date or a reason, since a reason can be about someone's health and a date is part of a roster; nor
+a preference's date or kind. Nobody is told of a preference."""
 from __future__ import annotations
 
 import datetime as dt
@@ -18,14 +19,16 @@ from hospital.models import Shift
 from notifications import sending
 from nurses import membership
 from nurses.models import NurseProfile
-from requesting.models import LIVE, Request, RequestState, RequestStep, RequestWindow, Step, WindowState
+from requesting.models import (LIVE, Preference, PreferenceKind, PreferenceState, Request, RequestState, RequestStep,
+                               RequestWindow, Step, WindowState)
 from requesting.windows import catch_up, not_closed, state_today
 from rosters.drafts import current_code
 from rosters.pins import Judge, long_date
 from units.models import Unit
 
-NO_CAP = ("This unit's request cap is 0, so its nurses could make no requests. Raise it on the Unit rules page to open a "
-          "window.")
+NO_CAP = ("This unit's request cap and preference cap are both 0, so its nurses could make neither requests nor preferences. "
+          "Raise one of them on the Unit rules page to open a window.")
+WINDOW_CLOSED_TO_PREFERENCES = "The request window has closed, so your preferences are fixed."
 
 
 def month_name(month: dt.date) -> str:
@@ -37,12 +40,26 @@ def at_the_cap(count: int, month: dt.date) -> str:
             "another.")
 
 
+def at_the_preference_cap(count: int, month: dt.date) -> str:
+    return (f"You have {count} preferences for {month_name(month)}, the most this unit allows. Withdraw one to make "
+            "another.")
+
+
+def no_requests(unit: Unit) -> str:
+    """A window opened on the preference cap alone."""
+    return f"The {unit.name} unit takes no requests, only preferences."
+
+
+def no_preferences(unit: Unit) -> str:
+    return f"The {unit.name} unit takes no preferences, only requests."
+
+
 def open_window(unit: Unit, month: dt.date, opens_on: dt.date, closes_on: dt.date, by: User,
                 request: HttpRequest) -> RequestWindow:
     """Hold the unit's lock. A window whose open date is today opens now, and its nurses are told at once; a later one opens,
     and tells them, when the hourly job or the next write finds its date has come."""
     today = membership.today()
-    if unit.request_cap == 0:
+    if unit.request_cap == 0 and unit.preference_cap == 0:
         raise HttpError(409, NO_CAP)
     if month <= membership.this_month():
         refuse((("month",), "Choose a coming month: requests are for a month not yet begun."))
@@ -94,16 +111,16 @@ def locked_nurse(user: User) -> NurseProfile:
 
 
 def nurse_refusal(judge: Judge, nurse: NurseProfile, day: dt.date, asked: str | None,
-                  shift: Shift | None) -> tuple[str, str] | None:
+                  shift: Shift | None, verb: str = "request") -> tuple[str, str] | None:
     """`Judge`'s answer, the one a manager's acceptance gets, said to the nurse, with the field it is about: a request that
-    could never be accepted is refused here."""
+    could never be accepted is refused here, and a preference that could count for nothing (`verb` "prefer")."""
     match judge.day_why(nurse.pk, day):
         case "not_in_month":
             return "date", f"You have no days on the {judge.unit.name} roster in {month_name(judge.month)}."
         case "outside_dates":
             return "date", f"{long_date(day)} is outside your dates on the roster."
         case "leave":
-            return "date", f"You are on leave on {long_date(day)}, so there is nothing to request that day."
+            return "date", f"You are on leave on {long_date(day)}, so there is nothing to {verb} that day."
     if asked is None:
         return None
     match judge.shift_why(nurse.pk, shift) if shift else "shift_not_worked":
@@ -128,14 +145,26 @@ def live_in(nurse: NurseProfile, month: dt.date, unit: Unit) -> QuerySet[Request
                                   state__in=LIVE)
 
 
-def make(user: User, day: dt.date, asked: str | None, reason: str, request: HttpRequest) -> Request:
-    nurse = locked_nurse(user)
-    month = day.replace(day=1)
+def _open_window_for(nurse: NurseProfile, month: dt.date) -> RequestWindow:
     latest = window_for(nurse, month)
     window = catch_up(RequestWindow.objects.filter(pk=latest.pk))[0] if latest else None
     if window is None or window.state != WindowState.OPEN:
         raise HttpError(409, f"No request window is open for {month_name(month)}.")
+    return window
+
+
+def live_preference_on(nurse: NurseProfile, day: dt.date) -> bool:
+    """Any unit's: one a transfer left behind still holds its date, as a request does."""
+    return Preference.objects.filter(nurse=nurse, date=day, state=PreferenceState.MADE).exists()
+
+
+def make(user: User, day: dt.date, asked: str | None, reason: str, request: HttpRequest) -> Request:
+    nurse = locked_nurse(user)
+    month = day.replace(day=1)
+    window = _open_window_for(nurse, month)
     unit = Unit.objects.get(pk=window.unit_id)
+    if unit.request_cap == 0:
+        raise HttpError(409, no_requests(unit))
     code = current_code(asked) if asked else None
     shift = Shift.objects.filter(code=code, active=True).first() if code else None
     refusal = nurse_refusal(Judge(unit, month), nurse, day, code, shift)
@@ -145,6 +174,9 @@ def make(user: User, day: dt.date, asked: str | None, reason: str, request: Http
     # Any unit's: a request a transfer left behind still holds its date until its manager decides it.
     if Request.objects.filter(nurse=nurse, date=day, state__in=LIVE).exists():
         refuse((("date",), f"You already have a request on {long_date(day)}. Withdraw it to ask for something else."))
+    if live_preference_on(nurse, day):
+        refuse((("date",), f"You have a preference on {long_date(day)}, and a date holds one wish. Withdraw it, or ask for it "
+                           "as a request instead."))
     if len(live) >= unit.request_cap:
         raise HttpError(409, at_the_cap(len(live), month))
     made = Request.objects.create(window=window, nurse=nurse, date=day, shift=shift)
@@ -168,3 +200,77 @@ def withdraw(user: User, request_id: UUID, request: HttpRequest) -> Request:
     RequestStep.objects.create(request=mine, step=Step.WITHDRAWN, by=user)
     record("request.withdrawn", actor=user, target=user.username, request=request)
     return mine
+
+
+def live_preferences_in(nurse: NurseProfile, month: dt.date, unit: Unit) -> QuerySet[Preference]:
+    """Those that count against this unit's preference cap, across the month's windows: one a transfer left on another unit's
+    record counts against that unit's only."""
+    return Preference.objects.filter(nurse=nurse, window__unit=unit, date__year=month.year, date__month=month.month,
+                                     state=PreferenceState.MADE)
+
+
+def make_preference(user: User, day: dt.date, kind: PreferenceKind, request: HttpRequest) -> Preference:
+    """Under the nurse's lock, as a request's count is taken, so two made at once cannot both pass the cap."""
+    nurse = locked_nurse(user)
+    month = day.replace(day=1)
+    window = _open_window_for(nurse, month)
+    unit = Unit.objects.get(pk=window.unit_id)
+    if unit.preference_cap == 0:
+        raise HttpError(409, no_preferences(unit))
+    refusal = nurse_refusal(Judge(unit, month), nurse, day, None, None, verb="prefer")
+    if refusal:
+        refuse(((refusal[0],), refusal[1]))
+    if Request.objects.filter(nurse=nurse, date=day, state__in=LIVE).exists():
+        refuse((("date",), f"You have a request on {long_date(day)}, and a date holds one wish. Withdraw the request to make a "
+                           "preference instead."))
+    if live_preference_on(nurse, day):
+        refuse((("date",), f"You already have a preference on {long_date(day)}. Withdraw it to prefer something else."))
+    count = live_preferences_in(nurse, month, unit).count()
+    if count >= unit.preference_cap:
+        raise HttpError(409, at_the_preference_cap(count, month))
+    made = Preference.objects.create(window=window, nurse=nurse, date=day, kind=kind)
+    record("preference.made", actor=user, target=user.username, request=request)
+    return made
+
+
+def _locked_preference(user: User, preference_id: UUID, doing: str) -> Preference:
+    """A made one of hers, while its window is open. Another nurse's is the same 404 as none."""
+    nurse = locked_nurse(user)
+    mine = Preference.objects.select_for_update(of=("self",)).filter(pk=preference_id, nurse=nurse).first()
+    if mine is None:
+        raise Http404("You have no such preference.")
+    if mine.state != PreferenceState.MADE:
+        raise HttpError(409, f"This preference is {mine.state_words}, so it cannot be {doing}.")
+    window = catch_up(RequestWindow.objects.filter(pk=mine.window_id))[0]
+    if state_today(window) != WindowState.OPEN:
+        raise HttpError(409, WINDOW_CLOSED_TO_PREFERENCES)
+    return mine
+
+
+def _end(preference: Preference, state: PreferenceState, user: User, made: Request | None = None) -> None:
+    preference.state, preference.ended_at, preference.ended_by, preference.request = state, timezone.now(), user, made
+    preference.save(update_fields=["state", "ended_at", "ended_by", "request"])
+
+
+def withdraw_preference(user: User, preference_id: UUID, request: HttpRequest) -> Preference:
+    mine = _locked_preference(user, preference_id, "withdrawn again")
+    _end(mine, PreferenceState.WITHDRAWN, user)
+    record("preference.withdrawn", actor=user, target=user.username, request=request)
+    return mine
+
+
+def ask_instead(user: User, preference_id: UUID, asked: str | None, request: HttpRequest) -> tuple[Preference, Request]:
+    """The request is made as any request is, under the request cap and the window's rules, for a day off or, for a working
+    day, the shift she chooses. Ending the preference first frees its date; a refusal of the request raises, and the caller's
+    transaction then undoes the preference's end too, so it fails as a whole."""
+    mine = _locked_preference(user, preference_id, "asked for as a request")
+    if mine.kind == PreferenceKind.DAY_OFF and asked:
+        refuse((("shift",), "This preference is for a day off, so it is asked for as a day off."))
+    if mine.kind == PreferenceKind.WORKING_DAY and not asked:
+        refuse((("shift",), "Choose the shift you ask for."))
+    _end(mine, PreferenceState.ASKED_INSTEAD, user)
+    made = make(user, mine.date, asked, "", request)
+    mine.request = made
+    mine.save(update_fields=["request"])
+    record("preference.asked_instead", actor=user, target=user.username, request=request)
+    return mine, made

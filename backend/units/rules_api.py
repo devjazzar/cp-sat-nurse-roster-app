@@ -33,7 +33,7 @@ Headcount = Annotated[int, Field(ge=0, le=MAX_NURSES)]
 Count = Annotated[int, Field(ge=0, le=MAX_PARAM)]
 ScoreLevel = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 ShiftCount = Annotated[float, Field(ge=0, le=MAX_PARAM, allow_inf_nan=False)]
-MAX_REQUESTS = 31  # A request is about one date of one month.
+MAX_REQUESTS = 31  # A request, or a preference, is about one date of one month.
 
 
 class HeadcountRule(StrictSchema):
@@ -90,6 +90,7 @@ class UnitRules(StrictSchema):
 class UnitRulesBody(StrictSchema):
     rules: UnitRules
     request_cap: int = Field(ge=0, le=MAX_REQUESTS, description="Requests per nurse per month.")
+    preference_cap: int = Field(ge=0, le=MAX_REQUESTS, description="Preferences per nurse per month. 0 switches them off.")
     default_time_limit: int = Field(ge=1, description="Seconds. At most the System Admin's time limit cap.")
 
 
@@ -144,6 +145,7 @@ class UnitRulesState(Schema):
     rules: UnitRulesAnswer
     needs_review: bool = Field(description="Still the seeded defaults: nobody has saved them yet.")
     request_cap: int
+    preference_cap: int
     default_time_limit: int
     time_limit_cap: int = Field(description="The longest a solve may search, set by the System Admin. In seconds.")
     active_shifts: list[ShiftChoice] = Field(description="What the unit may choose its shifts from.")
@@ -151,7 +153,7 @@ class UnitRulesState(Schema):
 
 def _state(unit: Unit) -> dict:
     return {"rules": unit.rules, "needs_review": unit.rules_need_review, "request_cap": unit.request_cap,
-            "default_time_limit": unit.default_time_limit,
+            "preference_cap": unit.preference_cap, "default_time_limit": unit.default_time_limit,
             "time_limit_cap": TechnicalSettings.load().time_limit_cap_seconds,
             "active_shifts": list(Shift.objects.filter(active=True))}
 
@@ -274,14 +276,17 @@ def update_unit_rules(request, unit_id: UUID, body: UnitRulesBody) -> dict:
 
         rules = body.rules.model_dump()
         old, new = differing(
-            unit.rules | {"request_cap": unit.request_cap, "default_time_limit": unit.default_time_limit},
-            rules | {"request_cap": body.request_cap, "default_time_limit": body.default_time_limit})
+            unit.rules | {"request_cap": unit.request_cap, "preference_cap": unit.preference_cap,
+                          "default_time_limit": unit.default_time_limit},
+            rules | {"request_cap": body.request_cap, "preference_cap": body.preference_cap,
+                     "default_time_limit": body.default_time_limit})
         if unit.rules_need_review:
             old, new = {"needs_review": True, **old}, {"needs_review": False, **new}
         if new:
             narrow_allowed_shifts(unit, body.rules.shifts)
             unit.rules, unit.rules_need_review = rules, False
-            unit.request_cap, unit.default_time_limit = body.request_cap, body.default_time_limit
-            unit.save(update_fields=["rules", "rules_need_review", "request_cap", "default_time_limit"])
+            unit.request_cap, unit.preference_cap = body.request_cap, body.preference_cap
+            unit.default_time_limit = body.default_time_limit
+            unit.save(update_fields=["rules", "rules_need_review", "request_cap", "preference_cap", "default_time_limit"])
             record("unit_rules.changed", actor=request.user, target=unit.name, before=old, after=new, request=request)
     return _state(unit)

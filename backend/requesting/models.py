@@ -130,3 +130,48 @@ class RequestStep(models.Model):
 
     class Meta:
         ordering = ["at", "id"]
+
+
+class PreferenceKind(models.TextChoices):
+    DAY_OFF = "day_off"
+    WORKING_DAY = "working_day", "A working day, of any shift."
+
+
+class PreferenceState(models.TextChoices):
+    MADE = "made"
+    WITHDRAWN = "withdrawn"
+    ASKED_INSTEAD = "asked_instead", "Ended by asking for it as a request (`request`)."
+
+
+class Preference(models.Model):
+    """A nurse's soft wish about one date of the window's month (ADR 0013): nobody decides it and it is never a pin; the solve
+    input lists the live ones (`made`) as the days she asked off or to work, which the solver keeps at the weight's price.
+    Whether its date is on leave is read, never stored, since leave may be removed. Nothing is deleted: one ended keeps its
+    final state. Only the nurse and her unit's manager read it, and the audit log keeps neither its date nor its kind."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    window = models.ForeignKey(RequestWindow, on_delete=models.PROTECT, related_name="preferences")
+    nurse = models.ForeignKey("nurses.NurseProfile", on_delete=models.PROTECT, related_name="preferences")
+    date = models.DateField()
+    kind = models.CharField(max_length=11, choices=PreferenceKind)
+    state = models.CharField(max_length=13, choices=PreferenceState, default=PreferenceState.MADE)
+    made_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    request = models.OneToOneField(Request, on_delete=models.PROTECT, null=True, blank=True, related_name="from_preference",
+                                   help_text="The request she asked for instead.")
+
+    class Meta:
+        ordering = ["date", "made_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["nurse", "date"], condition=models.Q(state="made"),
+                                    name="requesting_one_live_preference_a_nurse_date"),
+            models.CheckConstraint(condition=models.Q(state="made") | models.Q(ended_at__isnull=False),
+                                   name="requesting_an_ended_preference_says_when"),
+            models.CheckConstraint(condition=models.Q(state="asked_instead") | models.Q(request__isnull=True),
+                                   name="requesting_only_one_asked_instead_names_a_request"),
+        ]
+
+    @property
+    def state_words(self) -> str:
+        return self.state.replace("_", " ")

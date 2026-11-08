@@ -138,7 +138,7 @@ class TestStarting:
         version.grid["Amal"]["2026-06-03"] = "E"
         version.save()
         Roster.objects.filter(unit=er).update(grid=version.grid)
-        body = {"rules": er.rules | {"shifts": ["D", "N"]}, "request_cap": er.request_cap,
+        body = {"rules": er.rules | {"shifts": ["D", "N"]}, "request_cap": er.request_cap, "preference_cap": er.preference_cap,
                 "default_time_limit": er.default_time_limit}
         assert mona.put(url(er, "/rules"), body, content_type="application/json").status_code == 422
         er.rules = er.rules | {"shifts": ["D", "N"]}

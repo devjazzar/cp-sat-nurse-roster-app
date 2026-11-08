@@ -102,7 +102,7 @@ def test_once_the_manager_has_taken_it_out_it_can_be_retired(cno, client_of):
     Unit.objects.filter(pk=er.pk).update(manager=User.objects.get(username="mona"))
     assert "ER" in refusal(change_shift(cno, "A", active=False))[1]
 
-    saved = mona.put(f"/api/units/{er.pk}/rules", {"rules": DEFAULT_UNIT_RULES, "request_cap": 3, "default_time_limit": 60},
+    saved = mona.put(f"/api/units/{er.pk}/rules", {"rules": DEFAULT_UNIT_RULES, "request_cap": 3, "preference_cap": 10, "default_time_limit": 60},
                      content_type="application/json")
 
     assert saved.status_code == 200, saved.content

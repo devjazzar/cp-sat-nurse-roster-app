@@ -68,7 +68,7 @@ def my_rows(requests: Iterable[Request]) -> list[MyRequestRow]:
                          steps=step_rows(list(row.steps.all()))) for row in requests]
 
 
-def _shifts(nurse: NurseProfile, month: dt.date, unit: Unit) -> list[RequestableShift]:
+def requestable_shifts(nurse: NurseProfile, month: dt.date, unit: Unit) -> list[RequestableShift]:
     allowed = membership.placement_in(nurse, month).allowed_shifts
     shifts = Shift.objects.filter(active=True, code__in=unit.rules.get("shifts", [])).order_by("start_time", "code")
     return [RequestableShift(code=shift.code, display_name=shift.display_name) for shift in shifts
@@ -93,11 +93,13 @@ def my_requests(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyReque
     first, last = max(month, nurse.start_date), min(membership.last_day_of(month), nurse.end_date or dt.date.max)
     if first <= last:
         answer.first_day, answer.last_day = first, last
-    answer.shifts = _shifts(nurse, month, window.unit)
+    answer.shifts = requestable_shifts(nurse, month, window.unit)
     if state != WindowState.OPEN:
         return answer
     if first > last:
         answer.refusal = f"You have no days on the {window.unit.name} roster in {making.month_name(month)}."
+    elif window.unit.request_cap == 0:
+        answer.refusal = making.no_requests(window.unit)
     elif answer.counted >= answer.request_cap:
         answer.refusal = making.at_the_cap(answer.counted, month)
     else:

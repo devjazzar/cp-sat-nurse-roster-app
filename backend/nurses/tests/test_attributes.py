@@ -82,7 +82,7 @@ def transfer(client, nurse_id, unit, month):
 
 def save_rules(client, unit, **changes):
     return client.put(f"/api/units/{unit.pk}/rules",
-                      {"rules": DEFAULT_UNIT_RULES | changes, "request_cap": 3, "default_time_limit": 60},
+                      {"rules": DEFAULT_UNIT_RULES | changes, "request_cap": 3, "preference_cap": 10, "default_time_limit": 60},
                       content_type="application/json")
 
 

@@ -399,7 +399,7 @@ class TestTheCataloguesGuards:
 
 class TestAUnitDroppingAShift:
     def rules(self, er, **changes) -> dict:
-        return {"rules": sample_rules() | changes, "request_cap": er.request_cap, "default_time_limit": er.default_time_limit}
+        return {"rules": sample_rules() | changes, "request_cap": er.request_cap, "preference_cap": er.preference_cap, "default_time_limit": er.default_time_limit}
 
     def test_it_is_refused_while_a_pin_uses_it_naming_who_and_when(self, mona, er, solver):
         Shift.objects.create(code="E", display_name="Evening", hours=8, start_time="14:00", end_time="22:00", colour="#00aa00", active=True)

@@ -28,9 +28,9 @@ def rules_of(unit) -> str:
     return f"/api/units/{unit.pk}/rules"
 
 
-def body(request_cap=3, default_time_limit=60, **changes) -> dict:
+def body(request_cap=3, default_time_limit=60, preference_cap=10, **changes) -> dict:
     return {"rules": copy.deepcopy(DEFAULT_UNIT_RULES) | changes, "request_cap": request_cap,
-            "default_time_limit": default_time_limit}
+            "preference_cap": preference_cap, "default_time_limit": default_time_limit}
 
 
 def put(client, unit, payload):
@@ -149,7 +149,8 @@ def test_the_answer_says_what_the_page_needs(mona, er):
 
     assert state["rules"] == DEFAULT_UNIT_RULES
     assert state["needs_review"] is True
-    assert (state["request_cap"], state["default_time_limit"], state["time_limit_cap"]) == (3, 60, 300)
+    assert (state["request_cap"], state["preference_cap"], state["default_time_limit"], state["time_limit_cap"]) == (
+        3, 10, 60, 300)
     assert [shift["code"] for shift in state["active_shifts"]] == ["D", "N", "A", "B", "C"]
     assert state["active_shifts"][0] == {"code": "D", "display_name": "Day", "hours": 12}
 
@@ -204,14 +205,14 @@ def test_saving_again_with_no_change_writes_nothing(mona, er):
 def test_an_entry_holds_only_what_changed_with_its_values(mona, er):
     put(mona, er, body())
 
-    put(mona, er, body(request_cap=5, default_time_limit=120, score_target=0.6))
+    put(mona, er, body(request_cap=5, preference_cap=0, default_time_limit=120, score_target=0.6))
 
     entry = AuditEntry.objects.filter(action="unit_rules.changed").latest("id")
-    assert entry.before == {"score_target": 0.7, "request_cap": 3, "default_time_limit": 60}
-    assert entry.after == {"score_target": 0.6, "request_cap": 5, "default_time_limit": 120}
+    assert entry.before == {"score_target": 0.7, "request_cap": 3, "preference_cap": 10, "default_time_limit": 60}
+    assert entry.after == {"score_target": 0.6, "request_cap": 5, "preference_cap": 0, "default_time_limit": 120}
     er.refresh_from_db()
-    assert (er.request_cap, er.default_time_limit) == (5, 120)
-    assert "request_cap" not in er.rules, "The block stays the solver's alone."
+    assert (er.request_cap, er.preference_cap, er.default_time_limit) == (5, 0, 120)
+    assert not {"request_cap", "preference_cap"} & set(er.rules), "The block stays the solver's alone."
 
 
 def test_the_system_admin_can_read_unit_rule_values_in_the_log_as_with_hospital_rules(mona, er, client_of):
@@ -277,6 +278,9 @@ def test_a_refusal_names_its_field_and_saves_nothing(mona, er, changes, field):
     ({"request_cap": -1}, ("request_cap",)),
     ({"request_cap": 32}, ("request_cap",)),
     ({"request_cap": "3"}, ("request_cap",)),
+    ({"preference_cap": -1}, ("preference_cap",)),
+    ({"preference_cap": 32}, ("preference_cap",)),
+    ({"preference_cap": None}, ("preference_cap",)),
     ({"default_time_limit": 0}, ("default_time_limit",)),
     ({"default_time_limit": 301}, ("default_time_limit",)),
 ])

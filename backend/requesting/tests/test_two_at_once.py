@@ -12,10 +12,12 @@ from notifications.models import Notification
 from notifications.tests.test_events import as_user
 from nurses import membership
 from nurses.tests.test_two_at_once import alongside
-from requesting.models import Request, RequestState
+from requesting.models import Preference, Request, RequestState
 from requesting.tasks import open_and_close_request_windows
 from requesting.tests.conftest import ask, asked, decide, opened
+from requesting.tests.test_preferences import prefer, preferred
 from requesting.tests.test_requests import leave_for
+from units.models import Unit
 from solves.tests.conftest import empty_queue  # noqa: F401
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -47,6 +49,36 @@ def test_two_requests_at_the_cap_cannot_both_pass_it(mona, er, pool):
     assert (answer.status_code, answer.json()["detail"]) == (
         409, "You have 3 requests for June 2026, the most this unit allows. Withdraw a pending one to make another.")
     assert Request.objects.count() == 3
+
+
+def test_two_preferences_at_the_cap_cannot_both_pass_it(mona, er, pool):
+    Unit.objects.filter(pk=er.pk).update(preference_cap=2)
+    opened(mona, er)
+    amal, again = as_user("Amal"), as_user("Amal")
+    preferred(amal, 3)
+
+    with transaction.atomic():
+        assert prefer(amal, 4).status_code == 201
+        second = alongside(pool, lambda: prefer(again, 5, "working_day"))
+        assert not second.done()
+
+    answer = second.result()
+    assert (answer.status_code, answer.json()["detail"]) == (
+        409, "You have 2 preferences for June 2026, the most this unit allows. Withdraw one to make another.")
+    assert Preference.objects.count() == 2
+
+
+def test_a_request_and_a_preference_on_one_date_at_once_cannot_both_hold_it(mona, er, pool):
+    opened(mona, er)
+    amal, again = as_user("Amal"), as_user("Amal")
+
+    with transaction.atomic():
+        assert ask(amal, 3).status_code == 201
+        second = alongside(pool, lambda: prefer(again, 3))
+        assert not second.done()
+
+    assert second.result().json()["detail"][0]["msg"].startswith("You have a request on 3 June 2026")
+    assert Preference.objects.count() == 0
 
 
 def test_of_two_acceptances_the_second_waits_and_finds_it_accepted(mona, er, pool):

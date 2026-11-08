@@ -18,7 +18,7 @@ from hospital.api import StrictSchema, refuse
 from hospital.catalogue_api import IsoDate
 from nurses.api import MonthText
 from requesting import deciding, making
-from requesting.models import Request, RequestState, RequestStep, RequestWindow, WindowState
+from requesting.models import Preference, Request, RequestState, RequestStep, RequestWindow, WindowState
 from requesting.windows import state_today
 from rosters.models import PinnedCell, PinOrigin, Roster, RosterVersion
 from rosters.pins import AsideWhy, Judge
@@ -61,10 +61,12 @@ class WindowRow(Schema):
     closed_early_by: str | None
     pending: int
     requests: int = Field(description="Every request made in it, whatever its state.")
+    preferences: int = Field(description="Every preference made in it, whatever its state.")
 
 
 class UnitWindows(Schema):
     request_cap: int = Field(description="Requests per nurse per month.")
+    preference_cap: int = Field(description="Preferences per nurse per month.")
     windows: list[WindowRow] = Field(description="Newest first.")
     open_refusal: str | None = Field(description="Why a window cannot be opened now.")
 
@@ -72,7 +74,8 @@ class UnitWindows(Schema):
 def with_counts(windows: QuerySet[RequestWindow]) -> QuerySet[RequestWindow]:
     # A grouped query drops the model's ordering, so it is said again.
     return windows.select_related("closed_by").annotate(
-        made=Count("requests"), pending=Count("requests", filter=Q(requests__state=RequestState.PENDING))
+        made=Count("requests", distinct=True), preferred=Count("preferences", distinct=True),
+        pending=Count("requests", filter=Q(requests__state=RequestState.PENDING), distinct=True),
     ).order_by("-opens_on", "-created_at")
 
 
@@ -81,11 +84,11 @@ def window_row(window: RequestWindow) -> WindowRow:
     closer = window.closed_by
     return WindowRow(id=window.pk, month=window.month.strftime("%Y-%m"), opens_on=window.opens_on, closes_on=window.closes_on,
                      state=state_today(window), closed_early_by=(closer.full_name or closer.username) if closer else None,
-                     pending=window.pending, requests=window.made)
+                     pending=window.pending, requests=window.made, preferences=window.preferred)
 
 
 def _open_refusal(unit: Unit, windows: list[RequestWindow]) -> str | None:
-    if unit.request_cap == 0:
+    if unit.request_cap == 0 and unit.preference_cap == 0:
         return making.NO_CAP
     waiting = next((window for window in windows if state_today(window) != WindowState.CLOSED), None)
     return "A unit has one request window at a time: close this one first." if waiting else None
@@ -95,7 +98,7 @@ def _open_refusal(unit: Unit, windows: list[RequestWindow]) -> str | None:
 def request_windows(request: HttpRequest, unit_id: UUID) -> UnitWindows:
     unit = unit_in_scope(request.user, unit_id)
     windows = list(with_counts(RequestWindow.objects.filter(unit=unit)))
-    return UnitWindows(request_cap=unit.request_cap, windows=[window_row(window) for window in windows],
+    return UnitWindows(request_cap=unit.request_cap, preference_cap=unit.preference_cap, windows=[window_row(window) for window in windows],
                        open_refusal=_open_refusal(unit, windows))
 
 
@@ -174,6 +177,29 @@ def window_requests(request: HttpRequest, unit_id: UUID, window_id: UUID) -> lis
     if window is None:
         raise Http404("There is no such request window.")
     return _unit_rows(unit, list(with_steps(window.requests.all()).order_by("date", "made_at")))
+
+
+class UnitPreferenceRow(Schema):
+    id: UUID
+    hospital_id: str
+    full_name: str
+    date: dt.date
+    kind: Literal["day_off", "working_day"]
+    state: Literal["made", "withdrawn", "asked_instead"] = Field(description="Only `made` reaches a solve.")
+
+
+@router.get("/{unit_id}/request-windows/{window_id}/preferences", response=list[UnitPreferenceRow], auth=manager,
+            operation_id="listWindowPreferences")
+def window_preferences(request: HttpRequest, unit_id: UUID, window_id: UUID) -> list[UnitPreferenceRow]:
+    """Read-only, by date, then when they were made: nobody decides a preference (ADR 0013). A nurse transferred out of the
+    month since keeps hers here; it reaches no solve of this unit."""
+    unit = unit_in_scope(request.user, unit_id)
+    window = RequestWindow.objects.filter(unit=unit, pk=window_id).first()
+    if window is None:
+        raise Http404("There is no such request window.")
+    rows = window.preferences.select_related("nurse__user").order_by("date", "made_at")
+    return [UnitPreferenceRow(id=row.pk, hospital_id=row.nurse.user.username, full_name=row.nurse.user.full_name,
+                              date=row.date, kind=row.kind, state=row.state) for row in rows]
 
 
 class AcceptRequestBody(StrictSchema):

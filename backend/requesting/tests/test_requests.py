@@ -168,8 +168,8 @@ class TestOpeningAWindow:
         assert [(error["loc"][-1], error["msg"]) for error in response.json()["detail"]] == [(field, words)]
         assert RequestWindow.objects.count() == 0
 
-    def test_a_unit_whose_cap_is_0_cannot_open_one(self, mona, er):
-        Unit.objects.filter(pk=er.pk).update(request_cap=0)
+    def test_a_unit_whose_two_caps_are_0_cannot_open_one(self, mona, er):
+        Unit.objects.filter(pk=er.pk).update(request_cap=0, preference_cap=0)
 
         assert refused(open_window(mona, er)) == NO_CAP
         assert windows(mona, er)["open_refusal"] == NO_CAP

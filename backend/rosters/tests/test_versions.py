@@ -416,7 +416,7 @@ class TestAUnitDroppingAShiftTheRosterInForceHolds:
 
     @staticmethod
     def take_e_out(client, unit):
-        body = {"rules": sample_rules(), "request_cap": unit.request_cap, "default_time_limit": unit.default_time_limit}
+        body = {"rules": sample_rules(), "request_cap": unit.request_cap, "preference_cap": unit.preference_cap, "default_time_limit": unit.default_time_limit}
         return client.put(f"/api/units/{unit.pk}/rules", body, content_type="application/json")
 
     def test_it_is_refused_naming_the_month_who_and_when(self, mona, holding_e):

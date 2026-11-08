@@ -16,6 +16,7 @@ class Unit(models.Model):
     rules = models.JSONField()
     rules_need_review = models.BooleanField(default=True)
     request_cap = models.PositiveSmallIntegerField(default=3, help_text="Requests per nurse per month.")
+    preference_cap = models.PositiveSmallIntegerField(default=10, help_text="Preferences per nurse per month (ADR 0013).")
     default_time_limit = models.PositiveIntegerField(default=60, help_text="Seconds a solve searches unless told otherwise.")
 
     class Meta:
