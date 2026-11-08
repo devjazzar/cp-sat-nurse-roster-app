@@ -175,3 +175,5 @@ ticket's.
   real: from the first month with preferences, `preferences_not_kept` can be above 0 and the next month's solves double. A
   preference on leave stays `made`; the outcome's On leave is read from leave, as the spec says. Live preferences are
   `state="made"` of the unit's windows for the month (`window__unit`).
+
+**Reviewed by the user (2026-11-08):** all five "Worth your review" points kept as built: a working-day preference asked for as a request asks for the shift; no refusal of a cap change while a window is open (the spec's line read as the "both at 0" refusal); the words the spec did not give; one live preference a date in any unit, a transfer's left-behind one included; the doubled price live from this ticket, with ticket 30 next so My month explains it. Merged through PR #3 (head `a108e17`) after both workflows passed on it; the dev stack rebuilt with `docker compose up -d --build`, the requesting and units migrations applied.
