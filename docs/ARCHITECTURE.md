@@ -484,6 +484,11 @@ each nurse may carry `preferences_not_kept`, how many of her preferences (`undes
 before did not keep, absent meaning 0 so every stored solve input and close input still loads. Above 0, each of her
 preferences costs twice its weight, in the search and in the explanation, whose match says it "counts double". A result's
 `carry_over` block carries the same field for next month, counted from the month's facts with leave days left out.
+The app fills it in every solve input, a re-plan's and a close's included, from the carry-over chain (section 7), and fills
+the two lists from her live preferences of the unit's windows. My month reads what was kept with the package's own reading of
+"not kept" (`nurse_roster.validate.unkept_days`), on the version in force as the month stands or on the close in force's
+facts, so the outcomes she reads add up to the count the next month is priced on, whatever the two weights; and it reads
+whether hers count double from the same chain value the solve input takes (`rosters.own_month`).
 
 ## 7. The worker and the queue (ADR 0006)
 
@@ -509,7 +514,12 @@ minute takes a lock of its own. Jobs:
   is not closed, oldest month first across units, so a worker that was down catches up; and `project_carry_over` on demand,
   after every new roster version and every close, under its own lock, which stores the projected carry-over of an approved
   month and of the unit's approved months after it. Neither calls the solver
-  service: the carry-over is worked out in the worker's process by `solver_service.grid`. A solve of a later month
+  service: the carry-over is worked out in the worker's process by `solver_service.grid`. The chain carries each field of the
+  result's `carry_over` block (`closes.chain.CARRIED`), the count of preferences not kept among them (ticket 30): projected
+  from the roster in force, corrected at the close and re-worked at a re-close, 0 through a month with no roster for her and
+  out of her opening values (which have no field for it), not reset in January, and following her across a transfer. It
+  remembers one month only, so a nurse's preferences count double in the month after one was not kept, and not after that
+  unless another was not. A close stored before the count existed hands on 0. A solve of a later month
   that is queued or running goes on, and its draft is warned of as older than the close.
 - `backup` (every five minutes): takes the nightly backup once the backup time has passed on the hospital's clock and none
   was taken since, so a worker that was down catches up, then removes those past the days kept, never the newest. Its own lock
@@ -568,7 +578,9 @@ rostering attributes and leave to read); Unit Manager (unit rules, rostering att
 windows, requests and the unit's preferences (read-only), swaps, covers, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff
 Nurse reads them, but no requests, swaps or covers of their own); Staff Nurse (unit roster, own month: hours, overtime, what
-is carried, shift counts and leave with its type, requests, a Preferences card beside them, swaps, covers offered to them,
+is carried, shift counts and leave with its type, requests, a Preferences card beside them ("4 of 5 kept" once the roster
+is approved, "No roster yet" before, each one Kept, Not kept or On leave, and when hers count double this month, the month
+that caused it), swaps, covers offered to them,
 notifications, password). A nurse's own hours are
 worked out from the version in force on the month as it stands, with the solver's own arithmetic, for this month and later;
 a month already over shows its leave only. Every role has the bell and Change password. The Deputy CNO, Unit Manager and Staff Nurse also read
