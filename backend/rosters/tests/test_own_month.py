@@ -206,14 +206,16 @@ class TestWhatWasKept:
         assert outcomes(answer) == JUNE_OUTCOMES | {"2026-06-02": "on_leave"}
         assert counted(answer) == (3, 4)
 
-    def test_a_managers_edit_that_breaks_one_counts_as_not_kept(self, mona, er, solver, carla):
-        """Version 2 puts Amal on Night on the 10th, a day she asked off."""
+    @pytest.mark.parametrize("origin", [VersionOrigin.EDIT, VersionOrigin.REPLAN])
+    def test_a_later_version_that_breaks_one_counts_it_as_not_kept(self, origin, mona, er, solver, carla):
+        """Version 2, a manager's edit or a re-plan's, puts Amal on Night on the 10th, a day she asked off: the roster in force
+        however it came about."""
         amals_preferences(er)
         approved_june(mona, er, solver, carla)
         roster = Roster.objects.get(unit=er)
         grid = copy.deepcopy(roster.grid)
         grid["Amal"]["2026-06-10"] = "N"
-        RosterVersion.objects.create(roster=roster, number=2, grid=grid, origin=VersionOrigin.EDIT, created_by=roster.solve.requested_by)
+        RosterVersion.objects.create(roster=roster, number=2, grid=grid, origin=origin, created_by=roster.solve.requested_by)
 
         answer = preferences(as_user("Amal"))
 
@@ -221,8 +223,8 @@ class TestWhatWasKept:
         assert counted(answer) == (2, 5)
 
     def test_one_withdrawn_has_no_outcome_and_counts_neither_way(self, mona, er, solver, carla):
-        from requesting.models import PreferenceState
         """A withdrawn one on the 3rd, and one on the 5th withdrawn before the day off made again there."""
+        from requesting.models import PreferenceState
         preference(er, "Amal", dt.date(2026, 6, 3), state=PreferenceState.WITHDRAWN)
         preference(er, "Amal", dt.date(2026, 6, 5), state=PreferenceState.WITHDRAWN)
         amals_preferences(er)

@@ -61,15 +61,16 @@ class MyPreferences(Schema):
 
 
 def _rows(preferences: Iterable[Preference], kept: OwnPreferences | None = None) -> list[MyPreferenceRow]:
-    outcomes = kept.outcomes if kept else {}
+    outcomes = kept.outcomes if kept else {}  # by date and kind: a withdrawn one may share both with the one made since
     return [MyPreferenceRow(id=row.pk, date=row.date, kind=row.kind, state=row.state,
                             outcome=outcomes.get((row.date, row.kind)) if row.state == PreferenceState.MADE else None)
             for row in preferences]
 
 
-def _kept(request: HttpRequest, chosen: str | None) -> OwnPreferences | None:
-    """What the roster in force kept, from the version My month reads (`rosters.reading_api.in_force`)."""
-    found = in_force(request.user, chosen)
+def _what_was_kept(user, chosen: str) -> OwnPreferences | None:
+    """What the roster in force kept, from the version My month reads (`rosters.reading_api.in_force`): none before it is
+    approved, and none for a month over until it has closed, as My month's hours."""
+    found = in_force(user, chosen)
     if found.version is None:
         return None
     mine = found.nurse.user.username
@@ -84,7 +85,7 @@ def my_preferences(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyPr
     """The hospital's current month when none is given, as the rest of My month."""
     month = dt.date.fromisoformat(f"{filters.month}-01") if filters.month else membership.this_month()
     nurse = NurseProfile.objects.select_related("user").filter(user=request.user).first()
-    kept = _kept(request, month.strftime("%Y-%m"))
+    kept = _what_was_kept(request.user, month.strftime("%Y-%m"))
     rows = _rows(Preference.objects.filter(nurse=nurse, date__year=month.year, date__month=month.month), kept)
     window = making.window_for(nurse, month) if nurse else None
     doubled = doubled_by(nurse, month) if nurse else None

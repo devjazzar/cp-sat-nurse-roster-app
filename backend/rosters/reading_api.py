@@ -151,7 +151,7 @@ class MyRosterFilter(Schema):
 
 
 @dataclass
-class _InForce:
+class MonthInForce:
     """The month a nurse reads, the unit it falls under for them and the version in force there, if any. A month before this one
     is read once it has closed, as its close read it: the version it closed and the figures it stored (ticket 21)."""
     month: dt.date
@@ -185,13 +185,13 @@ def _first_month(nurse: NurseProfile | None) -> dt.date:
     return min(earliest, this_month) if earliest else this_month
 
 
-def in_force(user: User, chosen: str | None) -> _InForce:
+def in_force(user: User, chosen: str | None) -> MonthInForce:
     """The unit is the one the month falls under for them, so across a transfer each month shows its own unit's roster, and a
     nurse due to start sees their unit's with no row of their own. A month before this one only once it has closed."""
     month = dt.date.fromisoformat(f"{chosen}-01") if chosen else membership.this_month()
     nurse = NurseProfile.objects.filter(user=user).select_related("user").first()
     placement = membership.placement_in(nurse, month) if nurse else None
-    found = _InForce(month=month, first=_first_month(nurse), nurse=nurse, unit=placement.unit if placement else None)
+    found = MonthInForce(month=month, first=_first_month(nurse), nurse=nurse, unit=placement.unit if placement else None)
     if found.unit is None or month < found.first:
         return found
     found.roster = Roster.objects.filter(unit=found.unit, month=month, state=RosterState.APPROVED).first()

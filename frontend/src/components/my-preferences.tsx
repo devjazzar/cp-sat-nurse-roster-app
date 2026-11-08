@@ -192,7 +192,7 @@ export function MyPreferencesCard({ month }: { month: string | undefined }) {
   const focusAfter = useRef<string | null>(null)
   const answer = mine.data
   const open = answer?.window?.state === "open"
-  const kept = answer ? keptWords(answer) : null
+  const keptLine = answer ? keptWords(answer) : null
   const approved = answer?.keepable != null
 
   const tell = (message: string) => {
@@ -214,7 +214,7 @@ export function MyPreferencesCard({ month }: { month: string | undefined }) {
     <Card>
       <CardHeader>
         <CardTitle><h3>Preferences</h3></CardTitle>
-        {kept && <CardAction><p className="text-sm font-medium tabular-nums">{kept}</p></CardAction>}
+        {keptLine && <CardAction><p className="text-sm font-medium tabular-nums">{keptLine}</p></CardAction>}
         <CardDescription>
           A day you would rather have off, or rather work. Nobody decides a preference: the solver keeps it when it can. Only you and your manager read it.
         </CardDescription>

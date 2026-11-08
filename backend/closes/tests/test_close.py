@@ -22,9 +22,9 @@ from notifications.models import Event, Notification
 from nurses import membership
 from nurses.models import NurseProfile
 from ops import solver_client
+from requesting.models import PreferenceKind
 from rosters.models import PinnedCell, Roster
 from rosters.tests.test_pins import change_shift
-from requesting.models import PreferenceKind
 from rosters.tests.test_review import SOUND, approve, carla, ok, record_leave, refused, solved, submit, url  # noqa: F401
 from solves.input import assemble
 from solves.tests.conftest import MONTH

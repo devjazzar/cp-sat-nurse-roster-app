@@ -15,6 +15,7 @@ from closes.chain import Chain
 from hospital.models import Shift
 from nurses import membership
 from nurses.models import NurseProfile
+from requesting.models import PreferenceKind
 from rosters.drafts import current_code
 from solves.input import assemble
 from units.models import Unit
@@ -75,13 +76,13 @@ def closed_hours(close, hospital_id: str) -> OwnHours | None:
 
 Outcome = Literal["kept", "not_kept", "on_leave"]
 # The solver's two preference rules, by the kind of preference each prices (`solves.input._preferred`).
-RULES = {"undesired_day": ("undesired_days", "day_off"), "desired_day": ("desired_days", "working_day")}
+RULES = {"undesired_day": ("undesired_days", PreferenceKind.DAY_OFF), "desired_day": ("desired_days", PreferenceKind.WORKING_DAY)}
 
 
 @dataclass(frozen=True)
 class OwnPreferences:
     """Each preference of hers the solve input holds, by its date and kind, and what the grid made of it."""
-    outcomes: dict[tuple[dt.date, str], Outcome]
+    outcomes: dict[tuple[dt.date, PreferenceKind], Outcome]
 
     @property
     def kept(self) -> int:
@@ -107,7 +108,7 @@ def _preferences_on(solve_input: dict, hospital_id: str, row: dict[str, str]) ->
     dates = [first.replace(day=day + 1) for day in range(problem.days)]
     worked = [0 if row.get(date.isoformat()) else -1 for date in dates]
     leave = set(nurse.unavailable)
-    outcomes: dict[tuple[dt.date, str], Outcome] = {}
+    outcomes: dict[tuple[dt.date, PreferenceKind], Outcome] = {}
     for rule, (days, kind) in RULES.items():
         unkept = set(unkept_days(nurse, worked, rule))
         for day in getattr(nurse, days):
