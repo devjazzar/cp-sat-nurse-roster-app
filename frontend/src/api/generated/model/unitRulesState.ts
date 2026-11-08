@@ -12,6 +12,7 @@ export interface UnitRulesState {
   /** Still the seeded defaults: nobody has saved them yet. */
   needs_review: boolean;
   request_cap: number;
+  preference_cap: number;
   default_time_limit: number;
   /** The longest a solve may search, set by the System Admin. In seconds. */
   time_limit_cap: number;

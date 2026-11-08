@@ -27,6 +27,8 @@ import type {
   AcceptRequestBody,
   AllowedShiftsBody,
   ApproveSwapBody,
+  AskInsteadBody,
+  AskedInstead,
   AttributesBody,
   AuditFilterOptions,
   AuditPage,
@@ -46,6 +48,7 @@ import type {
   GetMonthCloseParams,
   GetMyLeaveParams,
   GetMyMonthParams,
+  GetMyPreferencesParams,
   GetMyRequestsParams,
   GetMyRosterParams,
   GetMyRosterSheetParams,
@@ -87,6 +90,8 @@ import type {
   MyCovers,
   MyLeaveMonth,
   MyMonth,
+  MyPreferenceRow,
+  MyPreferences,
   MyRequestRow,
   MyRequests,
   MyRosterMonth,
@@ -95,6 +100,7 @@ import type {
   NameCorrectionBody,
   NewLeaveBody,
   NewNurseBody,
+  NewPreferenceBody,
   NewRequestBody,
   NewUserBody,
   NewUserRefusal,
@@ -141,6 +147,7 @@ import type {
   UnitHistory,
   UnitLeaveMonth,
   UnitName,
+  UnitPreferenceRow,
   UnitRequestRow,
   UnitRulesBody,
   UnitRulesState,
@@ -6973,6 +6980,117 @@ export function useListWindowRequests<TData = Awaited<ReturnType<typeof listWind
 
 
 
+export const getListWindowPreferencesUrl = (unitId: string,
+    windowId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/request-windows/${windowId}/preferences`
+}
+
+/**
+ * Read-only, by date, then when they were made: nobody decides a preference (ADR 0013). A nurse transferred out of the
+ * month since keeps hers here; it reaches no solve of this unit.
+ * @summary Window Preferences
+ */
+export const listWindowPreferences = async (unitId: string,
+    windowId: string, options?: Parameters<typeof apiFetch>[1]): Promise<UnitPreferenceRow[]> => {
+
+  return apiFetch<UnitPreferenceRow[]>(getListWindowPreferencesUrl(unitId,windowId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWindowPreferencesQueryKey = (unitId: string,
+    windowId: string,) => {
+    return [
+    `/api/units/${unitId}/request-windows/${windowId}/preferences`
+    ] as const;
+    }
+
+
+export const getListWindowPreferencesQueryOptions = <TData = Awaited<ReturnType<typeof listWindowPreferences>>, TError = unknown>(unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowPreferences>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWindowPreferencesQueryKey(unitId,windowId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWindowPreferences>>> = ({ signal }) => listWindowPreferences(unitId,windowId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined && windowId !== null && windowId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWindowPreferences>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListWindowPreferencesQueryResult = NonNullable<Awaited<ReturnType<typeof listWindowPreferences>>>
+export type ListWindowPreferencesQueryError = unknown
+
+
+export function useListWindowPreferences<TData = Awaited<ReturnType<typeof listWindowPreferences>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowPreferences>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listWindowPreferences>>,
+          TError,
+          Awaited<ReturnType<typeof listWindowPreferences>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListWindowPreferences<TData = Awaited<ReturnType<typeof listWindowPreferences>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowPreferences>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listWindowPreferences>>,
+          TError,
+          Awaited<ReturnType<typeof listWindowPreferences>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListWindowPreferences<TData = Awaited<ReturnType<typeof listWindowPreferences>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowPreferences>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Window Preferences
+ */
+
+export function useListWindowPreferences<TData = Awaited<ReturnType<typeof listWindowPreferences>>, TError = unknown>(
+ unitId: string,
+    windowId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWindowPreferences>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListWindowPreferencesQueryOptions(unitId,windowId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getAcceptRequestUrl = (unitId: string,
     requestId: string,) => {
 
@@ -8717,6 +8835,372 @@ export const useWithdrawRequest = <TError = unknown,
         TContext
       > => {
       return useMutation(getWithdrawRequestMutationOptions(options), queryClient);
+    }
+
+export const getGetMyPreferencesUrl = (params?: GetMyPreferencesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/preferences/mine?${stringifiedParams}` : `/api/preferences/mine`
+}
+
+/**
+ * The hospital's current month when none is given, as the rest of My month.
+ * @summary My Preferences
+ */
+export const getMyPreferences = async (params?: GetMyPreferencesParams, options?: Parameters<typeof apiFetch>[1]): Promise<MyPreferences> => {
+
+  return apiFetch<MyPreferences>(getGetMyPreferencesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyPreferencesQueryKey = (params?: GetMyPreferencesParams,) => {
+    return [
+    `/api/preferences/mine`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMyPreferencesQueryOptions = <TData = Awaited<ReturnType<typeof getMyPreferences>>, TError = unknown>(params?: GetMyPreferencesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPreferences>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyPreferencesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyPreferences>>> = ({ signal }) => getMyPreferences(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyPreferences>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyPreferencesQueryResult = NonNullable<Awaited<ReturnType<typeof getMyPreferences>>>
+export type GetMyPreferencesQueryError = unknown
+
+
+export function useGetMyPreferences<TData = Awaited<ReturnType<typeof getMyPreferences>>, TError = unknown>(
+ params: undefined |  GetMyPreferencesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPreferences>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPreferences>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPreferences>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPreferences<TData = Awaited<ReturnType<typeof getMyPreferences>>, TError = unknown>(
+ params?: GetMyPreferencesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPreferences>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPreferences>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPreferences>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPreferences<TData = Awaited<ReturnType<typeof getMyPreferences>>, TError = unknown>(
+ params?: GetMyPreferencesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPreferences>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Preferences
+ */
+
+export function useGetMyPreferences<TData = Awaited<ReturnType<typeof getMyPreferences>>, TError = unknown>(
+ params?: GetMyPreferencesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPreferences>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyPreferencesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMakePreferenceUrl = () => {
+
+
+
+
+  return `/api/preferences/mine`
+}
+
+/**
+ * Within an open window of the unit the date's month falls under for you, up to the unit's preference cap, on a date
+ * holding no request or other preference. No reason, and nobody is told. The audit log says that you made one, never what or
+ * when for.
+ * @summary Make Preference
+ */
+export const makePreference = async (newPreferenceBody: NewPreferenceBody, options?: Parameters<typeof apiFetch>[1]): Promise<MyPreferenceRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MyPreferenceRow>(getMakePreferenceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(newPreferenceBody)
+  }
+);}
+
+
+
+
+
+export const getMakePreferenceMutationKey = () => ['makePreference'] as const;
+
+export const getMakePreferenceMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makePreference>>, TError,MakePreferenceMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof makePreference>>, TError,MakePreferenceMutationVariables, TContext> => {
+
+const mutationKey = getMakePreferenceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof makePreference>>, MakePreferenceMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  makePreference(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MakePreferenceMutationResult = NonNullable<Awaited<ReturnType<typeof makePreference>>>
+    export type MakePreferenceMutationBody = NewPreferenceBody
+    export type MakePreferenceMutationError = unknown
+    export type MakePreferenceMutationVariables = {data: NewPreferenceBody}
+
+    /**
+ * @summary Make Preference
+ */
+export const useMakePreference = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makePreference>>, TError,MakePreferenceMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof makePreference>>,
+        TError,
+        MakePreferenceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMakePreferenceMutationOptions(options), queryClient);
+    }
+
+export const getWithdrawPreferenceUrl = (preferenceId: string,) => {
+
+
+
+
+  return `/api/preferences/mine/${preferenceId}/withdraw`
+}
+
+/**
+ * A made one, while its window is open. Another nurse's is the same 404 as none.
+ * @summary Withdraw Preference
+ */
+export const withdrawPreference = async (preferenceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MyPreferenceRow> => {
+
+  return apiFetch<MyPreferenceRow>(getWithdrawPreferenceUrl(preferenceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getWithdrawPreferenceMutationKey = () => ['withdrawPreference'] as const;
+
+export const getWithdrawPreferenceMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawPreference>>, TError,WithdrawPreferenceMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawPreference>>, TError,WithdrawPreferenceMutationVariables, TContext> => {
+
+const mutationKey = getWithdrawPreferenceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawPreference>>, WithdrawPreferenceMutationVariables> = (props) => {
+          const {preferenceId} = props ?? {};
+
+          return  withdrawPreference(preferenceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawPreferenceMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawPreference>>>
+
+    export type WithdrawPreferenceMutationError = unknown
+    export type WithdrawPreferenceMutationVariables = {preferenceId: string}
+
+    /**
+ * @summary Withdraw Preference
+ */
+export const useWithdrawPreference = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawPreference>>, TError,WithdrawPreferenceMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawPreference>>,
+        TError,
+        WithdrawPreferenceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getWithdrawPreferenceMutationOptions(options), queryClient);
+    }
+
+export const getAskPreferenceAsRequestUrl = (preferenceId: string,) => {
+
+
+
+
+  return `/api/preferences/mine/${preferenceId}/ask-as-request`
+}
+
+/**
+ * A made one, while its window is open, becomes a pending request under the request cap and the window's rules, and ends
+ * as `asked_instead`. Refused as a whole when the request is: the preference then stays made.
+ * @summary Ask As Request
+ */
+export const askPreferenceAsRequest = async (preferenceId: string,
+    askInsteadBody: AskInsteadBody, options?: Parameters<typeof apiFetch>[1]): Promise<AskedInstead> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<AskedInstead>(getAskPreferenceAsRequestUrl(preferenceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(askInsteadBody)
+  }
+);}
+
+
+
+
+
+export const getAskPreferenceAsRequestMutationKey = () => ['askPreferenceAsRequest'] as const;
+
+export const getAskPreferenceAsRequestMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askPreferenceAsRequest>>, TError,AskPreferenceAsRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof askPreferenceAsRequest>>, TError,AskPreferenceAsRequestMutationVariables, TContext> => {
+
+const mutationKey = getAskPreferenceAsRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof askPreferenceAsRequest>>, AskPreferenceAsRequestMutationVariables> = (props) => {
+          const {preferenceId,data} = props ?? {};
+
+          return  askPreferenceAsRequest(preferenceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AskPreferenceAsRequestMutationResult = NonNullable<Awaited<ReturnType<typeof askPreferenceAsRequest>>>
+    export type AskPreferenceAsRequestMutationBody = AskInsteadBody
+    export type AskPreferenceAsRequestMutationError = unknown
+    export type AskPreferenceAsRequestMutationVariables = {preferenceId: string;data: AskInsteadBody}
+
+    /**
+ * @summary Ask As Request
+ */
+export const useAskPreferenceAsRequest = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askPreferenceAsRequest>>, TError,AskPreferenceAsRequestMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof askPreferenceAsRequest>>,
+        TError,
+        AskPreferenceAsRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAskPreferenceAsRequestMutationOptions(options), queryClient);
     }
 
 export const getListMySwapsUrl = (params?: ListMySwapsParams,) => {

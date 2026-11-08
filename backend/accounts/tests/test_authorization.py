@@ -179,3 +179,19 @@ COVER_ROLES = {
 def test_each_cover_endpoint_is_for_these_roles_only():
     guarded = {label(method, path): set(guard.roles) for method, path, guard in RESTRICTED}
     assert {name: roles for name, roles in guarded.items() if "covers" in name} == COVER_ROLES
+
+
+# Preferences (ticket 29): a staff nurse makes, withdraws and asks for her own as requests, and reads only her own; the unit's
+# manager reads the unit's, read-only. Nobody else reads any: not the System Admin, and not the CNO or the Deputy CNO.
+PREFERENCE_ROLES = {
+    "GET /api/preferences/mine": NURSE,
+    "POST /api/preferences/mine": NURSE,
+    "POST /api/preferences/mine/{preference_id}/withdraw": NURSE,
+    "POST /api/preferences/mine/{preference_id}/ask-as-request": NURSE,
+    "GET /api/units/{unit_id}/request-windows/{window_id}/preferences": MANAGER,
+}
+
+
+def test_each_preference_endpoint_is_for_these_roles_only():
+    guarded = {label(method, path): set(guard.roles) for method, path, guard in RESTRICTED}
+    assert {name: roles for name, roles in guarded.items() if "preferences" in name} == PREFERENCE_ROLES

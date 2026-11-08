@@ -13,6 +13,7 @@ from hospital.rules import general_block
 from nurses import membership
 from nurses.models import NurseProfile
 from nurses.rostering import leave_dates, nurse_block
+from requesting.models import Preference, PreferenceKind, PreferenceState
 from rosters.drafts import current_codes, in_current_codes
 from rosters.pins import month_pins
 from units.models import Unit
@@ -48,6 +49,21 @@ def _credited(nurse: NurseProfile, month: dt.date) -> tuple[list[str], int, list
     return sorted(recorded | outside), len(recorded - outside), sorted(outside)
 
 
+def _preferred(unit: Unit, month: dt.date) -> dict[str, dict[str, list[str]]]:
+    """{hospital ID: {"undesired_days": [...], "desired_days": [...]}}, each list in date order and only when it has a day: the
+    live preferences made in this unit's windows for the month (ADR 0013). One on a day she is on leave or outside her dates
+    stays in, since the solver ignores a day it holds off. One a transfer left on another unit's record is that unit's, and
+    she is not in its month, so it reaches no solve."""
+    rows = (Preference.objects.filter(window__unit=unit, date__year=month.year, date__month=month.month,
+                                      state=PreferenceState.MADE).order_by("date").values_list("nurse__user__username",
+                                                                                               "kind", "date"))
+    preferred: dict[str, dict[str, list[str]]] = {}
+    for hospital_id, kind, day in rows:
+        field = "undesired_days" if kind == PreferenceKind.DAY_OFF else "desired_days"
+        preferred.setdefault(hospital_id, {}).setdefault(field, []).append(day.isoformat())
+    return preferred
+
+
 def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, facts: bool = False) -> Assembled:
     """`time_limit` matters only to an input that will be sent. A pin joins its nurse's block only if it counts: leave wins
     over one, as the solver refuses a shift pinned on a leave date, and `rosters.pins` sets aside that pair and every other a
@@ -75,6 +91,7 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         "solver": {"time_limit_seconds": time_limit, "reproducible": False},
     })
     nurses = membership.rostered_in(unit, month).select_related("user").order_by("user__username")
+    preferred = _preferred(unit, month)
     for nurse in nurses:
         if membership.no_longer_serving(nurse):
             assembled.left_out.append(nurse)
@@ -85,7 +102,7 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         carried = assembled.carried[nurse.user.username] = chain.carry_in(nurse, month)
         values = carried.into(month)
         assembled.nurses.append(nurse_block(nurse, placement) | {key: values[key] for key in CARRIED} | {"leave": leave}
-                                | ({"pinned": pinned} if pinned else {}))
+                                | preferred.get(nurse.user.username, {}) | ({"pinned": pinned} if pinned else {}))
         assembled.pins += len(pinned or ())
         assembled.leave_days += recorded
         if outside:
@@ -152,7 +169,7 @@ def _pins_as_they_are_called_now(row: dict) -> dict[str, str]:
 
 def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.datetime | None = None) -> list[dict]:
     """What has changed since this input was stored that the draft was not solved for: a gender, a nurse's credited days,
-    who is in the month, or the pins that count. Start and end dates count through their credited days, so a correction
+    who is in the month, the pins that count, or her preferences (an input stored before them had none). Start and end dates count through their credited days, so a correction
     that moves nothing in this month does not warn. Other attributes are outside what the user asked for here.
 
     With `since`, when the input was stored, also each nurse a month before whom has closed since (ticket 21): the input started
@@ -175,6 +192,8 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
                 changes.append({"hospital_id": hospital_id, "what": "leave"})
             if _pins_as_they_are_called_now(before) != after.get("pinned", {}):
                 changes.append({"hospital_id": hospital_id, "what": "pins"})
+            if any(before.get(days, []) != after.get(days, []) for days in ("undesired_days", "desired_days")):
+                changes.append({"hospital_id": hospital_id, "what": "preferences"})
             if since is not None and _closed_since(hospital_id, assembled.carried[hospital_id], since):
                 changes.append({"hospital_id": hospital_id, "what": "closed"})
     return changes

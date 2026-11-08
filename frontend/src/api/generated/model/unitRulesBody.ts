@@ -15,6 +15,12 @@ export interface UnitRulesBody {
      */
   request_cap: number;
   /**
+     * Preferences per nurse per month. 0 switches them off.
+     * @minimum 0
+     * @maximum 31
+     */
+  preference_cap: number;
+  /**
      * Seconds. At most the System Admin's time limit cap.
      * @minimum 1
      */

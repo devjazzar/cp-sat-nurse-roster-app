@@ -6,7 +6,7 @@
  */
 
 /**
- * `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21).
+ * `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21).
  */
 export type DraftChangeWhat = typeof DraftChangeWhat[keyof typeof DraftChangeWhat];
 
@@ -17,5 +17,6 @@ export const DraftChangeWhat = {
   joined: 'joined',
   left: 'left',
   pins: 'pins',
+  preferences: 'preferences',
   closed: 'closed',
 } as const;

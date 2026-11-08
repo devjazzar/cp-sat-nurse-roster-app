@@ -18,7 +18,7 @@ from requesting.models import Preference
 from requesting.tests.conftest import (MONTH, ask, asked, decided, mine, ok, open_window, opened, refused, requests_in, url,
                                        windows)
 from requesting.tests.test_requests import leave_for
-from rosters.tests.test_pins import profile
+from rosters.tests.test_pins import month_of, profile, solved
 from rosters.tests.test_review import approved
 from solves.tests.conftest import nurse_in
 from units.models import Unit
@@ -385,6 +385,26 @@ class TestAskingForItAsARequest:
         ok(withdraw(amal, made["id"]))
 
         assert refused(ask_instead(amal, made["id"])) == "This preference is withdrawn, so it cannot be asked for as a request."
+
+
+class TestReachingASolve:
+    def test_a_solve_takes_her_live_ones_and_the_draft_warns_when_they_change_since(self, mona, er, solver):
+        opened(mona, er)
+        amal = as_user("Amal")
+        kept = preferred(amal, 3)
+        preferred(amal, 4, "working_day")
+        ok(withdraw(amal, preferred(amal, 5)["id"]))
+        solved(mona, er, solver)
+        sent = solver.started[-1]["nurses"]
+
+        amal_row = next(row for row in sent if row["id"] == "Amal")
+        assert (amal_row["undesired_days"], amal_row["desired_days"]) == (["2026-06-03"], ["2026-06-04"])
+        assert month_of(mona, er)["draft"]["changes"] == []
+
+        ok(withdraw(amal, kept["id"]))
+
+        assert [(change["hospital_id"], change["what"]) for change in month_of(mona, er)["draft"]["changes"]] == [
+            ("Amal", "preferences")]
 
 
 class TestATransfer:

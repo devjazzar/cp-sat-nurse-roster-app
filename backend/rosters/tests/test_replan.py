@@ -22,7 +22,9 @@ from rosters.tests.test_review import (SOUND, approve, approved, carla, dina, mo
                                        roster, solved, submitted, url)
 from rosters.tests.test_versions import changed, in_force_agrees, latest, works_e
 from rosters.tests.test_pins import change_shift, icu, pin
+from requesting.models import PreferenceKind
 from solves.tests.conftest import start_solve
+from solves.tests.test_input import preference
 from solves import running
 from solves.models import ReplanOutcome, Solve, SolveState
 from solves.tests.conftest import MONTH, NURSES, job, result_of
@@ -231,6 +233,16 @@ class TestFactsBeforeTheDate:
         pinned = facts(solve.input)
         assert (pinned["Amal"][5], pinned["Badr"][1], pinned["Dana"][3]) == ("", "", "")
         assert preview(mona, er)["recorded_cells_differ"] == 3
+
+    def test_her_live_preferences_reach_a_re_plan_as_they_reach_a_solve(self, mona, er, in_force):
+        """The solver prices only the days it plans again; the input holds the month's, as a solve's does (ticket 29)."""
+        for day, kind in ((3, PreferenceKind.DAY_OFF), (20, PreferenceKind.DAY_OFF), (22, PreferenceKind.WORKING_DAY)):
+            preference(er, "Amal", dt.date(2026, 6, day), kind)
+
+        solve = Solve.objects.get(pk=started(mona, er)["id"])
+
+        amal = next(row for row in solve.input["nurses"] if row["id"] == "Amal")
+        assert (amal["undesired_days"], amal["desired_days"]) == (["2026-06-03", "2026-06-20"], ["2026-06-22"])
 
     def test_a_pin_set_aside_is_no_fact_and_the_day_is_the_roster_in_forces(self, mona, er, in_force):
         """Emad works Day on the 1st. A pin on Night there, then Night taken from his allowed shifts: the pin no longer fits."""

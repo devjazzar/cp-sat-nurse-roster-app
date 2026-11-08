@@ -19,4 +19,6 @@ export interface WindowRow {
   pending: number;
   /** Every request made in it, whatever its state. */
   requests: number;
+  /** Every preference made in it, whatever its state. */
+  preferences: number;
 }

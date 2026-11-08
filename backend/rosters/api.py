@@ -52,8 +52,8 @@ NOT_APPROVED = "This roster is not approved yet, so its changes are saved as pin
 class DraftChange(Schema):
     hospital_id: str
     full_name: str
-    what: Literal["gender", "leave", "joined", "left", "pins", "closed"] = Field(
-        description="`closed`: the month before closed after this was solved, so the carry-over it started from was projected and "
+    what: Literal["gender", "leave", "joined", "left", "pins", "preferences", "closed"] = Field(
+        description="`preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and "
                     "the close's is the one that holds now (ticket 21).")
 
 

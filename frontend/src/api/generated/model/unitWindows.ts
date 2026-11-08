@@ -9,6 +9,8 @@ import type { WindowRow } from './windowRow';
 export interface UnitWindows {
   /** Requests per nurse per month. */
   request_cap: number;
+  /** Preferences per nurse per month. */
+  preference_cap: number;
   /** Newest first. */
   windows: WindowRow[];
   /** Why a window cannot be opened now. */

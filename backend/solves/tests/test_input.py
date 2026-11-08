@@ -10,6 +10,7 @@ from accounts.models import Role
 from hospital.models import FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift
 from nurses.models import Leave, NurseProfile, Placement
 from nurses.tests.conftest import make_unit
+from requesting.models import Preference, PreferenceKind, PreferenceState, RequestWindow
 from solves.input import assemble, changes_since, solver_refusal
 from solves.tests.conftest import MONTH, SAMPLE, nurse_in
 
@@ -30,6 +31,17 @@ def block(assembled, hospital_id):
     return next(row for row in assembled.input["nurses"] if row["id"] == hospital_id)
 
 
+def preference(unit, hospital_id, day, kind=PreferenceKind.DAY_OFF, state=PreferenceState.MADE) -> Preference:
+    """Made in a window of the unit for the day's month, as `requesting` makes one: the assembler reads only the rows."""
+    month = day.replace(day=1)
+    window = RequestWindow.objects.filter(unit=unit, month=month).first() or RequestWindow.objects.create(
+        unit=unit, month=month, opens_on=dt.date(2026, 5, 15), closes_on=dt.date(2026, 5, 25), state="closed",
+        created_by=unit.manager or NurseProfile.objects.first().user)
+    ended = None if state == PreferenceState.MADE else dt.datetime(2026, 5, 20, tzinfo=dt.UTC)
+    return Preference.objects.create(window=window, nurse=NurseProfile.objects.get(user__username=hospital_id), date=day,
+                                     kind=kind, state=state, ended_at=ended)
+
+
 def leave_on(nurse, *days, by):
     kind = LeaveType.objects.get(name="Sick")
     for day in days:
@@ -40,6 +52,11 @@ def test_the_solvers_own_sample_as_this_app_holds_it_comes_out_as_the_sample(er,
     """The sample is the solver's, so it is a truth this code did not write."""
     badr = NurseProfile.objects.get(user__username="Badr")
     leave_on(badr, *next(row for row in SAMPLE["nurses"] if row["id"] == "Badr")["leave"], by=badr.user)
+    dana = next(row for row in SAMPLE["nurses"] if row["id"] == "Dana")
+    for day in dana["undesired_days"]:
+        preference(er, "Dana", dt.date.fromisoformat(day))
+    for day in dana["desired_days"]:
+        preference(er, "Dana", dt.date.fromisoformat(day), PreferenceKind.WORKING_DAY)
 
     solve_input = built(er, time_limit=SAMPLE["solver"]["time_limit_seconds"]).input
 
@@ -55,9 +72,8 @@ def test_the_solvers_own_sample_as_this_app_holds_it_comes_out_as_the_sample(er,
         row.setdefault("allowed_shifts", None)
         # No month before has a roster, so the carry-over is the opening values with no history (ticket 21).
         row["previous"] = []
-        # Nothing in this app holds these yet: pins arrive with ticket 13, and there are no soft preferences in v1.
-        for absent in ("undesired_days", "desired_days", "pinned"):
-            row.pop(absent, None)
+        # No pin is made here; Dana's two preferences are (ticket 29).
+        row.pop("pinned", None)
         # The chain carries the count of preferences not kept (ticket 28): 0, since none were ever priced.
         row["preferences_not_kept"] = 0
     assert solve_input["nurses"] == expected["nurses"]
@@ -177,6 +193,55 @@ def test_a_raised_weight_can_leave_a_one_shift_unit_for_the_solver_to_refuse(er,
     assert solver_refusal(built(er).input) is not None
 
 
+class TestPreferences:
+    """A nurse's live preferences are the days she asked off (`undesired_days`) and to work (`desired_days`), each in date
+    order (ADR 0013)."""
+
+    def test_her_live_ones_of_the_month_fill_the_two_lists_and_nothing_else_does(self, er, make_user):
+        for day in (9, 3):
+            preference(er, "Amal", dt.date(2026, 6, day))
+        preference(er, "Amal", dt.date(2026, 6, 20), PreferenceKind.WORKING_DAY)
+        preference(er, "Amal", dt.date(2026, 6, 4), state=PreferenceState.WITHDRAWN)
+        preference(er, "Amal", dt.date(2026, 6, 5), PreferenceKind.WORKING_DAY, state=PreferenceState.ASKED_INSTEAD)
+        preference(er, "Amal", dt.date(2026, 7, 2))
+        preference(er, "Badr", dt.date(2026, 6, 4), PreferenceKind.WORKING_DAY)
+
+        assembled = built(er)
+
+        amal, badr, emad = (block(assembled, hospital_id) for hospital_id in ("Amal", "Badr", "Emad"))
+        assert (amal["undesired_days"], amal["desired_days"]) == (["2026-06-03", "2026-06-09"], ["2026-06-20"])
+        assert (badr.get("undesired_days"), badr["desired_days"]) == (None, ["2026-06-04"])
+        assert "undesired_days" not in emad and "desired_days" not in emad
+        assert solver_refusal(assembled.input) is None
+
+    def test_one_on_leave_or_outside_her_dates_is_left_in_for_the_solver_to_ignore(self, er):
+        amal = NurseProfile.objects.get(user__username="Amal")
+        amal.end_date = dt.date(2026, 6, 20)
+        amal.save()
+        leave_on(amal, dt.date(2026, 6, 3), by=amal.user)
+        preference(er, "Amal", dt.date(2026, 6, 3))
+        preference(er, "Amal", dt.date(2026, 6, 25), PreferenceKind.WORKING_DAY)
+
+        assembled = built(er)
+
+        row = block(assembled, "Amal")
+        assert (row["undesired_days"], row["desired_days"]) == (["2026-06-03"], ["2026-06-25"])
+        assert {"2026-06-03", "2026-06-25"} <= set(row["leave"])
+        assert solver_refusal(assembled.input) is None
+
+    def test_one_left_on_another_units_record_reaches_neither_unit(self, er, make_user):
+        icu = make_unit("ICU")
+        Unit = type(er)
+        Unit.objects.filter(pk=icu.pk).update(rules=er.rules)
+        icu.refresh_from_db()
+        preference(er, "Amal", dt.date(2026, 6, 3))
+        Placement.objects.create(nurse=NurseProfile.objects.get(user__username="Amal"), unit=icu,
+                                 from_month=dt.date(2026, 6, 1))
+
+        assert "Amal" not in {row["id"] for row in built(er).input["nurses"]}
+        assert "undesired_days" not in block(assemble(icu, JUNE), "Amal")
+
+
 class TestChangesSince:
     def test_nothing_changed(self, er):
         assert changes_since(built(er).input, er, JUNE) == []
@@ -207,3 +272,26 @@ class TestChangesSince:
         amal.start_date = dt.date(2026, 6, 5)
         amal.save()
         assert changes_since(solved, er, JUNE) == [{"hospital_id": "Amal", "what": "leave"}]
+
+    def test_a_preference_made_withdrawn_or_asked_instead_is_a_change_to_her_preferences(self, er):
+        made = preference(er, "Amal", dt.date(2026, 6, 3))
+        preference(er, "Badr", dt.date(2026, 6, 4), PreferenceKind.WORKING_DAY)
+        solved = built(er).input
+        assert changes_since(solved, er, JUNE) == []
+
+        Preference.objects.filter(pk=made.pk).update(state=PreferenceState.WITHDRAWN, ended_at=dt.datetime.now(dt.UTC))
+        preference(er, "Dana", dt.date(2026, 6, 6))
+
+        assert changes_since(solved, er, JUNE) == [
+            {"hospital_id": "Amal", "what": "preferences"}, {"hospital_id": "Dana", "what": "preferences"}]
+
+    def test_an_input_stored_before_preferences_existed_changes_only_where_one_is_made(self, er):
+        solved = built(er).input
+        for row in solved["nurses"]:
+            row.pop("undesired_days", None)
+            row.pop("desired_days", None)
+        assert changes_since(solved, er, JUNE) == []
+
+        preference(er, "Emad", dt.date(2026, 6, 8), PreferenceKind.WORKING_DAY)
+
+        assert changes_since(solved, er, JUNE) == [{"hospital_id": "Emad", "what": "preferences"}]
