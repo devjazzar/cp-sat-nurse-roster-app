@@ -8,6 +8,7 @@ import { z } from "zod"
 import { getGetUnitRulesQueryKey, getListUnitsQueryKey, useGetUnitRules, useUpdateUnitRules } from "@/api/generated/endpoints"
 import { Role, type HeadcountRule, type ShiftChoice, type UnitRulesAnswer, type UnitRulesBody, type UnitRulesState } from "@/api/generated/model"
 import {
+  updateUnitRulesBodyPreferenceCapMax as PREFERENCE_CAP_MAX,
   updateUnitRulesBodyRequestCapMax as REQUEST_CAP_MAX,
   updateUnitRulesBodyRulesCarryCapMax as PARAM_MAX,
   updateUnitRulesBodyRulesHeadcountsItemWeekdayMinMax as HEADCOUNT_MAX,
@@ -113,6 +114,7 @@ const SWITCHES_HARD: Explained<SwitchRule> = {
   description: "When on, the solver returns no roster that breaks it. When off, a roster may, at the price of the hospital's weight.",
 }
 const REQUEST_CAP_DESCRIPTION = "How many requests each nurse may make for a month. 0 means none."
+const PREFERENCE_CAP_DESCRIPTION = "How many preferences each nurse may make for a month, days she would rather have off or work, which the solver keeps when it can. 0 switches them off. A request window opens while either cap is above 0."
 const TIME_LIMIT_DESCRIPTION = "How long a solve searches unless you choose otherwise when you start it."
 
 const COUNT_FIELDS = [
@@ -180,6 +182,7 @@ function schemaFor(timeLimitCap: number) {
         }
       }),
       request_cap: wholeNumber(0, REQUEST_CAP_MAX),
+      preference_cap: wholeNumber(0, PREFERENCE_CAP_MAX),
       default_time_limit: wholeNumber(1, timeLimitCap),
     })
 }
@@ -292,7 +295,7 @@ function RulesForm({ unitId, state }: { unitId: string; state: UnitRulesState })
   const queryClient = useQueryClient()
   const update = useUpdateUnitRules()
   const valuesOf = (from: UnitRulesState): UnitRulesBody => ({
-    rules: from.rules as UnitRulesBody["rules"], request_cap: from.request_cap, default_time_limit: from.default_time_limit,
+    rules: from.rules as UnitRulesBody["rules"], request_cap: from.request_cap, preference_cap: from.preference_cap, default_time_limit: from.default_time_limit,
   })
   const form = useForm<UnitRulesBody>({ resolver: zodResolver(schemaFor(state.time_limit_cap)), defaultValues: valuesOf(state) })
   const { errors, isDirty } = form.formState
@@ -388,6 +391,8 @@ function RulesForm({ unitId, state }: { unitId: string; state: UnitRulesState })
         <FieldGroup>
           <FormField label="Requests per nurse per month" type="number" inputMode="numeric" description={REQUEST_CAP_DESCRIPTION}
             registration={form.register("request_cap", asNumber)} error={errors.request_cap} />
+          <FormField label="Preferences per nurse per month" type="number" inputMode="numeric" description={PREFERENCE_CAP_DESCRIPTION}
+            registration={form.register("preference_cap", asNumber)} error={errors.preference_cap} />
           <FormField label="Default time limit (seconds)" type="number" inputMode="numeric"
             description={`${TIME_LIMIT_DESCRIPTION} The System Admin's cap is ${state.time_limit_cap} seconds.`}
             registration={form.register("default_time_limit", asNumber)} error={errors.default_time_limit} />
@@ -465,6 +470,7 @@ function RulesReadOnly({ state }: { state: UnitRulesState }) {
       <Section title="Requests and solves">
         <ReadOnlyList items={[
           { label: "Requests per nurse per month", description: REQUEST_CAP_DESCRIPTION, value: state.request_cap },
+          { label: "Preferences per nurse per month", description: PREFERENCE_CAP_DESCRIPTION, value: state.preference_cap },
           { label: "Default time limit (seconds)", description: TIME_LIMIT_DESCRIPTION, value: state.default_time_limit },
         ]} />
       </Section>

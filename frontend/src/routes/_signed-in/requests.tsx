@@ -9,10 +9,11 @@ import { ApiError } from "@/api/fetcher"
 import {
   getGetRosterMonthQueryKey, getListRequestWindowsQueryKey, getListRosterVersionsQueryKey, getListWindowRequestsQueryKey,
   useAcceptRequest, useCancelRequest, useCloseRequestWindow, useEditRequest, useListRequestWindows, useListShifts,
-  useListWindowRequests, useOpenRequestWindow, useRejectRequest,
+  useListWindowPreferences, useListWindowRequests, useOpenRequestWindow, useRejectRequest,
 } from "@/api/generated/endpoints"
 import { Role, type UnitRequestRow, type UnitWindows, type WindowRow } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { PREFERENCE_STATE, PREFERS } from "@/components/my-preferences"
 import { FormField, SelectField } from "@/components/form-field"
 import { monthInAddress } from "@/components/month-nav"
 import {
@@ -273,6 +274,43 @@ function WindowRequests({ unitId, window, onDone }: { unitId: string; window: Wi
   )
 }
 
+/** Read-only: nobody decides a preference (ADR 0013). The solver keeps each live one when it can, at the CNO's price. */
+function WindowPreferences({ unitId, window }: { unitId: string; window: WindowRow }) {
+  const rows = useListWindowPreferences(unitId, window.id)
+  const month = monthName(window.month)
+  return (
+    <section aria-labelledby="window-preferences" className="flex flex-col gap-3">
+      <h2 id="window-preferences" className="text-base font-medium">Preferences for {month}</h2>
+      <p className="text-sm text-muted-foreground">Nobody decides a preference. Every solve keeps those made when it can, at the price the CNO sets, and the draft's explanation shows what it paid.</p>
+      {rows.isPending && <p>Loading…</p>}
+      {rows.isError && <p role="alert">The preferences could not be read. Reload the page to try again.</p>}
+      {rows.data && rows.data.length === 0 && <p>No preferences were made in this window.</p>}
+      {rows.data && rows.data.length > 0 && (
+        <Table container={scrollableRegion(`Preferences for ${month}, by date`)}>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nurse</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Prefers</TableHead>
+              <TableHead>State</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.data.map((row) => (
+              <TableRow key={row.id}>
+                <TableCell>{row.full_name}</TableCell>
+                <TableCell className="tabular-nums">{shortDay(row.date)}</TableCell>
+                <TableCell>{PREFERS[row.kind]}</TableCell>
+                <TableCell>{PREFERENCE_STATE[row.state]}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </section>
+  )
+}
+
 function chosenWindow(answer: UnitWindows, id: string | undefined, month: string | undefined): WindowRow | undefined {
   return answer.windows.find((window) => window.id === id)
     ?? answer.windows.find((window) => window.month === month)
@@ -305,7 +343,7 @@ function UnitRequests({ unitId, windowId, month }: { unitId: string; windowId?: 
             <CardHeader>
               <CardTitle><h2>Open a request window</h2></CardTitle>
               <CardDescription>
-                Each nurse may have up to {answer.request_cap} {answer.request_cap === 1 ? "request" : "requests"} pending or accepted a month, which you set on the <Link to="/unit-rules" className={LINK}>Unit rules</Link> page.
+                Each nurse may have up to {answer.request_cap} {answer.request_cap === 1 ? "request" : "requests"} pending or accepted and {answer.preference_cap} {answer.preference_cap === 1 ? "preference" : "preferences"} a month, which you set on the <Link to="/unit-rules" className={LINK}>Unit rules</Link> page.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -322,6 +360,7 @@ function UnitRequests({ unitId, windowId, month }: { unitId: string; windowId?: 
                     <TableHead>Requests taken</TableHead>
                     <TableHead>State</TableHead>
                     <TableHead>Requests</TableHead>
+                    <TableHead>Preferences</TableHead>
                     <TableHead><span className="sr-only">Actions</span></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -332,6 +371,7 @@ function UnitRequests({ unitId, windowId, month }: { unitId: string; windowId?: 
                       <TableCell className="tabular-nums">{shortDay(window.opens_on)} to {shortDay(window.closes_on)}</TableCell>
                       <TableCell>{WINDOW_STATE[window.state]}{window.closed_early_by ? `, early by ${window.closed_early_by}` : ""}</TableCell>
                       <TableCell className="tabular-nums">{window.requests}{window.pending > 0 ? `, ${window.pending} waiting` : ""}</TableCell>
+                      <TableCell className="tabular-nums">{window.preferences}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
                           {window.id !== chosen?.id && (
@@ -350,6 +390,7 @@ function UnitRequests({ unitId, windowId, month }: { unitId: string; windowId?: 
             </section>
           )}
           {chosen && <WindowRequests key={chosen.id} unitId={unitId} window={chosen} onDone={tell} />}
+          {chosen && <WindowPreferences key={`preferences-${chosen.id}`} unitId={unitId} window={chosen} />}
         </>
       )}
       <ConfirmDialog
@@ -382,7 +423,7 @@ function RequestsPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-medium">{chosen ? `Requests in ${chosen.name}` : "Requests"}</h1>
       <p className="text-muted-foreground">
-        Open a window for a coming month, and the unit's nurses of that month may ask for a day off or a shift on its dates. An accepted request is a pinned cell every solve keeps. Only you and the nurse read a request's reasons.
+        Open a window for a coming month, and the unit's nurses of that month may ask for a day off or a shift on its dates, and say which days they would rather have off or work. An accepted request is a pinned cell every solve keeps; a preference is kept when the solver can. Only you and the nurse read a request's reasons and her preferences.
       </p>
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">Your unit could not be read. Reload the page to try again.</p>}

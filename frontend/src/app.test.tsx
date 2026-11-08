@@ -70,7 +70,12 @@ const NO_WINDOW = {
   month: "2026-11", window: null, request_cap: null, counted: 0, refusal: "No request window is open for November 2026.",
   shifts: [], first_day: null, last_day: null, requests: [],
 }
-const NO_REQUESTS = { "GET /api/requests/mine": { body: NO_WINDOW } }
+/** A nurse's preferences for a month with no window. */
+const NO_PREFERENCE_WINDOW = {
+  month: "2026-11", window: null, preference_cap: null, request_cap: null, counted: 0, refusal: "No request window is open for November 2026.",
+  shifts: [], first_day: null, last_day: null, preferences: [],
+}
+const NO_REQUESTS = { "GET /api/requests/mine": { body: NO_WINDOW }, "GET /api/preferences/mine": { body: NO_PREFERENCE_WINDOW } }
 const nurseHome = (unitId = "u1", extra = {}) => ({
   ...session(NURSE),
   "GET /api/nurses/my-unit": { body: { id: unitId, name: "ER" } },
@@ -748,6 +753,11 @@ describe("the hospital rules page", () => {
     for (const input of inputs) expect(input).toHaveAccessibleDescription(/\S/)
     expect(weights.getByLabelText("Night rest")).toHaveValue(5)
     expect(weights.getByLabelText("Changes in a re-plan")).toHaveAccessibleDescription(/Each cell that differs/)
+    expect(weights.getByLabelText("Working a day asked off")).toHaveAccessibleDescription(
+      "Each day a nurse preferred to have off but works; twice that for a nurse whose preference last month was not kept.")
+    expect(weights.getByLabelText("Off on a day asked to work")).toHaveAccessibleDescription(
+      "Each day a nurse preferred to work but is off; twice that for a nurse whose preference last month was not kept.")
+    expect(weights.queryByText(/Nothing reaches this/)).not.toBeInTheDocument()
   })
 
   it("saving the defaults untouched is the review: the button is open and the flag goes", async () => {
@@ -3381,6 +3391,7 @@ const UNIT_RULES_STATE = {
   rules: UNIT_RULES,
   needs_review: true,
   request_cap: 3,
+  preference_cap: 10,
   default_time_limit: 60,
   time_limit_cap: 300,
   active_shifts: [
@@ -3425,7 +3436,7 @@ describe("the unit rules page", () => {
     for (const [name, value] of [["Score target on a weekday", 0.7], ["Score target on a weekend day", 0.8], ["Score ceiling on a weekday", 0.78],
       ["Score ceiling on a weekend day", 0.88], ["Days off after a night shift", 2], ["Longest run of shifts", 3], ["Days off after two runs", 2],
       ["Free difference from a fair share (shifts)", 0.5], ["Most a month's share can move (shifts)", 2], ["Weekend days a month", 3],
-      ["Switches between day and night a month", 2], ["Requests per nurse per month", 3], ["Default time limit (seconds)", 60]] as const) {
+      ["Switches between day and night a month", 2], ["Requests per nurse per month", 3], ["Preferences per nurse per month", 10], ["Default time limit (seconds)", 60]] as const) {
       expect(screen.getByLabelText(name)).toHaveValue(value)
       expect(screen.getByLabelText(name)).toHaveAccessibleDescription(/\S/)
     }
@@ -3446,7 +3457,7 @@ describe("the unit rules page", () => {
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     expect(await screen.findByText("Saved.")).toHaveAttribute("role", "status")
-    expect(put(calls)).toEqual({ rules: UNIT_RULES, request_cap: 3, default_time_limit: 60 })
+    expect(put(calls)).toEqual({ rules: UNIT_RULES, request_cap: 3, preference_cap: 10, default_time_limit: 60 })
     expect(screen.queryByText(FLAG)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true")
   })
@@ -6384,7 +6395,8 @@ describe("requests", () => {
   }
   const myMonth = (requests: Handler | Answer, extra = {}) => ({
     ...session(NURSE), "GET /api/rosters/mine/month": { body: { ...NO_HOURS_YET, month: "2026-12" } },
-    "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": requests, ...extra,
+    "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": requests,
+    "GET /api/preferences/mine": { body: { ...NO_PREFERENCE_WINDOW, month: "2026-12" } }, ...extra,
   })
 
   it("a nurse reads the window, her requests and every outcome with the manager's reason", async () => {
@@ -6475,7 +6487,9 @@ describe("requests", () => {
 
     expect(await screen.findByText("You have no leave recorded in December 2026.")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Requests" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Preferences" })).not.toBeInTheDocument()
     expect(pageReads(calls)).not.toContain("/api/requests/mine?month=2026-12")
+    expect(pageReads(calls)).not.toContain("/api/preferences/mine?month=2026-12")
   })
 
   const WINDOWS = {
@@ -6664,6 +6678,187 @@ describe("requests", () => {
     expect(await screen.findByText("Made a request")).toBeInTheDocument()
     expect(screen.getByText("Accepted a nurse's request")).toBeInTheDocument()
     expect(screen.getByText("Opened a request window")).toBeInTheDocument()
+  })
+})
+
+describe("preferences", () => {
+  const MANAGER = { ...ME, username: "mona", full_name: "Mona Ali", role: "unit_manager" }
+  const UNIT = { id: "u1", name: "ER", archived: false, manager: null, nurse_count: 4 }
+  const WINDOW = { unit: "ER", opens_on: "2026-11-05", closes_on: "2026-11-20", state: "open", closed_early: false }
+  const MY_OPEN = {
+    month: "2026-12", window: WINDOW, preference_cap: 10, request_cap: 3, counted: 2, refusal: null,
+    shifts: [{ code: "D", display_name: "Day" }, { code: "N", display_name: "Night" }], first_day: "2026-12-01", last_day: "2026-12-31",
+    preferences: [
+      { id: "p1", date: "2026-12-03", kind: "day_off", state: "made" },
+      { id: "p2", date: "2026-12-05", kind: "working_day", state: "made" },
+      { id: "p3", date: "2026-12-07", kind: "day_off", state: "withdrawn" },
+      { id: "p4", date: "2026-12-09", kind: "day_off", state: "asked_instead" },
+    ],
+  }
+  const REQUESTS = {
+    month: "2026-12", window: WINDOW, request_cap: 3, counted: 0, refusal: null, shifts: MY_OPEN.shifts,
+    first_day: "2026-12-01", last_day: "2026-12-31", requests: [],
+  }
+  const myMonth = (preferences: Handler | Answer, extra = {}) => ({
+    ...session(NURSE), "GET /api/rosters/mine/month": { body: { ...NO_HOURS_YET, month: "2026-12" } },
+    "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": { body: REQUESTS },
+    "GET /api/preferences/mine": preferences, ...extra,
+  })
+  const card = () => within(screen.getByRole("heading", { name: "Preferences" }).closest("[data-slot=card]") as HTMLElement)
+
+  it("a nurse reads the window, the count against the cap and each preference with its state", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: MY_OPEN }))
+
+    expect(await screen.findByText("Preferences for December 2026 are open until the end of 20 Nov 2026. You have 2 of 10 preferences.")).toBeInTheDocument()
+    const rows = within(card().getByRole("region", { name: "Your preferences for December 2026" })).getAllByRole("row").slice(1)
+    expect(rows.map((row) => within(row).getAllByRole("cell").slice(0, 3).map((cell) => cell.textContent))).toEqual([
+      ["3 Dec 2026", "A day off", "Made"],
+      ["5 Dec 2026", "A working day", "Made"],
+      ["7 Dec 2026", "A day off", "Withdrawn"],
+      ["9 Dec 2026", "A day off", "Asked for as a request"],
+    ])
+    expect(card().getAllByRole("button", { name: /preference for/ }).map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Withdraw your preference for 3 Dec 2026", "Ask for your preference for 3 Dec 2026 as a request",
+      "Withdraw your preference for 5 Dec 2026", "Ask for your preference for 5 Dec 2026 as a request",
+    ])
+    expect(card().queryByLabelText(/Reason/)).not.toBeInTheDocument()
+  })
+
+  it("a nurse makes a working-day preference, with no reason, and is told it is made", async () => {
+    let sent: unknown = null
+    const { user } = start("/my-month?month=2026-12", myMonth(() => ({ body: MY_OPEN }), {
+      "POST /api/preferences/mine": ({ body }: { body: unknown }) => { sent = body; return { status: 201, body: { id: "p5", date: "2026-12-11", kind: "working_day", state: "made" } } },
+    }))
+
+    await screen.findByText(/You have 2 of 10 preferences/)
+    await user.type(card().getByLabelText("Day"), "2026-12-11")
+    await user.click(card().getByRole("radio", { name: "A working day" }))
+    await user.click(card().getByRole("button", { name: "Make the preference" }))
+
+    const status = await screen.findByText("Your preference for a working day on 11 Dec 2026 is made. The solver keeps it when it can.")
+    expect(sent).toEqual({ date: "2026-12-11", kind: "working_day" })
+    await waitFor(() => expect(status).toHaveFocus())
+  })
+
+  it("shows a refusal beside the date it is about", async () => {
+    const { user } = start("/my-month?month=2026-12", myMonth({ body: MY_OPEN }, {
+      "POST /api/preferences/mine": { status: 422, body: { detail: [{ loc: ["body", "body", "date"], msg: "You have a request on 11 December 2026, and a date holds one wish. Withdraw the request to make a preference instead." }] } },
+    }))
+
+    await screen.findByText(/You have 2 of 10 preferences/)
+    await user.type(card().getByLabelText("Day"), "2026-12-11")
+    await user.click(card().getByRole("button", { name: "Make the preference" }))
+
+    expect(await card().findByText(/and a date holds one wish/)).toBeInTheDocument()
+    await waitFor(() => expect(card().getByLabelText("Day")).toHaveFocus())
+  })
+
+  it("a nurse withdraws one after being asked", async () => {
+    let withdrawn = false
+    const { user } = start("/my-month?month=2026-12", myMonth(() => ({ body: withdrawn
+      ? { ...MY_OPEN, counted: 1, preferences: [{ ...MY_OPEN.preferences[0], state: "withdrawn" }, ...MY_OPEN.preferences.slice(1)] } : MY_OPEN }), {
+      "POST /api/preferences/mine/p1/withdraw": () => { withdrawn = true; return { body: { ...MY_OPEN.preferences[0], state: "withdrawn" } } },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw your preference for 3 Dec 2026" }))
+    const dialog = await screen.findByRole("alertdialog", { name: "Withdraw your preference for 3 Dec 2026?" })
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw it" }))
+
+    const status = await screen.findByText("Your preference for a day off on 3 Dec 2026 is withdrawn.")
+    await waitFor(() => expect(status).toHaveFocus())
+    expect(await screen.findByText("You have 1 of 10 preferences.", { exact: false })).toBeInTheDocument()
+  })
+
+  it("a nurse asks for a day off as a request after a question naming the request cap, and both cards are read again", async () => {
+    let asked: unknown = null
+    const { user, calls } = start("/my-month?month=2026-12", myMonth(() => ({ body: asked
+      ? { ...MY_OPEN, counted: 1, preferences: [{ ...MY_OPEN.preferences[0], state: "asked_instead" }, ...MY_OPEN.preferences.slice(1)] } : MY_OPEN }), {
+      "POST /api/preferences/mine/p1/ask-as-request": ({ body }: { body: unknown }) => {
+        asked = body
+        return { status: 201, body: { preference: { ...MY_OPEN.preferences[0], state: "asked_instead" },
+          request: { id: "r1", date: "2026-12-03", shift: "", state: "pending", promised: null, steps: [] } } }
+      },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Ask for your preference for 3 Dec 2026 as a request" }))
+    const dialog = await screen.findByRole("alertdialog", { name: "Ask for 3 Dec 2026 as a request?" })
+    expect(dialog).toHaveTextContent("It counts against your unit's 3 requests a month")
+    expect(within(dialog).queryByLabelText("Shift")).not.toBeInTheDocument()
+    const reads = calls.filter((call) => call.url.startsWith("/api/requests/mine")).length
+    await user.click(within(dialog).getByRole("button", { name: "Ask for it" }))
+
+    const status = await screen.findByText("Your preference for 3 Dec 2026 is now a request for a day off. Your manager decides it.")
+    expect(asked).toEqual({ shift: null })
+    await waitFor(() => expect(status).toHaveFocus())
+    await waitFor(() => expect(calls.filter((call) => call.url.startsWith("/api/requests/mine")).length).toBeGreaterThan(reads))
+  })
+
+  it("a working day is asked for as the shift she chooses, and a refusal stays in the question", async () => {
+    let asked: unknown = null
+    const { user } = start("/my-month?month=2026-12", myMonth({ body: MY_OPEN }, {
+      "POST /api/preferences/mine/p2/ask-as-request": ({ body }: { body: unknown }) => {
+        asked = body
+        return { status: 409, body: { detail: "You have 3 requests for December 2026, the most this unit allows. Withdraw a pending one to make another." } }
+      },
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Ask for your preference for 5 Dec 2026 as a request" }))
+    const dialog = await screen.findByRole("alertdialog", { name: "Ask for 5 Dec 2026 as a request?" })
+    await user.selectOptions(within(dialog).getByLabelText("Shift"), "N")
+    await user.click(within(dialog).getByRole("button", { name: "Ask for it" }))
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("You have 3 requests for December 2026, the most this unit allows.")
+    expect(asked).toEqual({ shift: "N" })
+  })
+
+  it("at the cap, or with the window closed, there is no form, and closed there is nothing to do", async () => {
+    start("/my-month?month=2026-12", myMonth({ body: { ...MY_OPEN, counted: 10, refusal: "You have 10 preferences for December 2026, the most this unit allows. Withdraw one to make another." } }))
+
+    expect(await screen.findByText(/You have 10 preferences for December 2026, the most/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Make the preference" })).not.toBeInTheDocument()
+    cleanup()
+
+    start("/my-month?month=2026-12", myMonth({ body: { ...MY_OPEN, window: { ...WINDOW, state: "closed", closed_early: false } } }))
+
+    expect(await screen.findByText("The request window for December 2026 has closed, so your preferences are fixed. The solver keeps them when it can.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Make the preference" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /preference for/ })).not.toBeInTheDocument()
+  })
+
+  const WINDOWS = {
+    request_cap: 3, preference_cap: 10, open_refusal: null, windows: [
+      { id: "w1", month: "2026-12", opens_on: "2026-11-05", closes_on: "2026-11-20", state: "open", closed_early_by: null, pending: 0, requests: 0, preferences: 2 },
+    ],
+  }
+  const manager = (extra = {}) => ({
+    ...session(MANAGER), "GET /api/units": { body: [UNIT] }, "GET /api/hospital/shifts": { body: [] },
+    "GET /api/units/u1/request-windows": { body: WINDOWS }, "GET /api/units/u1/request-windows/w1/requests": { body: [] },
+    "GET /api/units/u1/request-windows/w1/preferences": { body: [
+      { id: "p1", hospital_id: "Amal", full_name: "Amal Saleh", date: "2026-12-03", kind: "day_off", state: "made" },
+      { id: "p2", hospital_id: "Badr", full_name: "Badr Harbi", date: "2026-12-04", kind: "working_day", state: "withdrawn" },
+    ] },
+    ...extra,
+  })
+
+  it("the manager reads each window's preferences beneath its requests, and decides nothing on them", async () => {
+    start("/requests", manager())
+
+    const region = await screen.findByRole("region", { name: "Preferences for December 2026, by date" })
+    expect(within(region).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+      ["Amal Saleh", "3 Dec 2026", "A day off", "Made"],
+      ["Badr Harbi", "4 Dec 2026", "A working day", "Withdrawn"],
+    ])
+    expect(within(region).queryByRole("button")).not.toBeInTheDocument()
+    expect(screen.getByText(/up to 3 requests pending or accepted and 10 preferences a month/)).toBeInTheDocument()
+    const windows = within(screen.getByRole("region", { name: "Request windows, newest first" }))
+    expect(windows.getAllByRole("columnheader").map((header) => header.textContent)).toContain("Preferences")
+    expect(windows.getAllByRole("row")[1]).toHaveTextContent(/Open0\s*2/)
+  })
+
+  it("the manager reads that no preference was made", async () => {
+    start("/requests", manager({ "GET /api/units/u1/request-windows/w1/preferences": { body: [] } }))
+
+    expect(await screen.findByText("No preferences were made in this window.")).toBeInTheDocument()
   })
 })
 

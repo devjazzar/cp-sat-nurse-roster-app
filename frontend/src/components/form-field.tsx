@@ -16,9 +16,10 @@ type FormFieldProps = {
   describedBy?: string
 } & Omit<ComponentProps<typeof Input>, "name" | "onChange" | "onBlur" | "ref" | "aria-describedby">
 
-/** A labelled input wired to React Hook Form, with its description and its error. */
-export function FormField({ label, description, registration, error, describedBy, ...input }: FormFieldProps) {
-  const id = `field-${registration.name}`
+/** A labelled input wired to React Hook Form, with its description and its error. Give it an `id` when another form on
+ *  the page has a field of the same name. */
+export function FormField({ label, description, registration, error, describedBy, id: given, ...input }: FormFieldProps) {
+  const id = given ?? `field-${registration.name}`
   const descriptionId = description ? `${id}-description` : undefined
   const errorId = error ? `${id}-error` : undefined
   return (
