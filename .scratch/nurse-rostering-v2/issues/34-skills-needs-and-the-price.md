@@ -25,3 +25,5 @@ did, so four backend tests that hold the app's blocks to the solver's own fields
 subtraction in each. The solver already refuses a second need for the same shift and skill, a need on a shift the unit
 does not work, a minimum outside 0..1000 (`MAX_NURSES`), a skill name listed twice in `required_skills`, and a version 1
 input carrying any of the five fields; the app's solve input must be version 2 for its needs to count.
+
+**From the review of ticket 31 (2026-11-09), decided by the user:** fairness should treat a day barred by an expired required skill as leave. Today a barred nurse's Friday share (`fair_weekend`) is not prorated for those days, so she carries a cost she cannot avoid and a lower `friday_balance` into next month. In the solver, count barred days as leave wherever fairness prorates for leave (`nurse_roster.fairness`), with a rule test in the constraint-verifier style. This is a small solver change inside this ticket.

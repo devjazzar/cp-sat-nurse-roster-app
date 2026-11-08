@@ -123,3 +123,5 @@ No adversarial review, by the user's call.
   (per nurse and date). `problem.barred_days` and `holds_skill` are the solver's readings if the app needs them.
 - **47:** request version 2 is the version a new field joins; an optional nurse scalar can stay in 2 as
   `preferences_not_kept` did, a new required rule field needs a version 3 and the same reading of 1 and 2.
+
+**Reviewed by the user (2026-11-09):** all eight Worth your review points kept as recommended: the four narrowed backend tests until ticket 34; the ids `skill_need`, `skill_expired` and the weight `skill_shortfall`; an expiry before the month read as "before the month"; the three extra refusals; the earliest expired skill leading; precheck only of an expiry inside the month; the Python defaults on the new problem fields; and fairness treating barred days as leave, fixed in the solver under ticket 34 (see its comment). PR #5 at head `1cb9bf2`, fast-forwarded into `main`; no migration; dev stack rebuilt.
