@@ -17,11 +17,14 @@
 ## Comments
 
 **Implemented on 2026-11-09,** on branch `claude/ticket-31-solver-skills-6b2fe1`, pull request
-MoustafaJazzar/cp-sat-nurse-roster-app#5, from `main` at `bee0073`. The suites, locally:
+MoustafaJazzar/cp-sat-nurse-roster-app#5, from `main` at `bee0073` (`bb49682` the rules and the request, `3dce47b` the
+contract test and docs, `6a1afaa` the review's points, `ae48d4e` the backend tests and this comment, then the bar's registry
+test hoisted out of the per-nurse loop and this line). The suites, locally:
 - the solver's whole suite with the service tests (`cd solver && uv run --no-sync pytest -q`): 527 passed (57 new in
   `tests/test_skills.py`, one new contract test; existing tests moved to version 2 where they wrote requests);
 - the backend under pytest on a throwaway PostgreSQL 18 container of my own: 2554 passed and 4 failed on the solver change
-  alone (the field-sync tests, below); with their narrowing, those three files pass (153); no model changed, so no migration;
+  alone (the field-sync tests, below); after narrowing them only those three test files were rerun (153 passed): only test
+  files changed, and GitHub's backend job is the full run; no model changed, so no migration;
 - no frontend, OpenAPI or Playwright change: those runs are GitHub's, on the pull request.
 
 **What the dev stack needs:** a **rebuild** (`docker compose up -d --build`) after the merge: the vendored solver package
