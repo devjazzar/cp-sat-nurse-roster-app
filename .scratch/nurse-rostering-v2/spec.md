@@ -20,6 +20,7 @@ disagree, the documents win.
 | 6 | Compare two results of the same month | `specs/compare-two-results.md` | 43 | none |
 | 7 | Ramadan and the Eids from the Umm al-Qura calendar | `specs/ramadan-and-eid-from-the-calendar.md` | 44, 45, 46 | none |
 | 8 | Full runs: a priced cap per nurse a month (added 2026-11-08) | `specs/full-runs.md` | 47, 48 | GLOSSARY: Run, Full run |
+| 9 | Overtime share: a unit's overtime spread fairly (added 2026-11-09) | `specs/overtime-share.md` | 49, 50, 51 | GLOSSARY: Overtime share |
 
 ## The ticket graph
 
@@ -35,12 +36,13 @@ shows open covers if covers exist by then, and Web Push (40–42) pushes a cover
 - **Compare:** 43.
 - **Ramadan:** 44 → 45; 46 beside them.
 - **Full runs:** 47 → 48.
+- **Overtime share:** 47 → 49 → 50 → 51 (49 after 47: both change the solver's input).
 
 ## The order to build in
 
 The order the features were proposed in, by value: cover first (the most-used thing in nurse scheduling apps is picking up
 an open shift), then preferences (the solver already prices them), then skills (the largest; touches the solver, ADR 0010),
-then the Day view, Web Push, the comparison, and the calendar. Full runs, added after the seven, join the end of the queue. Tickets with no blocker from different features can run at the
+then the Day view, Web Push, the comparison, and the calendar. Full runs and the overtime share, added after the seven, join the end of the queue in that order. Tickets with no blocker from different features can run at the
 same time in their own sessions; two tickets of one feature go in order.
 
 ## How a ticket is built

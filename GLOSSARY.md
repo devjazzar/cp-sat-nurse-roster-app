@@ -231,6 +231,10 @@ _Avoid_: block, stretch, cycle
 A run as long as the unit's longest run allows: three in a row where the longest run is three.
 _Avoid_: long run, maximum run
 
+**Overtime share**:
+The part of a unit's overtime in a month that falls to one nurse, in proportion to the hours she owes that month. How far her overtime has stood above or below it so far this year is one of her fairness balances.
+_Avoid_: overtime quota, overtime average, overtime target
+
 **Hard rule**:
 A rule a roster must satisfy. The solver returns no roster that breaks one.
 _Avoid_: constraint, mandatory rule
