@@ -30,7 +30,7 @@ price is 0 but the count still carries, so the "count double" line may show whil
 your review). `docs/ARCHITECTURE.md` section 6 already has a paragraph on the field; section 7's chain paragraph is yours.
 
 **Implemented on 2026-11-08,** on branch `claude/ticket-30-preferences-kept-8ce296`, pull request
-MoustafaJazzar/cp-sat-nurse-roster-app#4, from `main` at `eb2ed52` (`58aa10b`, `70db245`, `7c12934`, then this comment). The
+MoustafaJazzar/cp-sat-nurse-roster-app#4, from `main` at `eb2ed52` (`58aa10b`, `70db245`, `7c12934`, then this comment and its follow-ups). The
 suites, locally:
 - the backend under pytest on a throwaway PostgreSQL 18 container of my own (`nr-t30-pytest`): 2556 passed and 1 failed on
   `70db245`. The failure was `ops/tests/test_logs.py::test_gunicorn_logs_its_own_lines_and_each_request_as_json`, while my
@@ -86,7 +86,7 @@ only. No migration, and no change to `deploy/compose.yaml`, the `Dockerfile`, th
   paragraph (the carried count, its rules and its one month of memory), and section 8's Staff Nurse line (the card); the
   OpenAPI document and the client regenerated.
 
-**What was driven, and how.** Scratch stack `nr-t30` (`E2E_PORT=18300`), built from this branch at `70db245`, through the API
+**What was driven, and how.** Scratch stack `nr-t30` (`E2E_PORT=18300`), built from this branch at `58aa10b` (the code of `70db245`), through the API
 as the four ER nurses, Mona and Carla, then in the browser pane as Amal:
 - All four preferred 15 January 2027 off. A real 20-second solve kept Dana's and Badr's and paid `undesired_day` 4 for Amal's
   and Emad's (weight 2, amount 1 each). It was submitted and approved.
@@ -126,6 +126,11 @@ as the four ER nurses, Mona and Carla, then in the browser pane as Amal:
   one, one asked for as a request, and one a transfer left on the old unit's record have none, and count neither way.
 - **A month over and not yet closed reads as before approval** ("No roster yet"), as My month's hours do: `in_force` shows a
   past month only once it has closed.
+- **`doubled_by` of a closed month walks the chain as a solve would** (`Chain()`, with projection), while that month's close
+  read `Chain(project=False)`. They agree except for a nurse transferred in from a unit whose month before is approved and
+  not closed: there a close of hers can precede that unclosed month, and the close's input says 0 where the read says the
+  projected count. The literal value the close took is its input's nurse row; the read takes what any solve of the month
+  takes.
 - **`_in_force` became `in_force`, and `_InForce` `MonthInForce`:** the preference read uses it, and `swaps/mine_api.py`
   already imported the private name.
 
