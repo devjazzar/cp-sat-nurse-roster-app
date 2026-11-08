@@ -522,17 +522,22 @@ def test_cutoff_may_be_the_day_after_the_month(tmp_path, capsys):
 
 def test_deterministic_is_reported_from_the_stop_cause():
     """A run the wall-clock guard or a cancellation ended is not reproducible, however short."""
+    # The rule, on fixed numbers: the budget counts only when the wall clock is still under its limit.
+    assert stop_cause("FEASIBLE", 0.004, 0.004, 0.039, 0.04, False) == "deterministic_budget"
+    assert stop_cause("FEASIBLE", 0.004, 0.004, 0.04, 0.04, False) == "time_limit"   # both tripped: the wall's
+    assert stop_cause("FEASIBLE", 0.001, 0.004, 0.04, 0.04, False) == "time_limit"
+    assert stop_cause("FEASIBLE", 0.004, 0.004, 0.01, 0.04, True) == "cancelled"
+    # A real run this short ends by either limit, by the machine's speed (both happen on GitHub's runners), so it claims
+    # only that the result reports what ended it: deterministic only when the budget did.
     raw = fixture()
-    raw["solver"] = {"time_limit_seconds": 0.004, "reproducible": True}   # 0.04 s of wall ends it
+    raw["solver"] = {"time_limit_seconds": 0.004, "reproducible": True}
     req = load_request(raw)
     rm = build_model(req.problem)
     sol = solve(rm, req.problem, **req.solver.solve_kwargs(8))
-    # On a slow machine the deterministic budget can trip in the same run; `stop_cause` then still counts the wall clock, so
-    # nothing is claimed of the deterministic time (it failed on GitHub's runners with the claim `< 0.004`).
-    assert sol.stopped_by == "time_limit"
+    assert sol.stopped_by in ("time_limit", "deterministic_budget")
     res = build_result(req, rm, sol, precheck=[], workers=8)
-    assert res["solver"]["reproducible"] and not res["solver"]["deterministic"]
-    assert res["solver"]["stopped_by"] == "time_limit"
+    assert res["solver"]["reproducible"] and res["solver"]["stopped_by"] == sol.stopped_by
+    assert res["solver"]["deterministic"] == (sol.stopped_by == "deterministic_budget")
     p = mini(30, ["D"], [Nurse("a")])                          # a proof
     req = load_request(request_of(p, "2026-06", time_limit=5, reproducible=True))
     rm = build_model(req.problem)
