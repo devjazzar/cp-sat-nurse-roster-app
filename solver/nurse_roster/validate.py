@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .problem import Nurse, Problem, preference_factor
+from .problem import Nurse, Problem, barred_days, expired_required, preference_factor, skill_valid
 from . import fairness as F
 from .rules import HARD, RULES, Match, active, level, soft_ids, weight
 
@@ -241,7 +241,49 @@ def _gender(c: Ctx) -> list[Match]:
     return out
 
 
+def expiry_words(last: int) -> str:
+    """A skill's last day, in the solver's day numbering: "day 4", or "before the month"."""
+    return "before the month" if last < 0 else f"day {last}"
+
+
+def _skill_expired(c: Ctx) -> list[Match]:
+    """A shift on a day after the expiry of one of her required skills (the first to expire)."""
+    out = []
+    for n, nu in enumerate(c.p.nurses):
+        barred = barred_days(c.p, nu)
+        if not barred:
+            continue
+        skill, last = expired_required(c.p, nu)[0]
+        for d in barred:
+            if c.a[n][d] >= 0:
+                out.append(Match(nu.id, d, 1, f"skill expired: {nu.id} works {c.shifts[c.a[n][d]]} on day {d}, "
+                                 f"{skill} is required to work and its last day was {expiry_words(last)}", elapsed=d < c.F))
+    return out
+
+
 # ---- hard or soft ----------------------------------------------------------------------------
+def skill_holders(p: Problem, skill: str, d: int) -> list[int]:
+    """The nurses (indices) holding `skill` on day d: recorded, not past its expiry."""
+    return [n for n, nu in enumerate(p.nurses) if skill_valid(nu, skill, d)]
+
+
+def _skill_need(c: Ctx) -> list[Match]:
+    """Each shift-day a need is short: the nurses on exactly its shift holding its skill that day,
+    against the weekday or weekend minimum; the amount is the nurses short."""
+    out, p = [], c.p
+    for k in p.department.skill_needs:
+        ai = c.idx[k.shift]
+        for d in range(c.D):
+            want = k.weekend_min if p.is_weekend(d) else k.weekday_min
+            have = sum(1 for n in skill_holders(p, k.skill, d) if c.a[n][d] == ai)
+            if have < want:
+                out.append(Match(None, d, want - have,
+                                 f"skill need: day {d} {k.shift} has {have} holding {k.skill}, needs {want} "
+                                 f"({want - have} short)", elapsed=d < c.F))
+    return out
+
+
+
 def _night_rest(c: Ctx) -> list[Match]:
     """Walk back from every D in the month: an N met before night_rest_days off days have
     accumulated is a violation (one per D day); an earlier D means the nurse already
@@ -480,7 +522,7 @@ CHECKS: dict[str, Callable[[Ctx], list[Match]]] = {
     "fair_night": lambda c: _fair(c, True), "fair_weekend": _fair_weekend,
     "score_deficit": _score_deficit, "score_spread": _score_spread,
     "excess_weekend": _excess_weekend, "undesired_day": _undesired_day, "desired_day": _desired_day,
-    "pin": _pin, "change": _change,
+    "pin": _pin, "change": _change, "skill_expired": _skill_expired, "skill_need": _skill_need,
 }
 assert set(CHECKS) == set(RULES), "every registered rule needs a validator check"
 

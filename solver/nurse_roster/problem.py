@@ -30,11 +30,17 @@ MAX_HOURS = 10 ** 6      # overtime caps, YTD overtime, a carried hours balance
 MAX_PARAM = 1000         # rule counts (max in a row, switches), balances, caps
 MAX_REST_DAYS = 7        # night_rest_days: its clause encoding lists every day of the gap, so
                          # the model grows with the square of it; a week is beyond any real rule
-SCHEMA_VERSION = 4       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
+SCHEMA_VERSION = 5       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
                          # explicit; no migration from 1 or 2 (they relied on defaults). 4 (2026-11-08):
                          # a nurse's optional `preferences_not_kept` (absent = 0) doubles the price of
                          # her undesired and desired days (ADR 0013); a version-3 file is refused
-                         # like any other (the request, version 1, takes the field as optional)
+                         # like any other (the request, version 1, takes the field as optional). 5
+                         # (2026-11-09): skills (ADR 0010 of the app): a nurse's optional `skills`
+                         # (absent = no record), the department's `skill_needs` and `skill_needs_hard`,
+                         # the general `required_skills` and `weights.skill_shortfall`, all but the
+                         # first required; a version-4 file is refused like any other (the request
+                         # loader reads its version 1 as version 2 with no skills)
+MAX_SKILLS = 100         # skills a nurse holds, skills required to work, a unit's skill needs
 MAX_NAME = 100           # nurse ids and shift names (the CSV reader's field limit is 128 kB)
 _MONTH = re.compile(r"(\d{4})-(\d{2})")
 
@@ -70,6 +76,35 @@ class Nurse:
     preferences_not_kept: int = 0      # her undesired / desired days the month before did not keep
                                        # (carry_over.preferences_not_kept): above 0, each of hers this
                                        # month costs twice its weight, whatever the count (ADR 0013)
+    skills: dict[str, int | None] = field(default_factory=dict)  # skill name -> its expiry, the last
+                                       # day it counts: None = all month, 0..days-1 = that day of the
+                                       # month, -1 = expired before the month (whatever the date). A
+                                       # skill not listed is not recorded: it counts toward no need,
+                                       # and bars nothing even when required to work (ADR 0010)
+
+
+def skill_valid(nurse: Nurse, skill: str, d: int) -> bool:
+    """Whether the nurse holds `skill` on day d: recorded, and d is not after its expiry."""
+    if skill not in nurse.skills:
+        return False
+    last = nurse.skills[skill]
+    return last is None or d <= last
+
+
+def expired_required(p: "Problem", nurse: Nurse) -> list[tuple[str, int]]:
+    """Her required-to-work skills that expire before the month's last day, as (skill, expiry),
+    earliest first: from the day after each she works no shift (the skill expired rule)."""
+    return sorted(((s, last) for s, last in nurse.skills.items()
+                   if s in p.general.required_skills and last is not None and last < p.days - 1),
+                  key=lambda t: (t[1], t[0]))
+
+
+def barred_days(p: "Problem", nurse: Nurse) -> list[int]:
+    """The month days she may work no shift: every day after the earliest expiry of a required
+    skill of hers (`expired_required`). The model fixes them off, the validator reports a shift on
+    one, `max_hours` and the precheck count them as leave (without its credit: the hours stay owed)."""
+    first = expired_required(p, nurse)
+    return list(range(max(0, first[0][1] + 1), p.days)) if first else []
 
 
 def preference_factor(nurse: Nurse) -> int:
@@ -101,6 +136,7 @@ class Weights:
     undesired_day: int           # per requested-off day worked
     desired_day: int             # per requested-work day not worked
     change: int                  # per cell that differs from the published roster (re-solves)
+    skill_shortfall: int = 0     # per nurse a soft skill need is short on a shift-day (rule skill_need)
 
 
 @dataclass(slots=True)
@@ -119,6 +155,17 @@ class GeneralRules:
     overtime_year_cap: int              # hard, per nurse (uses Nurse.ytd_overtime)
     dept_overtime_cap: int              # soft, per department per month
     weights: Weights
+    required_skills: list[str] = field(default_factory=list)  # skills required to work: a nurse whose
+                                        # recorded one expired works no shift after its expiry (hard)
+
+
+@dataclass(slots=True)
+class SkillNeed:
+    """At least so many nurses holding `skill` on exactly `shift`, each weekday and weekend day."""
+    shift: str
+    skill: str
+    weekday_min: int
+    weekend_min: int
 
 
 @dataclass(slots=True)
@@ -162,6 +209,8 @@ class DepartmentRules:
     no_mixed_blocks: bool                # hard: consecutive working days are all D or all N
     max_switches: int                    # D<->N switches per month (month boundary counts)
     switches_hard: bool                  # True: hard cap; False: soft, weight shift_switch
+    skill_needs: list[SkillNeed] = field(default_factory=list)  # several per unit, one per shift and skill
+    skill_needs_hard: bool = True        # True: every need is hard; False: soft, weight skill_shortfall
 
 
 @dataclass(slots=True)
@@ -293,13 +342,13 @@ class Problem:
     def max_hours(self, nurse: Nurse) -> int:
         """The most hours the nurse can work this month: her pinned shifts (recorded or fixed by
         the admin) plus her longest allowed shift on every free day (from the cutoff on, not on
-        leave). The hours of her requirement beyond it (`unreachable_hours`) cannot be worked
+        leave, not barred by an expired required skill). The hours of her requirement beyond it (`unreachable_hours`) cannot be worked
         whatever the solver does: they and a remainder below one shift are exempt from the
         `avoidable_shortfall` penalty (model and validator alike), and the whole shortfall is
         carried over as her debt."""
         h = self.general.shift_hours
         longest = max(h[s] for s in (nurse.allowed_shifts or self.department.shifts))
-        leave = set(nurse.unavailable)
+        leave = set(nurse.unavailable) | set(barred_days(self, nurse))   # a barred day holds no shift
         total = 0
         for d in range(self.days):
             if d in nurse.pinned:
@@ -353,7 +402,7 @@ class Problem:
     def from_dict(raw: dict, *, check_planning: bool = True) -> "Problem":
         """Every field of the rule objects and every nurse scalar is required: no unit's
         numbers live in the code. Only a nurse's day lists, pins, `allowed_shifts`,
-        `previous`, `last_shift_kind`, `rest_owed` and `preferences_not_kept`, a headcount's `also_counts`, and the root's
+        `previous`, `last_shift_kind`, `rest_owed`, `preferences_not_kept` and `skills`, a headcount's `also_counts`, and the root's
         holidays, Ramadan days, `published`, `planning_from` and `month` may be absent (absent = none). An explicitly empty
         list stays empty. The result is checked (`check`) so malformed input fails here, not
         in the solver. Every malformed input raises ValueError (never TypeError), with the
@@ -365,10 +414,13 @@ class Problem:
         try:
             g = dict(_require(GeneralRules, raw["general"], "general"))
             g["weights"] = _build(Weights, g["weights"], "general.weights")
+            g["required_skills"] = list(_list(g["required_skills"], "general.required_skills"))
             general = _build(GeneralRules, g, "general")
             dp = dict(_require(DepartmentRules, raw["department"], "department"))
             dp["headcounts"] = [_build(Headcount, h, f"department.headcounts[{i}]", optional={"also_counts"})
                                 for i, h in enumerate(_list(dp["headcounts"], "department.headcounts"))]
+            dp["skill_needs"] = [_build(SkillNeed, k, f"department.skill_needs[{i}]")
+                                 for i, k in enumerate(_list(dp["skill_needs"], "department.skill_needs"))]
             nurses = [_build(Nurse, n, f"nurses[{i}]", optional=_NURSE_OPTIONAL)
                       for i, n in enumerate(_list(raw["nurses"], "nurses"))]
             for nu in nurses:                                 # JSON object keys are strings
@@ -440,7 +492,8 @@ class Problem:
             if not isinstance(getattr(g, name), bool):
                 raise err(f"general.{name} must be true or false, got {getattr(g, name)!r}")
         for name in ("headcount_enabled", "require_team_leader", "require_both_genders", "score_balance",
-                     "night_rest_hard", "fair_weekends", "carry_fairness", "no_mixed_blocks", "switches_hard"):
+                     "night_rest_hard", "fair_weekends", "carry_fairness", "no_mixed_blocks", "switches_hard",
+                     "skill_needs_hard"):
             if not isinstance(getattr(dep, name), bool):
                 raise err(f"department.{name} must be true or false, got {getattr(dep, name)!r}")
         if not isinstance(dep.name, str):
@@ -555,6 +608,25 @@ class Problem:
                 raise err(f"department.fair_shifts: fair shift {s!r} is not a department shift")
             if s not in seen:
                 raise err(f"department.fair_shifts: fair shift {s!r} has no headcount entry, so its fair share is undefined")
+        required = _list(g.required_skills, "general.required_skills")
+        _skill_names(required, "general.required_skills", err)
+        needs = _list(dep.skill_needs, "department.skill_needs")
+        if len(needs) > MAX_SKILLS:
+            raise err(f"department.skill_needs: at most {MAX_SKILLS} skill needs")
+        pairs = set()
+        for i, k in enumerate(needs):
+            where = f"department.skill_needs[{i}]"
+            if not isinstance(k, SkillNeed):
+                raise err(f"{where}: entries must be objects, got {k!r}")
+            if not isinstance(k.shift, str) or k.shift not in shifts:
+                raise err(f"{where}: shift {k.shift!r} is not a department shift")
+            _skill_names([k.skill], f"{where}.skill", err)
+            if (k.shift, k.skill) in pairs:
+                raise err(f"{where}: a second need for {k.skill!r} on {k.shift!r} (one need a shift and skill)")
+            pairs.add((k.shift, k.skill))
+            for name in ("weekday_min", "weekend_min"):
+                if not _is_int(getattr(k, name)) or not 0 <= getattr(k, name) <= MAX_NURSES:
+                    raise err(f"{where}.{name} must be an integer within 0..{MAX_NURSES}")
         for label, days in (("public_holidays", self.public_holidays), ("ramadan_days", self.ramadan_days)):
             for d in _list(days, label):
                 if not _is_int(d) or not 0 <= d < self.days:
@@ -641,6 +713,20 @@ class Problem:
                 raise err(f"{nu.id}: rest_owed must be an integer within 0..{MAX_REST_DAYS}")
             if not _is_int(nu.preferences_not_kept) or not 0 <= nu.preferences_not_kept <= MAX_DAYS:
                 raise err(f"{nu.id}: preferences_not_kept must be an integer within 0..{MAX_DAYS}")
+            if not isinstance(nu.skills, dict):
+                raise err(f"{nu.id}.skills must be an object {{skill: last day or null}}")
+            _skill_names(list(nu.skills), f"{nu.id}.skills", err)
+            for s, last in nu.skills.items():
+                if last is not None and (not _is_int(last) or not -1 <= last < self.days):
+                    raise err(f"{nu.id}: skill {s!r} expiry must be null or a day within -1..{self.days - 1} "
+                              f"(-1: before the month), got {last!r}")
+            if check_planning:                                # an elapsed shift is a fact
+                barred = set(barred_days(self, nu))
+                for d, s in nu.pinned.items():
+                    if s and d in barred and d >= self.planning_from:
+                        skill, last = expired_required(self, nu)[0]
+                        raise err(f"{nu.id}: day {d} is after the expiry of {skill!r}, required to work, "
+                                  f"but pinned to {s!r}")
 
         need = needed_history(self.department, self.general)
         if need > MAX_HISTORY:                                # a carried history could not hold it
@@ -741,6 +827,18 @@ def _is_name(v) -> bool:
     return isinstance(v, str) and bool(v.strip()) and not v.startswith(_CSV_PREFIX) and "\n" not in v
 
 
+def _skill_names(names: list, where: str, err) -> None:
+    """Skill names: non-empty strings that survive the CSV export, each once, at most MAX_SKILLS."""
+    if len(names) > MAX_SKILLS:
+        raise err(f"{where}: at most {MAX_SKILLS} skills")
+    for s in names:
+        if not _is_name(s) or len(s) > MAX_NAME:
+            raise err(f"{where}: {s!r} is not a skill name (a non-empty string of at most {MAX_NAME} characters, "
+                      f"without a leading = + - @ ' or control character)")
+    if len(set(names)) != len(names):
+        raise err(f"{where}: a skill is listed twice")
+
+
 def _list(v, where: str) -> list:
     """A JSON array (list / tuple); a string is not one, even though it iterates."""
     if not isinstance(v, (list, tuple)):
@@ -751,7 +849,7 @@ def _list(v, where: str) -> list:
 _ROOT_OPTIONAL = frozenset({"public_holidays", "ramadan_days", "published", "planning_from", "month"})
 _NURSE_OPTIONAL = frozenset({"unavailable", "undesired_days", "desired_days", "pinned",
                              "allowed_shifts", "previous", "last_shift_kind", "rest_owed",
-                             "preferences_not_kept"})
+                             "preferences_not_kept", "skills"})
 
 
 def _require(cls, raw, where: str, *, optional: frozenset | set = frozenset()) -> dict:

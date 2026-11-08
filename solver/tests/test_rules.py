@@ -13,13 +13,14 @@ from nurse_roster.model import build_model, solve
 from nurse_roster.problem import Headcount, Nurse, Weights
 from nurse_roster.rules import HARD, RULES, active, level, soft_ids, weight
 from nurse_roster.validate import CHECKS, validate
+from nurse_roster.problem import SkillNeed
 from tests.test_audit import hours_general, mini, quiet
 from tests.rules_helper import penalises, violates, only
 
 
 # ---- registry ---------------------------------------------------------------------------------
 def test_registry_covers_weights_checks_and_model_terms():
-    assert set(soft_ids()) == set(Weights.__slots__)
+    assert {RULES[rid].weight for rid in soft_ids()} == set(Weights.__slots__)
     assert set(CHECKS) == set(RULES)
     p = generate(6, 7, 0, 0, False, [])
     rm = build_model(p)
@@ -193,6 +194,11 @@ def test_each_soft_rule_alone_matches_the_solver():
             p.department.night_rest_hard = False
         if rid == "shift_switch":
             p.department.switches_hard = False
+        if rid == "skill_need":                               # three holders, one expiring, for 2 a day
+            p.department.skill_needs_hard = False
+            p.department.skill_needs = [SkillNeed("D", "ICU", 2, 2)]
+            for nu, last in zip(p.nurses[:3], (None, None, 2)):
+                nu.skills = {"ICU": last}
         sol = solve(build_model(p), p, time_limit=4, workers=4)
         assert sol.status in ("OPTIMAL", "FEASIBLE"), (rid, sol.status, sol.message)
         assert penalises(p, sol.assignment, rid) == sol.objective, rid

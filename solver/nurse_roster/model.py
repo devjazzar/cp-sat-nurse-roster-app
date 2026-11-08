@@ -16,11 +16,11 @@ from dataclasses import asdict, dataclass, field
 
 from ortools.sat.python import cp_model
 
-from .problem import Problem, preference_factor
+from .problem import Problem, barred_days, preference_factor
 from . import fairness as F
 from .explain import Analysis, explain
 from .rules import active, soft_ids, weight
-from .validate import count_switches, matrix_errors, rest_owed_after, switch_memory, switch_seed
+from .validate import count_switches, matrix_errors, rest_owed_after, skill_holders, switch_memory, switch_seed
 
 MAX_WORKERS = 128
 STOP_POLL = 0.05        # seconds between checks of the caller's stop event (see solve)
@@ -158,6 +158,10 @@ def build_model(p: Problem) -> RosterModel:
                     m.add(xn[t][s] == 0)
         for d in nurse.unavailable:
             m.add(on[P + d] == 1)
+        if rule("skill_expired"):                              # after a required skill's expiry: off
+            for d in barred_days(p, nurse):                    # (an elapsed day is a fact, pinned)
+                if d >= cut:
+                    m.add(on[P + d] == 1)
         if rule("pin"):                                        # admin-fixed or already worked
             for d, s_name in nurse.pinned.items():
                 m.add((on[P + d] if s_name == "" else xn[P + d][idx[s_name]]) == 1)
@@ -357,6 +361,23 @@ def build_model(p: Problem) -> RosterModel:
                     hvars.append((h, b))
                 m.add_exactly_one([b for _, b in hvars])
                 m.add(Sum(pure) == WSum([b for _, b in hvars], [h for h, _ in hvars]))
+
+    # ---- skill needs: nurses holding the skill on exactly its shift, against the minimum -------
+    if rule("skill_need"):
+        for k in dep.skill_needs:
+            a = idx[k.shift]
+            for d in range(D):
+                want = k.weekend_min if weekend[d] else k.weekday_min
+                if want == 0:
+                    continue
+                have = Sum([x[n][P + d][a] for n in skill_holders(p, k.skill, d)])
+                if dep.skill_needs_hard:
+                    if d >= cut:                               # an elapsed day is a fact
+                        m.add(have >= want)
+                else:                                          # soft: elapsed days still count, as
+                    short = m.new_int_var(0, want, f"sk{a}_{d}_{len(pen['skill_need'][0])}")   # the validator's
+                    m.add(short >= want - have)
+                    pen["skill_need"][0].append(short)
 
     # ---- department overtime (soft) --------------------------------------------
     if rule("dept_overtime") and ot_vars:

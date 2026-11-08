@@ -7,7 +7,7 @@ loader validates the request, maps dates to the 0-based indices of the internal
 `Problem`, and returns the problem together with the solver settings. Only ValueError
 leaves, prefixed `request: <field path>: ...`.
 
-    {"version": 1, "month": "2026-03",
+    {"version": 2, "month": "2026-03",
      "ramadan_days": {"from": "2026-02-18", "to": "2026-03-19"},      # optional, see below
      "public_holidays": ["2026-03-10"],
      "general": {... every GeneralRules field, "weights": {... every Weights field}},
@@ -18,7 +18,8 @@ leaves, prefixed `request: <field path>: ...`.
                  "leave": ["2026-03-04"], "undesired_days": [], "desired_days": [],
                  "pinned": {"2026-03-01": "D"}, "allowed_shifts": null,
                  "previous": ["D", "D", "", "N", "N", "N", "", "", "D", "D"],
-                 "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0}],
+                 "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0,
+                 "skills": {"BLS": "2026-03-14", "ICU": null}}],
      "solver": {"time_limit_seconds": 20, "reproducible": false},
      "published": {"N01": {"2026-03-01": "D", "2026-03-02": "", ...}},   # optional
      "replan_from": "2026-03-12",                                      # optional
@@ -43,6 +44,17 @@ defines is accepted as work of no kind (neither night nor day; precheck says so)
 `replan_from` the first date to re-plan (earlier days are recorded facts); the first day
 after the month marks the whole month as elapsed, for the month-end reconciliation that
 turns the recorded facts into next month's carry-over.
+
+Version 2 (2026-11-09, ADR 0010 of the app) adds skills. `general` gains `required_skills` (the
+skill names required to work) and `weights.skill_shortfall`; `department` gains `skill_needs`
+(a list of {"shift", "skill", "weekday_min", "weekend_min"}, a shift of the unit's, one need a
+shift and skill) and `skill_needs_hard`; all four are required. A nurse's `skills` (optional,
+absent = none recorded) maps each skill name to its expiry, the last day it counts, or null for
+one that counts all month: the one dated field accepted before the month (a skill expired before
+it is sent with that date, since absence means no record), while a date after the month is
+refused (it counts all month: null). Version 1 is still read, as version 2 with no skills, no
+needs, the needs hard, no required skills and the weight 0, since every stored input is version
+1; it may not carry any of the five fields. The result's version is unchanged.
 """
 from __future__ import annotations
 
@@ -54,7 +66,8 @@ from pathlib import Path
 from .calendar import MonthInfo, parse_date, parse_month
 from .problem import SCHEMA_VERSION, Problem, read_json
 
-REQUEST_VERSION = 1
+REQUEST_VERSION = 2           # what a caller writes; READABLE: what the loader still reads
+READABLE = (1, 2)
 REPRODUCIBLE_WALL_FACTOR = 10    # reproducible: wall-clock guard = this x the deterministic budget.
                                  # CP-SAT's deterministic clock runs slower than the wall clock with
                                  # one worker (4-5 s per unit measured on a 10-nurse month), so the
@@ -67,7 +80,11 @@ _NURSE_REQUIRED = ("id", "gender", "team_leader", "score", "ramadan_reduced", "b
                    "last_shift_kind", "rest_owed")
 _KINDS = (None, "night", "day")
 _NURSE_DATES = ("leave", "undesired_days", "desired_days")
-_NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous", "preferences_not_kept")
+_NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous", "preferences_not_kept", "skills")
+# the fields version 2 adds, with the values a version-1 request is read with (no skills)
+_V2_GENERAL = {"required_skills": []}
+_V2_WEIGHTS = {"skill_shortfall": 0}
+_V2_DEPARTMENT = {"skill_needs": [], "skill_needs_hard": True}
 _SOLVER_FIELDS = ("time_limit_seconds", "reproducible")
 _DAY_REF = re.compile(r"\bday (\d+)\b")
 
@@ -109,8 +126,12 @@ def load_request(raw: object) -> Request:
     if not isinstance(raw, dict):
         raise ValueError("request: must be a JSON object")
     _keys(raw, "request", _ROOT_REQUIRED, _ROOT_OPTIONAL)
-    if raw["version"] is not REQUEST_VERSION and raw["version"] != REQUEST_VERSION or isinstance(raw["version"], bool):
-        raise ValueError(f"request: version must be {REQUEST_VERSION}, got {raw['version']!r}")
+    version = raw["version"]
+    if isinstance(version, bool) or not isinstance(version, (int, float)) or version not in READABLE:
+        raise ValueError(f"request: version must be {' or '.join(map(str, READABLE))}, got {version!r}")
+    general, department = raw["general"], raw["department"]
+    if version == 1:
+        general, department = _version_1(raw)
     try:
         month = parse_month(raw["month"])
     except ValueError as e:
@@ -121,6 +142,8 @@ def load_request(raw: object) -> Request:
     renames = _renames(raw.get("renamed_shifts"), shifts)
     nurses, ids = [], []
     for i, nd in enumerate(_list(raw["nurses"], "request: nurses")):
+        if version == 1 and isinstance(nd, dict) and "skills" in nd:
+            raise ValueError(f"request: nurses[{i}]: unknown field(s) ['skills'] (version 1 has no skills)")
         n = _nurse(month, nd, f"request: nurses[{i}]", shifts, renames)
         nurses.append(n)
         ids.append(n["id"])
@@ -132,7 +155,7 @@ def load_request(raw: object) -> Request:
         if published is None:
             raise ValueError("request: replan_from needs a published roster")
     d = {"version": SCHEMA_VERSION, "days": month.days, "first_weekday": month.first_weekday, "month": month.label,
-         "nurses": nurses, "general": raw["general"], "department": raw["department"],
+         "nurses": nurses, "general": general, "department": department,
          "public_holidays": holidays, "ramadan_days": ramadan, "published": published, "planning_from": 0}
     try:
         p = Problem.from_dict(d, check_planning=replan is None)
@@ -143,6 +166,24 @@ def load_request(raw: object) -> Request:
 
 
 # ---- pieces ---------------------------------------------------------------------------------------
+def _version_1(raw: dict) -> tuple[object, object]:
+    """A version-1 request's `general` and `department` as version 2 reads them: copies with no
+    required skills, a skill shortfall weight of 0, no skill needs and the needs hard. A block
+    that is not an object is left for the problem's own check to name; one that already carries a
+    field of version 2 is refused, so no request is read half one version and half the other."""
+    def upgraded(block: object, added: dict, where: str) -> object:
+        if not isinstance(block, dict):
+            return block
+        clash = sorted(set(block) & set(added))
+        if clash:
+            raise ValueError(f"request: {where}: unknown field(s) {clash} (version 1 has no skills)")
+        return {**block, **added}
+    general = upgraded(raw["general"], _V2_GENERAL, "general")
+    if isinstance(general, dict) and "weights" in general:   # missing: the problem names it
+        general["weights"] = upgraded(general["weights"], _V2_WEIGHTS, "general.weights")
+    return general, upgraded(raw["department"], _V2_DEPARTMENT, "department")
+
+
 def _keys(raw: object, where: str, required: tuple, optional: tuple = ()) -> dict:
     if not isinstance(raw, dict):
         raise ValueError(f"{where}: expected an object, got {type(raw).__name__}")
@@ -266,7 +307,28 @@ def _nurse(month: MonthInfo, nd: object, where: str, shifts: list[str] | None,
         if not isinstance(unkept, int) or isinstance(unkept, bool) or unkept < 0:
             raise ValueError(f"{where}.preferences_not_kept: must be a whole number, 0 or more, got {unkept!r}")
         n["preferences_not_kept"] = unkept
+    if "skills" in nd:
+        n["skills"] = _skills(month, nd["skills"], f"{where}.skills")
     return n
+
+
+def _skills(month: MonthInfo, raw: object, where: str) -> dict[str, int | None]:
+    """{skill: expiry date or null} -> {skill: last day index, None, or -1 before the month}. A
+    name the problem checks; the date is the one accepted before the month, never after it."""
+    if not isinstance(raw, dict):
+        raise ValueError(f"{where}: must be an object {{skill: expiry date or null}}")
+    out: dict[str, int | None] = {}
+    first, last = month.date(0), month.date(month.days - 1)
+    for skill, text in raw.items():
+        if text is None:
+            out[skill] = None
+            continue
+        x = parse_date(text, f"{where}[{skill}]")
+        if x > last:
+            raise ValueError(f"{where}[{skill}]: {text} is after {month.label} (a skill that counts all "
+                             f"month has no expiry: null)")
+        out[skill] = -1 if x < first else x.day - 1
+    return out
 
 
 def _settings(raw: object) -> SolverSettings:

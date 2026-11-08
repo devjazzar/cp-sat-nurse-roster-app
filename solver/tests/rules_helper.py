@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from nurse_roster.explain import explain
 from nurse_roster.problem import Problem, Weights
-from nurse_roster.rules import HARD, level
+from nurse_roster.rules import HARD, RULES, level
 
 
 def only(rid: str, w: int) -> Weights:
-    return Weights(**{**{f: 0 for f in Weights.__slots__}, rid: w})
+    """Every weight 0 but the rule's own (`RULES[rid].weight`, the rule's id but for skill_need)."""
+    return Weights(**{**{f: 0 for f in Weights.__slots__}, RULES[rid].weight: w})
 
 
 def penalises(p: Problem, a: list[list[int]], rid: str) -> int:

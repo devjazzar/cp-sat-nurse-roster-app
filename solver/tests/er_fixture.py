@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import random
+from datetime import timedelta
 from dataclasses import asdict
 
 from nurse_roster.problem import (MAX_DAYS, MAX_HISTORY, MAX_NURSES, SCHEMA_VERSION, DepartmentRules,
@@ -207,8 +208,12 @@ def request_of(p: Problem, month: str, *, time_limit: float = 5, reproducible: b
         n["pinned"] = {info.iso(int(k)): v for k, v in nu["pinned"].items()}
         n["allowed_shifts"] = nu["allowed_shifts"]
         n["previous"] = nu["previous"]
+        if nu["skills"]:                                      # -1: any day before the month
+            before = (info.date(0) - timedelta(days=1)).isoformat()
+            n["skills"] = {k: None if v is None else before if v < 0 else info.iso(v)
+                           for k, v in nu["skills"].items()}
         nurses.append(n)
-    req = {"version": 1, "month": month,
+    req = {"version": 2, "month": month,
            "ramadan_days": [info.iso(x) for x in p.ramadan_days],
            "public_holidays": [info.iso(x) for x in p.public_holidays],
            "general": d["general"], "department": d["department"], "nurses": nurses,

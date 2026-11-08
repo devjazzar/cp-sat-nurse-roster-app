@@ -3,7 +3,9 @@ causes of infeasibility in plain words. CP-SAT only says INFEASIBLE."""
 from __future__ import annotations
 
 from . import fairness as F
-from .problem import Problem, needed_history   # noqa: F401  (needed_history: re-exported, defined with the contract)
+from .problem import Problem, barred_days, expired_required, needed_history, skill_valid   # noqa: F401
+                                               # (needed_history: re-exported, defined with the contract)
+from .validate import expiry_words
 
 # ---- cycle-rule automaton -------------------------------------------------------------
 # state = (run, offrun, last_full, danger, need_rest)
@@ -112,8 +114,11 @@ def precheck(p: Problem) -> list[str]:
     cut = p.planning_from                                     # elapsed days are facts: their demand
     free = range(cut, D)                                      # is met by whatever happened
 
-    def off_days(n) -> set[int]:                              # leave and pinned-off days
-        return set(n.unavailable) | {d for d, s in n.pinned.items() if s == ""}
+    barred = {n.id: set(barred_days(p, n)) for n in p.nurses}   # after a required skill's expiry:
+                                                              # counted like leave in every sum
+    def off_days(n) -> set[int]:                              # leave, barred and pinned-off days
+        return set(n.unavailable) | {d for d in barred[n.id] if d not in n.pinned} \
+            | {d for d, s in n.pinned.items() if s == ""}
 
     def most_shifts(n) -> int:                                # fit under cycle rules and hours,
         elapsed = [n.pinned.get(d, "") for d in range(cut)]   # on the free days: the elapsed
@@ -184,7 +189,7 @@ def precheck(p: Problem) -> list[str]:
 
     # ---- per day: leave clustering against the day's demand (free days only) -----------
     for d in free:
-        here = [n for n in p.nurses if d not in n.unavailable and n.pinned.get(d) != ""]
+        here = [n for n in p.nurses if d not in off_days(n)]
         today = {n.id: ({n.pinned[d]} if n.pinned.get(d) else allowed[n.id]) for n in here}   # pins fix the shift
         need = -(-sum(hc.weekend_min if p.is_weekend(d) else hc.weekday_min for hc in anchors)
                  // max(1, max(cover.values(), default=1)))
@@ -222,6 +227,35 @@ def precheck(p: Problem) -> list[str]:
                         sum(1 for n in here if n.gender == sex and allowed[n.id] & set(pure)):
                     issues.append(f"day {d}: {len(dep.headcounts)} anchor shifts need a {word} nurse "
                                   f"each, only {sum(1 for n in here if n.gender == sex)} available")
+
+    # ---- skill needs: anyone holding the skill, enough who may work the shift, each day --------
+    for k in dep.skill_needs:
+        name = f"skill need {k.shift}/{k.skill}"
+        mins = {d: k.weekend_min if p.is_weekend(d) else k.weekday_min for d in free}
+        if not any(mins.values()):
+            continue
+        holders = [n for n in p.nurses if any(skill_valid(n, k.skill, d) for d in free)]
+        if not holders:
+            issues.append(f"{name}: no nurse holds {k.skill} on any free day")
+            continue
+        able = [n for n in holders if k.shift in allowed[n.id]]
+        most = max(mins.values())
+        if len(able) < most:
+            issues.append(f"{name}: needs {most} on some day but only {len(able)} nurse(s) hold {k.skill} "
+                          f"and may work {k.shift}")
+        for d, want in mins.items():
+            today = [n for n in able if skill_valid(n, k.skill, d) and d not in off_days(n)
+                     and n.pinned.get(d, k.shift) == k.shift]
+            if len(today) < want:
+                issues.append(f"day {d}: {name} needs {want} but only {len(today)} nurse(s) holding {k.skill} "
+                              f"may work {k.shift} (not on leave, pinned elsewhere or barred)")
+
+    # ---- required skills that expire inside the month: no shift after the last day ---------
+    for n in p.nurses:
+        for skill, last in expired_required(p, n):
+            if last >= 0:
+                issues.append(f"{n.id}: {skill}, required to work, expires inside the month: its last day is "
+                              f"{expiry_words(last)}, and she works no shift after it")
 
     # ---- pins that break a pattern rule between themselves ------------------------------
     succ = set(p.successions())

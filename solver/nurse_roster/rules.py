@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from .problem import Problem
+from .problem import Problem, expired_required
 
 HARD, SOFT = "hard", "soft"
 
@@ -37,7 +37,8 @@ class Match:
 class Rule:
     id: str
     level: str | Callable[[Problem], str]
-    weight: str | None                     # `Weights` field, soft rules only (equals `id`)
+    weight: str | None                     # `Weights` field, soft rules only (equals `id`, but for
+                                           # skill_need, whose weight is `skill_shortfall`)
     unit: str
     enabled: Callable[[Problem], bool]
 
@@ -66,6 +67,8 @@ _RULES = [
     Rule("gender", HARD, None, "shift-day without both genders",
          lambda p: p.department.require_both_genders),
     Rule("pin", HARD, None, "cell differing from its pin", lambda p: any(nu.pinned for nu in p.nurses)),
+    Rule("skill_expired", HARD, None, "shift on a day a required skill has expired",
+         lambda p: any(expired_required(p, nu) for nu in p.nurses)),
     # hard or soft, per department flag
     Rule("night_rest", lambda p: HARD if p.department.night_rest_hard else SOFT, "night_rest",
          "D day with too few off days since the last N",
@@ -73,6 +76,8 @@ _RULES = [
     Rule("shift_switch", lambda p: HARD if p.department.switches_hard else SOFT, "shift_switch",
          "night/day switch above the maximum",
          lambda p: p.department.night_shift in p.department.shifts),
+    Rule("skill_need", lambda p: HARD if p.department.skill_needs_hard else SOFT, "skill_shortfall",
+         "nurse short of a skill need on a shift-day", lambda p: bool(p.department.skill_needs)),
     # soft
     Rule("dept_overtime", SOFT, "dept_overtime", "hour over the department cap",
          lambda p: p.general.hours_rule_enabled),
@@ -125,5 +130,5 @@ def active(p: Problem, rid: str) -> bool:
 
 
 def soft_ids() -> list[str]:
-    """Every rule that can carry a weight, i.e. every `Weights` field."""
+    """Every rule that can carry a weight, one a `Weights` field (`RULES[id].weight`)."""
     return [r.id for r in _RULES if r.weight is not None]
