@@ -234,3 +234,9 @@ The stack is down and its volumes gone.
   - The architecture's sections 2 and 8, and the security paragraph's audit actions, are yours.
 - **Any page can read this device's state** through `lib/push` (`deviceState`, `PUSH_STATE_KEY`). Log out already goes
   through `turnThisDeviceOffForLogOut`.
+
+**Reviewed by the user (2026-11-10):** all four points kept as recommended.
+- The worker's renewal needs `cookieStore`; watch ticket 42's failure counts.
+- The start's replacement is not atomic; accepted.
+- Push addresses are to be limited to the push services' hosts, in ticket 41.
+- "device" stays in the API and on the page.

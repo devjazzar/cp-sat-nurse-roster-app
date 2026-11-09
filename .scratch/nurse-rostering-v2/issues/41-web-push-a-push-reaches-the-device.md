@@ -41,3 +41,9 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`. Reasons: `d
 - **The service worker** has `install`, `activate` and `pushsubscriptionchange`, and still no `fetch`. Its test
   (`src/sw.test.ts`) runs the worker with `self`, `caches` and `fetch` as parameters; add `push` and `notificationclick`
   beside them. `self.registration` is already in the stand-in.
+
+**From the review of ticket 40 (2026-11-10), decided by the user:** limit a push subscription's address to the browser push services' own hosts, to close a request-forgery path through the worker.
+- **Hosts:** Google's `fcm.googleapis.com`, Mozilla's `updates.push.services.mozilla.com` and `*.push.services.mozilla.com`, Apple's `*.push.apple.com`, and Microsoft's `*.notify.windows.com`. Confirm the current list from the services' own documentation.
+- **Where:** refuse any other host at turn-on, in `notifications.subscriptions` (a field error, as for a malformed address), and check again before each send.
+- **Rows held already:** treat a held row whose host is not allowed as ended, deleted with no entry.
+- **Tests:** at the web API seam, for turn-on and for the send.
