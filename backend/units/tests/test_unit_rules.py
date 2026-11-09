@@ -62,12 +62,15 @@ def solve_input(unit: Unit) -> dict:
 # The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
 # deletes this set and its subtraction below.
 VERSION_2_SKILL_FIELDS = {"skill_needs", "skill_needs_hard"}
+# The solver's full-run field (ticket 47) that the app's blocks do not carry yet: ticket 48 adds it to the blocks and deletes
+# this set and its subtraction below.
+FULL_RUN_FIELDS = {"max_full_runs"}
 
 
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_units_name():
     fields = {field.name for field in dataclasses.fields(DepartmentRules)}
 
-    assert set(DEFAULT_UNIT_RULES) == fields - {"name"} - VERSION_2_SKILL_FIELDS
+    assert set(DEFAULT_UNIT_RULES) == fields - {"name"} - VERSION_2_SKILL_FIELDS - FULL_RUN_FIELDS
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():

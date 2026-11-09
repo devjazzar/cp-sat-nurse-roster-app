@@ -366,6 +366,30 @@ def _excess_weekend(c: Ctx) -> list[Match]:
     return out
 
 
+def count_full_runs(seq: list[int], H: int, K: int) -> int:
+    """Full runs on a history + month sequence (shift index, -1 = off): runs of exactly K worked
+    days whose last day is a month day (index H or later) before the month's last, so the day
+    after it, off, is seen. A run counts in the month that holds its last day; one reaching the
+    month's last day is not counted (that month cannot see it end, the next cannot change it).
+    The start of the sequence bounds a run like an off day, as for `_consecutive`."""
+    k = run = 0
+    for t, v in enumerate(seq):
+        run = run + 1 if v >= 0 else 0
+        if run == K and H <= t < len(seq) - 1 and seq[t + 1] < 0:
+            k += 1
+    return k
+
+
+def _excess_full_run(c: Ctx) -> list[Match]:
+    out, dep = [], c.p.department
+    K, cap = dep.max_consecutive_shifts, dep.max_full_runs
+    for n, nu in enumerate(c.p.nurses):
+        k = count_full_runs(c.full[n], c.H[n], K)
+        if k > cap:
+            out.append(Match(nu.id, None, k - cap, f"{nu.id}: {k} full runs of {K} shifts, max {cap}"))
+    return out
+
+
 def _fair_weekend(c: Ctx) -> list[Match]:
     out, p = [], c.p
     if not c.weekend_days:
@@ -510,7 +534,8 @@ CHECKS: dict[str, Callable[[Ctx], list[Match]]] = {
     "fair_day": lambda c: _fair(c, False),
     "fair_night": lambda c: _fair(c, True), "fair_weekend": _fair_weekend,
     "score_deficit": _score_deficit, "score_spread": _score_spread,
-    "excess_weekend": _excess_weekend, "undesired_day": _undesired_day, "desired_day": _desired_day,
+    "excess_weekend": _excess_weekend, "excess_full_run": _excess_full_run,
+    "undesired_day": _undesired_day, "desired_day": _desired_day,
     "pin": _pin, "change": _change, "skill_expired": _skill_expired, "skill_need": _skill_need,
 }
 assert set(CHECKS) == set(RULES), "every registered rule needs a validator check"

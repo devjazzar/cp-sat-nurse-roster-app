@@ -41,7 +41,8 @@
    "shift_switch": 8,
    "undesired_day": 2,
    "desired_day": 1,
-   "change": 3
+   "change": 3,
+   "excess_full_run": 4
   }
  },
  "department": {
@@ -94,7 +95,8 @@
   "max_weekends": 3,
   "no_mixed_blocks": true,
   "max_switches": 2,
-  "switches_hard": false
+  "switches_hard": false,
+  "max_full_runs": 3
  },
  "nurses": [
   {

@@ -286,6 +286,25 @@ def build_model(p: Problem) -> RosterModel:
             m.add(ex >= Sum([on[d].Not() for d in weekend_days]) - dep.max_weekends)
             pen["excess_weekend"][0].append(ex)
 
+        # full runs above the department maximum (soft): one literal per month day t before the
+        # last that can end a run of exactly K, at least 1 when it does (the objective holds it at
+        # 0 otherwise), as `count_full_runs` counts them: K worked days to t, an off day after, and
+        # an off day before, or the start of her own history. The free padding before a short
+        # history is never read, or the solver would fill it with work to make the run look longer
+        if rule("excess_full_run"):
+            K = dep.max_consecutive_shifts
+            ends = []
+            for t in range(max(P, start + K - 1), T - 1):
+                worked = [on[i].Not() for i in range(t - K + 1, t + 1)]
+                bounds = [on[t + 1]] + ([on[t - K]] if t - K >= start else [])
+                fr = nb(f"fr{n}_{t}")
+                m.add_bool_or([lit.Not() for lit in worked + bounds] + [fr])
+                ends.append(fr)
+            if dep.max_full_runs < len(ends):
+                ex = m.new_int_var(0, len(ends), f"xfr{n}")
+                m.add(ex >= Sum(ends) - dep.max_full_runs)
+                pen["excess_full_run"][0].append(ex)
+
         # Friday fairness: |fridays − fair share + carried balance| beyond tolerance
         if rule("fair_weekend") and weekend_days:
             fc = Sum([on[d].Not() for d in weekend_days])

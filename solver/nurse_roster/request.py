@@ -55,6 +55,13 @@ it is sent with that date, since absence means no record), while a date after th
 refused (it counts all month: null). Version 1 is still read, as version 2 with no skills, no
 needs, the needs hard, no required skills and the weight 0, since every stored input is version
 1; it may not carry any of the five fields. The result's version is unchanged.
+
+Full runs (2026-11-09, ticket 47 of the app) add two fields, optional in either version so every
+stored input still loads and gives what it gave: `department.max_full_runs`, the most full runs (runs
+of exactly `max_consecutive_shifts` shifts) a nurse may work in the month, a whole number 0..31,
+absent or null = no cap; and `general.weights.excess_full_run`, the price of each one above it,
+absent = 0. A full run counts in the month that holds its last day, and one reaching the month's
+last day is not counted (`validate.count_full_runs`).
 """
 from __future__ import annotations
 
@@ -85,6 +92,9 @@ _NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous", "prefe
 _V2_GENERAL = {"required_skills": []}
 _V2_WEIGHTS = {"skill_shortfall": 0}
 _V2_DEPARTMENT = {"skill_needs": [], "skill_needs_hard": True}
+# the full-run fields, optional in either version, with the values an input without them is read with
+_FULL_RUN_DEPARTMENT = {"max_full_runs": None}
+_FULL_RUN_WEIGHTS = {"excess_full_run": 0}
 _SOLVER_FIELDS = ("time_limit_seconds", "reproducible")
 _DAY_REF = re.compile(r"\bday (\d+)\b")
 
@@ -132,6 +142,7 @@ def load_request(raw: object) -> Request:
     general, department = raw["general"], raw["department"]
     if version == 1:
         general, department = _version_1(raw)
+    general, department = _full_runs(general, department)
     try:
         month = parse_month(raw["month"])
     except ValueError as e:
@@ -182,6 +193,19 @@ def _version_1(raw: dict) -> tuple[object, object]:
     if isinstance(general, dict) and "weights" in general:   # missing: the problem names it
         general["weights"] = upgraded(general["weights"], _V2_WEIGHTS, "general.weights")
     return general, upgraded(raw["department"], _V2_DEPARTMENT, "department")
+
+
+def _full_runs(general: object, department: object) -> tuple[object, object]:
+    """`general` and `department` with the full-run fields a request may leave out filled, on
+    copies: no cap (`department.max_full_runs` null) and `weights.excess_full_run` 0, so an input
+    made before them, of either version, loads and gives what it gave. A block that is not an
+    object, or weights missing or not an object, are left for the problem's own check to name."""
+    if isinstance(department, dict) and "max_full_runs" not in department:
+        department = {**department, **_FULL_RUN_DEPARTMENT}
+    if isinstance(general, dict) and isinstance(general.get("weights"), dict) \
+            and "excess_full_run" not in general["weights"]:
+        general = {**general, "weights": {**general["weights"], **_FULL_RUN_WEIGHTS}}
+    return general, department
 
 
 def _keys(raw: object, where: str, required: tuple, optional: tuple = ()) -> dict:

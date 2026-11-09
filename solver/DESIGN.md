@@ -57,6 +57,13 @@ defaults that could hide a unit's numbers. Decided 2026-11-03.
   problem file is not. The result's `version` stays 1: its shape did not change (its `penalties`
   gain the key `skill_need`, as for every soft rule, and a violation may name `skill_need` or
   `skill_expired`).
+* **Full runs (2026-11-09, ticket 47 of the app), optional in either version.**
+  `department.max_full_runs` (a whole number 0..31; absent or null = no cap) and
+  `weights.excess_full_run` (absent = 0) may be left out of a version 1 or 2 request, which then
+  loads and prices exactly as before (`request._full_runs`, on copies). Optional rather than a
+  version 3: they change nothing when absent, and the app still writes version 1. A bad value is
+  refused with its path (`request: department.max_full_runs must be a whole number within 0..31
+  or null, got 32`). The result's `version` stays 1 (its `penalties` gain `excess_full_run`).
 * The server derives the day count, first weekday and Ramadan days from `month`
   (`calendar.parse_month`). `ramadan_days` has three states: absent/null = derived from the
   Umm al-Qura calendar, `[]` = none, a list of dates = exactly these; a `{"from", "to"}` range
@@ -166,7 +173,7 @@ is no CSV reader any more. The ER instance (real scores, the three single-shift 
 random generator) lives in `tests/er_fixture.py`, and `tests/fixtures/er_request_2026-03.json`
 is the committed ER request every end-to-end test and benchmark uses.
 
-### Internal problem (`problem.py`; schema 5, everything explicit)
+### Internal problem (`problem.py`; schema 6, everything explicit)
 The solver's own contract, built by the request loader (0-based day indices, derived calendar).
 `Problem.from_dict` / `to_json` round-trip it for tests and debugging; schema 3 (2026-11-03)
 requires every field of the rule objects and every nurse scalar, and refuses versions 1 and 2
@@ -181,6 +188,9 @@ two versions move apart here: the request goes from 1 to 2 and still reads 1 (ab
 goes from 4 to 5 and reads only 5, since the request loader builds every problem and no stored
 input is a problem file. (The Python dataclasses give the new fields defaults, empty and hard,
 so code that builds a problem by hand need not name them; `from_dict` still requires them.)
+Schema 6 (2026-11-09) adds full runs: `DepartmentRules.max_full_runs` (0..31, or null for no cap)
+and `Weights.excess_full_run`, both required in a file (defaults null and 0 in Python); a
+version-5 file is refused like any other, while the request takes both as optional (above).
 * `Nurse`: id, gender, team_leader, score (0–1), ramadan_reduced, breastfeeding, ytd_overtime,
   unavailable days, `allowed_shifts` (None = any; ER: staff 4 and 11 D only, staff 13 N only),
   `previous` = the last days of the previous month (a month, from a result), oldest first, shift
@@ -249,6 +259,7 @@ ER, hard: headcount D and N 7–9 on weekdays, 8–9 on Fridays;
 max 3 shifts in a row ("cycle") — clause: an off day in every window of 4;
 cycle + 1 day off + cycle ⇒ at least 2 days off — clause per window of 7 days and each of the
 2 following days (W W W O W W W → O O);
+full runs above `max_full_runs` (soft, `excess_full_run`, below);
 ≥ 1 team leader on every D and N; ≥ 1 male and ≥ 1 female on every D and N;
 shift restriction: `x = 0` on every month day for shifts outside `allowed_shifts`.
 Fair D / N distribution is measured only among nurses free to work both shifts, since a
@@ -268,6 +279,23 @@ in `fairness.py` so model, validator and reports agree.
 
 ER, hard: no mixed D/N work blocks — D→N and N→D added to the forbidden successions
 (`no_mixed_blocks`, 2026-10-30).
+
+Full runs (2026-11-09, ticket 47 of the app), one soft rule beside the run rules above:
+* **`excess_full_run`**, weight of the same name, unit "full run above the maximum", on when
+  `max_full_runs` is set and `max_consecutive_shifts` is above 1 (at 0 a run is unbounded, at 1
+  every run would be full). A run is consecutive worked days with a non-worked day, leave
+  included, on each side; a **full run** is one of exactly `max_consecutive_shifts`. Each nurse's
+  full runs beyond the cap cost the weight once each: per nurse `ex ≥ Σ fr − cap`, where `fr` is
+  one literal per month day t before the last, forced to 1 by the clause "K worked days to t, off
+  on t + 1, off on t − K" (held at 0 by the objective otherwise). A run counts in the month that
+  holds its last day: one begun in the history and ended in the month counts; one ending in the
+  history does not; one reaching the month's last day is not counted (`validate.count_full_runs`).
+  The start of a nurse's own history bounds a run like an off day, in model and validator alike;
+  the free padding before a short history is never read (the solver would fill it to make the
+  run look longer). Elapsed days count, as for every soft rule. A run longer than the longest run
+  (only a recorded fact can be) is not a full run. The match reads "N01: 4 full runs of 3 shifts,
+  max 3", amount the runs above the cap, no day, as for weekends above the most. No precheck: a
+  priced rule cannot make a month infeasible.
 
 Skills (2026-11-09, request version 2, ADR 0010 of the app), two rules in the registry:
 * **`skill_need`**, hard or soft by `skill_needs_hard` (as night rest is by its flag), weight
