@@ -10170,7 +10170,8 @@
                   "outside_dates",
                   "leave",
                   "shift_not_worked",
-                  "shift_not_allowed"
+                  "shift_not_allowed",
+                  "barred"
                 ],
                 "type": "string"
               },
@@ -12554,7 +12555,8 @@
                   "outside_dates",
                   "leave",
                   "shift_not_worked",
-                  "shift_not_allowed"
+                  "shift_not_allowed",
+                  "barred"
                 ],
                 "type": "string"
               },

@@ -22,7 +22,7 @@ from requesting.models import what_of
 from rosters.approved import ApprovedMonth, Change, newly_broken, with_pins
 from rosters.editing import Checked, scored
 from rosters.models import PinOrigin, Roster
-from rosters.pins import long_date
+from rosters.pins import bar_words, long_date
 from rosters.versions import Grid
 from solves.input import assemble
 from solves.result import in_dates
@@ -123,9 +123,15 @@ def _cell_problem(month: SwapMonth, change: Change, index: int, proposer: NurseP
                "outside_dates": f"{on} is outside your dates on the roster.",
                "leave": f"You are on leave on {on}, so there is nothing to swap that day."}[why]
         return Problem(manager, own if mine else hidden, index)
-    if month.judge.shift_why(serving.pk, shift) == "shift_not_allowed":
-        manager = month.judge.refusal(nurse.pk, name, change.date, shift.code, shift)
-        return Problem(manager, f"{shift.code} is not one of the shifts you work." if mine else hidden, index)
+    match month.judge.shift_why(serving.pk, change.date, shift):
+        case "barred":
+            # A colleague's skills are hers (ticket 38), hidden as her leave is; the proposer's own are said in full.
+            manager = month.judge.refusal(nurse.pk, name, change.date, shift.code, shift)
+            own = f"{bar_words(month.judge.bar(nurse.pk, change.date), 'Your')}, so you can work no shift on {on}."
+            return Problem(manager, own if mine else hidden, index)
+        case "shift_not_allowed":
+            manager = month.judge.refusal(nurse.pk, name, change.date, shift.code, shift)
+            return Problem(manager, f"{shift.code} is not one of the shifts you work." if mine else hidden, index)
     pin = month.pins.get((nurse.pk, change.date))
     if pin is not None and pin.origin == PinOrigin.REQUEST:
         # A colleague's request is hers and her manager's to read (ticket 19), so it is hidden like her leave.

@@ -69,6 +69,15 @@ def started(client, unit, **options) -> dict:
     return response.json()
 
 
+def barred_pins_of_amal(unit) -> None:
+    """Amal's BLS, required to work, counted until 2 June; then Night pinned on the 5th, before the date, and the 20th."""
+    from rosters.tests.test_review import holding
+    holding("Amal", "BLS", dt.date(2026, 6, 2), required=True)
+    made, shift = User.objects.get(username="mona"), Shift.objects.get(code="N")
+    for day in (5, 20):
+        PinnedCell.objects.create(unit=unit, nurse=profile("Amal"), date=dt.date(2026, 6, day), shift=shift, pinned_by=made)
+
+
 def facts(solve_input) -> dict[str, dict[int, str]]:
     """Each nurse's pinned cells as the solver's own loader leaves them: the past from the roster in force, leave and pins."""
     loaded = load_request(solve_input)
@@ -262,19 +271,23 @@ class TestFactsBeforeTheDate:
         problem = load_request(solve.input).problem
         assert (problem.department.max_full_runs, problem.general.weights.excess_full_run) == (1, 50)
 
-    def test_a_shift_pinned_on_a_barred_day_before_the_date_is_a_fact_and_one_after_it_is_left_out(self, mona, er, in_force):
-        """The solver takes an elapsed shift on a barred day as a fact and refuses one on a day it plans (ticket 35)."""
-        from rosters.tests.test_review import holding
-        holding("Amal", "BLS", dt.date(2026, 6, 2), required=True)
-        made, shift = User.objects.get(username="mona"), Shift.objects.get(code="N")
-        for day in (5, 20):
-            PinnedCell.objects.create(unit=er, nurse=profile("Amal"), date=dt.date(2026, 6, day), shift=shift, pinned_by=made)
+    def test_a_shift_pinned_on_a_barred_day_is_set_aside_before_the_date_too_and_the_day_is_the_roster_in_forces(
+            self, mona, er, in_force):
+        """Ticket 38: a pin on a barred day is set aside, as one on leave is, so it is no fact; what the roster in force holds
+        that day is, as the solver takes an elapsed shift on a barred day as a fact and refuses one on a day it plans."""
+        barred_pins_of_amal(er)
 
         solve = Solve.objects.get(pk=started(mona, er)["id"])
 
         amal = next(row for row in solve.input["nurses"] if row["id"] == "Amal")
-        assert amal["pinned"] == {"2026-06-05": "N"}
-        assert facts(solve.input)["Amal"][4] == "N"
+        assert "pinned" not in amal
+        assert facts(solve.input)["Amal"][4] == IN_FORCE["Amal"]["2026-06-05"] == ""
+
+    def test_a_pin_on_a_barred_day_does_not_make_its_end_outdated(self, mona, er, solver, in_force):
+        """The month as the end reads it is the month as the re-plan's input read it: the pin set aside in both."""
+        barred_pins_of_amal(er)
+
+        assert replanned(mona, er, solver).replan_outcome == ReplanOutcome.VERSION
 
     def test_her_skills_and_the_units_needs_reach_a_re_plan_as_they_reach_a_solve(self, mona, er, in_force):
         """Ticket 35: the solver honours them on the days it plans again; an earlier day is a fact, reported apart."""

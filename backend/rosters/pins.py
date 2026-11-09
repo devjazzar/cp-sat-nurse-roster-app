@@ -6,33 +6,45 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
-from typing import Iterable, Literal
+from typing import TYPE_CHECKING, Iterable, Literal
 
 from django.utils import timezone
 
 from accounts.models import User
 from hospital.models import Shift
+from hospital.rules import required_skills
 from nurses import membership
 from nurses.models import Leave, NurseProfile
+from nurses.rostering import skills_block
+from nurses.skills import current_skills
 from rosters.models import PinEnded, PinnedCell
 from units.models import Unit
+
+if TYPE_CHECKING:
+    from solves.input import Bar
 
 def long_date(day: dt.date) -> str:
     return f"{day.day} {day:%B %Y}"
 
 
-AsideWhy = Literal["not_in_month", "outside_dates", "leave", "shift_not_worked", "shift_not_allowed"]
+AsideWhy = Literal["not_in_month", "outside_dates", "leave", "shift_not_worked", "shift_not_allowed", "barred"]
 
 
 class Judge:
     """Why a nurse could not hold a pin on a date in this unit's month, in the same words for a saved pin and a pending one."""
 
     def __init__(self, unit: Unit, month: dt.date):
+        from solves.input import barred_from  # The solve input reads the month's pins through this.
+
         self.unit, self.month = unit, month
         self.nurses = {nurse.pk: nurse for nurse in membership.rostered_in(unit, month).select_related("user")
-                       if not membership.no_longer_serving(nurse)}
+                       .prefetch_related(current_skills()) if not membership.no_longer_serving(nurse)}
         self.leave = set(Leave.objects.current().in_month(month).values_list("nurse_id", "date"))
         self.worked = {shift.pk: shift for shift in Shift.objects.filter(active=True, code__in=unit.rules.get("shifts", []))}
+        required = required_skills()
+        # {nurse's pk: the bar on her month}, read as her solve input reads her skills, so the two cannot disagree.
+        self.bars = {pk: bar for pk, nurse in self.nurses.items()
+                     if (bar := barred_from(skills_block(nurse.current_skills, month), required, month))}
 
     def day_why(self, nurse_id, day: dt.date) -> AsideWhy | None:
         nurse = self.nurses.get(nurse_id)
@@ -42,16 +54,24 @@ class Judge:
             return "outside_dates"
         return "leave" if (nurse_id, day) in self.leave else None
 
-    def shift_why(self, nurse_id, shift: Shift | None) -> AsideWhy | None:
+    def bar(self, nurse_id, day: dt.date) -> Bar | None:
+        """What keeps her off every shift on this day: a required skill of hers that expired before it."""
+        bar = self.bars.get(nurse_id)
+        return bar if bar is not None and day >= bar.first else None
+
+    def shift_why(self, nurse_id, day: dt.date, shift: Shift | None) -> AsideWhy | None:
+        """Why she could not work this shift on this day. A day off is always hers, a barred day's too, as a leave day's is."""
         if shift is None:
             return None
         if shift.pk not in self.worked:
             return "shift_not_worked"
+        if self.bar(nurse_id, day):
+            return "barred"
         allowed = membership.placement_in(self.nurses[nurse_id], self.month).allowed_shifts
         return "shift_not_allowed" if allowed is not None and shift.code not in allowed else None
 
     def why(self, nurse_id, day: dt.date, shift: Shift | None) -> AsideWhy | None:
-        return self.day_why(nurse_id, day) or self.shift_why(nurse_id, shift)
+        return self.day_why(nurse_id, day) or self.shift_why(nurse_id, day, shift)
 
     def refusal(self, nurse_id, name: str, day: dt.date, asked: str | None, shift: Shift | None) -> str | None:
         """Why this nurse could not be pinned to `asked`, a shift's code or None for a day off, on this day, in the words a save
@@ -65,11 +85,20 @@ class Judge:
                 return f"{name} is on leave on {long_date(day)}, and leave wins over a pin."
         if asked is None:
             return None
-        if shift is None or self.shift_why(nurse_id, shift) == "shift_not_worked":
-            return f"{asked} is not one of this unit's shifts."
-        if self.shift_why(nurse_id, shift) == "shift_not_allowed":
-            return f"{shift.code} is not one of {name}'s allowed shifts."
+        match self.shift_why(nurse_id, day, shift) if shift else "shift_not_worked":
+            case "shift_not_worked":
+                return f"{asked} is not one of this unit's shifts."
+            case "barred":
+                whose = f"{name}'s"
+                return f"{bar_words(self.bar(nurse_id, day), whose)}, so {name} can work no shift on {long_date(day)}."
+            case "shift_not_allowed":
+                return f"{shift.code} is not one of {name}'s allowed shifts."
         return None
+
+
+def bar_words(bar: Bar, whose: str) -> str:
+    """"Amal's BLS, required to work, counted until 20 June 2026": the start of every sentence that says a bar in full."""
+    return f"{whose} {bar.skill}, required to work, counted until {long_date(bar.last)}"
 
 
 @dataclass

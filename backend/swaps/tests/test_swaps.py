@@ -218,6 +218,32 @@ class TestTheProposersOwnFacts:
             "Your accepted request holds your cell on 9 June 2026, so a swap cannot change it."]
 
 
+    def test_their_own_expired_required_skill_is_named(self, in_force, nurse):
+        """Ticket 38: her skills are hers to read on My month, so the bar on her own cell is said in full."""
+        from rosters.tests.test_review import holding
+        holding("Emad", "BLS", dt.date(2026, 6, 8), required=True)
+
+        assert refusals(propose(nurse("Emad"), cell("Emad", 9, "D"), cell("Badr", 9))) == [
+            "Your BLS, required to work, counted until 8 June 2026, so you can work no shift on 9 June 2026."]
+
+
+class TestASkillNeed:
+    """Ticket 38: a skill need left short says who holds which skill, so the proposer reads only that the day's shifts would
+    break the unit's rules, as for a team leader or both genders; the manager reads the solver's words."""
+
+    def test_a_swap_leaving_it_short_is_refused_naming_no_rule_and_the_manager_reads_it(self, in_force, nurse, mona):
+        from rosters.tests.test_review import holding
+        holding("Badr", "ICU", None, expires=False)
+        rules_require(in_force, skill_needs=[{"shift": "D", "skill": "ICU", "weekday_min": 1, "weekend_min": 0}])
+
+        response = propose(nurse("Badr"), *SOUND_SWAP)
+
+        assert refusals(response) == ["This swap cannot work on 9 June 2026: that day's shifts would break the unit's rules."]
+        assert "ICU" not in response.content.decode() and "skill" not in response.content.decode()
+        TestWhatTheProposerMayNotLearn.the_manager_reads_why(
+            mona, in_force, "skill need: 2026-06-09 D has 0 holding ICU, needs 1 (1 short)", "D")
+
+
 FORBIDDEN = ["leave", "sick", "allowed", "gender", "team leader", "team_leader", "breastfeed", "ramadan", "score", "overtime",
              "hours", "request", "unavailable", "restriction", "outside", "dates", "transfer", "not on this", "cost", "deactiv",
              "end date", "contract", "cap", "only f", "only m"]
@@ -296,7 +322,7 @@ class TestWhatTheProposerMayNotLearn:
         (_ramadan_reduced, "D", "overtime"),
         (_breastfeeding, "D", "overtime"),
         (_hours_worked_ahead, "D", "overtime"),
-        (_barred, "D", "skill expired: Emad works D on 2026-06-09, BLS is required to work and its last day was 2026-06-08"),
+        (_barred, "D", "Emad's BLS, required to work, counted until 8 June 2026, so Emad can work no shift on 9 June 2026."),
     ], ids=["leave", "allowed_shifts", "end_date", "transferred", "deactivated", "overtime", "ramadan_reduced", "breastfeeding",
             "contract_hours", "barred_by_an_expired_skill"])
     def test_a_colleagues_hidden_fact(self, in_force, nurse, mona, fact, shift, manager_reads):
@@ -501,6 +527,17 @@ class TestTheManagersDecision:
             "Emad is on leave on 9 June 2026, and leave wins over a pin."]
         assert refusals(decide(mona, in_force, swap["id"], "approve"), 409) == [
             "Emad is on leave on 9 June 2026, and leave wins over a pin."]
+        assert Swap.objects.get().state == SwapState.AWAITING_MANAGER and RosterVersion.objects.count() == 1
+
+    def test_approval_is_refused_when_a_required_skill_expired_since_and_the_manager_reads_whose(self, in_force, nurse, mona):
+        """Ticket 38: approval judges the swap again on the month as it stands, skills included."""
+        from rosters.tests.test_review import holding
+        swap = awaiting(nurse)
+        holding("Emad", "BLS", dt.date(2026, 6, 8), required=True)
+        words = "Emad's BLS, required to work, counted until 8 June 2026, so Emad can work no shift on 9 June 2026."
+
+        assert decision(mona, in_force, swap["id"])["problems"] == [words]
+        assert refusals(decide(mona, in_force, swap["id"], "approve"), 409) == [words]
         assert Swap.objects.get().state == SwapState.AWAITING_MANAGER and RosterVersion.objects.count() == 1
 
     def test_a_rejection_needs_a_reason_that_everyone_in_it_reads(self, in_force, nurse, mona):

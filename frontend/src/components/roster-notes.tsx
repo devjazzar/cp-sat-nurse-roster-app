@@ -33,6 +33,7 @@ const SET_ASIDE: Record<NonNullable<DraftPin["set_aside"]>, string> = {
   leave: "on leave that day",
   shift_not_worked: "a shift this unit no longer works",
   shift_not_allowed: "not one of their allowed shifts",
+  barred: "a day after a skill required to work expired, so they can work no shift",
 }
 
 export function Violations({ check, what }: { check: GridCheck; what: string }) {

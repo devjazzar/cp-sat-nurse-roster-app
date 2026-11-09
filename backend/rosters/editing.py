@@ -12,7 +12,7 @@ from hospital.models import Shift
 from rosters.drafts import current_code, in_current_codes
 from rosters.models import PinEnded, PinnedCell, PinOrigin, Roster
 from rosters.pins import Judge, end, long_date, pin_cell
-from solves.input import assemble, without_barred_shifts
+from solves.input import assemble
 
 Action = Literal["shift", "off", "clear"]
 
@@ -150,10 +150,7 @@ def with_edits(solve_input: dict, month: DraftEdits, edits: list[Edit]) -> dict:
             pinned.pop(edit.day, None)
         else:
             pinned[edit.day] = month.cell_after(edit)
-        if pinned:
-            row["pinned"] = without_barred_shifts(pinned, row.get("skills", {}), edited["general"]["required_skills"],
-                                                  dt.date.fromisoformat(edited["month"] + "-01"))
-        if not row["pinned"]:
+        if not pinned:
             del row["pinned"]
     return edited
 

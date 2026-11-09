@@ -5930,6 +5930,17 @@ describe("the roster page", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Amal Saleh: pinned cells changed")
     })
 
+    it("says a pin on a day an expired required skill bars counts for nothing, and comes back once that changes", async () => {
+      const draft = {
+        ...DRAFT,
+        pins: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-25", shift: "D", origin: "manager", set_aside: "barred" }],
+      }
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft } } }))
+
+      expect(await screen.findByText(/These pins count for nothing at present/)).toHaveTextContent("They come back if that changes")
+      expect(screen.getByText("Amal Saleh, 25 June: D, a day after a skill required to work expired, so they can work no shift")).toBeInTheDocument()
+    })
+
     it("says her skills and the unit's skill rules changed since the solve, and the skill rules the draft breaks, with dates", async () => {
       const draft = {
         ...DRAFT, cost: null,

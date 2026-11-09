@@ -17,4 +17,5 @@ export const DraftPinSetAside = {
   leave: 'leave',
   shift_not_worked: 'shift_not_worked',
   shift_not_allowed: 'shift_not_allowed',
+  barred: 'barred',
 } as const;

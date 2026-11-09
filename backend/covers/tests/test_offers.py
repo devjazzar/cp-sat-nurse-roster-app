@@ -2,6 +2,8 @@
 
 Two scenes recur. Badr's sick leave on the 9th opens a cover for Day there, which Emad alone could take. With room for two on
 Day (`wider_day`), a cover opened by hand for Day on the 25th, which Amal works, could be taken by Emad or Dana, Emad first."""
+import datetime as dt
+
 import pytest
 
 from audit.models import AuditEntry
@@ -165,6 +167,17 @@ class TestAccepting:
         page = cover_page(mona, in_force, cover_id)
         assert (page["cover"]["state"], answers(page)) == ("offered", [("Emad", "pending")])
         assert latest_version().number == 2, "the leave's version only"
+
+    def test_a_required_skill_expired_since_refuses_her_in_her_own_words_as_leave_does(self, in_force, mona):
+        """Ticket 38: a barred day is hers as leave is, and her skills are hers to read."""
+        from rosters.tests.test_review import holding
+        cover_id = badrs_day(mona, in_force)
+        offered(mona, in_force, cover_id, "Emad")
+        holding("Emad", "BLS", dt.date(2026, 6, 8), required=True)
+
+        assert refusals(answer(as_user("Emad"), cover_id, "accept"), 409) == [
+            "Your BLS, required to work, counted until 8 June 2026, so you cannot take this cover."]
+        assert cover_page(mona, in_force, cover_id)["cover"]["state"] == "offered"
 
     def test_a_rule_it_would_now_break_for_her_is_said_in_full(self, in_force, mona):
         """Emad works Day on the 7th, 8th, 10th and 12th. Once the manager puts him on the 11th too, the 9th would make a run of

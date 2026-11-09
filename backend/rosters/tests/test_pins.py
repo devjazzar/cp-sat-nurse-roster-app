@@ -281,26 +281,21 @@ class TestAnEditedDraft:
 
         assert not any(v["rule"] == "pin" for v in draft["check"]["violations"])
 
-    def test_a_shift_on_a_day_an_expired_required_skill_bars_is_named_by_the_check_and_saved_with_it(self, mona, er, solver):
-        """Ticket 35: the pin is kept out of the solver's input, which would refuse it, so the grid's shift is what breaks the
-        bar; ticket 38 sets such a pin aside in words of its own."""
+    def test_a_shift_on_a_day_an_expired_required_skill_bars_is_refused_on_save_and_on_a_check_naming_the_skill(
+            self, mona, er, solver):
+        """Ticket 38: as on leave, a shift cannot be pinned there; a day off can, since she works nothing that day either way."""
         from rosters.tests.test_review import holding
-        from solves.input import assemble, solver_refusal
         solved(mona, er, solver, finished("N", cost=7))
         holding("Amal", "BLS", dt.date(2026, 6, 20), required=True)
+        words = "Amal's BLS, required to work, counted until 20 June 2026, so Amal can work no shift on 25 June 2026."
 
-        checked = check(mona, er, pin("Amal", 25, "D"))
+        response = save(mona, er, pin("Amal", 25, "D"))
 
-        assert checked["reason"] is None
-        barred = [v for v in checked["violations"] if v["rule"] == "skill_expired"]
-        assert "2026-06-25" in [v["date"] for v in barred]
-        assert next(v for v in barred if v["date"] == "2026-06-25")["text"] == (
-            "skill expired: Amal works D on 2026-06-25, BLS is required to work and its last day was 2026-06-20")
-        draft = saved(mona, er, pin("Amal", 25, "D"))["draft"]
-        assert draft["check"]["reason"] is None and draft["check"]["ok"] is False
-        assert cell(draft, "Amal", 25)["shift"] == "D"
-        solve_input = assemble(er, dt.date(2026, 6, 1)).input
-        assert "2026-06-25" not in input_row(solve_input, "Amal").get("pinned", {}) and solver_refusal(solve_input) is None
+        assert response.status_code == 422 and response.json()["detail"][0]["msg"] == words
+        assert check(mona, er, pin("Amal", 25, "D"))["refusals"] == [
+            {"hospital_id": "Amal", "date": "2026-06-25", "reason": words}]
+        assert pins_of(saved(mona, er, off("Amal", 25), pin("Amal", 20, "D"))["draft"]) == {
+            ("Amal", "2026-06-25"): "", ("Amal", "2026-06-20"): "D"}
 
     def test_a_pin_on_what_the_cell_already_held_is_no_edit_of_the_grid(self, mona, er, solver):
         solved(mona, er, solver, finished("D", cost=7))
@@ -547,6 +542,54 @@ class TestANurseLeavingTheMonth:
 
         assert save(mona, er, pin("Amal", 4, "N")).status_code == 422
         assert saved(mona, er, clear("Amal", 3))["draft"]["pins"] == []
+
+
+class TestABarredDay:
+    """Ticket 38: a day after a required skill of hers expired is hers to work no shift on, and a pin of a shift there is set
+    aside as one on leave is, not removed: it counts again once the skill is renewed or its record taken off."""
+
+    @staticmethod
+    def amal_pinned_then_barred(mona, er, solver):
+        from rosters.tests.test_review import holding
+        solved(mona, er, solver)
+        saved(mona, er, pin("Amal", 20, "N"), pin("Amal", 25, "D"), off("Amal", 26), pin("Amal", 10, "N"))
+        return holding("Amal", "BLS", dt.date(2026, 6, 15), required=True)
+
+    def test_a_shift_pinned_after_the_expiry_is_set_aside_and_reaches_no_solve(self, mona, er, solver):
+        self.amal_pinned_then_barred(mona, er, solver)
+
+        draft = month_of(mona, er)["draft"]
+
+        assert asides(draft) == {("Amal", "2026-06-20"): "barred", ("Amal", "2026-06-25"): "barred"}
+        assert len(draft["pins"]) == 4
+        assert input_row(assemble(er, dt.date(2026, 6, 1)).input, "Amal")["pinned"] == {"2026-06-10": "N", "2026-06-26": ""}
+        solve_input_is_fine(er)
+
+    def test_renewing_the_skill_makes_the_pins_count_again(self, mona, er, solver, client_of):
+        held = self.amal_pinned_then_barred(mona, er, solver)
+
+        response = cno_of(client_of).put(f"/api/nurses/{profile('Amal').pk}/skills/{held.skill_id}", {"expiry": "2027-06-30"},
+                                         content_type="application/json")
+
+        assert response.status_code == 200, response.content
+        assert asides(month_of(mona, er)["draft"]) == {}
+        assert input_row(assemble(er, dt.date(2026, 6, 1)).input, "Amal")["pinned"] == {
+            "2026-06-10": "N", "2026-06-20": "N", "2026-06-25": "D", "2026-06-26": ""}
+
+    def test_taking_the_record_off_makes_the_pins_count_again(self, mona, er, solver, client_of):
+        """A nurse with no record of a required skill is rostered as before: the gap is the CNO's to fill."""
+        held = self.amal_pinned_then_barred(mona, er, solver)
+
+        response = cno_of(client_of).post(f"/api/nurses/{profile('Amal').pk}/skills/{held.skill_id}/remove")
+
+        assert response.status_code == 200, response.content
+        assert asides(month_of(mona, er)["draft"]) == {}
+
+    def test_a_skill_no_longer_required_to_work_bars_nobody(self, mona, er, solver):
+        held = self.amal_pinned_then_barred(mona, er, solver)
+        type(held.skill).objects.filter(pk=held.skill_id).update(required_to_work=False)
+
+        assert asides(month_of(mona, er)["draft"]) == {}
 
 
 class TestAMonthThatIsOver:

@@ -789,6 +789,23 @@ class TestSkills:
         er.save()
         assert ok(submit(mona, er))["state"] == "submitted"
 
+    def test_an_approved_roster_is_not_rewritten_when_an_expiry_passes_and_its_page_shows_the_rule_it_now_breaks(
+            self, mona, carla, er, solver):
+        """Ticket 38: what the grid breaks on the month as it stands, as for any other rule; the manager edits or re-plans."""
+        approved(mona, carla, er, solver)
+        grid = roster(er).grid
+        holding("Amal", "BLS", dt.date(2026, 6, 20), required=True)
+
+        month = month_of(mona, er)
+
+        assert month["state"] == "approved" and roster(er).grid == grid
+        after = [day for day in days_worked("Amal") if day > "2026-06-20"]
+        expired = [v for v in month["draft"]["check"]["violations"] if v["rule"] == "skill_expired"]
+        assert after and [(v["hospital_id"], v["date"]) for v in expired] == [("Amal", day) for day in after]
+        assert expired[0]["text"] == (f"skill expired: Amal works {SOUND[MONTH]['roster']['Amal'][after[0]]} on {after[0]}, "
+                                      "BLS is required to work and its last day was 2026-06-20")
+        assert month["draft"]["check"]["ok"] is False
+
     def test_a_skill_expiring_while_it_waits_is_news_and_stops_the_approval(self, mona, carla, er, solver):
         submitted(mona, er, solver)
         holding("Badr", "BLS", dt.date(2026, 6, 1), required=True)

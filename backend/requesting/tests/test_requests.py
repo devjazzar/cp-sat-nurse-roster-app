@@ -378,6 +378,37 @@ class TestWhatANurseMayRequest:
         assert refused(ask(as_user("Amal"), 3), 422) == (
             "You are on leave on 3 June 2026, so there is nothing to request that day.")
 
+    def test_a_shift_on_a_day_an_expired_required_skill_bars_is_refused_in_her_own_words_and_a_day_off_is_not(self, mona, er):
+        """Ticket 38: she reads her own skills on My month, so her reason is said in full; a day off is hers to ask for."""
+        from rosters.tests.test_review import holding
+        opened(mona, er)
+        holding("Amal", "BLS", dt.date(2026, 6, 15), required=True)
+        amal = as_user("Amal")
+
+        response = ask(amal, 20, "N")
+
+        assert refused(response, 422) == (
+            "Your BLS, required to work, counted until 15 June 2026, so you can work no shift on 20 June 2026. "
+            "You can still ask for the day off.")
+        assert response.json()["detail"][0]["loc"][-1] == "shift"
+        asked(amal, 15, "N")
+        made = asked(amal, 20)
+        decided(mona, er, made["id"], "accept")
+        assert current_pin("Amal", 20).shift is None
+
+    def test_one_accepted_before_the_expiry_is_set_aside_with_its_pin_and_none_is_accepted_after_it(self, mona, er):
+        """The manager reads why, naming the skill, as for a pin of his own."""
+        from rosters.tests.test_review import holding
+        opened(mona, er)
+        amal = as_user("Amal")
+        before, after = asked(amal, 20, "N"), asked(amal, 25, "D")
+        decided(mona, er, before["id"], "accept")
+        holding("Amal", "BLS", dt.date(2026, 6, 15), required=True)
+
+        assert row_of(mona, er, before["id"])["set_aside"] == "barred"
+        assert refused(decide(mona, er, after["id"], "accept")) == (
+            "Amal's BLS, required to work, counted until 15 June 2026, so Amal can work no shift on 25 June 2026.")
+
     def test_a_manager_with_a_nurse_profile_and_other_roles_make_none(self, mona, er, carla):
         opened(mona, er)
 

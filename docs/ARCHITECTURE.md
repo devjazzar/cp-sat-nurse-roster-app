@@ -247,9 +247,15 @@ the row, flagged on the unit's list, where it counts for nothing.
 **Pinned cell**: unit, nurse, date, shift or off, origin (manager, accepted request, accepted swap, accepted cover), pinned by and when;
 removed by, when and why (cleared, replaced, leave). At most one current pin for a nurse and date, and none is deleted. It
 belongs to the unit whose month it is, so a transfer leaves it behind. Leave wins over a pin: recording leave on a pinned day
-ends the pin and tells the manager, and pinning on a day of leave is refused. A pin that falls out of step with the rest (the
-nurse no longer in the unit's month, a day outside their dates or on leave, a shift the unit no longer works or the nurse may
-not work) is set aside, not removed: it reaches no solve and the draft says why, and it counts again if that changes. A shift's
+ends the pin and tells the manager, and pinning on a day of leave is refused. A day an expired required skill bars a nurse from
+(`solves.input.barred_from`, as the solver's `barred_days`) is treated as leave for a shift, ticket 38: pinning a shift there is
+refused, naming the skill ("Amal's BLS, required to work, counted until 20 June 2026, so Amal can work no shift on 25 June
+2026."), and a day off may still be pinned. A pin that falls out of step with the rest (the nurse no longer in the unit's month,
+a day outside their dates or on leave, a shift the unit no longer works or the nurse may not work, a shift on a barred day) is
+set aside, not removed: it reaches no solve and the draft says why, and it counts again if that changes, as when the skill is
+renewed or its record taken off. A barred pin is set aside before a re-plan's date too, so the roster in force holds that day
+as for any pin set aside, and a month's close, which reads its pins as facts, counts a shift pinned on a barred day as worked
+and reports the rule it broke. A shift's
 hours, a unit's shifts and a nurse's allowed shifts cannot change under a pin that counts in a month not yet over. Nor can a
 unit stop working a shift that its submitted or approved roster of a month not yet over holds, pinned or not: a re-plan and
 month close give that roster whole to the solver, which refuses a cell on a shift its unit does not work
@@ -393,8 +399,11 @@ backup time and retention, close time.
    again if it closes early.
 2. Nurses make requests (day off, or a specific shift on a date), up to the unit's cap, and
    may withdraw a pending one while the window is open. A request that could never be accepted (a
-   day on their leave or outside their dates, a shift the unit does not work or they may not) is
-   refused as it is made.
+   day on their leave or outside their dates, a shift the unit does not work or they may not, a shift on a day an expired
+   required skill bars them from) is refused as it is made, in their own words: their own skill is theirs to read, so a barred
+   day names it ("Your BLS, required to work, counted until 15 June 2026, so you can work no shift on 20 June 2026. You can
+   still ask for the day off."). A day off there is a request like any other (ticket 38). One accepted before the skill
+   expired is set aside with its pin, and the manager's acceptance of one after it is refused, naming the skill.
 3. The manager accepts or rejects each one, with a reason, required to reject. Rejected requests stay on record. A window
    that closes by its date with requests waiting tells the manager once, how many still wait worked out when read.
 4. An accepted request is a pinned cell in that month's solve input (ADR 0005). The manager
@@ -419,10 +428,11 @@ backup time and retention, close time.
    manager's pin there does not count against it); a proposal is refused on the spot, with every reason, when a cell cannot
    hold its change or the grid newly breaks a hard rule (one the roster in force already breaks, which an edit may save, is not
    the swap's). The proposer learns nothing about a colleague that My roster would not show: every reason resting on a
-   colleague's facts (leave, dates, unit, allowed shifts, hours, an accepted request, another swap) reads "This swap cannot work
-   for Badr on 5 June", and is checked only after what My roster shows, so leave asked for as a day off reads "already a day
-   off" like any day off; a shift-day left without a team leader or both genders reads only that that day's shifts would break the unit's
-   rules, and the proposer reads no rule, solver text or cost about anyone else. Her own reasons are said in full, and so is
+   colleague's facts (leave, dates, unit, allowed shifts, hours, an accepted request, another swap, a required skill expired)
+   reads "This swap cannot work for Badr on 5 June", and is checked only after what My roster shows, so leave asked for as a day
+   off reads "already a day off" like any day off; a shift-day left without a team leader or both genders, or short of a skill
+   need, reads only that that day's shifts would break the unit's rules, and the proposer reads no rule, solver text or cost
+   about anyone else. Her own reasons are said in full, her own expired skill among them (ticket 38), and so is
    anything My roster shows (a cell's shift, a date passed, a headcount). The manager reads every reason in full
    (`swaps.judging`).
 3. Every colleague whose cells change must accept; one rejection ends the proposal (kept,
@@ -430,7 +440,8 @@ backup time and retention, close time.
 4. When all have accepted, the unit manager sees before and after, the re-run validation and
    the cost change, and approves or rejects, a reason required to reject, which everyone in it reads. He cannot edit a
    proposal; to change it he edits the roster directly. Approval is refused, with the reasons in full, when the month moved
-   since in a way the swap can no longer hold (leave, a transfer, a hard rule it would now newly break).
+   since in a way the swap can no longer hold (leave, a transfer, a required skill expired or a skill need changed, a hard rule
+   it would now newly break).
 5. Approval writes the cells as pinned cells of origin `swap` (`rosters.pins.pin_cell`) in a new roster version of origin
    `swap`, in force at once, telling the unit's nurses the roster changed. A proposal still waiting expires when any of its dates passes
    (every page reads the dates; the hourly job and the next write about it store it and tell its people) or a new version
@@ -446,7 +457,7 @@ backup time and retention, close time.
    nobody; the manager opens one by hand for any shift-day of the roster in force, today or later. Two absences on one
    shift-day are two covers.
 2. Its page judges, each time it is read, who could take it: the month's staff nurses off that day (in the month, within their
-   dates, not on leave, allowed the shift, no accepted request holding the day) whose grid with the shift, as a pin, newly
+   dates, not on leave or barred by an expired required skill, allowed the shift, no accepted request holding the day) whose grid with the shift, as a pin, newly
    breaks no hard rule on the month as it stands, with the solver's own code; a headcount already broken counts only when
    broken further, as for a swap. Ranked furthest below owed hours first, then least overtime this year (`covers.judging`).
 3. The manager ticks any of them and offers it, with a note: it becomes `offered` and each nurse ticked is told. An add on an
@@ -498,7 +509,9 @@ backup time and retention, close time.
   of version 1 had no skills, so a nurse who has some since is a change. A submission keeps each nurse's skills, so a skill change
   while it waits is news to the approver, and a re-plan whose month's skills changed while it ran ends `outdated`. Submit and
   approval refuse a grid that breaks a hard skill need or fills a barred day on the month as it stands, as any hard rule; the
-  close reports a barred day worked or a need left short among what the facts broke and never refuses.
+  close reports a barred day worked or a need left short among what the facts broke and never refuses. Nothing rewrites an
+  approved roster when an expiry passes or a skill is corrected (ticket 38): the Roster page's check of the month as it stands
+  names the rule it now breaks, as for any rule, and the manager edits or re-plans.
 - The carry-over handed into January has overtime-to-date and both fairness balances reset
   to zero.
 - Days before a nurse's start date and after her end date are credited like leave in every

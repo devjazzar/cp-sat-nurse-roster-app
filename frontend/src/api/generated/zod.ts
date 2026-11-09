@@ -2130,7 +2130,7 @@ export const GetRosterMonthResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -2354,7 +2354,7 @@ export const SaveDraftPinsResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -2534,7 +2534,7 @@ export const SaveRosterVersionResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -2756,7 +2756,7 @@ export const SubmitRosterResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -2918,7 +2918,7 @@ export const ApproveRosterResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -3082,7 +3082,7 @@ export const RejectRosterResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -3591,7 +3591,7 @@ export const ListWindowRequestsResponseItem = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -3654,7 +3654,7 @@ export const AcceptRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -3694,7 +3694,7 @@ export const RejectRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -3738,7 +3738,7 @@ export const EditRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -3779,7 +3779,7 @@ export const CancelRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({

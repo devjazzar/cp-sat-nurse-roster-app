@@ -65,8 +65,7 @@ def _preferred(unit: Unit, month: dt.date) -> dict[str, dict[str, list[str]]]:
     return preferred
 
 
-def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, facts: bool = False,
-             planning_from: dt.date | None = None) -> Assembled:
+def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, facts: bool = False) -> Assembled:
     """`time_limit` matters only to an input that will be sent. A pin joins its nurse's block only if it counts: leave wins
     over one, as the solver refuses a shift pinned on a leave date, and `rosters.pins` sets aside that pair and every other a
     row can come to hold, so that none reaches the solver as a failed solve. `facts` is a close's, of a month that is over
@@ -105,9 +104,6 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         carried = assembled.carried[nurse.user.username] = chain.carry_in(nurse, month)
         values = carried.into(month)
         skills = skills_block(nurse.current_skills, month)
-        if pinned and not facts:
-            pinned = without_barred_shifts(pinned, skills, assembled.input["general"]["required_skills"], month,
-                                           planning_from=planning_from)
         assembled.nurses.append(nurse_block(nurse, placement) | {key: values[key] for key in CARRIED} | {"leave": leave}
                                 | preferred.get(nurse.user.username, {}) | ({"pinned": pinned} if pinned else {})
                                 | ({"skills": skills} if skills else {}))
@@ -124,24 +120,26 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
     return assembled
 
 
-def barred_from(skills: dict[str, str | None], required: list[str], month: dt.date) -> str | None:
-    """The first date she may work no shift, as the solver bars it (`nurse_roster.problem.barred_days`): the day after the
-    earliest expiry of a required skill of hers that ends before the month's last day. None when nothing bars her."""
-    last = membership.last_day_of(month).isoformat()
-    ends = [expiry for name, expiry in skills.items() if name in required and expiry is not None and expiry < last]
-    return (dt.date.fromisoformat(min(ends)) + dt.timedelta(days=1)).isoformat() if ends else None
+@dataclass(frozen=True)
+class Bar:
+    """What keeps a nurse off every shift from `first` to the month's end: her required `skill`, which counted until `last`."""
+    skill: str
+    last: dt.date
+
+    @property
+    def first(self) -> dt.date:
+        return self.last + dt.timedelta(days=1)
 
 
-def without_barred_shifts(pinned: dict[str, str], skills: dict, required: list[str], month: dt.date, *,
-                          planning_from: dt.date | None = None) -> dict[str, str]:
-    """Her pins less a shift pinned on a day an expired required skill bars her from, which the solver refuses on a day it plans:
-    every day of a solve, and those from `planning_from` on of a re-plan, whose earlier days are facts it keeps. The pin stays,
-    and the grid holds its shift, so the check names the bar as the rule it breaks; ticket 38 sets it aside in words of its own."""
-    first = barred_from(skills, required, month)
-    if first is None:
-        return pinned
-    first = max(first, planning_from.isoformat()) if planning_from else first
-    return {day: code for day, code in pinned.items() if not (code and day >= first)}
+def barred_from(skills: dict[str, str | None], required: list[str], month: dt.date) -> Bar | None:
+    """The bar on her month as the solver puts it (`nurse_roster.problem.barred_days`, through `expired_required`): the required
+    skill of hers whose expiry, before the month's last day, comes first, an expiry before the month counting as the day before
+    it and a tie going to the first name, so a refusal names the skill the solver's `skill_expired` names. None when nothing
+    bars her. `skills` is her block in a solve input (`nurses.rostering.skills_block`)."""
+    last, before = membership.last_day_of(month), month - dt.timedelta(days=1)
+    ends = sorted((max(dt.date.fromisoformat(expiry), before), name, dt.date.fromisoformat(expiry))
+                  for name, expiry in skills.items() if name in required and expiry is not None and expiry < last.isoformat())
+    return Bar(ends[0][1], ends[0][2]) if ends else None
 
 
 def _renamed_in_histories(assembled: Assembled) -> dict[str, str]:
@@ -160,7 +158,7 @@ def assemble_replan(unit: Unit, month: dt.date, replan_from: dt.date, in_force: 
     roster in force's like any other. `published` holds exactly the month's nurses, as the solver asks: a nurse not on the roster
     in force (one who joined since) worked nothing, and a row of a nurse no longer in the month is left out, so the new version
     has none."""
-    assembled = assemble(unit, month, time_limit=time_limit, chain=chain, facts=facts, planning_from=replan_from)
+    assembled = assemble(unit, month, time_limit=time_limit, chain=chain, facts=facts)
     in_force = in_current_codes(in_force)
     days = [day.isoformat() for day in _days_of(month)]
     assembled.input["published"] = {row["id"]: {day: in_force.get(row["id"], {}).get(day, "") for day in days}
