@@ -120,6 +120,13 @@ class TestWhoIsLeftOut:
         assert listed(page) == ["Amal"]
         assert page["check"]["lack"] == [] and page["check"]["nurses"][0]["makes_whole"]
 
+    def test_a_required_skill_of_hers_expired_before_it_and_the_cover_is_still_judged(self, in_force, mona):
+        """Ticket 35: her shift on a barred day is the grid's to break, not a pin the solver refuses."""
+        from rosters.tests.test_review import holding
+        holding("Amal", "BLS", dt.date(2026, 6, 8), required=True)
+
+        assert not amal_could(opened(mona, in_force, 9, "N"))
+
     def test_leave(self, in_force, mona):
         ok(record_leave(mona, in_force, "Amal", 9), 201)
 

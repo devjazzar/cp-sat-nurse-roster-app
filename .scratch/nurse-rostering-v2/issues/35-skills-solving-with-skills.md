@@ -148,6 +148,12 @@ screenshots. The setup went through the API as Carla. The stack was taken down a
   - `solves.input.without_barred_shifts` now keeps the pin out of the input, in `assemble` and in the edit check's
     `rosters.editing.with_edits`. The pin row stays, and the grid holds the shift, so the check names `skill_expired`.
   - A re-plan keeps such a pin before its date, as the fact the solver accepts there.
+  - Swaps and covers add their cells as pins the same way (`rosters.approved.with_pins`). A swap onto a colleague's barred
+    day read only "This swap cannot be checked against the roster now. Ask your manager.", and a cover could not be judged.
+    The same filter now applies there:
+    - the proposer reads "This swap cannot work for Emad on 9 June 2026", and the manager reads the skill in full
+      (`swaps/tests/test_swaps.py`, the `barred_by_an_expired_skill` case);
+    - a cover is still judged, and leaves the barred nurse out (`covers/tests/test_covers.py`).
   - Ticket 38's set-aside reason and its words are still 38's, and the note on 38 says so.
 - **The precheck said "she" for any nurse.** The solver's line now reads "…its last day is <date>, so no shift after it".
 - **A skill name the solver refuses** (a leading `= + - @ '`, or a line break) left every solve of a unit refused once a nurse
@@ -165,7 +171,7 @@ screenshots. The setup went through the API as Carla. The stack was taken down a
 - The skill shortfall weight set on Hospital rules by hand: I set it on the stack's database.
 - The pages at phone width and with a screen reader. The words were held against `better-writing` and `better-interface` by
   hand: "Skill expired" sits beside "On leave", and the unit's change line has no name prefix.
-- A swap or a cover on a barred day: those are ticket 38's.
+- A swap or a cover on a barred day beyond the two tests above: the rest is ticket 38's.
 - The six parallel frontend runs and the browser checks, locally: they are GitHub's, on the pull request.
 
 **Decisions taken here, and Worth your review:**

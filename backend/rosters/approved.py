@@ -15,6 +15,7 @@ from rosters.editing import Checked
 from rosters.models import PinnedCell, Roster
 from rosters.pins import Judge
 from rosters.versions import Grid
+from solves.input import without_barred_shifts
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,15 @@ def with_pins(solve_input: dict, month: ApprovedMonth, changes: list[Change]) ->
         if row is not None:
             shift = month.shift_of(change.shift)
             row.setdefault("pinned", {})[change.day] = shift.code if shift else ""
+    # A shift on a day an expired required skill bars is the grid's to break, as for a hand edit (`rosters.editing`): the
+    # solver refuses it as a pin, so a swap or a cover could not be judged at all (ticket 35).
+    month_start = dt.date.fromisoformat(edited["month"] + "-01")
+    for row in rows.values():
+        if row.get("pinned"):
+            row["pinned"] = without_barred_shifts(row["pinned"], row.get("skills", {}), edited["general"]["required_skills"],
+                                                  month_start)
+            if not row["pinned"]:
+                del row["pinned"]
     return edited
 
 

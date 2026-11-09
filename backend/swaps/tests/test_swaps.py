@@ -269,6 +269,12 @@ def _hours_worked_ahead(mona, unit):
     NurseProfile.objects.filter(user__username="Emad").update(ytd_overtime=NEAR_THE_CAP, hours_balance=-24)
 
 
+def _barred(mona, unit):
+    """Ticket 35: Emad's BLS, required to work, lasted to the 8th, recorded since the approval."""
+    from rosters.tests.test_review import holding
+    holding("Emad", "BLS", dt.date(2026, 6, 8), required=True)
+
+
 def _request(mona, unit):
     opened(mona, unit)
     made = asked(as_user("Emad"), 9)
@@ -290,8 +296,9 @@ class TestWhatTheProposerMayNotLearn:
         (_ramadan_reduced, "D", "overtime"),
         (_breastfeeding, "D", "overtime"),
         (_hours_worked_ahead, "D", "overtime"),
+        (_barred, "D", "skill expired: Emad works D on 2026-06-09, BLS is required to work and its last day was 2026-06-08"),
     ], ids=["leave", "allowed_shifts", "end_date", "transferred", "deactivated", "overtime", "ramadan_reduced", "breastfeeding",
-            "contract_hours"])
+            "contract_hours", "barred_by_an_expired_skill"])
     def test_a_colleagues_hidden_fact(self, in_force, nurse, mona, fact, shift, manager_reads):
         badr = nurse("Badr")
         if fact:

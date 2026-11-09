@@ -26,8 +26,9 @@ everything that checks a grid with the solver's code. What that means for this t
   solver's loader refuses one. The pin row stays, and the grid holds its shift, so the check names the `skill_expired` rule.
   What is left here: the set-aside reason and its words on the draft, and the request refusal. A barred day is every day from
   `solves.input.barred_from`, which mirrors `nurse_roster.problem.barred_days`. The filter cuts only the days a solve plans:
-  a re-plan keeps an elapsed one as a fact. Swap and cover judging go through `assemble` too, so a swap cell on a barred day is
-  judged on the grid, not as a pin; no test covers that path yet. Once 38's set-aside lands, drop the filter or keep it as the
+  a re-plan keeps an elapsed one as a fact. Swap and cover judging go through `rosters.approved.with_pins`, which applies the same
+  filter, so a swap cell on a barred day is judged on the grid, not as a pin. One test each covers that path: the swap's
+  hidden form (`barred_by_an_expired_skill`) and a cover leaving the barred nurse out. Once 38's set-aside lands, drop the filter or keep it as the
   one definition.
 - **The Roster page already shows an approved roster's skill rules** among "what the grid breaks on the month as it stands".
   Ticket 35 tested the draft's case and the submit and approval refusals, not the approved roster's.
