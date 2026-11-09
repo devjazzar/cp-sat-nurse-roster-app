@@ -30,6 +30,7 @@ import {
   createNurseBodyHospitalIdRegExp as HOSPITAL_ID,
 } from "@/api/generated/zod"
 import { FormField, SelectField } from "@/components/form-field"
+import { EXPIRIES_SAY, ExpiriesList } from "@/components/expiries"
 import { SkillList, untilWords } from "@/components/nurse-skills"
 import { LeavePageGuard, PasswordDialog, type Shown } from "@/components/password-dialog"
 import {
@@ -744,6 +745,18 @@ function NursesPage() {
             )}
           </CardContent>
         </Card>
+      )}
+      {/* The CNO has the page of every unit's; a manager reads his own unit's here, before he solves (ticket 37). */}
+      {held && (
+        <section aria-labelledby="expiries" className="flex flex-col gap-2">
+          <h2 id="expiries" className="text-base font-medium">Expiries</h2>
+          <p className="text-muted-foreground">{EXPIRIES_SAY} The CNO records and renews skills.</p>
+          <Card>
+            <CardContent>
+              <ExpiriesList label={`Expiries of ${held.name}`} showUnit={false} />
+            </CardContent>
+          </Card>
+        </section>
       )}
       <ResetDialog nurse={resetting} onCancel={() => setResetting(null)} onReset={(next) => {
         setResetting(null)

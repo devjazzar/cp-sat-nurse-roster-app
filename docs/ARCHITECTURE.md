@@ -87,6 +87,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read nurses | | yes | | own unit | |
 | Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | | | |
 | Read a nurse's skills with their expiries | | yes | yes | own unit | |
+| Read the expiries: skills expired or expiring within 90 days, and skills required to work with no record | | yes | yes | own unit | |
 | View every unit's rosters, with the per-month state overview and the Day view (one date across every unit) | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
 | Read an approved roster's versions with their reasons, and compare any two | | yes | yes | own unit | |
@@ -189,7 +190,12 @@ says something about a person. The CNO records, renews and takes them off on the
 with a nurse profile's too; her unit's manager (and the manager of a unit she is due to join) reads them on the Nurses page
 and Rostering attributes, the Deputy CNO on Rostering attributes for any unit, and she reads her own on My month. The System
 Admin reads none. On the profile, not a placement, so they follow her across a transfer and stay when she is deactivated or
-ends. A retired skill can be neither recorded nor renewed, and a record of it stays until the CNO takes it off. Every write
+ends. A retired skill can be neither recorded nor renewed, and a record of it stays until the CNO takes it off. The
+expiries (ticket 37, `nurses.expiries`) are worked out when read, on the hospital's clock: each skill of a nurse with an active
+account and an end date not passed whose expiry has passed or falls within 90 days, and each skill required to work she has no
+record of, read as a solve input reads them (a retired skill is no record, a kind that does not expire has no expiry). The CNO
+and the Deputy CNO read every unit's on the Expiries page, a unit manager his unit's and those due to join it on his Nurses
+page, and the CNO's home shows how many there are. Nothing is sent about an expiry: the page is the reminder. Every write
 takes the hospital settings' lock before the nurse's, as a catalogue change and a transfer do. The skills CSV records and
 renews them in bulk (section 8, "Nurse import and the staff list").
 
@@ -645,9 +651,9 @@ change. A notification links to the reader's own page for it, by what they hold 
 
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types, skills,
-holidays and Ramadan, units and managers, nurses with import and export and their skills, each unit's rules, rostering attributes and leave
+holidays and Ramadan, units and managers, nurses with import and export and their skills, the expiries, each unit's rules, rostering attributes and leave
 to read, roster overview, the Day view and approvals); Deputy CNO (roster overview, the Day view, approvals, hospital rules and each unit's rules,
-rostering attributes with nurses' skills, and leave, to read); Unit Manager (unit rules, rostering attributes, nurses, request
+rostering attributes with nurses' skills, the expiries, and leave, to read); Unit Manager (unit rules, rostering attributes, nurses with the unit's expiries, request
 windows, requests and the unit's preferences (read-only), swaps, covers, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff
 Nurse reads them, but no requests, swaps or covers of their own); Staff Nurse (unit roster, own month: hours, overtime, what

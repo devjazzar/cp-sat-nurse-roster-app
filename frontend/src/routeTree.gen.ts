@@ -16,6 +16,7 @@ import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInAuditLogRouteImport } from './routes/_signed-in/audit-log'
 import { Route as SignedInCoversRouteImport } from './routes/_signed-in/covers'
 import { Route as SignedInDayRouteImport } from './routes/_signed-in/day'
+import { Route as SignedInExpiriesRouteImport } from './routes/_signed-in/expiries'
 import { Route as SignedInHealthRouteImport } from './routes/_signed-in/health'
 import { Route as SignedInHolidaysRouteImport } from './routes/_signed-in/holidays'
 import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/hospital-rules'
@@ -79,6 +80,11 @@ const SignedInCoversRoute = SignedInCoversRouteImport.update({
 const SignedInDayRoute = SignedInDayRouteImport.update({
   id: '/day',
   path: '/day',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInExpiriesRoute = SignedInExpiriesRouteImport.update({
+  id: '/expiries',
+  path: '/expiries',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInHealthRoute = SignedInHealthRouteImport.update({
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/audit-log': typeof SignedInAuditLogRoute
   '/covers': typeof SignedInCoversRoute
   '/day': typeof SignedInDayRoute
+  '/expiries': typeof SignedInExpiriesRoute
   '/health': typeof SignedInHealthRoute
   '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
@@ -279,6 +286,7 @@ export interface FileRoutesByTo {
   '/audit-log': typeof SignedInAuditLogRoute
   '/covers': typeof SignedInCoversRoute
   '/day': typeof SignedInDayRoute
+  '/expiries': typeof SignedInExpiriesRoute
   '/health': typeof SignedInHealthRoute
   '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
@@ -319,6 +327,7 @@ export interface FileRoutesById {
   '/_signed-in/audit-log': typeof SignedInAuditLogRoute
   '/_signed-in/covers': typeof SignedInCoversRoute
   '/_signed-in/day': typeof SignedInDayRoute
+  '/_signed-in/expiries': typeof SignedInExpiriesRoute
   '/_signed-in/health': typeof SignedInHealthRoute
   '/_signed-in/holidays': typeof SignedInHolidaysRoute
   '/_signed-in/hospital-rules': typeof SignedInHospitalRulesRoute
@@ -360,6 +369,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/covers'
     | '/day'
+    | '/expiries'
     | '/health'
     | '/holidays'
     | '/hospital-rules'
@@ -397,6 +407,7 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/covers'
     | '/day'
+    | '/expiries'
     | '/health'
     | '/holidays'
     | '/hospital-rules'
@@ -436,6 +447,7 @@ export interface FileRouteTypes {
     | '/_signed-in/audit-log'
     | '/_signed-in/covers'
     | '/_signed-in/day'
+    | '/_signed-in/expiries'
     | '/_signed-in/health'
     | '/_signed-in/holidays'
     | '/_signed-in/hospital-rules'
@@ -524,6 +536,13 @@ declare module '@tanstack/react-router' {
       path: '/day'
       fullPath: '/day'
       preLoaderRoute: typeof SignedInDayRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/expiries': {
+      id: '/_signed-in/expiries'
+      path: '/expiries'
+      fullPath: '/expiries'
+      preLoaderRoute: typeof SignedInExpiriesRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/health': {
@@ -743,6 +762,7 @@ interface SignedInRouteChildren {
   SignedInAuditLogRoute: typeof SignedInAuditLogRoute
   SignedInCoversRoute: typeof SignedInCoversRoute
   SignedInDayRoute: typeof SignedInDayRoute
+  SignedInExpiriesRoute: typeof SignedInExpiriesRoute
   SignedInHealthRoute: typeof SignedInHealthRoute
   SignedInHolidaysRoute: typeof SignedInHolidaysRoute
   SignedInHospitalRulesRoute: typeof SignedInHospitalRulesRoute
@@ -780,6 +800,7 @@ const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInAuditLogRoute: SignedInAuditLogRoute,
   SignedInCoversRoute: SignedInCoversRoute,
   SignedInDayRoute: SignedInDayRoute,
+  SignedInExpiriesRoute: SignedInExpiriesRoute,
   SignedInHealthRoute: SignedInHealthRoute,
   SignedInHolidaysRoute: SignedInHolidaysRoute,
   SignedInHospitalRulesRoute: SignedInHospitalRulesRoute,
