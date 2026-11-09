@@ -60,9 +60,12 @@ weight of 0, so a solve on the stack prices exactly as before until ticket 48.
   no longer works is a worked day of the run, in both (tested).
 - **The words.** "N03: 4 full runs of 3 shifts, max 3": nurse set, no date, amount the runs above the cap, as
   `excess_weekend`'s; the per-nurse explanation carries it unchanged (`explain.nurses`), tested.
-- **A real solve.** The ER sample (25 nurses, longest run 3), solved 10 s on 4 workers with the cap at 3 and the weight
-  at 200: no nurse above three full runs (counted apart from the validator, from the grid as text), the cost priced 0, the validator equal to the
-  result. Without the cap the same solve gave nurses up to four. See Worth your review for the weight.
+- **A real solve.** The ER sample (25 nurses, longest run 3) with the cap at 2, every hard rule kept and the hours a nurse
+  owes at the dominant `avoidable_shortfall` price, every other price 0: the solver proves a roster of cost 0 optimal in
+  under a second, no nurse above two full runs (counted apart from the validator, from the grid as text), the validator
+  equal to the result. A first version of the test solved the full-priced month for 10 s and asserted the cap; it failed on
+  GitHub's runner at weight 50 (a nurse left above it) and locally about one solve in three, so it was replaced: with every
+  ER price on, reaching the cap is a matter of weight and search time, not of the rule (next).
 - **Contract and docs.** The service contract test's sample (`fixtures/four_nurses.json`, version 1) is given
   `max_full_runs: 3` and `excess_full_run: 4` in the test (`capped`), not in the file (see Worth your review); the solve's
   `penalties` carry the key; `/validate` on a roster giving Amal six full runs of four
@@ -94,7 +97,8 @@ runs of 3 shifts, max 3", the hard rules all met. Nothing in a browser: nothing 
 - **Worth your review: the spec's weight of 4 does not reliably hold the cap on ER.** Against an ER month costing about
   2,500, a 10 s search with the weight at 4 kept the cap in some solves and left one or two nurses at four or five full runs
   in others (the CLI run above: two at four), always priced and explained. At 50 it still left one nurse at four in about
-  one solve in three under pytest; at 200 it held the cap in fourteen of fourteen, so the ER test uses 200 and says why. A cap of 2 was not reached in 20 s even then. The CNO's weight, and the
+  one solve in three, and on GitHub's runner; at 200 it held the cap in fourteen local solves of fourteen. A cap of 2 was not
+  reached in 20 s with every price on, though the month allows it (the test above). The CNO's weight, and the
   solve's time, are ticket 48's and the user's to weigh; nothing here assumes 4.
 - **Worth your review: optional in both request versions, no version 3.** The app still writes version 1, so refusing the
   fields in version 1 would have pushed ticket 48 onto version 2 and every skill field. Absent changes nothing, as
@@ -122,7 +126,7 @@ this file renamed; the request's default dicts are used, not their keys restated
 the new check (the spec's words, and the value named), against the older checks' "integer within"; `FULL_RUN_FIELDS`
 repeated in three test files, the precedent ticket 31 set, deleted by 48. *Spec:* a test added for a history shift the unit
 no longer works; the comment, the CLI run and the weight finding above. After the review, the backend run found the shared
-fixture break (above) and a rerun found the ER test flaky at 50, now 200. Kept: the note on ticket 48's file (its
+fixture break (above), and GitHub's solver job found the timed ER test unreliable; it is now the proven one above. Kept: the note on ticket 48's file (its
 hand-over, not app code). No adversarial review, by the user's call.
 
 **Things later tickets should know.**

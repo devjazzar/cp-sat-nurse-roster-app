@@ -244,21 +244,19 @@ def full_runs(p: Problem, a: list[list[int]]) -> dict[str, int]:
 
 
 def test_with_the_cap_set_a_solve_of_the_er_sample_gives_no_nurse_more_full_runs_than_the_cap():
-    """The ER sample (25 nurses, longest run 3) solved for 10 s without a cap gave nurses up to four full runs; with the cap
-    at 3, the spec's default for every unit, none works more than three. The weight is 200, not the spec's default of 4: at 4
-    against this month's cost of about 2,500 a 10 s search kept the cap in some solves and left a nurse at four or five in
-    others (priced, and the validator agreed each time); at 50 it still left one at four about one solve in three; at 200
-    it kept it in every solve tried. A cap of 2 is not reached in
-    20 s on this month (four nurses stay at three), so the test holds the cap the month allows."""
+    """The ER sample (25 nurses, longest run 3) keeps every hard rule, and the hours a nurse owes at the dominant
+    avoidable-shortfall price, but no other soft price, so the month allows the cap of 2 exactly when a roster costs 0, and
+    the solver proves it in under a second. With the ER month's every price on, whether a 10 s search reaches the cap
+    depends on the weight and the machine (the ticket's comment), which a test on GitHub's runners cannot hold."""
     req = json.loads(ER.read_text())
-    req["department"]["max_full_runs"] = 3
-    req["general"]["weights"]["excess_full_run"] = 200
+    req["department"]["max_full_runs"] = 2
+    req["general"]["weights"] = {w: 0 for w in req["general"]["weights"]} | {"avoidable_shortfall": 1000, "excess_full_run": 4}
     p = load_request(req).problem
 
-    sol = solve(build_model(p), p, time_limit=10, workers=4)
+    sol = solve(build_model(p), p, time_limit=30, workers=2)
 
-    assert sol.status in ("OPTIMAL", "FEASIBLE") and sol.analysis is not None and sol.analysis.errors == []
+    assert sol.status == "OPTIMAL" and sol.objective == 0 and sol.analysis is not None and sol.analysis.errors == []
     counted = full_runs(p, sol.assignment)
-    assert max(counted.values()) <= 3, counted
-    assert sol.analysis.rules["excess_full_run"].weighted == 0
+    assert max(counted.values()) <= 2, counted
+    assert sum(counted.values()) > 0                                      # the month has full runs, at most two each
     assert validate(p, sol.assignment)[2] == sol.objective
