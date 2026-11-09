@@ -29,6 +29,7 @@ import { UnitPicker, useChosenUnit } from "@/components/unit-picker"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { dayRange, monthAfter, monthName, scrollableRegion } from "@/lib/utils"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({
@@ -83,7 +84,7 @@ function LeaveForm({ unitId, nurses, run, defaultNurse, onCancel, onDone }: {
   // Only an active type may be chosen, but leave of a type since retired may keep it.
   const choices = (types.data ?? []).filter((type) => type.active || type.id === run?.leave_type.id)
 
-  useEffect(() => { form.setFocus(run ? "leave_type_id" : "nurse_id") }, [form, run])
+  useFocusOnOpen(() => { form.setFocus(run ? "leave_type_id" : "nurse_id") }, [form, run])
   // The select has no options until the types arrive, so a value set before then would not show.
   useEffect(() => { if (run && types.data) form.setValue("leave_type_id", run.leave_type.id) }, [form, run, types.data])
 

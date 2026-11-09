@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -48,6 +48,7 @@ import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { hospitalTime, scrollableRegion } from "@/lib/utils"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 import { ROLE_NAMES } from "@/roles"
 import { onlyFor } from "@/session"
 
@@ -137,7 +138,7 @@ function NameForm({ row, onDone, onCancel }: { row: ManagedUser; onDone: (messag
   const form = useForm<NameFields>({ resolver: zodResolver(nameSchema), defaultValues: { full_name: row.full_name } })
   const { errors } = form.formState
 
-  useEffect(() => { form.setFocus("full_name") }, [form])
+  useFocusOnOpen(() => { form.setFocus("full_name") }, [form])
 
   const submit = form.handleSubmit((data) =>
     correct.mutate({ userId: row.id, data }, {

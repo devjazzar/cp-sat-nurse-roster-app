@@ -32,6 +32,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { asDate, cn, monthName, scrollableRegion } from "@/lib/utils"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 
 /** A hand-edited year is dropped rather than sent: the API would refuse it and the page could only say "reload". */
 const searchSchema = z.object({ year: z.number().int().min(FIRST_YEAR).max(LAST_YEAR).optional().catch(undefined) })
@@ -75,7 +76,7 @@ function HolidayForm({ year, row, onDone, onCancel }: { year: number; row: Publi
   const form = useForm<PublicHolidayBody>({ resolver: zodResolver(schema), defaultValues: row ?? { date: "", name: "" } })
   const { errors } = form.formState
 
-  useEffect(() => {
+  useFocusOnOpen(() => {
     if (row) form.setFocus("date")
   }, [row, form])
 

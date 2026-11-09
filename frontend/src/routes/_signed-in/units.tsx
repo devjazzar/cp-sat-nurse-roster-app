@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -34,6 +34,7 @@ import { NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/units")({
@@ -75,7 +76,7 @@ function UnitForm({ row, managers, onDone, onCancel }: {
   })
   const { errors } = form.formState
 
-  useEffect(() => {
+  useFocusOnOpen(() => {
     if (row) form.setFocus("name")
   }, [row, form])
 

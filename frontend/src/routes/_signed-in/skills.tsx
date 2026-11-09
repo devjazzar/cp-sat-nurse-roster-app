@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useRouteContext } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { scrollableRegion } from "@/lib/utils"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 
 /** Open to every role, which may all read the catalogue: it names no one. Only the CNO gets the form. */
 export const Route = createFileRoute("/_signed-in/skills")({
@@ -44,7 +45,7 @@ function SkillForm({ skill, onDone, onCancel }: { skill: SkillSchema | null; onD
   })
   const { errors } = form.formState
 
-  useEffect(() => {
+  useFocusOnOpen(() => {
     if (skill) form.setFocus("name")
   }, [skill, form])
 

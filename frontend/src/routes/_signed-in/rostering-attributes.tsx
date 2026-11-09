@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useController, useForm, type FieldError, type UseFormReturn } from "react-hook-form"
 import { z } from "zod"
 
@@ -29,6 +29,7 @@ import { UnitPicker, useChosenUnit } from "@/components/unit-picker"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { monthName, scrollableRegion } from "@/lib/utils"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ unit: z.string().optional().catch(undefined) })
@@ -112,7 +113,7 @@ function AttributesForm({ unitId, nurse, shifts, isOwn, onCancel, onDone }: Form
   const locked = nurse.opening_values_locked
   const asNumber = { valueAsNumber: true }
 
-  useEffect(() => { form.setFocus("team_leader") }, [form])
+  useFocusOnOpen(() => { form.setFocus("team_leader") }, [form])
 
   const submit = form.handleSubmit((data) =>
     update.mutate({ unitId, nurseId: nurse.id, data }, {
@@ -167,7 +168,7 @@ function DueToJoinForm({ unitId, nurse, shifts, onCancel, onDone }: FormProps) {
   const update = useUpdateNurseAllowedShifts()
   const form = useForm<AllowedShiftsBody>({ resolver: zodResolver(dueToJoinSchema), defaultValues: { allowed_shifts: nurse.allowed_shifts ?? null } })
 
-  useEffect(() => { form.setFocus("allowed_shifts") }, [form])
+  useFocusOnOpen(() => { form.setFocus("allowed_shifts") }, [form])
 
   const submit = form.handleSubmit((data) =>
     update.mutate({ unitId, nurseId: nurse.id, data }, {

@@ -25,6 +25,7 @@ import { COVER_STATE, coverName, hoursWords, OFFER_ANSWER, overtimeWords, REPLAC
 import { NO_CONNECTION, shiftNames } from "@/lib/request-words"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 import { onlyFor } from "@/session"
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined)
@@ -289,7 +290,7 @@ function OpenCoverForm({ unitId, given, names, onOpened, onCancel }: {
   const shifts = rules.data?.rules.shifts ?? []
   const refusal = plainRefusal(open.error)
 
-  useEffect(() => { form.setFocus(given.date ? "shift" : "date") }, [form, given.date])
+  useFocusOnOpen(() => { form.setFocus(given.date ? "shift" : "date") }, [form, given.date])
   // The select has no options until the unit's shifts arrive, so a value set before then would not show.
   useEffect(() => { if (given.shift && rules.data) form.setValue("shift", given.shift) }, [form, given.shift, rules.data])
 
