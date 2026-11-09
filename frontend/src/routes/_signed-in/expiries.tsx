@@ -1,7 +1,7 @@
 import { createFileRoute, useRouteContext } from "@tanstack/react-router"
 
 import { Role } from "@/api/generated/model"
-import { EXPIRIES_SAY, ExpiriesList } from "@/components/expiries"
+import { ExpiriesList } from "@/components/expiries"
 import { Card, CardContent } from "@/components/ui/card"
 import { onlyFor } from "@/session"
 
@@ -19,10 +19,9 @@ function ExpiriesPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-medium">Expiries</h1>
-      <p className="text-muted-foreground">{EXPIRIES_SAY} {who} skills on the Nurses page.</p>
       <Card>
-        <CardContent>
-          <ExpiriesList label="Expiries" showUnit />
+        <CardContent className="flex flex-col gap-4">
+          <ExpiriesList label="Expiries" showUnit who={who} />
         </CardContent>
       </Card>
     </div>

@@ -3,9 +3,10 @@ today, and each skill required to work she has no record of, so that renewals ar
 worked out when read: no job keeps it and nothing is sent about it, since the page is the reminder.
 
 "Expired" and "required" mean what a solve input means by them (ticket 35): a retired skill is no record, so it is no row of any
-kind; a kind whose `expires` is off has no expiry, whatever date is kept (`nurses.skills.counted_expiry`); the required skills
-are the catalogue's live ones (`hospital.rules.required_skills`); and an expiry is the last day a skill counts, so it has expired
-from the next day, as the solver bars it (`solves.input.barred_from`)."""
+kind (`nurses.skills.tracked`); a kind whose `expires` is off has no expiry, whatever date is kept
+(`nurses.skills.counted_expiry`); the required skills are the catalogue's live ones (`hospital.rules.required_skills`); and an
+expiry is the last day a skill counts, so it has expired from the next day, as the solver bars it (`solves.input.barred_from`,
+which reads it per month, so it cannot be called here)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -15,7 +16,7 @@ from enum import StrEnum
 from hospital.rules import required_skills
 from nurses import membership
 from nurses.models import NurseProfile
-from nurses.skills import counted_expiry, current_skills
+from nurses.skills import counted_expiry, current_skills, tracked
 from units.models import Unit
 
 HORIZON = dt.timedelta(days=90)
@@ -43,7 +44,7 @@ def expiries(nurses, unit_of) -> list[Expiry]:
     required = required_skills()
     found: list[Expiry] = []
     for nurse in membership.serving(nurses).select_related("user").prefetch_related("placements__unit", current_skills()):
-        held = [row for row in nurse.current_skills if row.skill.active]
+        held = tracked(nurse.current_skills)
         for row in held:
             expiry = counted_expiry(row)
             if expiry is not None and expiry <= today + HORIZON:

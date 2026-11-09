@@ -26,6 +26,12 @@ def counted_expiry(row: NurseSkill) -> dt.date | None:
     return row.expiry if row.skill.expires else None
 
 
+def tracked(rows) -> list[NurseSkill]:
+    """Her records of live skills. A retired skill is tracked no more: to a solve input and to the expiries it is no record,
+    counting toward no need and barring nobody, as `hospital.rules.required_skills` leaves it out."""
+    return [row for row in rows if row.skill.active]
+
+
 def as_rows(rows) -> list[NurseSkillRow]:
     """`rows`: her current `NurseSkill`s with their skills."""
     return [NurseSkillRow(skill_id=row.skill.pk, name=row.skill.name, expires=row.skill.expires,

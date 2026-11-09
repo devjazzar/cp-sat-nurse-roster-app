@@ -141,9 +141,9 @@ const onChangePassword = async (router: ReturnType<typeof start>["router"]) => {
 const BLS_HELD = { skill_id: "s1", name: "BLS", expires: true, required_to_work: true, active: true, expiry: "2027-06-30" }
 const ICU_HELD = { skill_id: "s2", name: "ICU", expires: false, required_to_work: false, active: true, expiry: null }
 /** The expiries list as the API reads it (ticket 37): oldest date first, then the skills nobody has recorded. */
-const NO_EXPIRIES = { count: 0, rows: [] }
+const NO_EXPIRIES = { horizon_days: 90, count: 0, rows: [] }
 const EXPIRY = { nurse_id: "n1", hospital_id: "h123", full_name: "Amal Saleh", unit: { id: "u1", name: "ER" }, skill: "BLS", state: "expired", expiry: "2026-10-31" }
-const EXPIRIES = { count: 3, rows: [
+const EXPIRIES = { horizon_days: 90, count: 3, rows: [
   EXPIRY,
   { ...EXPIRY, nurse_id: "n2", hospital_id: "h124", full_name: "Badr Omar", unit: { id: "u2", name: "ICU" }, skill: "ACLS", state: "expiring", expiry: "2027-01-15" },
   { ...EXPIRY, nurse_id: "n3", hospital_id: "h125", full_name: "Dana Ali", state: "no_record", expiry: null },
@@ -2254,7 +2254,7 @@ describe("the CNO's home: the expiries count", () => {
     const { user, router } = start("/", asCno({ "GET /api/units": { body: [] }, "GET /api/nurses/expiries": { body: EXPIRIES } }))
 
     const count = await screen.findByText(/entries are on/)
-    expect(count).toHaveTextContent("3 entries are on the Expiries page: skills expired, expiring within 90 days, or required and not recorded.")
+    expect(count).toHaveTextContent("3 entries are on the Expiries page: skills that have expired or expire within 90 days, and skills required to work that a nurse has no record of.")
     await user.click(within(count).getByRole("link", { name: "the Expiries page" }))
 
     expect(await screen.findByRole("heading", { level: 1, name: "Expiries" })).toBeInTheDocument()
@@ -2262,7 +2262,7 @@ describe("the CNO's home: the expiries count", () => {
   })
 
   it("says one in the singular", async () => {
-    start("/", asCno({ "GET /api/units": { body: [] }, "GET /api/nurses/expiries": { body: { count: 1, rows: [EXPIRY] } } }))
+    start("/", asCno({ "GET /api/units": { body: [] }, "GET /api/nurses/expiries": { body: { horizon_days: 90, count: 1, rows: [EXPIRY] } } }))
 
     expect(await screen.findByText(/entry is on/)).toHaveTextContent("1 entry is on the Expiries page")
   })
@@ -2271,7 +2271,7 @@ describe("the CNO's home: the expiries count", () => {
     start("/", asCno({ "GET /api/units": { body: [] } }))
 
     expect(await screen.findByText(/Nothing is on/)).toHaveTextContent(
-      "Nothing is on the Expiries page: no skill has expired or expires within 90 days, and none required to work is missing.")
+      "Nothing is on the Expiries page: no skill has expired or expires within 90 days, and every nurse has a record of each skill required to work.")
   })
 
   it("says so when the count cannot be read, rather than showing none", async () => {
@@ -2319,7 +2319,7 @@ describe("the expiries page", () => {
   it("says when there is nothing to list", async () => {
     start("/expiries", asCno())
 
-    expect(await screen.findByText(/No skill has expired or expires within 90 days/)).toBeInTheDocument()
+    expect(await screen.findByText(/Nothing to list: no skill has expired or expires within 90 days/)).toBeInTheDocument()
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
   })
 
@@ -2593,9 +2593,9 @@ describe("the nurses page", () => {
   describe("the manager's expiries (ticket 37)", () => {
     const expiries = () => screen.getByRole("region", { name: "Expiries of ER" })
 
-    it("lists his own unit's expiries under the nurses, without a unit column", async () => {
+    it("lists his own unit's expiries above the nurses, without a unit column", async () => {
       start("/nurses", asManagerHere([AMAL], [UNIT_ER], { "GET /api/nurses/expiries": { body: {
-        count: 2, rows: [EXPIRY, { ...EXPIRY, nurse_id: "n3", hospital_id: "h125", full_name: "Dana Ali", state: "no_record", expiry: null }] } } }))
+        horizon_days: 90, count: 2, rows: [EXPIRY, { ...EXPIRY, nurse_id: "n3", hospital_id: "h125", full_name: "Dana Ali", state: "no_record", expiry: null }] } } }))
 
       expect(await screen.findByRole("heading", { level: 2, name: "Expiries" })).toBeInTheDocument()
       const row = (await within(await screen.findByRole("region", { name: "Expiries of ER" })).findByRole("cell", { name: "Dana Ali" })).closest("tr") as HTMLElement
@@ -2610,7 +2610,7 @@ describe("the nurses page", () => {
     it("says when nothing in his unit waits", async () => {
       start("/nurses", asManagerHere([AMAL]))
 
-      expect(await screen.findByText(/No skill has expired or expires within 90 days/)).toBeInTheDocument()
+      expect(await screen.findByText(/Nothing to list: no skill has expired or expires within 90 days/)).toBeInTheDocument()
     })
 
     it("is not on the CNO's Nurses page, which has a page of every unit's", async () => {

@@ -14,7 +14,7 @@ export interface ExpiryRow {
   /** Her unit today; for a unit manager, his own, which she may be due to join. */
   unit: UnitName;
   skill: string;
-  /** `expired`: the expiry has passed. `expiring`: it is today or within 90 days. `no_record`: the skill is required to work and she has no record of it. */
+  /** `expired`: the expiry has passed. `expiring`: it is today or within `horizon_days`. `no_record`: the skill is required to work and she has no record of it. */
   state: ExpiryState;
   /** The last day the skill counts. Null for `no_record`. */
   expiry: string | null;

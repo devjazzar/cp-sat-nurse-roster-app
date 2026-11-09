@@ -30,7 +30,7 @@ import {
   createNurseBodyHospitalIdRegExp as HOSPITAL_ID,
 } from "@/api/generated/zod"
 import { FormField, SelectField } from "@/components/form-field"
-import { EXPIRIES_SAY, ExpiriesList } from "@/components/expiries"
+import { ExpiriesList } from "@/components/expiries"
 import { SkillList, untilWords } from "@/components/nurse-skills"
 import { LeavePageGuard, PasswordDialog, type Shown } from "@/components/password-dialog"
 import {
@@ -666,10 +666,9 @@ function NursesPage() {
       {held && (
         <section aria-labelledby="expiries" className="flex flex-col gap-2">
           <h2 id="expiries" className="text-base font-medium">Expiries</h2>
-          <p className="text-muted-foreground">{EXPIRIES_SAY} The CNO records and renews skills.</p>
           <Card>
-            <CardContent>
-              <ExpiriesList label={`Expiries of ${held.name}`} showUnit={false} />
+            <CardContent className="flex flex-col gap-4">
+              <ExpiriesList label={`Expiries of ${held.name}`} showUnit={false} who="The CNO records and renews" />
             </CardContent>
           </Card>
         </section>

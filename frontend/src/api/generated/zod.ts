@@ -5784,6 +5784,7 @@ export const GetMySkillsResponse = zod.array(GetMySkillsResponseItem)
  * @summary List Expiries
  */
 export const ListExpiriesResponse = zod.object({
+  "horizon_days": zod.int().describe('How far ahead an expiry is listed: fixed, the hospital\'s one meaning of expiring.'),
   "count": zod.int().describe('How many rows there are: the CNO\'s home shows it.'),
   "rows": zod.array(zod.object({
   "nurse_id": zod.uuid(),
@@ -5794,7 +5795,7 @@ export const ListExpiriesResponse = zod.object({
   "name": zod.string()
 }).describe('Her unit today; for a unit manager, his own, which she may be due to join.'),
   "skill": zod.string(),
-  "state": zod.enum(['expired', 'expiring', 'no_record']).describe('`expired`: the expiry has passed. `expiring`: it is today or within 90 days. `no_record`: the skill is required to work and she has no record of it.'),
+  "state": zod.enum(['expired', 'expiring', 'no_record']).describe('`expired`: the expiry has passed. `expiring`: it is today or within `horizon_days`. `no_record`: the skill is required to work and she has no record of it.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day the skill counts. Null for `no_record`.')
 }))
 })

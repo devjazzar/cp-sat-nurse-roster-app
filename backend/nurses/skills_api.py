@@ -1,7 +1,8 @@
 """A nurse's skills: the CNO records, renews and takes them off; her unit manager (and the manager of a unit she is due to join)
 and the Deputy CNO read them on the rows they already read (`nurses.api.NurseRow`, `nurses.attributes_api.NurseAttributesRow`);
-she reads her own here. The System Admin reads the audit log, so an entry says only whose skills changed and by whom: never
-which skill or date, since a skill's lapse says something about a person.
+she reads her own here, and the expiries of every nurse the reader may see are read here too (`nurses.expiries`). The System
+Admin reads the audit log, so an entry says only whose skills changed and by whom: never which skill or date, since a skill's
+lapse says something about a person.
 
 The skills are on the profile, not a placement, so they follow her across a transfer and stay when she is deactivated or ends.
 Every write takes the catalogue's lock before the nurse's, as `hospital.catalogue_api.update_skill` and a transfer take them,
@@ -25,7 +26,7 @@ from hospital.catalogue_api import IsoDate
 from hospital.models import HospitalSettings, Skill
 from nurses import membership
 from nurses.api import Body, UnitName
-from nurses.expiries import ExpiryState, expiries
+from nurses.expiries import HORIZON, ExpiryState, expiries
 from nurses.models import NurseProfile, NurseSkill
 from nurses.skills import NurseSkillRow, as_rows, end_record, skills_of
 from units.scope import HOSPITAL_WIDE, units_in_scope
@@ -133,12 +134,13 @@ class ExpiryRow(Schema):
     full_name: str
     unit: UnitName = Field(description="Her unit today; for a unit manager, his own, which she may be due to join.")
     skill: str
-    state: ExpiryState = Field(description="`expired`: the expiry has passed. `expiring`: it is today or within 90 days. "
+    state: ExpiryState = Field(description="`expired`: the expiry has passed. `expiring`: it is today or within `horizon_days`. "
                                            "`no_record`: the skill is required to work and she has no record of it.")
     expiry: dt.date | None = Field(description="The last day the skill counts. Null for `no_record`.")
 
 
 class Expiries(Schema):
+    horizon_days: int = Field(description="How far ahead an expiry is listed: fixed, the hospital's one meaning of expiring.")
     count: int = Field(description="How many rows there are: the CNO's home shows it.")
     rows: list[ExpiryRow]
 
@@ -156,4 +158,4 @@ def list_expiries(request: HttpRequest) -> Expiries:
     rows = [ExpiryRow(nurse_id=row.nurse.pk, hospital_id=row.nurse.user.username, full_name=row.nurse.user.full_name,
                       unit=UnitName(id=row.unit.pk, name=row.unit.name), skill=row.skill, state=row.state, expiry=row.expiry)
             for row in found]
-    return Expiries(count=len(rows), rows=rows)
+    return Expiries(horizon_days=HORIZON.days, count=len(rows), rows=rows)

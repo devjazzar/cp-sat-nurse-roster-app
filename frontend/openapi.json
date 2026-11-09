@@ -16653,6 +16653,11 @@
       },
       "Expiries": {
         "properties": {
+          "horizon_days": {
+            "description": "How far ahead an expiry is listed: fixed, the hospital's one meaning of expiring.",
+            "title": "Horizon Days",
+            "type": "integer"
+          },
           "count": {
             "description": "How many rows there are: the CNO's home shows it.",
             "title": "Count",
@@ -16667,6 +16672,7 @@
           }
         },
         "required": [
+          "horizon_days",
           "count",
           "rows"
         ],
@@ -16698,7 +16704,7 @@
           },
           "state": {
             "$ref": "#/components/schemas/ExpiryState",
-            "description": "`expired`: the expiry has passed. `expiring`: it is today or within 90 days. `no_record`: the skill is required to work and she has no record of it."
+            "description": "`expired`: the expiry has passed. `expiring`: it is today or within `horizon_days`. `no_record`: the skill is required to work and she has no record of it."
           },
           "expiry": {
             "anyOf": [

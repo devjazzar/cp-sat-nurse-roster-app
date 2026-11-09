@@ -6,18 +6,18 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { scrollableRegion, shortDay } from "@/lib/utils"
 
-/** The horizon is the hospital's one meaning of "expiring" (ticket 37): fixed, so the page can say it. */
-export const HORIZON_DAYS = 90
-
 const STATE_WORDS: Record<ExpiryState, string> = {
   expired: "Expired",
   expiring: "Expiring",
   no_record: "No record",
 }
 
-/** What the list holds and leaves out, in one sentence each, for the page and the manager's Nurses page alike. */
-export const EXPIRIES_SAY = `Skills that have expired or expire within ${HORIZON_DAYS} days, and skills required to work that a nurse has no record of. ` +
-  "Deactivated nurses and those past their end date are left out."
+/** What the list holds and what it holding nothing means, said once for the page, the manager's Nurses page and the home. The
+ *  horizon is the API's, fixed, so "expiring" means one thing across the hospital (ticket 37). */
+const listed = (days: number) =>
+  `skills that have expired or expire within ${days} days, and skills required to work that a nurse has no record of`
+const nothingListed = (days: number) =>
+  `no skill has expired or expires within ${days} days, and every nurse has a record of each skill required to work`
 
 function State({ state }: { state: ExpiryState }) {
   return <Badge variant={state === ExpiryState.expired ? "destructive" : "outline"}>{STATE_WORDS[state]}</Badge>
@@ -55,15 +55,23 @@ function ExpiriesTable({ rows, label, showUnit }: { rows: ExpiryRow[]; label: st
 }
 
 /** The list as the reader may see it: every unit's for the CNO and the Deputy CNO, a manager's own unit's. Oldest date first,
- *  then the skills nobody has recorded, as the API orders them. */
-export function ExpiriesList({ label, showUnit }: { label: string; showUnit: boolean }) {
+ *  then the skills nobody has recorded, as the API orders them. `who` says who records skills, in the reader's words. */
+export function ExpiriesList({ label, showUnit, who }: { label: string; showUnit: boolean; who: string }) {
   const expiries = useListExpiries()
   if (expiries.isPending) return <p>Loading the expiries…</p>
   if (expiries.isError) return <p role="alert">The expiries could not be read. Reload the page to try again.</p>
-  if (expiries.data.rows.length === 0) {
-    return <p>No skill has expired or expires within {HORIZON_DAYS} days, and every nurse has a record of each skill required to work.</p>
-  }
-  return <ExpiriesTable rows={expiries.data.rows} label={label} showUnit={showUnit} />
+  const { horizon_days: days, rows } = expiries.data
+  const words = listed(days)
+  return (
+    <>
+      <p className="text-muted-foreground">
+        {words[0].toUpperCase() + words.slice(1)}. Deactivated nurses and those past their end date are left out. {who} skills on the Nurses page.
+      </p>
+      {rows.length === 0
+        ? <p>Nothing to list: {nothingListed(days)}.</p>
+        : <ExpiriesTable rows={rows} label={label} showUnit={showUnit} />}
+    </>
+  )
 }
 
 /** The CNO's home: how many rows the page has, read afresh, so it always matches the page. */
@@ -71,8 +79,8 @@ export function ExpiriesCount() {
   const expiries = useListExpiries()
   if (expiries.isPending) return null
   if (expiries.isError) return <p role="alert">The expiries could not be read, so their count is not shown. Reload the page to try again.</p>
-  const { count } = expiries.data
+  const { count, horizon_days: days } = expiries.data
   const link = <Link to="/expiries" className="underline underline-offset-3">the Expiries page</Link>
-  if (count === 0) return <p>Nothing is on {link}: no skill has expired or expires within {HORIZON_DAYS} days, and none required to work is missing.</p>
-  return <p>{count} {count === 1 ? "entry is" : "entries are"} on {link}: skills expired, expiring within {HORIZON_DAYS} days, or required and not recorded.</p>
+  if (count === 0) return <p>Nothing is on {link}: {nothingListed(days)}.</p>
+  return <p>{count} {count === 1 ? "entry is" : "entries are"} on {link}: {listed(days)}.</p>
 }

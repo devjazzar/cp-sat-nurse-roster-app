@@ -5,7 +5,7 @@ import datetime as dt
 
 from nurses import membership
 from nurses.models import Leave, NurseProfile, Placement
-from nurses.skills import counted_expiry
+from nurses.skills import counted_expiry, tracked
 
 
 def nurse_block(nurse: NurseProfile, placement: Placement) -> dict:
@@ -32,5 +32,5 @@ def skills_block(rows, month: dt.date) -> dict[str, str | None]:
     skill is tracked no more, so it is no record: it counts toward no need and bars nobody, as `hospital.rules.required_skills`
     leaves it out."""
     last = membership.last_day_of(month)
-    expiries = {row.skill.name: counted_expiry(row) for row in rows if row.skill.active}
+    expiries = {row.skill.name: counted_expiry(row) for row in tracked(rows)}
     return {name: expiry.isoformat() if expiry and expiry <= last else None for name, expiry in sorted(expiries.items())}

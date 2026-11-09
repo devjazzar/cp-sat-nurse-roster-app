@@ -7,6 +7,8 @@
 import type { ExpiryRow } from './expiryRow';
 
 export interface Expiries {
+  /** How far ahead an expiry is listed: fixed, the hospital's one meaning of expiring. */
+  horizon_days: number;
   /** How many rows there are: the CNO's home shows it. */
   count: number;
   rows: ExpiryRow[];

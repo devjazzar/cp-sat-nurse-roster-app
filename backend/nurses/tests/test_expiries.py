@@ -65,7 +65,7 @@ def with_bls(cno, catalogue, unit, hospital_id, full_name, expiry) -> str:  # no
 def test_a_row_names_the_nurse_her_unit_the_skill_its_state_and_date(cno, er, catalogue):  # noqa: F811
     amal = with_bls(cno, catalogue, er, "h1", "Amal Saleh", "2026-11-30")
 
-    assert expiries(cno) == {"count": 1, "rows": [
+    assert expiries(cno) == {"horizon_days": 90, "count": 1, "rows": [
         {"nurse_id": amal, "hospital_id": "h1", "full_name": "Amal Saleh", "unit": {"id": str(er.pk), "name": "ER"},
          "skill": "BLS", "state": "expiring", "expiry": "2026-11-30"}]}
 
@@ -138,7 +138,7 @@ def test_a_renewed_skill_is_listed_by_its_new_date_and_one_taken_off_is_missing(
 def test_no_required_skill_and_no_expiry_means_nothing_is_listed(cno, er):
     nurse(cno, er, "h1", "Amal Saleh")
 
-    assert expiries(cno) == {"count": 0, "rows": []}
+    assert expiries(cno) == {"horizon_days": 90, "count": 0, "rows": []}
 
 
 # ---- who is left out ---------------------------------------------------------------------------------
@@ -199,7 +199,7 @@ def test_a_nurse_due_to_join_is_on_both_managers_lists_and_named_by_the_reader_s
 def test_a_manager_with_no_unit_reads_an_empty_list(cno, client_of, er, catalogue):  # noqa: F811
     with_bls(cno, catalogue, er, "h1", "Amal Saleh", "2026-10-01")
 
-    assert expiries(client_of("idle", Role.UNIT_MANAGER)) == {"count": 0, "rows": []}
+    assert expiries(client_of("idle", Role.UNIT_MANAGER)) == {"horizon_days": 90, "count": 0, "rows": []}
 
 
 @pytest.mark.parametrize("role", [Role.SYSTEM_ADMIN, Role.STAFF_NURSE])
