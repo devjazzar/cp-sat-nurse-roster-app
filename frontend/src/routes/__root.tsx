@@ -1,6 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query"
-import { createRootRouteWithContext, Outlet, useMatches, useRouterState } from "@tanstack/react-router"
+import { createRootRouteWithContext, Outlet, useMatches, useNavigate, useRouterState } from "@tanstack/react-router"
 import { useEffect, useRef } from "react"
+
+import { openPagesTappedInPushes } from "@/lib/service-worker"
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: Root,
@@ -22,6 +24,10 @@ function Root() {
     // The login and password pages focus their first field themselves and have no such <main>.
     if (arrived) document.querySelector<HTMLElement>("main[tabindex]")?.focus()
   }, [pathname])
+
+  // A push tapped while the app is open here sends this window to its page (ticket 41).
+  const navigate = useNavigate()
+  useEffect(() => openPagesTappedInPushes((path) => void navigate({ href: path })), [navigate])
 
   return <Outlet />
 }

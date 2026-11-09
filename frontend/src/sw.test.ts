@@ -3,6 +3,22 @@ import source from "../public/sw.js?raw"
 type WorkerEvent = { waitUntil: (work: Promise<unknown>) => void } & Record<string, unknown>
 type Posted = { url: string; body: unknown; token: string | null }
 
+/** A window of the app the worker can find: what was done to it, in order. */
+class AppWindow {
+  did: unknown[] = []
+  async focus() { this.did.push("focus"); return this }
+  postMessage(message: unknown) { this.did.push(message) }
+}
+
+/** A push as the browser hands it to the worker: its body read as JSON, which throws for one that is not. */
+const pushOf = (body: string | null) => ({ data: body === null ? null : { json: () => JSON.parse(body) } })
+
+/** A notification shown, as a tap hands it back. */
+function tapped(data: unknown) {
+  const notification = { data, closed: false, close() { notification.closed = true } }
+  return notification
+}
+
 /** A browser subscription as the worker's push manager hands it out. */
 function subscription(endpoint: string, unsubscribed: string[]) {
   return {
@@ -15,19 +31,29 @@ function subscription(endpoint: string, unsubscribed: string[]) {
 /** The service worker run against a stand-in for its global scope: what it listens for, and what it does when it does.
  *  `server` answers the worker's POSTs by their last path segment. */
 function runWorker(cacheNames: string[] = [], { csrf = "the-token" as string | null, server = {} as Record<string, unknown>,
-  current = null as string | null } = {}) {
+  current = null as string | null, windows = [] as AppWindow[] } = {}) {
   const listeners = new Map<string, (event: WorkerEvent) => void>()
   const posted: Posted[] = []
   const unsubscribed: string[] = []
   const subscribedWith: Uint8Array[] = []
   const deleted: string[] = []
   const calls: string[] = []
+  const shown: { title: string; options: NotificationOptions }[] = []
+  const opened: string[] = []
   const scope = {
     addEventListener: (type: string, listener: (event: WorkerEvent) => void) => listeners.set(type, listener),
     skipWaiting: async () => { calls.push("skipWaiting") },
-    clients: { claim: async () => { calls.push("claim") } },
+    clients: {
+      claim: async () => { calls.push("claim") },
+      matchAll: async (options: { type: string; includeUncontrolled: boolean }) => {
+        expect(options).toEqual({ type: "window", includeUncontrolled: true })
+        return windows
+      },
+      openWindow: async (url: string) => { opened.push(url); return null },
+    },
     cookieStore: csrf === null ? undefined : { get: async (name: string) => (name === "csrftoken" ? { value: csrf } : null) },
     registration: {
+      showNotification: async (title: string, options: NotificationOptions) => { shown.push({ title, options }) },
       pushManager: {
         getSubscription: async () => (current ? subscription(current, unsubscribed) : null),
         subscribe: async (options: { userVisibleOnly: boolean; applicationServerKey: Uint8Array }) => {
@@ -55,7 +81,7 @@ function runWorker(cacheNames: string[] = [], { csrf = "the-token" as string | n
     listeners.get(type)?.({ ...detail, waitUntil: (promise) => work.push(promise) })
     await Promise.all(work)
   }
-  return { listeners, deleted, calls, fire, posted, unsubscribed, subscribedWith }
+  return { listeners, deleted, calls, fire, posted, unsubscribed, subscribedWith, shown, opened }
 }
 
 test("the service worker handles no request, so nothing under /api, no export, print sheet, backup or /metrics passes through it", () => {
@@ -63,6 +89,70 @@ test("the service worker handles no request, so nothing under /api, no export, p
 
   expect(listeners.has("fetch")).toBe(false)
   expect(listeners.size).toBeGreaterThan(0)
+})
+
+describe("a push", () => {
+  const KINDS = [
+    ["swap_to_answer", "You have a swap to answer", "/swaps"],
+    ["swap_to_decide", "A swap waits for your decision", "/unit-swaps"],
+    ["requests_open", "Requests are open for a coming month", "/my-month"],
+    ["requests_to_decide", "Requests wait for your decision", "/requests"],
+    ["roster_to_approve", "A roster waits for your approval", "/rosters"],
+    ["roster_sent_back", "A roster was sent back to you", "/roster"],
+  ] as const
+
+  it.each(KINDS)("of the kind %s is shown with the same words for everyone, tagged by its kind", async (kind, words) => {
+    const worker = runWorker()
+
+    await worker.fire("push", pushOf(JSON.stringify({ kind })))
+
+    expect(worker.shown).toEqual([{ title: "Nurse roster", options: { body: words, tag: kind, data: { kind } } }])
+    expect(worker.posted).toEqual([])
+  })
+
+  it.each([
+    ["a kind this worker does not know", JSON.stringify({ kind: "cover_offered" })],
+    ["no kind", JSON.stringify({})],
+    ["a body that is not JSON", "not json"],
+    ["no body", null],
+    ["a kind named like an object's own property", JSON.stringify({ kind: "constructor" })],
+  ])("with %s still shows a notification, of the title alone", async (_, body) => {
+    const worker = runWorker()
+
+    await worker.fire("push", pushOf(body))
+
+    expect(worker.shown).toEqual([{ title: "Nurse roster", options: { data: { kind: null } } }])
+  })
+
+  it.each(KINDS)("of the kind %s tapped sends an open window of the app to its page through the app's own router", async (kind, _, page) => {
+    const app = new AppWindow()
+    const worker = runWorker([], { windows: [app] })
+    const notification = tapped({ kind })
+
+    await worker.fire("notificationclick", { notification })
+
+    expect(notification.closed).toBe(true)
+    expect(app.did).toEqual(["focus", { type: "open-page", path: page }])
+    expect(worker.opened).toEqual([])
+  })
+
+  it("tapped with no window of the app open opens one on its page, with no month", async () => {
+    const worker = runWorker([], { windows: [] })
+    const notification = tapped({ kind: "swap_to_answer" })
+
+    await worker.fire("notificationclick", { notification })
+
+    expect(notification.closed).toBe(true)
+    expect(worker.opened).toEqual(["/swaps"])
+  })
+
+  it("of an unknown kind tapped opens the app's home", async () => {
+    const worker = runWorker([], { windows: [] })
+
+    await worker.fire("notificationclick", { notification: tapped({ kind: null }) })
+
+    expect(worker.opened).toEqual(["/"])
+  })
 })
 
 test("a new worker takes over at once, so a deploy is not held back behind the old one", async () => {
