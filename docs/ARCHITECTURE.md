@@ -190,7 +190,8 @@ with a nurse profile's too; her unit's manager (and the manager of a unit she is
 and Rostering attributes, the Deputy CNO on Rostering attributes for any unit, and she reads her own on My month. The System
 Admin reads none. On the profile, not a placement, so they follow her across a transfer and stay when she is deactivated or
 ends. A retired skill can be neither recorded nor renewed, and a record of it stays until the CNO takes it off. Every write
-takes the hospital settings' lock before the nurse's, as a catalogue change and a transfer do.
+takes the hospital settings' lock before the nurse's, as a catalogue change and a transfer do. The skills CSV records and
+renews them in bulk (section 8, "Nurse import and the staff list").
 
 **Placement**: nurse, unit, first month, allowed shifts. A nurse's allowed shifts are on the placement, not the
 profile, because a list means something only in a unit and two units can each roster their own months of one nurse at
@@ -717,6 +718,21 @@ it inside gunicorn's 300-second timeout (the default of 30 would kill it) even o
 answer to that request and lives only in the page's memory: if the answer is lost after the transaction, the nurses stay and
 their passwords are reset one at a time. Uploads stay in memory and never reach a temporary file. In a
 staff list every cell is quoted, and one a spreadsheet would run as a formula starts with an apostrophe.
+
+The skills CSV is the same kind of file (`nurses.importing.read_file`: the encodings, 500 lines and 1 MB, in memory),
+of hospital ID, skill and expiry, on its own Import skills page beside the nurse import's: a template, a preview that
+judges every row and says what saving would do with it, and a confirm that sends the file again. A row names a nurse by
+hospital ID, an active one, and a skill by its current name in any case of letters, live; its expiry is a date for a kind
+that expires and empty for one that does not, a date already past accepted as a fact. A skill she does not hold is
+recorded; one she holds takes the row's expiry, ending the old row as a renewal by hand does; one that says what is
+already recorded changes nothing. A nurse and skill twice in a file is a problem on both lines. Confirming is one short
+transaction under the locks every skill write takes, the hospital settings' then the nurses', in which the file is
+judged again: the preview's token stands for each row's nurse, skill (its name and whether it expires), expiry and the
+record a renewal would end, so a renewal by hand since the preview is a different preview and nothing is saved. The audit
+log has one `nurse.skills_imported` entry with the number of rows and nothing from the file, and a `nurse.skills_changed`
+for each nurse whose skills it changed, as a change by hand writes. The template is its header alone, so it names no skill;
+every cell of every CSV this application writes goes through the staff list's guard against a formula. Neither the nurse
+import's template nor the staff list holds skills.
 
 ### Roster files and the print page
 
