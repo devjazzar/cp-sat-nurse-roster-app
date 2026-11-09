@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_signed-in/day")({
 const LINK = "underline underline-offset-3"
 const STATE_WORDS = { none: "No roster", draft: "Draft", submitted: "Submitted" } as const
 /** The unit column stays in view while the rest scrolls sideways. */
-const STICKY = "sticky start-0 z-10 bg-background"
+const STICKY = "sticky start-0 z-10 bg-background print:static"
 
 /** The table's scrollable region, which prints whole. */
 function region(label: string) {
@@ -121,6 +121,8 @@ function DayPage() {
   const navigate = useNavigate({ from: Route.fullPath })
   const day = useGetHospitalDay(date ? { date } : undefined, { query: { placeholderData: keepPreviousData } })
   const answer = day.data
+  /** The day asked for: while it loads, the one before stays shown, but the controls move on from the new one. */
+  const asked = date ?? answer?.date ?? ""
   const heading = answer ? fullDay(answer.date) + (answer.holiday ? `, ${answer.holiday}` : answer.weekend ? ", weekend day" : "") : ""
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 [page:day-view]">
@@ -131,11 +133,11 @@ function DayPage() {
       {answer && (
         <>
           <nav aria-label="Days" className="flex flex-wrap items-end gap-x-3 gap-y-2 print:hidden">
-            <Link to="/day" search={{ date: dayAfter(answer.date, -1) }} className={MONTH_LINK}>Earlier day</Link>
-            <Link to="/day" search={{ date: dayAfter(answer.date, 1) }} className={MONTH_LINK}>Later day</Link>
+            <Link to="/day" search={{ date: dayAfter(asked, -1) }} className={MONTH_LINK}>Earlier day</Link>
+            <Link to="/day" search={{ date: dayAfter(asked, 1) }} className={MONTH_LINK}>Later day</Link>
             <div className="flex flex-col gap-1">
               <Label htmlFor="day-date">Date</Label>
-              <Input id="day-date" type="date" className="w-auto" value={answer.date}
+              <Input id="day-date" type="date" className="w-auto" value={asked}
                 onChange={(event) => { if (event.target.value) void navigate({ search: { date: event.target.value } }) }} />
             </div>
           </nav>
