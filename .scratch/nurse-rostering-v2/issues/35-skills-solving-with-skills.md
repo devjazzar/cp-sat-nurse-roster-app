@@ -220,3 +220,10 @@ screenshots. The setup went through the API as Carla. The stack was taken down a
   mirrors it on dates for the assembler, so change both together.
 - **Anyone adding a change kind of the unit's own:** it is a `DraftChange` with an empty `hospital_id`; the frontend's
   `changeSays` reads that.
+
+**Reviewed by the user (2026-11-09):** all five points kept as recommended.
+- A barred day supersedes a preference, as leave does.
+- A retired required skill bars nobody.
+- A unit's own skill change is a `DraftChange` with an empty `hospital_id`.
+- A shift pinned on a barred day is kept out of the input.
+- The catalogue refuses a skill name the solver would refuse.
