@@ -5205,6 +5205,22 @@ describe("the roster page", () => {
     expect(within(rules).getByText("Every other soft rule costs nothing.")).toBeInTheDocument()
   })
 
+  it("names a short skill need as the hospital rules do, its occurrences with dates", async () => {
+    const short = {
+      rule: "skill_need", penalty: 6, weight: 3, amount: 2, counted_in: "nurse short of a skill need on a shift-day",
+      largest: [{ hospital_id: null, full_name: "", date: "2026-06-03", amount: 2, text: "skill need: 2026-06-03 D has 0 holding ICU, needs 2 (2 short)" }], others: 0,
+    }
+    start("/roster", manager({
+      [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } },
+      [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules: [short] } },
+    }))
+
+    const rules = await screen.findByRole("region", { name: "Penalties per rule" })
+    expect(within(rules).getAllByRole("listitem")[0]).toHaveTextContent(/^Short of a skill need.*6/)
+    expect(within(rules).getByText(/2 × 3/)).toHaveTextContent("nurse short of a skill need on a shift-day")
+    expect(within(rules).getByText(/^The unit: skill need/)).toHaveTextContent("skill need: 2026-06-03 D has 0 holding ICU, needs 2 (2 short)")
+  })
+
   it("beside the draft, gives each nurse's hours and cost, and what the unit costs apart from them", async () => {
     start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } } }))
 
@@ -5624,6 +5640,27 @@ describe("the roster page", () => {
       expect(screen.getByText("Amal Saleh, 6 June: h1 works on a leave day")).toBeInTheDocument()
       expect(screen.getByText(/Cost not known on the month as it stands, against 12 as solved/)).toBeInTheDocument()
       expect(screen.getByRole("alert")).toHaveTextContent("Amal Saleh: pinned cells changed")
+    })
+
+    it("says her skills and the unit's skill rules changed since the solve, and the skill rules the draft breaks, with dates", async () => {
+      const draft = {
+        ...DRAFT, cost: null,
+        check: {
+          reason: null, ok: false, cost: null, violations: [
+            { rule: "skill_expired", hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-21", text: "skill expired: h1 works D on 2026-06-21, BLS is required to work and its last day was 2026-06-20" },
+            { rule: "skill_need", hospital_id: null, full_name: "", date: "2026-06-03", text: "skill need: 2026-06-03 N has 0 holding ICU, needs 1 (1 short)" },
+          ],
+        },
+        changes: [{ hospital_id: "", full_name: "", what: "skills" }, { hospital_id: "h1", full_name: "Amal Saleh", what: "skills" }],
+      }
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft } } }))
+
+      const changes = await screen.findByRole("alert")
+      expect(within(changes).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+        "The skill needs, the skills required to work or the price of a short skill changed", "Amal Saleh: skills changed"])
+      expect(screen.getByText("The draft as it stands breaks 2 hard rules:")).toBeInTheDocument()
+      expect(screen.getByText("Amal Saleh, 21 June: skill expired: h1 works D on 2026-06-21, BLS is required to work and its last day was 2026-06-20")).toBeInTheDocument()
+      expect(screen.getByText("3 June: skill need: 2026-06-03 N has 0 holding ICU, needs 1 (1 short)")).toBeInTheDocument()
     })
 
     it("offers no editing in a month that is over, and says why", async () => {
@@ -7617,10 +7654,11 @@ describe("preferences", () => {
       { id: "p5", date: "2026-12-06", kind: "working_day", state: "made", outcome: "kept" },
       { id: "p3", date: "2026-12-07", kind: "day_off", state: "withdrawn", outcome: null },
       { id: "p6", date: "2026-12-08", kind: "day_off", state: "made", outcome: "on_leave" },
+      { id: "p7", date: "2026-12-09", kind: "working_day", state: "made", outcome: "barred" },
     ],
   }
 
-  it("once the roster is approved the card says how many were kept, and marks each Kept, Not kept or On leave", async () => {
+  it("once the roster is approved the card says how many were kept, and marks each Kept, Not kept, On leave or Skill expired", async () => {
     start("/my-month?month=2026-12", myMonth({ body: APPROVED }))
     await screen.findByRole("heading", { name: "Preferences" })
 
@@ -7633,6 +7671,7 @@ describe("preferences", () => {
       ["6 Dec 2026", "A working day", "Made", "Kept"],
       ["7 Dec 2026", "A day off", "Withdrawn", ""],
       ["8 Dec 2026", "A day off", "Made", "On leave"],
+      ["9 Dec 2026", "A working day", "Made", "Skill expired"],
     ])
     expect(card().queryByText("No roster yet")).not.toBeInTheDocument()
     expect(card().queryByText(/count double/)).not.toBeInTheDocument()

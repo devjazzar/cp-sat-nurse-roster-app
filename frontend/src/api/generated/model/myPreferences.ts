@@ -30,7 +30,7 @@ export interface MyPreferences {
   preferences: MyPreferenceRow[];
   /** How many the roster in force kept. Null before it is approved. */
   kept: number | null;
-  /** How many it could keep: those with an outcome, less those on leave. */
+  /** How many it could keep: those with an outcome, less those on leave or barred. */
   keepable: number | null;
   /** YYYY-MM: the month one of yours was not kept in, so yours count double this month. From the carry-over the month's solve input takes. Null when none was. */
   doubled_by: string | null;

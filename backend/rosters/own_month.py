@@ -8,6 +8,7 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Literal
 
+from nurse_roster.problem import barred_days
 from nurse_roster.request import load_request
 from nurse_roster.validate import unkept_days
 
@@ -74,7 +75,7 @@ def closed_hours(close, hospital_id: str) -> OwnHours | None:
                     overtime=row["overtime"], carried=row["carry_over"]["hours_balance"] if counted else None, shifts=shifts)
 
 
-Outcome = Literal["kept", "not_kept", "on_leave"]
+Outcome = Literal["kept", "not_kept", "on_leave", "barred"]
 # The solver's two preference rules, by the kind of preference each prices (`solves.input._preferred`).
 RULES = {"undesired_day": ("undesired_days", PreferenceKind.DAY_OFF), "desired_day": ("desired_days", PreferenceKind.WORKING_DAY)}
 
@@ -90,13 +91,14 @@ class OwnPreferences:
 
     @property
     def keepable(self) -> int:
-        return sum(outcome != "on_leave" for outcome in self.outcomes.values())
+        return sum(outcome not in ("on_leave", "barred") for outcome in self.outcomes.values())
 
 
 def _preferences_on(solve_input: dict, hospital_id: str, row: dict[str, str]) -> OwnPreferences | None:
     """Her preferences as the solve input holds them, so only her live ones of the unit's windows have an outcome, kept or
     not by `row` as the solver's carry-over counts them (`nurse_roster.validate.unkept_days`): whatever the two weights, and a
-    day of leave or outside her dates counted neither way."""
+    day of leave or outside her dates counted neither way, nor one an expired required skill of hers bars her from
+    (`barred`, ticket 35)."""
     try:
         problem = load_request(solve_input).problem
     except ValueError:
@@ -107,12 +109,13 @@ def _preferences_on(solve_input: dict, hospital_id: str, row: dict[str, str]) ->
     first = dt.date.fromisoformat(f"{solve_input['month']}-01")
     dates = [first.replace(day=day + 1) for day in range(problem.days)]
     worked = [0 if row.get(date.isoformat()) else -1 for date in dates]
-    leave = set(nurse.unavailable)
+    leave, barred = set(nurse.unavailable), set(barred_days(problem, nurse))
     outcomes: dict[tuple[dt.date, PreferenceKind], Outcome] = {}
     for rule, (days, kind) in RULES.items():
-        unkept = set(unkept_days(nurse, worked, rule))
+        unkept = set(unkept_days(problem, nurse, worked, rule))
         for day in getattr(nurse, days):
-            outcomes[(dates[day], kind)] = "on_leave" if day in leave else "not_kept" if day in unkept else "kept"
+            outcomes[(dates[day], kind)] = ("on_leave" if day in leave else "barred" if day in barred
+                                            else "not_kept" if day in unkept else "kept")
     return OwnPreferences(outcomes)
 
 

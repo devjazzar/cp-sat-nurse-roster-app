@@ -8,7 +8,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .problem import Nurse, Problem, barred_days, expired_required, expiry_words, preference_factor, skill_holders
+from .problem import (Nurse, Problem, barred_days, expired_required, expiry_words, preference_factor, skill_holders,
+                      superseding)
 from . import fairness as F
 from .rules import HARD, RULES, Match, active, level, soft_ids, weight
 
@@ -487,12 +488,12 @@ def _change(c: Ctx) -> list[Match]:
 _DOUBLED = "; counts double, a preference was not kept last month"
 
 
-def unkept_days(nurse: Nurse, row: list[int], rid: str) -> list[int]:
+def unkept_days(p: Problem, nurse: Nurse, row: list[int], rid: str) -> list[int]:
     """The nurse's days of one preference rule (`undesired_day` or `desired_day`) the row does
-    not keep: asked off and worked, or asked to work and off. A leave day supersedes a
-    preference, counted neither way. The one reading of "not kept" the price and the carry-over
-    share."""
-    leave = set(nurse.unavailable)
+    not keep: asked off and worked, or asked to work and off. A leave day or a barred one
+    supersedes a preference, counted neither way (`superseding`). The one reading of "not
+    kept" the price and the carry-over share."""
+    leave = superseding(p, nurse)
     if rid == "undesired_day":
         return [d for d in nurse.undesired_days if d not in leave and row[d] >= 0]
     return [d for d in nurse.desired_days if d not in leave and row[d] < 0]
@@ -505,7 +506,7 @@ def _preferences(c: Ctx, rid: str, what: str, asked: str) -> list[Match]:
     for n, nu in enumerate(c.p.nurses):
         times = preference_factor(nu)
         out += [Match(nu.id, d, times, f"{nu.id}: {what} day {d} ({asked}{_DOUBLED if times > 1 else ''})")
-                for d in unkept_days(nu, c.a[n], rid)]
+                for d in unkept_days(c.p, nu, c.a[n], rid)]
     return out
 
 
@@ -517,11 +518,11 @@ def _desired_day(c: Ctx) -> list[Match]:
     return _preferences(c, "desired_day", "off on", "asked to work")
 
 
-def preferences_not_kept(nurse: Nurse, row: list[int]) -> int:
+def preferences_not_kept(p: Problem, nurse: Nurse, row: list[int]) -> int:
     """Next month's `preferences_not_kept`, from the month's facts: her days of both rules not
     kept. Days, not price: a nurse already doubled carries the same count. Whatever the two
     weights, so a weight of 0 does not erase what happened."""
-    return len(unkept_days(nurse, row, "undesired_day")) + len(unkept_days(nurse, row, "desired_day"))
+    return len(unkept_days(p, nurse, row, "undesired_day")) + len(unkept_days(p, nurse, row, "desired_day"))
 
 
 CHECKS: dict[str, Callable[[Ctx], list[Match]]] = {

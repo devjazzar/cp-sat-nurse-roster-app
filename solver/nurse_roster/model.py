@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 
 from ortools.sat.python import cp_model
 
-from .problem import Problem, barred_days, preference_factor, skill_holders
+from .problem import Problem, barred_days, preference_factor, skill_holders, superseding
 from . import fairness as F
 from .explain import Analysis, explain
 from .rules import active, soft_ids, weight
@@ -271,7 +271,7 @@ def build_model(p: Problem) -> RosterModel:
 
         # preferences (soft): a worked day the nurse asked off, an off day she asked to work; each
         # term listed once per time it counts (twice after an unkept month: preference_factor)
-        leave = set(nurse.unavailable)                         # leave supersedes a preference
+        leave = superseding(p, nurse)                          # leave and a barred day supersede one
         times = preference_factor(nurse)
         if rule("undesired_day"):
             pen["undesired_day"][0].extend(on[P + d].Not() for d in nurse.undesired_days if d not in leave

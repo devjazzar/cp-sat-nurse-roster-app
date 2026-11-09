@@ -4,6 +4,7 @@ roster, and the CNO's overview."""
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 import pytest
 from django.test import Client
@@ -212,4 +213,22 @@ class TestWhatPeopleSee:
 
         assert any(row["rule"] == "headcount" and row["date"] == "2026-06-01" for row in broke)
         assert not [row for row in broke if "day " in row["text"]]
+
+    def test_a_shift_worked_on_a_barred_day_and_a_need_left_short_are_facts_that_broke_rules(self, june, mona, er, on):  # noqa: F811
+        """Ticket 35: the close reports them and never refuses; the month is closed as it happened."""
+        from rosters.tests.test_review import SOUND, holding
+        on(dt.date(2026, 7, 1))
+        holding("Amal", "BLS", dt.date(2026, 6, 10), required=True)
+        er.rules |= {"skill_needs": [{"shift": "N", "skill": "ICU", "weekday_min": 1, "weekend_min": 1}]}
+        er.save()
+        making.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        broke = close_view(mona, er)["closed"]["facts_broke"]
+
+        worked = sorted(day for day, code in SOUND["2026-06"]["roster"]["Amal"].items() if code and day > "2026-06-10")
+        assert [row["date"] for row in broke if row["rule"] == "skill_expired"] == worked
+        assert all(row["hospital_id"] == "Amal" and "its last day was 2026-06-10" in row["text"]
+                   for row in broke if row["rule"] == "skill_expired")
+        assert len([row for row in broke if row["rule"] == "skill_need"]) == 30
+        assert not [row for row in broke if re.search(r"day -?\d", row["text"])]
 

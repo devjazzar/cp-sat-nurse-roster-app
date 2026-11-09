@@ -8,11 +8,12 @@ from dataclasses import dataclass, field
 from nurse_roster.request import load_request
 
 from hospital.catalogue import ramadan_dates
-from hospital.models import HospitalSettings, PublicHoliday, Shift
+from hospital.models import HospitalSettings, PublicHoliday, Shift, SkillRename
 from hospital.rules import general_block
 from nurses import membership
 from nurses.models import NurseProfile
-from nurses.rostering import leave_dates, nurse_block
+from nurses.rostering import leave_dates, nurse_block, skills_block
+from nurses.skills import current_skills
 from requesting.models import Preference, PreferenceKind, PreferenceState
 from rosters.drafts import current_codes, in_current_codes
 from rosters.pins import month_pins
@@ -90,7 +91,8 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         "nurses": [],
         "solver": {"time_limit_seconds": time_limit, "reproducible": False},
     })
-    nurses = membership.rostered_in(unit, month).select_related("user").order_by("user__username")
+    nurses = (membership.rostered_in(unit, month).select_related("user").prefetch_related(current_skills())
+              .order_by("user__username"))
     preferred = _preferred(unit, month)
     for nurse in nurses:
         if membership.no_longer_serving(nurse):
@@ -101,8 +103,10 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         pinned = pins.counted.get(nurse.user.username)
         carried = assembled.carried[nurse.user.username] = chain.carry_in(nurse, month)
         values = carried.into(month)
+        skills = skills_block(nurse.current_skills, month)
         assembled.nurses.append(nurse_block(nurse, placement) | {key: values[key] for key in CARRIED} | {"leave": leave}
-                                | preferred.get(nurse.user.username, {}) | ({"pinned": pinned} if pinned else {}))
+                                | preferred.get(nurse.user.username, {}) | ({"pinned": pinned} if pinned else {})
+                                | ({"skills": skills} if skills else {}))
         assembled.pins += len(pinned or ())
         assembled.leave_days += recorded
         if outside:
@@ -167,9 +171,58 @@ def _pins_as_they_are_called_now(row: dict) -> dict[str, str]:
     return {day: codes.get(code, code) for day, code in pinned.items()}
 
 
+def current_skill_name(name: str) -> str:
+    """No other skill can ever take a name a skill held, so an old name means one skill for good, as a shift's code does."""
+    rename = SkillRename.objects.select_related("skill").filter(old_name=name).first()
+    return rename.skill.name if rename else name
+
+
+def in_current_skill_names(solve_input: dict) -> dict:
+    """A stored input as it reads under today's skill names: its nurses' `skills`, its `required_skills` and its skill needs.
+    The stored input itself keeps the names it was given; this is how it is read, explained and compared with (ADR 0010).
+    One with no skill named in it is given back as it is."""
+    general, department = solve_input.get("general", {}), solve_input.get("department", {})
+    named = {name for row in solve_input.get("nurses", []) for name in row.get("skills", {})}
+    named |= set(general.get("required_skills", [])) | {need["skill"] for need in department.get("skill_needs", [])}
+    names = {name: current_skill_name(name) for name in named}
+    if all(old == new for old, new in names.items()):
+        return solve_input
+    read = dict(solve_input)
+    read["nurses"] = [row | ({"skills": {names[name]: expiry for name, expiry in row["skills"].items()}} if "skills" in row else {})
+                      for row in solve_input["nurses"]]
+    if "required_skills" in general:
+        read["general"] = general | {"required_skills": [names[name] for name in general["required_skills"]]}
+    if "skill_needs" in department:
+        read["department"] = department | {"skill_needs": [need | {"skill": names[need["skill"]]}
+                                                           for need in department["skill_needs"]]}
+    return read
+
+
+def _skills_as_named_now(row: dict) -> dict:
+    return {current_skill_name(name): expiry for name, expiry in row.get("skills", {}).items()}
+
+
+def _compares_skills(solve_input: dict, row: dict) -> bool:
+    """A solve input of either version says what its solve knew of her skills: none, in version 1. A submission's record of the
+    month (`rosters.review`) made before skills reached it says nothing of them."""
+    return "version" in solve_input or "skills" in row
+
+
+def _skill_rules(solve_input: dict) -> tuple:
+    """The unit's skill needs and their flag, the skills required to work and the shortfall's price, read as the solver reads a
+    version 1 input: no needs, hard, none required, a price of 0."""
+    general, department = solve_input["general"], solve_input["department"]
+    return (sorted((need["shift"], need["skill"], need["weekday_min"], need["weekend_min"])
+                   for need in department.get("skill_needs", [])),
+            department.get("skill_needs_hard", True), sorted(general.get("required_skills", [])),
+            general.get("weights", {}).get("skill_shortfall", 0))
+
+
 def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.datetime | None = None) -> list[dict]:
     """What has changed since this input was stored that the draft was not solved for: a gender, a nurse's credited days,
-    who is in the month, the pins that count, or her preferences (an input stored before them had none). Start and end dates count through their credited days, so a correction
+    who is in the month, the pins that count, her preferences (an input stored before them had none), or her skills as the
+    month sees them (one stored in version 1 had none); and, as a change of the unit's with no hospital ID, its skill needs,
+    their flag, the skills required to work or the skill shortfall's price (ticket 35). A rename is no change. Start and end dates count through their credited days, so a correction
     that moves nothing in this month does not warn. Other attributes are outside what the user asked for here.
 
     With `since`, when the input was stored, also each nurse a month before whom has closed since (ticket 21): the input started
@@ -179,6 +232,8 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
     assembled = assemble(unit, month)
     now = {row["id"]: row for row in assembled.nurses}
     changes = []
+    if "department" in solve_input and _skill_rules(in_current_skill_names(solve_input)) != _skill_rules(assembled.input):
+        changes.append({"hospital_id": "", "what": "skills"})
     for hospital_id in sorted(solved | now):
         before, after = solved.get(hospital_id), now.get(hospital_id)
         if before is None:
@@ -194,6 +249,8 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
                 changes.append({"hospital_id": hospital_id, "what": "pins"})
             if any(before.get(days, []) != after.get(days, []) for days in ("undesired_days", "desired_days")):
                 changes.append({"hospital_id": hospital_id, "what": "preferences"})
+            if _compares_skills(solve_input, before) and _skills_as_named_now(before) != after.get("skills", {}):
+                changes.append({"hospital_id": hospital_id, "what": "skills"})
             if since is not None and _closed_since(hospital_id, assembled.carried[hospital_id], since):
                 changes.append({"hospital_id": hospital_id, "what": "closed"})
     return changes

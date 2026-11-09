@@ -109,7 +109,9 @@ def submit(roster: Roster, by: User) -> Submission:
     from what the manager was warned of: a second leave of a nurse already warned of is news."""
     roster.state = RosterState.SUBMITTED
     roster.save(update_fields=["state"])  # `updated_at` stays: it is when a solve or a restore last replaced the grid.
-    month = [{key: row[key] for key in MONTH_AT_SUBMIT_KEYS if key in row} for row in assemble(roster.unit, roster.month).nurses]
+    # Her skills always, none included, so that one recorded while it waits is news (`solves.input._compares_skills`).
+    month = [{key: row[key] for key in MONTH_AT_SUBMIT_KEYS if key in row} | {"skills": row.get("skills", {})}
+             for row in assemble(roster.unit, roster.month).nurses]
     return Submission.objects.create(roster=roster, submitted_by=by, month_at_submit=month)
 
 

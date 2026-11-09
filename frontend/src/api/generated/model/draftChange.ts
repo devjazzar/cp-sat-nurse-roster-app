@@ -7,8 +7,9 @@
 import type { DraftChangeWhat } from './draftChangeWhat';
 
 export interface DraftChange {
+  /** Empty for a change of the unit's own, `skills` alone so far. */
   hospital_id: string;
-  full_name: string;
-  /** `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21). */
+  /** `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21). */
   what: DraftChangeWhat;
+  full_name: string;
 }

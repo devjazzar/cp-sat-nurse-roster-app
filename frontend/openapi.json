@@ -9885,15 +9885,12 @@
       "DraftChange": {
         "properties": {
           "hospital_id": {
+            "description": "Empty for a change of the unit's own, `skills` alone so far.",
             "title": "Hospital Id",
             "type": "string"
           },
-          "full_name": {
-            "title": "Full Name",
-            "type": "string"
-          },
           "what": {
-            "description": "`preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21).",
+            "description": "`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21).",
             "enum": [
               "gender",
               "leave",
@@ -9901,16 +9898,21 @@
               "left",
               "pins",
               "preferences",
+              "skills",
               "closed"
             ],
             "title": "What",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
             "type": "string"
           }
         },
         "required": [
           "hospital_id",
-          "full_name",
-          "what"
+          "what",
+          "full_name"
         ],
         "title": "DraftChange",
         "type": "object"
@@ -13932,7 +13934,8 @@
                 "enum": [
                   "kept",
                   "not_kept",
-                  "on_leave"
+                  "on_leave",
+                  "barred"
                 ],
                 "type": "string"
               },
@@ -13940,7 +13943,7 @@
                 "type": "null"
               }
             ],
-            "description": "What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit's solve.",
+            "description": "What the roster in force made of a made one: `kept`, `not_kept`, `on_leave` for a date she is on leave or outside her dates, or `barred` for one after the expiry of a skill of hers required to work (ticket 35), both counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit's solve.",
             "title": "Outcome"
           }
         },
@@ -14075,7 +14078,7 @@
                 "type": "null"
               }
             ],
-            "description": "How many it could keep: those with an outcome, less those on leave.",
+            "description": "How many it could keep: those with an outcome, less those on leave or barred.",
             "title": "Keepable"
           },
           "doubled_by": {

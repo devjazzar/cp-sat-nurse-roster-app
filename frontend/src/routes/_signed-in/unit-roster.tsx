@@ -17,7 +17,7 @@ import { Role, type Draft, type RosterMonth } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { dateInAddress, MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { GridLegend, RosterGrid } from "@/components/roster-grid"
-import { CHANGE_SAYS, PinNotes, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
+import { changeSays, PinNotes, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
 import { RosterVersions } from "@/components/roster-versions"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
@@ -48,7 +48,7 @@ function Changes({ answer, draft }: { answer: RosterMonth; draft: Draft }) {
       <ul className="list-disc ps-5">
         {draft.changes.map((change) => (
           <li key={change.hospital_id + change.what}>
-            {change.full_name || change.hospital_id}: {CHANGE_SAYS[change.what]}
+            {changeSays(change)}
             {later.has(change.hospital_id + change.what) && <strong className="font-medium">, since it was submitted</strong>}
           </li>
         ))}

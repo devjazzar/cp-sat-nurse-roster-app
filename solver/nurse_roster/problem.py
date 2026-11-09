@@ -121,6 +121,13 @@ def barred_days(p: "Problem", nurse: Nurse) -> list[int]:
     return list(range(max(0, first[0][1] + 1), p.days)) if first else []
 
 
+def superseding(p: Problem, nurse: Nurse) -> set[int]:
+    """The days on which no preference of hers counts, either way: her leave, and the days an
+    expired required skill bars her from (`barred_days`), which no roster can let her work
+    (ticket 35 of the app). The model, the validator and the carry-over all read this."""
+    return set(nurse.unavailable) | set(barred_days(p, nurse))
+
+
 def preference_factor(nurse: Nurse) -> int:
     """How many times each of the nurse's undesired and desired days counts its weight: twice
     after a month that did not keep one of hers, else once (ADR 0013). The model and the

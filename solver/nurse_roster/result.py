@@ -188,7 +188,7 @@ def nurse_accounting(p: Problem, assignment: list[list[int]], analysis: Analysis
                            "rest_owed": rest_owed_after(n.rest_owed, before, dep.night_shift,
                                                         dep.day_shift, dep.night_rest_days),
                            # one month's memory: this month's days of hers not kept (ADR 0013)
-                           "preferences_not_kept": preferences_not_kept(n, row)}}
+                           "preferences_not_kept": preferences_not_kept(p, n, row)}}
     return nurses
 
 

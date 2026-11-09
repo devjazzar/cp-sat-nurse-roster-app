@@ -280,8 +280,21 @@ def update_leave_type(request, leave_type_id: UUID, body: LeaveTypeBody) -> Leav
 
 
 # ---- skills ---------------------------------------------------------------------------------------
+def _safe_in_a_file(value: str) -> str:
+    # The solver refuses a skill name a spreadsheet would read as a formula, or with a line break, as it refuses such a
+    # shift code: a nurse holding one would leave every solve of her unit refused (ticket 35).
+    if value.startswith(("=", "+", "-", "@", "'")):
+        raise ValueError("cannot start with = + - @ or '")
+    if "\n" in value or "\r" in value:
+        raise ValueError("cannot hold a line break")
+    return value
+
+
+SkillName = Annotated[Name, AfterValidator(_safe_in_a_file)]
+
+
 class SkillBody(StrictSchema):
-    name: Name = Field(description="What nurses' records, unit rules and solve inputs call it.")
+    name: SkillName = Field(description="What nurses' records, unit rules and solve inputs call it.")
     expires: bool = Field(description="Every nurse who holds it has an expiry for it, the last day it counts.")
     required_to_work: bool = Field(description="From the day after its expiry, a nurse holding it works no shift.")
     active: bool = Field(description="Off retires it: it stays on this list, and the nurses who hold it keep it.")

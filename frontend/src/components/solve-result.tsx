@@ -6,7 +6,9 @@ import { stoppedBy } from "@/lib/solve-words"
 import { longDay, scrollableRegion, shortDay } from "@/lib/utils"
 import { WEIGHTS } from "@/lib/weights"
 
-const labels = new Map(WEIGHTS.map((weight) => [weight.name as string, weight.label]))
+/** A soft rule's name is its weight's, but for the skill need, whose weight is the price of a nurse short. */
+const labels = new Map<string, string>([...WEIGHTS.map((weight) => [weight.name as string, weight.label] as const),
+  ["skill_need", WEIGHTS.find((weight) => weight.name === "skill_shortfall")!.label]])
 /** Who a line of the solver's is about, and when if its words do not say: most of them hold the date already. */
 const whose = (row: { full_name: string; hospital_id?: string | null; date?: string | null; text: string }) =>
   `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}`

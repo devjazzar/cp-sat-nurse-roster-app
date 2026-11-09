@@ -178,3 +178,46 @@ def test_the_cli_says_a_preference_counted_double_and_writes_the_count(tmp_path,
     assert "undesired_day 4 = 2 x 2" in printed
     assert "a: works day 4 (asked off; counts double, a preference was not kept last month)" in printed
     assert json.loads(out.read_text())["nurses"]["a"]["carry_over"]["preferences_not_kept"] == 1
+
+
+# ---- a day barred by an expired required skill (ticket 35) ------------------------------------------
+def _barred_from_day_1(**nurse) -> "Problem":
+    """Three days, one shift. Her BLS, required to work, counted on day 0 only: days 1 and 2 are barred."""
+    p = mini(3, ["D"], [Nurse("a", skills={"BLS": 0}, **nurse)], weights=prices(undesired=2, desired=1))
+    p.general.required_skills = ["BLS"]
+    return p
+
+
+def test_a_barred_day_supersedes_a_wish_to_work_it_as_leave_does():
+    """No roster can keep it, so it costs nothing and is not a preference not kept: in the price and in the carry-over."""
+    p = _barred_from_day_1(desired_days=[1, 2], preferences_not_kept=1)
+
+    errors, by_rule, total = validate(p, [[OFF, OFF, OFF]])
+
+    assert errors == [] and by_rule["desired_day"] == 0 and total == 0
+    assert explain(p, [[OFF, OFF, OFF]]).rules["desired_day"].matches == []
+
+
+def test_a_day_before_the_bar_is_still_a_wish_like_any_other():
+    p = _barred_from_day_1(desired_days=[0, 2])
+
+    assert validate(p, [[OFF, OFF, OFF]])[1]["desired_day"] == 1
+
+
+def test_the_solver_and_the_validator_agree_on_a_barred_wish():
+    p = _barred_from_day_1(desired_days=[0, 1, 2])
+
+    sol = solve(build_model(p), p, time_limit=10, workers=4)
+
+    assert sol.assignment == [[D, OFF, OFF]]
+    assert sol.solver_objective == sol.objective == validate(p, sol.assignment)[2]
+
+
+def test_the_carry_over_counts_no_barred_day_not_kept():
+    raw = _june([Nurse("a", desired_days=[2, 20], skills={"BLS": 9})])
+    raw["general"]["required_skills"] = ["BLS"]
+    p = load_request(raw).problem
+
+    carried = nurse_accounting(p, _grid({"a": set()}))["a"]["carry_over"]["preferences_not_kept"]
+
+    assert carried == 1  # day 2, before the bar; day 20 is barred

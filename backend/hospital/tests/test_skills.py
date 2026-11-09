@@ -100,6 +100,12 @@ def test_there_is_no_way_to_delete_a_skill(cno):
     ({"name": "   "}, "name"),
     ({"name": "x" * 101}, "name"),
     ({"name": "a\x00b"}, "name"),
+    ({"name": "=ICU"}, "name"),  # The solver refuses a name a spreadsheet reads as a formula (ticket 35).
+    ({"name": "+ICU"}, "name"),
+    ({"name": "-ICU"}, "name"),
+    ({"name": "@ICU"}, "name"),
+    ({"name": "'ICU"}, "name"),
+    ({"name": "IC\nU"}, "name"),
     ({"expires": "yes"}, "expires"),
     ({"required_to_work": 1}, "required_to_work"),
     ({"active": None}, "active"),

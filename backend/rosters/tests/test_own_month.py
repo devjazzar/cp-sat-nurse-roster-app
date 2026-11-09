@@ -206,6 +206,21 @@ class TestWhatWasKept:
         assert outcomes(answer) == JUNE_OUTCOMES | {"2026-06-02": "on_leave"}
         assert counted(answer) == (3, 4)
 
+    def test_a_day_an_expired_required_skill_bars_is_counted_neither_way_and_not_carried(self, mona, er, solver, carla):
+        """Ticket 35, worth the user's review: no roster can let her work it, so it is no preference not kept."""
+        from rosters.tests.test_review import holding
+        from solves.input import assemble
+        amals_preferences(er)
+        approved_june(mona, er, solver, carla)
+        holding("Amal", "BLS", dt.date(2026, 6, 12), required=True)
+
+        answer = preferences(as_user("Amal"))
+
+        assert outcomes(answer) == JUNE_OUTCOMES | {"2026-06-15": "barred", "2026-06-23": "barred"}
+        assert counted(answer) == (2, 3)
+        july = next(row for row in assemble(er, dt.date(2026, 7, 1)).nurses if row["id"] == "Amal")
+        assert july["preferences_not_kept"] == 1
+
     @pytest.mark.parametrize("origin", [VersionOrigin.EDIT, VersionOrigin.REPLAN])
     def test_a_later_version_that_breaks_one_counts_it_as_not_kept(self, origin, mona, er, solver, carla):
         """Version 2, a manager's edit or a re-plan's, puts Amal on Night on the 10th, a day she asked off: the roster in force

@@ -6,7 +6,7 @@
  */
 
 /**
- * What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit's solve.
+ * What the roster in force made of a made one: `kept`, `not_kept`, `on_leave` for a date she is on leave or outside her dates, or `barred` for one after the expiry of a skill of hers required to work (ticket 35), both counted neither way. Read from the version in force on the month as it stands, and once the month is closed from the close in force. Null before the roster is approved, and for one that never reached the unit's solve.
  */
 export type MyPreferenceRowOutcome = typeof MyPreferenceRowOutcome[keyof typeof MyPreferenceRowOutcome] | null;
 
@@ -15,4 +15,5 @@ export const MyPreferenceRowOutcome = {
   kept: 'kept',
   not_kept: 'not_kept',
   on_leave: 'on_leave',
+  barred: 'barred',
 } as const;

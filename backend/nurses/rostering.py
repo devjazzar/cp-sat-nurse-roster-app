@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+from nurses import membership
 from nurses.models import Leave, NurseProfile, Placement
 
 
@@ -21,3 +22,14 @@ def leave_dates(nurse: NurseProfile, month: dt.date) -> list[str]:
     kept and read by people who may not see one. Ticket 11 adds the days outside the start and end dates, which are
     credited alike, as a set: a date recorded here can be one of those, and the solver refuses a day listed twice."""
     return [day.isoformat() for day in Leave.objects.current().in_month(month).filter(nurse=nurse).values_list("date", flat=True)]
+
+
+def skills_block(rows, month: dt.date) -> dict[str, str | None]:
+    """A nurse's `skills` in a month's solve input (ADR 0010), from her current `NurseSkill` rows with their skills: each live
+    skill by name, with its expiry when that falls in the month or before it (so a required one bars her, and absence keeps
+    meaning no record), and null when it is valid past the month or its kind does not expire, as the solver asks. A retired
+    skill is tracked no more, so it is no record: it counts toward no need and bars nobody, as `hospital.rules.required_skills`
+    leaves it out."""
+    last = membership.last_day_of(month)
+    return {row.skill.name: row.expiry.isoformat() if row.skill.expires and row.expiry and row.expiry <= last else None
+            for row in sorted(rows, key=lambda row: row.skill.name) if row.skill.active}

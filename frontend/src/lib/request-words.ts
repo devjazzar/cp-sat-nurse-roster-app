@@ -47,6 +47,7 @@ export const PREFERENCE_OUTCOME: Record<NonNullable<MyPreferenceRowOutcome>, str
   kept: "Kept",
   not_kept: "Not kept",
   on_leave: "On leave",
+  barred: "Skill expired",
 }
 
 /** A preference's state, said to the nurse and to her manager alike: nobody decides one. */

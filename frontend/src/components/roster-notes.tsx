@@ -15,7 +15,14 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   left: "is no longer in this month but still in this draft",
   pins: "pinned cells changed",
   preferences: "preferences changed",
+  skills: "skills changed",
   closed: "the month before has closed since, so this month starts from its closed carry-over, not the projected one",
+}
+
+/** One line of a draft's changes since its solve. A change with no hospital ID is the unit's own: only `skills` is so far. */
+export function changeSays(change: DraftChange): string {
+  if (!change.hospital_id) return "The skill needs, the skills required to work or the price of a short skill changed"
+  return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[change.what]}`
 }
 
 const shiftWord = (code: string) => (code ? code : "a day off")

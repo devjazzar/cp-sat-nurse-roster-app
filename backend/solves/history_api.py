@@ -28,6 +28,7 @@ from rosters.versions import differences
 from rosters.review import SEEN_BY_APPROVERS
 from solves.api import chosen_month, manager
 from solver_service.grid import validate_grid
+from solves.input import in_current_skill_names
 from solves.models import ReplanOutcomeWord, Solve, SolveFailureWord, SolveState
 from solves.result import LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, precheck_of, statistics_of
 from units.models import Unit
@@ -293,7 +294,7 @@ def _replan_of(solve: Solve) -> ReplanComparison | None:
     changes = differences(in_force, roster) if roster else []
     names = full_names(change.hospital_id for change in changes)
     try:
-        before = validate_grid(solve.input, in_force)
+        before = validate_grid(in_current_skill_names(solve.input), in_force)
     except ValueError:
         before = None
     rules = []
@@ -318,7 +319,7 @@ def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
     broken = (result.get("violations") or []) + (result.get("elapsed_violations") or [])
     roster = result.get("roster")
     named = {*accounting, *(roster or ()), *(row["nurse"] for row in broken if row["nurse"])}
-    explained = explanation(solve.input, result)
+    explained = explanation(in_current_skill_names(solve.input), result)  # A skill's name as it is now (ADR 0010).
     named |= {match["nurse"] for rule in (explained or {}).values() for match in rule["matches"][:LARGEST] if match["nurse"]}
     names = full_names(named)
     return SolveResult(

@@ -390,3 +390,159 @@ class TestChangesSince:
         preference(er, "Emad", dt.date(2026, 6, 8), PreferenceKind.WORKING_DAY)
 
         assert changes_since(solved, er, JUNE) == [{"hospital_id": "Emad", "what": "preferences"}]
+
+
+def a_skill(name, *, expires=True, required=False, active=True):
+    from hospital.models import Skill
+    return Skill.objects.create(name=name, expires=expires, required_to_work=required, active=active)
+
+
+def holds(hospital_id, skill, expiry=None):
+    from nurses.models import NurseSkill
+    nurse = NurseProfile.objects.get(user__username=hospital_id)
+    return NurseSkill.objects.create(nurse=nurse, skill=skill, expiry=expiry, recorded_by=nurse.user)
+
+
+def ended(row):
+    from django.utils import timezone
+    row.removed_at, row.removed_by = timezone.now(), row.recorded_by
+    row.save()
+
+
+class TestSkills:
+    """Each nurse's `skills` as the month sees them (ADR 0010): the expiry when it falls in the month or before it, null
+    when it is valid past the month or does not expire, and no entry where she has no record."""
+
+    def test_each_expiry_is_clamped_to_the_month(self, er):
+        bls, icu, pals = a_skill("BLS", required=True), a_skill("ICU"), a_skill("PALS", required=True)
+        preceptor, acls = a_skill("Preceptor", expires=False), a_skill("ACLS")
+        holds("Amal", bls, dt.date(2026, 6, 14))
+        holds("Amal", icu, dt.date(2026, 7, 1))
+        holds("Amal", pals, dt.date(2026, 5, 20))
+        holds("Amal", preceptor)
+        holds("Amal", acls, dt.date(2026, 6, 30))
+
+        assembled = built(er)
+
+        assert block(assembled, "Amal")["skills"] == {"ACLS": "2026-06-30", "BLS": "2026-06-14", "ICU": None,
+                                                      "PALS": "2026-05-20", "Preceptor": None}
+        assert "skills" not in block(assembled, "Badr")
+        assert assembled.input["general"]["required_skills"] == ["BLS", "PALS"]
+        assert solver_refusal(assembled.input) is None
+
+    def test_a_kind_no_longer_expiring_sends_no_date_and_a_retired_skill_is_no_record(self, er):
+        from hospital.models import Skill
+        icu, old = a_skill("ICU"), a_skill("Old", required=True)
+        holds("Amal", icu, dt.date(2026, 6, 10))
+        holds("Amal", old, dt.date(2026, 5, 1))
+        Skill.objects.filter(pk=icu.pk).update(expires=False)
+        Skill.objects.filter(pk=old.pk).update(active=False)
+
+        assert block(built(er), "Amal")["skills"] == {"ICU": None}
+
+    def test_a_renewed_skill_sends_its_new_expiry_and_one_taken_off_is_gone(self, er):
+        bls, icu = a_skill("BLS", required=True), a_skill("ICU")
+        ended(holds("Amal", bls, dt.date(2026, 5, 31)))
+        holds("Amal", bls, dt.date(2027, 5, 31))
+        ended(holds("Badr", icu, dt.date(2027, 1, 1)))
+
+        assembled = built(er)
+
+        assert block(assembled, "Amal")["skills"] == {"BLS": None}
+        assert "skills" not in block(assembled, "Badr")
+
+    def test_the_solver_bars_her_from_the_day_after_and_counts_her_toward_a_need_before(self, er):
+        from solver_service.grid import validate_grid
+        bls = a_skill("BLS", required=True)
+        holds("Amal", bls, dt.date(2026, 6, 14))
+        er.rules |= {"skill_needs": [{"shift": "D", "skill": "BLS", "weekday_min": 1, "weekend_min": 1}],
+                     "skill_needs_hard": True}
+        er.save()
+        roster = {row["id"]: {f"2026-06-{day:02d}": "D" if row["id"] == "Amal" else "" for day in range(1, 31)}
+                  for row in built(er).input["nurses"]}
+
+        answer = validate_grid(built(er).input, roster)
+
+        expired = [row for row in answer["violations"] if row["rule"] == "skill_expired"]
+        short = [row for row in answer["violations"] if row["rule"] == "skill_need"]
+        assert [row["date"] for row in expired] == [f"2026-06-{day:02d}" for day in range(15, 31)]
+        assert [row["date"] for row in short] == [f"2026-06-{day:02d}" for day in range(15, 31)]
+
+
+class TestSkillChangesSince:
+    """`skills` among a draft's changes since its solve: a nurse's skills as the month sees them, or the unit's skill rules."""
+
+    def test_a_recording_a_renewal_and_a_removal_are_changes_to_her_skills(self, er):
+        bls, icu = a_skill("BLS", required=True), a_skill("ICU")
+        first = holds("Amal", bls, dt.date(2026, 6, 14))
+        gone = holds("Dana", icu, dt.date(2027, 1, 1))
+        solved = built(er).input
+        assert changes_since(solved, er, JUNE) == []
+
+        ended(first)
+        holds("Amal", bls, dt.date(2026, 6, 20))
+        holds("Badr", icu, dt.date(2027, 1, 1))
+        ended(gone)
+
+        assert changes_since(solved, er, JUNE) == [
+            {"hospital_id": "Amal", "what": "skills"}, {"hospital_id": "Badr", "what": "skills"},
+            {"hospital_id": "Dana", "what": "skills"}]
+
+    def test_a_renewal_the_month_does_not_see_is_no_change(self, er):
+        icu = a_skill("ICU")
+        first = holds("Amal", icu, dt.date(2026, 8, 1))
+        solved = built(er).input
+
+        ended(first)
+        holds("Amal", icu, dt.date(2027, 8, 1))
+
+        assert changes_since(solved, er, JUNE) == []
+
+    def test_a_rename_is_no_change(self, er, make_user):
+        from hospital.models import Skill, SkillRename
+        bls = a_skill("BLS", required=True)
+        holds("Amal", bls, dt.date(2026, 6, 14))
+        er.rules |= {"skill_needs": [{"shift": "D", "skill": "BLS", "weekday_min": 1, "weekend_min": 0}]}
+        er.save()
+        solved = built(er).input
+
+        Skill.objects.filter(pk=bls.pk).update(name="Basic life support")
+        SkillRename.objects.create(skill=bls, old_name="BLS", new_name="Basic life support",
+                                   by=NurseProfile.objects.get(user__username="Amal").user)
+        er.rules |= {"skill_needs": [{"shift": "D", "skill": "Basic life support", "weekday_min": 1, "weekend_min": 0}]}
+        er.save()
+
+        assert changes_since(solved, er, JUNE) == []
+
+    @pytest.mark.parametrize("change", ["need", "flag", "required", "weight"])
+    def test_the_units_skill_rules_changing_is_a_change_of_the_unit(self, er, change):
+        from hospital.models import Skill
+        bls = a_skill("BLS")
+        solved = built(er).input
+        if change == "need":
+            er.rules |= {"skill_needs": [{"shift": "D", "skill": "BLS", "weekday_min": 1, "weekend_min": 0}]}
+        elif change == "flag":
+            er.rules |= {"skill_needs_hard": False}
+        er.save()
+        if change == "required":
+            Skill.objects.filter(pk=bls.pk).update(required_to_work=True)
+        if change == "weight":
+            settings = HospitalSettings.load()
+            settings.rules["weights"]["skill_shortfall"] = 9
+            settings.save()
+
+        assert changes_since(solved, er, JUNE) == [{"hospital_id": "", "what": "skills"}]
+
+    def test_an_input_stored_in_version_1_changes_only_where_the_month_now_has_skills(self, er):
+        bls = a_skill("BLS")
+        solved = built(er).input
+        solved["version"] = 1
+        for key in ("skill_needs", "skill_needs_hard"):
+            del solved["department"][key]
+        del solved["general"]["required_skills"], solved["general"]["weights"]["skill_shortfall"]
+        assert solver_refusal(solved) is None
+        assert changes_since(solved, er, JUNE) == []
+
+        holds("Badr", bls, dt.date(2027, 1, 1))
+
+        assert changes_since(solved, er, JUNE) == [{"hospital_id": "Badr", "what": "skills"}]

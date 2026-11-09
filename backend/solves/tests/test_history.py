@@ -601,3 +601,48 @@ class TestRestoring:
         assert restore(omar, er, first).status_code == 200
         assert history(omar, er)["solves"][1]["requested_by"] == "Mona Ali"
         assert AuditEntry.objects.get(action="roster.draft_restored").actor.username == "omar"
+
+
+class TestSkillWords:
+    """The two skill rules read like every other rule, with dates, and under a skill's name today (ticket 35)."""
+
+    def test_a_short_skill_need_is_explained_per_shift_day_with_dates_under_the_skills_name_now(self, mona, er, solver):
+        from hospital.models import HospitalSettings, Skill, SkillRename
+        icu = Skill.objects.create(name="ICU", expires=True, required_to_work=False)
+        amal = NurseProfile.objects.get(user__username="Amal")
+        amal.skills.create(skill=icu, expiry=dt.date(2026, 6, 2), recorded_by=amal.user)
+        er.rules |= {"skill_needs": [{"shift": "D", "skill": "ICU", "weekday_min": 2, "weekend_min": 2}],
+                     "skill_needs_hard": False}
+        er.save()
+        settings = HospitalSettings.load()
+        settings.rules["weights"]["skill_shortfall"] = 3
+        settings.save()
+        answer = finished()
+        answer["result"]["penalties"]["skill_need"] = 3 * (2 * 30 - 2)  # What the solver would report of this grid.
+        solve = solved(mona, er, solver, answer)
+        Skill.objects.filter(pk=icu.pk).update(name="Intensive care")
+        SkillRename.objects.create(skill=icu, old_name="ICU", new_name="Intensive care", by=amal.user)
+
+        answer = details(mona, er, solve)
+
+        [rule] = [rule for rule in answer["rules"] if rule["rule"] == "skill_need"]
+        assert (rule["weight"], rule["amount"]) == (3, 2 * 30 - 2)
+        assert rule["largest"][0] == {"hospital_id": None, "full_name": "", "date": "2026-06-03", "amount": 2,
+                                      "text": "skill need: 2026-06-03 D has 0 holding Intensive care, needs 2 (2 short)"}
+        assert Solve.objects.get(pk=solve).input["department"]["skill_needs"][0]["skill"] == "ICU"
+
+    def test_a_version_2_input_the_solver_refuses_is_rules_to_review(self, mona, er, solver):
+        from hospital.models import Skill
+        bls = Skill.objects.create(name="BLS", expires=True, required_to_work=True)
+        amal = NurseProfile.objects.get(user__username="Amal")
+        amal.skills.create(skill=bls, expiry=dt.date(2026, 6, 9), recorded_by=amal.user)
+        solver.script([SolverRefused("Amal: day 12 is after the expiry of 'BLS', required to work, and is pinned")])
+        solve = started(mona, er)
+        running.run(solve["id"])
+
+        stored = Solve.objects.get(pk=solve["id"])
+        assert (stored.input["version"], stored.failure) == (2, "refused")
+        assert stored.input["nurses"][0]["skills"] == {"BLS": "2026-06-09"}
+        assert history(mona, er)["solves"][0]["failure"] == "refused"
+        assert details(mona, er, solve["id"])["error"] == (
+            "Amal: 2026-06-13 is after the expiry of 'BLS', required to work, and is pinned")

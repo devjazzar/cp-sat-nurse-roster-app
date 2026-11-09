@@ -262,6 +262,22 @@ class TestFactsBeforeTheDate:
         problem = load_request(solve.input).problem
         assert (problem.department.max_full_runs, problem.general.weights.excess_full_run) == (1, 50)
 
+    def test_her_skills_and_the_units_needs_reach_a_re_plan_as_they_reach_a_solve(self, mona, er, in_force):
+        """Ticket 35: the solver honours them on the days it plans again; an earlier day is a fact, reported apart."""
+        from rosters.tests.test_review import holding
+        holding("Amal", "BLS", dt.date(2026, 6, 14), required=True)
+        holding("Badr", "ICU", None, expires=False)
+        er.rules |= {"skill_needs": [{"shift": "N", "skill": "ICU", "weekday_min": 1, "weekend_min": 0}]}
+        er.save()
+
+        solve = Solve.objects.get(pk=started(mona, er)["id"])
+
+        problem = load_request(solve.input).problem
+        skills = {nurse.id: nurse.skills for nurse in problem.nurses}
+        assert (skills["Amal"], skills["Badr"], skills["Dana"]) == ({"BLS": 13}, {"ICU": None}, {})
+        assert [(need.shift, need.skill) for need in problem.department.skill_needs] == [("N", "ICU")]
+        assert problem.general.required_skills == ["BLS"]
+
     def test_a_pin_set_aside_is_no_fact_and_the_day_is_the_roster_in_forces(self, mona, er, in_force):
         """Emad works Day on the 1st. A pin on Night there, then Night taken from his allowed shifts: the pin no longer fits."""
         PinnedCell.objects.create(unit=er, nurse=profile("Emad"), date=dt.date(2026, 6, 1), shift=Shift.objects.get(code="N"),
@@ -454,6 +470,14 @@ class TestAChangeWhileItWaitsOrRuns:
 
         assert latest(er).number == 1 and roster(er).grid == IN_FORCE
         assert solve.replan_outcome == ReplanOutcome.OUTDATED
+
+    def test_a_skill_recorded_meanwhile_leaves_its_roster_out(self, mona, er, solver, in_force):
+        from rosters.tests.test_review import holding
+        while_it_runs(solver, lambda: holding("Emad", "BLS", dt.date(2027, 1, 1)))
+
+        solve = replanned(mona, er, solver, *under_way(SWAPPED))
+
+        assert solve.replan_outcome == ReplanOutcome.OUTDATED and latest(er).number == 1
 
     def test_a_rename_is_no_change_and_its_roster_goes_in_force_under_the_new_code(self, mona, carla, er, solver, in_force):
         while_it_runs(solver, lambda: change_shift(carla, "D", code="DY"))

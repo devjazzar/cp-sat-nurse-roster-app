@@ -35,8 +35,8 @@ class MyPreferenceRow(Schema):
     kind: PreferenceKindText = Field(description="A day off, or a working day of any shift.")
     state: PreferenceStateText = Field(description="`made` while it is live and reaches the solve.")
     outcome: Outcome | None = Field(description=(
-        "What the roster in force made of a made one: `kept`, `not_kept`, or `on_leave` for a date she is on leave or outside "
-        "her dates, counted neither way. Read from the version in force on the month as it stands, and once the month is closed "
+        "What the roster in force made of a made one: `kept`, `not_kept`, `on_leave` for a date she is on leave or outside "
+        "her dates, or `barred` for one after the expiry of a skill of hers required to work (ticket 35), both counted neither way. Read from the version in force on the month as it stands, and once the month is closed "
         "from the close in force. Null before the roster is approved, and for one that never reached the unit's solve."))
 
 
@@ -54,7 +54,7 @@ class MyPreferences(Schema):
     last_day: dt.date | None
     preferences: list[MyPreferenceRow] = Field(description="Yours for this month, every state, by date.")
     kept: int | None = Field(description="How many the roster in force kept. Null before it is approved.")
-    keepable: int | None = Field(description="How many it could keep: those with an outcome, less those on leave.")
+    keepable: int | None = Field(description="How many it could keep: those with an outcome, less those on leave or barred.")
     doubled_by: str | None = Field(description=(
         "YYYY-MM: the month one of yours was not kept in, so yours count double this month. From the carry-over the month's "
         "solve input takes. Null when none was."))

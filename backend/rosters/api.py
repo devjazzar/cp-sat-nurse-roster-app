@@ -50,11 +50,13 @@ NOT_APPROVED = "This roster is not approved yet, so its changes are saved as pin
 
 
 class DraftChange(Schema):
-    hospital_id: str
-    full_name: str
-    what: Literal["gender", "leave", "joined", "left", "pins", "preferences", "closed"] = Field(
-        description="`preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and "
+    hospital_id: str = Field(description="Empty for a change of the unit's own, `skills` alone so far.")
+    what: Literal["gender", "leave", "joined", "left", "pins", "preferences", "skills", "closed"] = Field(
+        description="`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no "
+                    "hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's "
+                    "price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and "
                     "the close's is the one that holds now (ticket 21).")
+    full_name: str
 
 
 class GridViolation(Schema):

@@ -228,3 +228,36 @@ def test_a_real_month_closes_with_the_carry_over_its_real_solve_worked_out(mona,
     assert {nurse: {key: row[key] for key in accounting} for nurse, row in close.result["nurses"].items()} == {
         nurse: {key: row[key] for key in accounting} for nurse, row in stored.result["nurses"].items()}
     assert close.result["facts_broke"] == []
+
+
+def test_a_hard_skill_need_and_an_expired_required_skill_decide_the_roster(mona, er):
+    """Ticket 35 with the real solver: Day needs one nurse holding ICU every day, which only Amal and Emad hold, and Badr's BLS,
+    required to work, lasts to the 20th. The precheck says so in dates beforehand, and the roster keeps both."""
+    from hospital.models import Skill
+    icu = Skill.objects.create(name="ICU", expires=False, required_to_work=False)
+    bls = Skill.objects.create(name="BLS", expires=True, required_to_work=True)
+    for hospital_id in ("Amal", "Emad"):
+        nurse = NurseProfile.objects.get(user__username=hospital_id)
+        nurse.skills.create(skill=icu, recorded_by=nurse.user)
+    badr = NurseProfile.objects.get(user__username="Badr")
+    badr.skills.create(skill=bls, expiry=dt.date(2026, 6, 20), recorded_by=badr.user)
+    er.rules |= {"skill_needs": [{"shift": "D", "skill": "ICU", "weekday_min": 1, "weekend_min": 1}], "skill_needs_hard": True}
+    er.save()
+
+    plan = preview(mona, er)
+    assert plan["rules_refusal"] is None
+    assert ("Badr: BLS, required to work, expires inside the month: its last day is 2026-06-20, and she works no shift after it"
+            in plan["precheck"])
+
+    solve = started(mona, er, seconds=30)
+    run_the_queue()
+
+    stored = Solve.objects.get(pk=solve["id"])
+    assert stored.state == "succeeded" and stored.result["ok"] is True, stored.result.get("message")
+    roster = stored.result["roster"]
+    days = [f"2026-06-{day:02d}" for day in range(1, 31)]
+    assert all({nurse for nurse in ("Amal", "Emad") if roster[nurse][day] == "D"} for day in days)
+    assert not [day for day in days if day > "2026-06-20" and roster["Badr"][day]]
+    assert stored.result["violations"] == []
+    draft = month_of(mona, er)["draft"]
+    assert draft["changes"] == [] and draft["check"] is None

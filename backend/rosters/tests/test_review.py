@@ -390,7 +390,7 @@ class TestApproving:
         ok(submit(mona, er))
 
         kept = Submission.objects.get().month_at_submit
-        assert {key for row in kept for key in row} <= {"id", "gender", "leave", "pinned"}
+        assert {key for row in kept for key in row} <= {"id", "gender", "leave", "pinned", "skills"}
         assert "Sick" not in json.dumps(kept)
 
     def test_leave_on_a_worked_day_while_it_waits_stops_it_until_rejected_and_put_right(self, mona, carla, er, solver):
@@ -739,3 +739,63 @@ class TestTheNursesView:
         assert {shift["code"] for shift in seen["shifts"]} == {"D", "NT"}
         assert seen["rows"][0]["shifts"][0] == "NT"
         assert Shift.objects.filter(code="NT").exists()
+
+
+def holding(hospital_id, name, expiry=None, *, required=False, expires=True):
+    from hospital.models import Skill
+    skill = Skill.objects.filter(name=name).first() or Skill.objects.create(name=name, expires=expires,
+                                                                            required_to_work=required)
+    nurse = profile(hospital_id)
+    return nurse.skills.create(skill=skill, expiry=expiry, recorded_by=nurse.user)
+
+
+def days_worked(hospital_id, month=MONTH) -> list[str]:
+    return sorted(day for day, code in SOUND[month]["roster"][hospital_id].items() if code)
+
+
+class TestSkills:
+    """Submit and approval refuse a grid that breaks a hard skill need or fills a barred day on the month as it stands, as for
+    any hard rule (ticket 35)."""
+
+    def test_a_required_skill_expired_since_the_solve_refuses_the_submit_naming_her_days(self, mona, er, solver):
+        solved(mona, er, solver)
+        holding("Amal", "BLS", dt.date(2026, 6, 20), required=True)
+
+        month = month_of(mona, er)
+
+        assert {"hospital_id": "Amal", "full_name": "Amal", "what": "skills"} in month["draft"]["changes"]
+        after = [day for day in days_worked("Amal") if day > "2026-06-20"]
+        expired = [v for v in month["draft"]["check"]["violations"] if v["rule"] == "skill_expired"]
+        assert [v["date"] for v in expired] == after
+        assert expired[0]["text"] == (f"skill expired: Amal works {SOUND[MONTH]['roster']['Amal'][after[0]]} on {after[0]}, "
+                                      "BLS is required to work and its last day was 2026-06-20")
+        assert month["submit_refusal"].startswith(f"This draft breaks {len(after)} hard rules on the month as it stands")
+        assert refused(submit(mona, er)) == month["submit_refusal"]
+
+    def test_a_hard_skill_need_no_one_meets_refuses_the_submit_and_a_soft_one_does_not(self, mona, er, solver):
+        solved(mona, er, solver)
+        er.rules |= {"skill_needs": [{"shift": "N", "skill": "ICU", "weekday_min": 1, "weekend_min": 0}]}
+        er.save()
+        holding("Amal", "ICU", None, expires=False)
+
+        month = month_of(mona, er)
+
+        assert {"hospital_id": "", "full_name": "", "what": "skills"} in month["draft"]["changes"]
+        short = [v for v in month["draft"]["check"]["violations"] if v["rule"] == "skill_need"]
+        assert short and all(v["hospital_id"] is None and v["text"].startswith(f"skill need: {v['date']} N has ") for v in short)
+        assert "hard rule" in refused(submit(mona, er))
+
+        er.rules |= {"skill_needs_hard": False}
+        er.save()
+        assert ok(submit(mona, er))["state"] == "submitted"
+
+    def test_a_skill_expiring_while_it_waits_is_news_and_stops_the_approval(self, mona, carla, er, solver):
+        submitted(mona, er, solver)
+        holding("Badr", "BLS", dt.date(2026, 6, 1), required=True)
+
+        seen = month_of(carla, er)
+
+        assert {"hospital_id": "Badr", "full_name": "Badr", "what": "skills"} in seen["submitted"]["new_since"]
+        assert seen["approve_refusal"].startswith("This roster breaks")
+        assert refused(approve(carla, er)) == seen["approve_refusal"]
+        assert roster(er).state == RosterState.SUBMITTED
