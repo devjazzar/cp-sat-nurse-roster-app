@@ -207,7 +207,7 @@ def test_a_change_is_audited_with_only_what_changed(cno):
     update(cno, "ICU", required_to_work=True)
 
     entry = AuditEntry.objects.get()
-    assert entry.action == "skill.updated" and entry.actor.username == "the-cno" and entry.target == "ICU"
+    assert entry.action == "skill.changed" and entry.actor.username == "the-cno" and entry.target == "ICU"
     assert entry.before == {"required_to_work": False} and entry.after == {"required_to_work": True}
 
 
@@ -217,7 +217,7 @@ def test_a_rename_is_audited_under_the_new_name(cno):
     update(cno, "BLS", name="Basic life support")
 
     entry = AuditEntry.objects.get()
-    assert entry.action == "skill.updated" and entry.target == "Basic life support"
+    assert entry.action == "skill.changed" and entry.target == "Basic life support"
     assert entry.before == {"name": "BLS"} and entry.after == {"name": "Basic life support"}
 
 
@@ -227,7 +227,7 @@ def test_a_retire_is_audited(cno):
     update(cno, "ACLS", active=False)
 
     entry = AuditEntry.objects.get()
-    assert entry.action == "skill.updated" and entry.target == "ACLS"
+    assert entry.action == "skill.changed" and entry.target == "ACLS"
     assert entry.before == {"active": True} and entry.after == {"active": False}
 
 

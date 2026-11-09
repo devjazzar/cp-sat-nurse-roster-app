@@ -1425,7 +1425,15 @@ export const ListNurseAttributesResponseItem = zod.object({
   "friday_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.')
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.')
 })
 export const ListNurseAttributesResponse = zod.array(ListNurseAttributesResponseItem)
 
@@ -1489,7 +1497,15 @@ export const UpdateNurseAttributesResponse = zod.object({
   "friday_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.')
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.')
 })
 
 
@@ -1528,7 +1544,15 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "friday_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.')
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.')
 })
 
 
@@ -5079,7 +5103,15 @@ export const ListNursesResponseItem = zod.object({
   "id": zod.uuid(),
   "name": zod.string()
 }),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
-})).describe('The transfers still to come, soonest first.')
+})).describe('The transfers still to come, soonest first.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
 })
 export const ListNursesResponse = zod.array(ListNursesResponseItem)
 
@@ -5125,7 +5157,15 @@ export const CreateNurseResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string()
 }),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
-})).describe('The transfers still to come, soonest first.')
+})).describe('The transfers still to come, soonest first.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
 }),
   "generated_password": zod.string()
 }).describe('Holds a password, so it asks not to be stored.')
@@ -5188,7 +5228,15 @@ export const GiveManagerNurseProfileResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string()
 }),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
-})).describe('The transfers still to come, soonest first.')
+})).describe('The transfers still to come, soonest first.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
 })
 
 
@@ -5227,7 +5275,15 @@ export const TransferNurseResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string()
 }),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
-})).describe('The transfers still to come, soonest first.')
+})).describe('The transfers still to come, soonest first.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
 })
 
 
@@ -5265,7 +5321,15 @@ export const SetNurseEndDateResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string()
 }),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
-})).describe('The transfers still to come, soonest first.')
+})).describe('The transfers still to come, soonest first.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
 })
 
 
@@ -5311,7 +5375,15 @@ export const CorrectNurseDetailsResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string()
 }),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
-})).describe('The transfers still to come, soonest first.')
+})).describe('The transfers still to come, soonest first.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
 }),
   "first_placement_extended": zod.union([zod.object({
   "unit": zod.object({
@@ -5353,7 +5425,15 @@ export const ResetNursePasswordResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string()
 }),zod.null()]).describe('Empty when the unit is not the caller\'s: a manager sees nothing of others.')
-})).describe('The transfers still to come, soonest first.')
+})).describe('The transfers still to come, soonest first.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
 }),
   "generated_password": zod.string()
 }).describe('Holds a password, so it asks not to be stored.')
@@ -5439,6 +5519,92 @@ export const GetMyLeaveResponse = zod.object({
   "leave_type": zod.string()
 }))
 })
+
+
+/**
+ * Any nurse's, a manager with a nurse profile's too, deactivated or not: a returning nurse has her record. Answers with all
+ * her skills as they now are.
+ * @summary Record Skill
+ */
+export const RecordNurseSkillParams = zod.object({
+  "nurse_id": zod.uuid()
+})
+
+export const RecordNurseSkillBody = zod.object({
+  "skill_id": zod.uuid(),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('Required when the skill expires; empty when it does not.')
+})
+
+export const RecordNurseSkillResponseItem = zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})
+export const RecordNurseSkillResponse = zod.array(RecordNurseSkillResponseItem)
+
+
+/**
+ * A renewal or a correction of the expiry: the row ends and another begins, as leave's does. Saving it as it reads (for a
+ * kind that no longer expires, with no date, whatever is kept) changes nothing.
+ * @summary Renew Skill
+ */
+export const RenewNurseSkillParams = zod.object({
+  "nurse_id": zod.uuid(),
+  "skill_id": zod.uuid()
+})
+
+export const RenewNurseSkillBody = zod.object({
+  "expiry": zod.union([zod.iso.date(),zod.null()])
+})
+
+export const RenewNurseSkillResponseItem = zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})
+export const RenewNurseSkillResponse = zod.array(RenewNurseSkillResponseItem)
+
+
+/**
+ * A retired skill's too: a record made in error comes off. The row ends, and stays as the record of what was there.
+ * @summary Remove Skill
+ */
+export const RemoveNurseSkillParams = zod.object({
+  "nurse_id": zod.uuid(),
+  "skill_id": zod.uuid()
+})
+
+export const RemoveNurseSkillResponseItem = zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})
+export const RemoveNurseSkillResponse = zod.array(RemoveNurseSkillResponseItem)
+
+
+/**
+ * Takes no nurse, so it cannot answer for a colleague. A manager is here because a manager with a nurse profile is a nurse
+ * too; one with no profile simply has none.
+ * @summary My Skills
+ */
+export const GetMySkillsResponseItem = zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})
+export const GetMySkillsResponse = zod.array(GetMySkillsResponseItem)
 
 
 /**

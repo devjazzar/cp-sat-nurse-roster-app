@@ -6,6 +6,7 @@
  */
 import type { ComingTransfer } from './comingTransfer';
 import type { NurseRowGender } from './nurseRowGender';
+import type { NurseSkillRow } from './nurseSkillRow';
 import type { Role } from './role';
 import type { UnitName } from './unitName';
 
@@ -23,4 +24,6 @@ export interface NurseRow {
   unit: UnitName | null;
   /** The transfers still to come, soonest first. */
   transfers: ComingTransfer[];
+  /** Their current skills, the CNO's to set, in the order of their names. */
+  skills: NurseSkillRow[];
 }

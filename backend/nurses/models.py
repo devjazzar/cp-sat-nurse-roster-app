@@ -87,3 +87,33 @@ class Leave(models.Model):
             models.UniqueConstraint(fields=["nurse", "date"], condition=models.Q(removed_at__isnull=True),
                                     name="nurses_one_leave_a_day"),
         ]
+
+
+class NurseSkillQuerySet(models.QuerySet):
+    def current(self) -> "NurseSkillQuerySet":
+        return self.filter(removed_at__isnull=True)
+
+
+class NurseSkill(models.Model):
+    """A skill a nurse holds, with its expiry, the last day it counts, where the catalogue says the kind expires. The CNO's
+    to record, renew and take off. A renewal or a removal ends the row rather than rewriting or deleting it, as leave does,
+    because the audit log may hold neither the skill nor the date (the System Admin reads it), so this is the only record of
+    what was there. Only `current()` rows mean anything to anyone. On the profile, not a placement, so a transfer carries it.
+    The expiry stays as recorded when the CNO turns the kind's `expires` off, and counts for nothing until it is on again."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    nurse = models.ForeignKey(NurseProfile, on_delete=models.PROTECT, related_name="skills")
+    skill = models.ForeignKey("hospital.Skill", on_delete=models.PROTECT, related_name="+")
+    expiry = models.DateField(null=True, blank=True)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    removed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    removed_at = models.DateTimeField(null=True, blank=True)
+
+    objects = NurseSkillQuerySet.as_manager()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["nurse", "skill"], condition=models.Q(removed_at__isnull=True),
+                                    name="nurses_one_current_skill_a_nurse"),
+        ]

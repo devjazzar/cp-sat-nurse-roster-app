@@ -25,6 +25,7 @@ from hospital.catalogue_api import MONTH_PATTERN, IsoDate, iso_date
 from hospital.models import HospitalSettings
 from nurses import membership
 from nurses.models import Gender, NurseProfile
+from nurses.skills import NurseSkillRow, current_skills, skills_of
 from units.models import Unit
 from units.scope import unit_in_scope, units_in_scope
 
@@ -102,6 +103,7 @@ class NurseRow(Schema):
     unit: UnitName | None = Field(description="The unit this month, empty when it is not the caller's: a nurse due to "
                                               "join a manager's unit is on their list before they arrive.")
     transfers: list[ComingTransfer] = Field(description="The transfers still to come, soonest first.")
+    skills: list[NurseSkillRow] = Field(description="Their current skills, the CNO's to set, in the order of their names.")
 
 
 class NurseWithPassword(Schema):
@@ -144,11 +146,12 @@ def _row(nurse: NurseProfile, only_unit: UUID | None = None) -> NurseRow:
                     is_active=user.is_active, must_change_password=user.must_change_password,
                     unit=named(current.unit),
                     transfers=[ComingTransfer(from_month=_month(placement.from_month), unit=named(placement.unit))
-                               for placement in coming])
+                               for placement in coming],
+                    skills=skills_of(nurse))
 
 
 def with_units(nurses):
-    return nurses.select_related("user").prefetch_related("placements__unit").order_by(Lower("user__full_name"), "pk")
+    return nurses.select_related("user").prefetch_related("placements__unit", current_skills()).order_by(Lower("user__full_name"), "pk")
 
 
 def _row_as_saved(nurse_id: UUID, only_unit: UUID | None = None) -> NurseRow:

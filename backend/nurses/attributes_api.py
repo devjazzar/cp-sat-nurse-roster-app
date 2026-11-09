@@ -22,6 +22,7 @@ from hospital.models import HospitalSettings
 from nurses import membership
 from nurses.api import with_units
 from nurses.models import Gender, NurseProfile
+from nurses.skills import NurseSkillRow, skills_of
 from rosters.pins import outside_allowed, words_for
 from units.models import Unit
 from units.rules import distinct_shifts
@@ -73,6 +74,7 @@ class NurseAttributesRow(Schema):
     opening_values_locked: bool = Field(description="Their first month has closed: the opening values (`ytd_overtime`, "
                                                     "`hours_balance`, `night_balance`, `friday_balance`) can no longer change, "
                                                     "as the carry-over comes from the closes now.")
+    skills: list[NurseSkillRow] = Field(description="Their current skills, to read: the CNO sets them on the Nurses page.")
 
 
 def _row(nurse: NurseProfile, unit: Unit) -> NurseAttributesRow:
@@ -88,7 +90,7 @@ def _row(nurse: NurseProfile, unit: Unit) -> NurseAttributesRow:
         breastfeeding=nurse.breastfeeding, ytd_overtime=nurse.ytd_overtime, hours_balance=nurse.hours_balance,
         night_balance=nurse.night_balance, friday_balance=nurse.friday_balance,
         allowed_shifts=here.allowed_shifts, allowed_shifts_to_check=here.allowed_shifts_to_check,
-        opening_values_locked=has_closed(nurse))
+        opening_values_locked=has_closed(nurse), skills=skills_of(nurse))
 
 
 OPENING_VALUES = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance")

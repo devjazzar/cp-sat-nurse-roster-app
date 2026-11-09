@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import Path, Query, Router, Schema
@@ -24,6 +25,7 @@ from hospital.models import (FixedRamadanMonth, HospitalSettings, LeaveType, Pub
                              SkillRename)
 from hospital.rules import changes
 from nurses.membership import carry_rename_through_allowed_shifts, this_month
+from nurses.models import NurseSkill
 from ops.api import ClockTime
 from rosters.drafts import carry_rename_through_grids, current_code, using_shift
 from rosters.pins import counted_uses
@@ -329,6 +331,24 @@ def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
         refuse((("name",), f"{held_before.old_name} is the old name of another skill"))
 
 
+NAMED_AT_MOST = 3
+
+
+def _refuse_records_without_expiry(skill: Skill) -> None:
+    """Turning `expires` on would leave a record dateless, an unknown the solver cannot model: refused, naming a few of the
+    nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`)."""
+    names = list(NurseSkill.objects.current().filter(skill=skill, expiry__isnull=True)
+                 .order_by(Lower("nurse__user__full_name"), "nurse_id").values_list("nurse__user__full_name", flat=True))
+    if not names:
+        return
+    if len(names) > NAMED_AT_MOST + 1:
+        who = f"{', '.join(names[:NAMED_AT_MOST])} and {len(names) - NAMED_AT_MOST} more"
+    else:
+        who = " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 1 else names)
+    refuse((("expires",), f"{who} {'hold' if len(names) > 1 else 'holds'} {skill.name} with no expiry. "
+                          "Take it off them first, then record it again with its expiry."))
+
+
 @router.get("/skills", response=list[SkillSchema], operation_id="listSkills")
 def list_skills(request) -> list[Skill]:
     """Retired skills too: a nurse's record of one, or a past roster, still names it."""
@@ -355,11 +375,13 @@ def update_skill(request, skill_id: UUID, body: SkillBody) -> Skill:
         old, new = differing(_skill_fields(skill), body.model_dump())
         if not new:
             return skill
+        if new.get("expires"):
+            _refuse_records_without_expiry(skill)
         if "name" in new:
             _refuse_a_taken_name(body.name, skill.pk)
             SkillRename.objects.create(skill=skill, old_name=old["name"], new_name=body.name, by=request.user)
         _write_skill(skill, body)
-        record("skill.updated", actor=request.user, target=skill.name, before=old, after=new, request=request)
+        record("skill.changed", actor=request.user, target=skill.name, before=old, after=new, request=request)
     return skill
 
 

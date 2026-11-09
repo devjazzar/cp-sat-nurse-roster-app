@@ -17,6 +17,7 @@ from nurses.api import router as nurses_router
 from nurses.attributes_api import router as nurse_attributes_router
 from nurses.files_api import router as nurse_files_router
 from nurses.leave_api import my_leave_router, unit_leave_router
+from nurses.skills_api import router as nurse_skills_router
 from ops.api import router as ops_router
 from requesting.api import router as requesting_router
 from requesting.mine_api import router as my_requests_router
@@ -62,4 +63,5 @@ api.add_router("/solve-history", hospital_solves_router)
 api.add_router("/nurses", nurses_router)
 api.add_router("/nurses", nurse_files_router)
 api.add_router("/nurses", my_leave_router)
+api.add_router("/nurses", nurse_skills_router)
 api.add_router("/notifications", notifications_router)

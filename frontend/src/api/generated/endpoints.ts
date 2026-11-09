@@ -100,6 +100,7 @@ import type {
   NameCorrectionBody,
   NewLeaveBody,
   NewNurseBody,
+  NewNurseSkillBody,
   NewPreferenceBody,
   NewRequestBody,
   NewUserBody,
@@ -107,6 +108,8 @@ import type {
   NotificationList,
   NurseAttributesRow,
   NurseRow,
+  NurseSkillChangeBody,
+  NurseSkillRow,
   NurseWithPassword,
   OfferCoverBody,
   OpenCoverBody,
@@ -12220,6 +12223,370 @@ export function useGetMyLeave<TData = Awaited<ReturnType<typeof getMyLeave>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMyLeaveQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecordNurseSkillUrl = (nurseId: string,) => {
+
+
+
+
+  return `/api/nurses/${nurseId}/skills`
+}
+
+/**
+ * Any nurse's, a manager with a nurse profile's too, deactivated or not: a returning nurse has her record. Answers with all
+ * her skills as they now are.
+ * @summary Record Skill
+ */
+export const recordNurseSkill = async (nurseId: string,
+    newNurseSkillBody: NewNurseSkillBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseSkillRow[]> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseSkillRow[]>(getRecordNurseSkillUrl(nurseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(newNurseSkillBody)
+  }
+);}
+
+
+
+
+
+export const getRecordNurseSkillMutationKey = () => ['recordNurseSkill'] as const;
+
+export const getRecordNurseSkillMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordNurseSkill>>, TError,RecordNurseSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordNurseSkill>>, TError,RecordNurseSkillMutationVariables, TContext> => {
+
+const mutationKey = getRecordNurseSkillMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordNurseSkill>>, RecordNurseSkillMutationVariables> = (props) => {
+          const {nurseId,data} = props ?? {};
+
+          return  recordNurseSkill(nurseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordNurseSkillMutationResult = NonNullable<Awaited<ReturnType<typeof recordNurseSkill>>>
+    export type RecordNurseSkillMutationBody = NewNurseSkillBody
+    export type RecordNurseSkillMutationError = unknown
+    export type RecordNurseSkillMutationVariables = {nurseId: string;data: NewNurseSkillBody}
+
+    /**
+ * @summary Record Skill
+ */
+export const useRecordNurseSkill = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordNurseSkill>>, TError,RecordNurseSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof recordNurseSkill>>,
+        TError,
+        RecordNurseSkillMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRecordNurseSkillMutationOptions(options), queryClient);
+    }
+
+export const getRenewNurseSkillUrl = (nurseId: string,
+    skillId: string,) => {
+
+
+
+
+  return `/api/nurses/${nurseId}/skills/${skillId}`
+}
+
+/**
+ * A renewal or a correction of the expiry: the row ends and another begins, as leave's does. Saving it as it reads (for a
+ * kind that no longer expires, with no date, whatever is kept) changes nothing.
+ * @summary Renew Skill
+ */
+export const renewNurseSkill = async (nurseId: string,
+    skillId: string,
+    nurseSkillChangeBody: NurseSkillChangeBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseSkillRow[]> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseSkillRow[]>(getRenewNurseSkillUrl(nurseId,skillId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(nurseSkillChangeBody)
+  }
+);}
+
+
+
+
+
+export const getRenewNurseSkillMutationKey = () => ['renewNurseSkill'] as const;
+
+export const getRenewNurseSkillMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewNurseSkill>>, TError,RenewNurseSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renewNurseSkill>>, TError,RenewNurseSkillMutationVariables, TContext> => {
+
+const mutationKey = getRenewNurseSkillMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renewNurseSkill>>, RenewNurseSkillMutationVariables> = (props) => {
+          const {nurseId,skillId,data} = props ?? {};
+
+          return  renewNurseSkill(nurseId,skillId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenewNurseSkillMutationResult = NonNullable<Awaited<ReturnType<typeof renewNurseSkill>>>
+    export type RenewNurseSkillMutationBody = NurseSkillChangeBody
+    export type RenewNurseSkillMutationError = unknown
+    export type RenewNurseSkillMutationVariables = {nurseId: string;skillId: string;data: NurseSkillChangeBody}
+
+    /**
+ * @summary Renew Skill
+ */
+export const useRenewNurseSkill = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renewNurseSkill>>, TError,RenewNurseSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof renewNurseSkill>>,
+        TError,
+        RenewNurseSkillMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRenewNurseSkillMutationOptions(options), queryClient);
+    }
+
+export const getRemoveNurseSkillUrl = (nurseId: string,
+    skillId: string,) => {
+
+
+
+
+  return `/api/nurses/${nurseId}/skills/${skillId}/remove`
+}
+
+/**
+ * A retired skill's too: a record made in error comes off. The row ends, and stays as the record of what was there.
+ * @summary Remove Skill
+ */
+export const removeNurseSkill = async (nurseId: string,
+    skillId: string, options?: Parameters<typeof apiFetch>[1]): Promise<NurseSkillRow[]> => {
+
+  return apiFetch<NurseSkillRow[]>(getRemoveNurseSkillUrl(nurseId,skillId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveNurseSkillMutationKey = () => ['removeNurseSkill'] as const;
+
+export const getRemoveNurseSkillMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeNurseSkill>>, TError,RemoveNurseSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeNurseSkill>>, TError,RemoveNurseSkillMutationVariables, TContext> => {
+
+const mutationKey = getRemoveNurseSkillMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeNurseSkill>>, RemoveNurseSkillMutationVariables> = (props) => {
+          const {nurseId,skillId} = props ?? {};
+
+          return  removeNurseSkill(nurseId,skillId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveNurseSkillMutationResult = NonNullable<Awaited<ReturnType<typeof removeNurseSkill>>>
+
+    export type RemoveNurseSkillMutationError = unknown
+    export type RemoveNurseSkillMutationVariables = {nurseId: string;skillId: string}
+
+    /**
+ * @summary Remove Skill
+ */
+export const useRemoveNurseSkill = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeNurseSkill>>, TError,RemoveNurseSkillMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof removeNurseSkill>>,
+        TError,
+        RemoveNurseSkillMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemoveNurseSkillMutationOptions(options), queryClient);
+    }
+
+export const getGetMySkillsUrl = () => {
+
+
+
+
+  return `/api/nurses/my-skills`
+}
+
+/**
+ * Takes no nurse, so it cannot answer for a colleague. A manager is here because a manager with a nurse profile is a nurse
+ * too; one with no profile simply has none.
+ * @summary My Skills
+ */
+export const getMySkills = async ( options?: Parameters<typeof apiFetch>[1]): Promise<NurseSkillRow[]> => {
+
+  return apiFetch<NurseSkillRow[]>(getGetMySkillsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMySkillsQueryKey = () => {
+    return [
+    `/api/nurses/my-skills`
+    ] as const;
+    }
+
+
+export const getGetMySkillsQueryOptions = <TData = Awaited<ReturnType<typeof getMySkills>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMySkillsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMySkills>>> = ({ signal }) => getMySkills({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMySkillsQueryResult = NonNullable<Awaited<ReturnType<typeof getMySkills>>>
+export type GetMySkillsQueryError = unknown
+
+
+export function useGetMySkills<TData = Awaited<ReturnType<typeof getMySkills>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMySkills>>,
+          TError,
+          Awaited<ReturnType<typeof getMySkills>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMySkills<TData = Awaited<ReturnType<typeof getMySkills>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMySkills>>,
+          TError,
+          Awaited<ReturnType<typeof getMySkills>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMySkills<TData = Awaited<ReturnType<typeof getMySkills>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary My Skills
+ */
+
+export function useGetMySkills<TData = Awaited<ReturnType<typeof getMySkills>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMySkills>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMySkillsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

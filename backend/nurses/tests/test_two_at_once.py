@@ -10,9 +10,12 @@ from django.db import connection, transaction
 from accounts import provisioning
 from accounts.models import Role, User
 from audit.models import AuditEntry
+from conftest import post
 from nurses.tasks import close_ended_nurses
 from nurses.tests.conftest import added, make_unit
 from nurses.tests.test_end_dates import active, end, signed_in_nurse
+from nurses.tests.test_skills import change_skill
+from nurses.tests.test_skills import record as recorded_skill
 from nurses.tests.test_scoping import reset
 from nurses.tests.test_transfers import transfer
 
@@ -161,3 +164,29 @@ def test_a_manager_taken_off_the_unit_at_that_moment_gets_no_password(cno, mona,
 
     assert asked.result(timeout=WAIT_SECONDS).status_code == 403
     assert_not_reset()
+
+
+# ---- a nurse's skill and the catalogue's "expires" ----------------------------------------------------
+@pytest.fixture
+def icu_skill(cno) -> str:
+    response = post(cno, "/api/hospital/skills", {"name": "ICU", "expires": False, "required_to_work": False, "active": True})
+    assert response.status_code == 201, response.content
+    return response.json()["id"]
+
+
+def test_expires_turned_on_while_a_dateless_record_is_made_waits_and_is_refused(cno, nurse, icu_skill, pool):
+    with transaction.atomic():
+        assert recorded_skill(cno, nurse, icu_skill).status_code == 201
+        turned = alongside(pool, lambda: change_skill(cno, "ICU", expires=True))
+        assert not turned.done()
+
+    assert turned.result(timeout=WAIT_SECONDS).status_code == 422
+
+
+def test_a_dateless_record_made_while_expires_is_turned_on_waits_and_is_refused(cno, nurse, icu_skill, pool):
+    with transaction.atomic():
+        assert change_skill(cno, "ICU", expires=True).status_code == 200
+        made = alongside(pool, lambda: recorded_skill(cno, nurse, icu_skill))
+        assert not made.done()
+
+    assert made.result(timeout=WAIT_SECONDS).status_code == 422

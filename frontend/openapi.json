@@ -5855,6 +5855,207 @@
         ]
       }
     },
+    "/api/nurses/{nurse_id}/skills": {
+      "post": {
+        "operationId": "recordNurseSkill",
+        "summary": "Record Skill",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NurseSkillRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Any nurse's, a manager with a nurse profile's too, deactivated or not: a returning nurse has her record. Answers with all\nher skills as they now are.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewNurseSkillBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/{nurse_id}/skills/{skill_id}": {
+      "put": {
+        "operationId": "renewNurseSkill",
+        "summary": "Renew Skill",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "skill_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Skill Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NurseSkillRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "A renewal or a correction of the expiry: the row ends and another begins, as leave's does. Saving it as it reads (for a\nkind that no longer expires, with no date, whatever is kept) changes nothing.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NurseSkillChangeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/{nurse_id}/skills/{skill_id}/remove": {
+      "post": {
+        "operationId": "removeNurseSkill",
+        "summary": "Remove Skill",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "skill_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Skill Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NurseSkillRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "A retired skill's too: a record made in error comes off. The row ends, and stays as the record of what was there.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/my-skills": {
+      "get": {
+        "operationId": "getMySkills",
+        "summary": "My Skills",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NurseSkillRow"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Takes no nurse, so it cannot answer for a colleague. A manager is here because a manager with a nurse profile is a nurse\ntoo; one with no profile simply has none.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/notifications/unread": {
       "get": {
         "operationId": "countUnreadNotifications",
@@ -8206,6 +8407,14 @@
             "description": "Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.",
             "title": "Opening Values Locked",
             "type": "boolean"
+          },
+          "skills": {
+            "description": "Their current skills, to read: the CNO sets them on the Nurses page.",
+            "items": {
+              "$ref": "#/components/schemas/NurseSkillRow"
+            },
+            "title": "Skills",
+            "type": "array"
           }
         },
         "required": [
@@ -8226,9 +8435,61 @@
           "friday_balance",
           "allowed_shifts",
           "allowed_shifts_to_check",
-          "opening_values_locked"
+          "opening_values_locked",
+          "skills"
         ],
         "title": "NurseAttributesRow",
+        "type": "object"
+      },
+      "NurseSkillRow": {
+        "properties": {
+          "skill_id": {
+            "format": "uuid",
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "expires": {
+            "description": "The catalogue's: whether the kind has an expiry.",
+            "title": "Expires",
+            "type": "boolean"
+          },
+          "required_to_work": {
+            "description": "The catalogue's: from the day after its expiry, she works no shift.",
+            "title": "Required To Work",
+            "type": "boolean"
+          },
+          "active": {
+            "description": "False once the CNO has retired the skill. Her record of it stays.",
+            "title": "Active",
+            "type": "boolean"
+          },
+          "expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.",
+            "title": "Expiry"
+          }
+        },
+        "required": [
+          "skill_id",
+          "name",
+          "expires",
+          "required_to_work",
+          "active",
+          "expiry"
+        ],
+        "title": "NurseSkillRow",
         "type": "object"
       },
       "AttributesBody": {
@@ -14973,6 +15234,14 @@
             },
             "title": "Transfers",
             "type": "array"
+          },
+          "skills": {
+            "description": "Their current skills, the CNO's to set, in the order of their names.",
+            "items": {
+              "$ref": "#/components/schemas/NurseSkillRow"
+            },
+            "title": "Skills",
+            "type": "array"
           }
         },
         "required": [
@@ -14986,7 +15255,8 @@
           "is_active",
           "must_change_password",
           "unit",
-          "transfers"
+          "transfers",
+          "skills"
         ],
         "title": "NurseRow",
         "type": "object"
@@ -15465,6 +15735,57 @@
           "leave_type"
         ],
         "title": "MyLeaveRun",
+        "type": "object"
+      },
+      "NewNurseSkillBody": {
+        "additionalProperties": false,
+        "properties": {
+          "skill_id": {
+            "format": "uuid",
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when the skill expires; empty when it does not.",
+            "title": "Expiry"
+          }
+        },
+        "required": [
+          "skill_id",
+          "expiry"
+        ],
+        "title": "NewNurseSkillBody",
+        "type": "object"
+      },
+      "NurseSkillChangeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry"
+          }
+        },
+        "required": [
+          "expiry"
+        ],
+        "title": "NurseSkillChangeBody",
         "type": "object"
       },
       "Unread": {
