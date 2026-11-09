@@ -29,7 +29,7 @@ from hospital.models import Shift
 from rosters.approved import ApprovedMonth, Change, headcount_of, newly_broken, shift_day, with_pins
 from rosters.editing import Checked, accounted, scored
 from rosters.models import PinOrigin, Roster
-from rosters.pins import bar_words, long_date
+from rosters.pins import long_date
 from solves.input import assemble
 from solves.result import in_dates
 
@@ -99,6 +99,7 @@ class CoverMonth(ApprovedMonth):
             return why
         why = self.judge.shift_why(serving.pk, self.day, self.shift)
         if why is not None:
+            # The cover's own shift is one the unit works, so anything but the bar is her allowed shifts.
             return "barred" if why == "barred" else "shift_not_allowed"
         pin = self.pins.get((nurse.pk, self.day))
         if pin is not None and pin.origin == PinOrigin.REQUEST:
@@ -114,8 +115,7 @@ class CoverMonth(ApprovedMonth):
             what = f"{held.display_name} ({held.code})" if held else self.cell(hospital_id, self.day)
             return [f"You already work {what} on {on}, so you cannot take this cover."]
         if why == "barred":
-            bar = self.judge.bar(self.serving[hospital_id].pk, self.day)
-            return [f"{bar_words(bar, 'Your')}, so you cannot take this cover."]
+            return [f"{self.judge.bar_said(self.serving[hospital_id].pk, self.day, 'Your')}, so you cannot take this cover."]
         if why is not None:
             return [{
                 "not_on_grid": f"You have no row on the {self.unit.name} roster for {self.month:%B %Y}, so you cannot take "

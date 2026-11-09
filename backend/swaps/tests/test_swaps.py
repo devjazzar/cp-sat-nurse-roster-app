@@ -217,14 +217,15 @@ class TestTheProposersOwnFacts:
         assert refusals(propose(nurse("Badr"), *SOUND_SWAP)) == [
             "Your accepted request holds your cell on 9 June 2026, so a swap cannot change it."]
 
-
-    def test_their_own_expired_required_skill_is_named(self, in_force, nurse):
+    def test_their_own_expired_required_skill_is_named(self, in_force, nurse, mona):
         """Ticket 38: her skills are hers to read on My month, so the bar on her own cell is said in full."""
         from rosters.tests.test_review import holding
         holding("Emad", "BLS", dt.date(2026, 6, 8), required=True)
 
         assert refusals(propose(nurse("Emad"), cell("Emad", 9, "D"), cell("Badr", 9))) == [
             "Your BLS, required to work, counted until 8 June 2026, so you can work no shift on 9 June 2026."]
+        TestWhatTheProposerMayNotLearn.the_manager_reads_why(
+            mona, in_force, "Emad's BLS, required to work, counted until 8 June 2026, so Emad can work no shift on 9 June 2026.", "D")
 
 
 class TestASkillNeed:
@@ -535,6 +536,17 @@ class TestTheManagersDecision:
         swap = awaiting(nurse)
         holding("Emad", "BLS", dt.date(2026, 6, 8), required=True)
         words = "Emad's BLS, required to work, counted until 8 June 2026, so Emad can work no shift on 9 June 2026."
+
+        assert decision(mona, in_force, swap["id"])["problems"] == [words]
+        assert refusals(decide(mona, in_force, swap["id"], "approve"), 409) == [words]
+        assert Swap.objects.get().state == SwapState.AWAITING_MANAGER and RosterVersion.objects.count() == 1
+
+    def test_approval_is_refused_when_a_skill_need_written_since_would_be_left_short(self, in_force, nurse, mona):
+        from rosters.tests.test_review import holding
+        swap = awaiting(nurse)
+        holding("Badr", "ICU", None, expires=False)
+        rules_require(in_force, skill_needs=[{"shift": "D", "skill": "ICU", "weekday_min": 1, "weekend_min": 0}])
+        words = "skill need: 2026-06-09 D has 0 holding ICU, needs 1 (1 short)"
 
         assert decision(mona, in_force, swap["id"])["problems"] == [words]
         assert refusals(decide(mona, in_force, swap["id"], "approve"), 409) == [words]

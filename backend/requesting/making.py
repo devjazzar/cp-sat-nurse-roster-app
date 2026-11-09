@@ -23,7 +23,7 @@ from requesting.models import (LIVE, Preference, PreferenceKind, PreferenceState
                                RequestWindow, Step, WindowState)
 from requesting.windows import catch_up, not_closed, state_today
 from rosters.drafts import current_code
-from rosters.pins import Judge, bar_words, long_date
+from rosters.pins import Judge, long_date
 from units.models import Unit
 
 NO_CAP = ("This unit's request cap and preference cap are both 0, so its nurses could make neither requests nor preferences. "
@@ -128,7 +128,7 @@ def nurse_refusal(judge: Judge, nurse: NurseProfile, day: dt.date, asked: str | 
             return "shift", f"{asked} is not one of the {judge.unit.name} unit's shifts."
         case "barred":
             # Hers to read in full, as her own skills are on My month; a day off is still hers to ask for.
-            return "shift", (f"{bar_words(judge.bar(nurse.pk, day), 'Your')}, so you can work no shift on {long_date(day)}. "
+            return "shift", (f"{judge.bar_said(nurse.pk, day, 'Your')}, so you can work no shift on {long_date(day)}. "
                              "You can still ask for the day off.")
         case "shift_not_allowed":
             return "shift", f"{asked} is not one of the shifts you work."

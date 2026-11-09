@@ -137,9 +137,9 @@ def barred_from(skills: dict[str, str | None], required: list[str], month: dt.da
     it and a tie going to the first name, so a refusal names the skill the solver's `skill_expired` names. None when nothing
     bars her. `skills` is her block in a solve input (`nurses.rostering.skills_block`)."""
     last, before = membership.last_day_of(month), month - dt.timedelta(days=1)
-    ends = sorted((max(dt.date.fromisoformat(expiry), before), name, dt.date.fromisoformat(expiry))
-                  for name, expiry in skills.items() if name in required and expiry is not None and expiry < last.isoformat())
-    return Bar(ends[0][1], ends[0][2]) if ends else None
+    ends = [Bar(name, dt.date.fromisoformat(expiry)) for name, expiry in skills.items()
+            if name in required and expiry is not None and expiry < last.isoformat()]
+    return min(ends, key=lambda bar: (max(bar.last, before), bar.skill), default=None)
 
 
 def _renamed_in_histories(assembled: Assembled) -> dict[str, str]:

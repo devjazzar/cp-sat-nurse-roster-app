@@ -59,6 +59,12 @@ class Judge:
         bar = self.bars.get(nurse_id)
         return bar if bar is not None and day >= bar.first else None
 
+    def bar_said(self, nurse_id, day: dt.date, whose: str) -> str:
+        """"Amal's BLS, required to work, counted until 20 June 2026", with `whose` "Amal's" or "Your": how every sentence that
+        says the bar on her day in full begins. Only for a day `bar` holds."""
+        bar = self.bar(nurse_id, day)
+        return f"{whose} {bar.skill}, required to work, counted until {long_date(bar.last)}"
+
     def shift_why(self, nurse_id, day: dt.date, shift: Shift | None) -> AsideWhy | None:
         """Why she could not work this shift on this day. A day off is always hers, a barred day's too, as a leave day's is."""
         if shift is None:
@@ -89,16 +95,10 @@ class Judge:
             case "shift_not_worked":
                 return f"{asked} is not one of this unit's shifts."
             case "barred":
-                whose = f"{name}'s"
-                return f"{bar_words(self.bar(nurse_id, day), whose)}, so {name} can work no shift on {long_date(day)}."
+                return f"{self.bar_said(nurse_id, day, name + "'s")}, so {name} can work no shift on {long_date(day)}."
             case "shift_not_allowed":
                 return f"{shift.code} is not one of {name}'s allowed shifts."
         return None
-
-
-def bar_words(bar: Bar, whose: str) -> str:
-    """"Amal's BLS, required to work, counted until 20 June 2026": the start of every sentence that says a bar in full."""
-    return f"{whose} {bar.skill}, required to work, counted until {long_date(bar.last)}"
 
 
 @dataclass

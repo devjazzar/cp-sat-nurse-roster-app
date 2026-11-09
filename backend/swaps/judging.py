@@ -22,7 +22,7 @@ from requesting.models import what_of
 from rosters.approved import ApprovedMonth, Change, newly_broken, with_pins
 from rosters.editing import Checked, scored
 from rosters.models import PinOrigin, Roster
-from rosters.pins import bar_words, long_date
+from rosters.pins import long_date
 from rosters.versions import Grid
 from solves.input import assemble
 from solves.result import in_dates
@@ -127,7 +127,7 @@ def _cell_problem(month: SwapMonth, change: Change, index: int, proposer: NurseP
         case "barred":
             # A colleague's skills are hers (ticket 38), hidden as her leave is; the proposer's own are said in full.
             manager = month.judge.refusal(nurse.pk, name, change.date, shift.code, shift)
-            own = f"{bar_words(month.judge.bar(nurse.pk, change.date), 'Your')}, so you can work no shift on {on}."
+            own = f"{month.judge.bar_said(nurse.pk, change.date, 'Your')}, so you can work no shift on {on}."
             return Problem(manager, own if mine else hidden, index)
         case "shift_not_allowed":
             manager = month.judge.refusal(nurse.pk, name, change.date, shift.code, shift)
