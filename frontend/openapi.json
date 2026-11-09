@@ -6272,6 +6272,145 @@
         ]
       }
     },
+    "/api/notifications/push/state": {
+      "post": {
+        "operationId": "readPushState",
+        "summary": "Read State",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushState"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "push"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThisDevice"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/push/on": {
+      "post": {
+        "operationId": "turnPushOn",
+        "summary": "Turn On",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushState"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "push"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TurnOn"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/push/off": {
+      "post": {
+        "operationId": "turnPushOff",
+        "summary": "Turn Off",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushState"
+                }
+              }
+            }
+          }
+        },
+        "description": "The same answer whether or not the address was this user's.",
+        "tags": [
+          "push"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TurnOff"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/push/off-everywhere": {
+      "post": {
+        "operationId": "turnPushOffEverywhere",
+        "summary": "Turn Off Everywhere",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushState"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "push"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/notifications/unread": {
       "get": {
         "operationId": "countUnreadNotifications",
@@ -16742,6 +16881,124 @@
         ],
         "title": "ExpiryState",
         "type": "string"
+      },
+      "PushState": {
+        "properties": {
+          "public_key": {
+            "description": "The installation's public key, base64url, as `applicationServerKey` takes it.",
+            "title": "Public Key",
+            "type": "string"
+          },
+          "this_device": {
+            "description": "Whether the address given is held for this user.",
+            "title": "This Device",
+            "type": "boolean"
+          },
+          "devices": {
+            "description": "How many devices of this user pushes are on for.",
+            "title": "Devices",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "public_key",
+          "this_device",
+          "devices"
+        ],
+        "title": "PushState",
+        "type": "object"
+      },
+      "ThisDevice": {
+        "properties": {
+          "endpoint": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "pattern": "^https://\\S+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The browser's current subscription's address, if it has one.",
+            "title": "Endpoint"
+          }
+        },
+        "title": "ThisDevice",
+        "type": "object"
+      },
+      "SubscriptionKeys": {
+        "properties": {
+          "p256dh": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+={0,2}$",
+            "title": "P256Dh",
+            "type": "string"
+          },
+          "auth": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+={0,2}$",
+            "title": "Auth",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "SubscriptionKeys",
+        "type": "object"
+      },
+      "TurnOn": {
+        "properties": {
+          "endpoint": {
+            "maxLength": 2000,
+            "pattern": "^https://\\S+$",
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/SubscriptionKeys"
+          },
+          "replaces": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "pattern": "^https://\\S+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An address of this user's that this one replaces: a subscription the browser renewed, or one bound to a public key since replaced.",
+            "title": "Replaces"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "TurnOn",
+        "type": "object"
+      },
+      "TurnOff": {
+        "properties": {
+          "endpoint": {
+            "maxLength": 2000,
+            "pattern": "^https://\\S+$",
+            "title": "Endpoint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint"
+        ],
+        "title": "TurnOff",
+        "type": "object"
       },
       "Unread": {
         "properties": {

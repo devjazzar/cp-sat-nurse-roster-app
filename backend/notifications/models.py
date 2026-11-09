@@ -49,3 +49,31 @@ class Notification(models.Model):
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [models.Index(fields=["user", "-created_at"], name="notifications_newest_a_user")]
+
+
+class PushKeyPair(models.Model):
+    """The installation's own VAPID key pair, one row (ADR 0012): it names this installation to the browsers' push services, and
+    every push subscription is bound to its public key. Kept in the database, so a backup brings it back with the subscriptions
+    it serves. Made at first start (`notifications.push_keys`); replaced only by `rotate_push_keys`."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    private_key = models.TextField(help_text="PEM, PKCS #8, of a P-256 key.")
+    public_key = models.CharField(max_length=100, help_text="The uncompressed point, base64url without padding.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(id=1), name="push_key_pair_one_row")]
+
+
+class PushSubscription(models.Model):
+    """A device's standing permission to be sent pushes for one user (GLOSSARY). Nothing of the device beyond what the push
+    service gave it: no user agent, no name, no IP. Deleted when it ends, since it is no one's record."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="push_subscriptions")
+    endpoint = models.URLField(max_length=2000, unique=True, help_text="The push service's address for this device.")
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=100)
+    turned_on_at = models.DateTimeField(auto_now_add=True)
+    failures_in_a_row = models.PositiveIntegerField(default=0)
+    last_success_at = models.DateTimeField(null=True, blank=True)

@@ -5802,6 +5802,94 @@ export const ListExpiriesResponse = zod.object({
 
 
 /**
+ * @summary Read State
+ */
+export const readPushStateBodyEndpointOneMax = 2000;
+
+
+export const readPushStateBodyEndpointOneRegExp = new RegExp('^https://\\S+$');
+
+
+export const ReadPushStateBody = zod.object({
+  "endpoint": zod.union([zod.string().max(readPushStateBodyEndpointOneMax).regex(readPushStateBodyEndpointOneRegExp),zod.null()]).optional().describe('The browser\'s current subscription\'s address, if it has one.')
+})
+
+export const ReadPushStateResponse = zod.object({
+  "public_key": zod.string().describe('The installation\'s public key, base64url, as `applicationServerKey` takes it.'),
+  "this_device": zod.boolean().describe('Whether the address given is held for this user.'),
+  "devices": zod.int().describe('How many devices of this user pushes are on for.')
+})
+
+
+/**
+ * @summary Turn On
+ */
+export const turnPushOnBodyEndpointMax = 2000;
+
+
+export const turnPushOnBodyEndpointRegExp = new RegExp('^https://\\S+$');
+export const turnPushOnBodyKeysP256dhMax = 200;
+
+
+export const turnPushOnBodyKeysP256dhRegExp = new RegExp('^[A-Za-z0-9_-]+={0,2}$');
+export const turnPushOnBodyKeysAuthMax = 200;
+
+
+export const turnPushOnBodyKeysAuthRegExp = new RegExp('^[A-Za-z0-9_-]+={0,2}$');
+export const turnPushOnBodyReplacesOneMax = 2000;
+
+
+export const turnPushOnBodyReplacesOneRegExp = new RegExp('^https://\\S+$');
+
+
+export const TurnPushOnBody = zod.object({
+  "endpoint": zod.string().max(turnPushOnBodyEndpointMax).regex(turnPushOnBodyEndpointRegExp),
+  "keys": zod.object({
+  "p256dh": zod.string().min(1).max(turnPushOnBodyKeysP256dhMax).regex(turnPushOnBodyKeysP256dhRegExp),
+  "auth": zod.string().min(1).max(turnPushOnBodyKeysAuthMax).regex(turnPushOnBodyKeysAuthRegExp)
+}),
+  "replaces": zod.union([zod.string().max(turnPushOnBodyReplacesOneMax).regex(turnPushOnBodyReplacesOneRegExp),zod.null()]).optional().describe('An address of this user\'s that this one replaces: a subscription the browser renewed, or one bound to a public key since replaced.')
+})
+
+export const TurnPushOnResponse = zod.object({
+  "public_key": zod.string().describe('The installation\'s public key, base64url, as `applicationServerKey` takes it.'),
+  "this_device": zod.boolean().describe('Whether the address given is held for this user.'),
+  "devices": zod.int().describe('How many devices of this user pushes are on for.')
+})
+
+
+/**
+ * The same answer whether or not the address was this user's.
+ * @summary Turn Off
+ */
+export const turnPushOffBodyEndpointMax = 2000;
+
+
+export const turnPushOffBodyEndpointRegExp = new RegExp('^https://\\S+$');
+
+
+export const TurnPushOffBody = zod.object({
+  "endpoint": zod.string().max(turnPushOffBodyEndpointMax).regex(turnPushOffBodyEndpointRegExp)
+})
+
+export const TurnPushOffResponse = zod.object({
+  "public_key": zod.string().describe('The installation\'s public key, base64url, as `applicationServerKey` takes it.'),
+  "this_device": zod.boolean().describe('Whether the address given is held for this user.'),
+  "devices": zod.int().describe('How many devices of this user pushes are on for.')
+})
+
+
+/**
+ * @summary Turn Off Everywhere
+ */
+export const TurnPushOffEverywhereResponse = zod.object({
+  "public_key": zod.string().describe('The installation\'s public key, base64url, as `applicationServerKey` takes it.'),
+  "this_device": zod.boolean().describe('Whether the address given is held for this user.'),
+  "devices": zod.int().describe('How many devices of this user pushes are on for.')
+})
+
+
+/**
  * What the bell polls. A test holds that it is not activity.
  * @summary Unread
  */

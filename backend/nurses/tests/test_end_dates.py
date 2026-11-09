@@ -7,6 +7,7 @@ from accounts.models import Role, User
 from accounts.tests.test_authorization import ENDPOINTS
 from audit.models import AuditEntry
 from conftest import post
+from notifications.models import PushSubscription
 from nurses.models import NurseProfile
 from nurses.tasks import close_ended_nurses
 from nurses.tests.conftest import NURSES, added, message, refused_fields
@@ -85,6 +86,28 @@ def test_the_job_deactivates_everyone_whose_last_day_is_over_and_nobody_else(cno
     entries = AuditEntry.objects.filter(action="user.deactivated")
     assert entries.count() == before + 6
     assert entries.filter(target="h123").get().actor is None
+
+
+def test_the_job_ends_their_push_subscriptions_and_nobody_elses(cno, er, on_day, added_nurse):
+    end(cno, added_nurse["nurse"]["id"], "2026-11-20")
+    stays = User.objects.get(username=added(cno, er, hospital_id="stays")["nurse"]["hospital_id"])
+    for owner, device in [(User.objects.get(username="h123"), "phone"), (stays, "phone-2")]:
+        PushSubscription.objects.create(user=owner, endpoint=f"https://fcm.googleapis.com/fcm/send/{device}", p256dh="k",
+                                        auth="a")
+    on_day(2026, 11, 21)
+
+    close_ended_nurses(timestamp=0)
+
+    assert list(PushSubscription.objects.values_list("user__username", flat=True)) == ["stays"]
+
+
+def test_an_end_date_today_ends_their_push_subscriptions_at_once(cno, nurse):
+    PushSubscription.objects.create(user=User.objects.get(username="h123"), endpoint="https://fcm.googleapis.com/fcm/send/p",
+                                    p256dh="k", auth="a")
+
+    end(cno, nurse, "2026-11-15")
+
+    assert not PushSubscription.objects.exists()
 
 
 def test_the_job_twice_does_nothing_more(cno, nurse, on_day):

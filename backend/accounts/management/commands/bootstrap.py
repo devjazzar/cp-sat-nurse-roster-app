@@ -7,17 +7,21 @@ from accounts.models import Role, User
 from audit.log import record
 from hospital.catalogue import seed_catalogue
 from hospital.models import HospitalSettings
+from notifications import push_keys
 
 USERNAME = "admin"
 
 
 class Command(BaseCommand):
-    help = "First start: seeds the hospital rules and the catalogue, and creates the System Admin from INITIAL_ADMIN_PASSWORD."
+    help = ("First start: seeds the hospital rules and the catalogue, makes the push key pair, and creates the System Admin "
+            "from INITIAL_ADMIN_PASSWORD.")
 
     def handle(self, *args, **options):
         # Before the return below: an installation may predate these.
         HospitalSettings.load()
         seed_catalogue()
+        if push_keys.ensure():
+            self.stdout.write("Made the installation's push key pair.")
         if User.objects.filter(role=Role.SYSTEM_ADMIN).exists():
             return
         password = os.environ.get("INITIAL_ADMIN_PASSWORD", "")

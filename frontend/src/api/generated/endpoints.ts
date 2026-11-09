@@ -126,6 +126,7 @@ import type {
   ProposeSwapBody,
   PublicHolidayBody,
   PublicHolidaySchema,
+  PushState,
   RamadanFix,
   RamadanMonth,
   ReactivateRefusal,
@@ -153,7 +154,10 @@ import type {
   SwapComposer,
   SwapDecision,
   TechnicalSettingsSchema,
+  ThisDevice,
   TransferBody,
+  TurnOff,
+  TurnOn,
   UnitBody,
   UnitCovers,
   UnitHistory,
@@ -13074,6 +13078,345 @@ export function useListExpiries<TData = Awaited<ReturnType<typeof listExpiries>>
 
 
 
+
+export const getReadPushStateUrl = () => {
+
+
+
+
+  return `/api/notifications/push/state`
+}
+
+/**
+ * @summary Read State
+ */
+export const readPushState = async (thisDevice: ThisDevice, options?: Parameters<typeof apiFetch>[1]): Promise<PushState> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PushState>(getReadPushStateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(thisDevice)
+  }
+);}
+
+
+
+
+
+export const getReadPushStateMutationKey = () => ['readPushState'] as const;
+
+export const getReadPushStateMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readPushState>>, TError,ReadPushStateMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof readPushState>>, TError,ReadPushStateMutationVariables, TContext> => {
+
+const mutationKey = getReadPushStateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof readPushState>>, ReadPushStateMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  readPushState(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReadPushStateMutationResult = NonNullable<Awaited<ReturnType<typeof readPushState>>>
+    export type ReadPushStateMutationBody = ThisDevice
+    export type ReadPushStateMutationError = unknown
+    export type ReadPushStateMutationVariables = {data: ThisDevice}
+
+    /**
+ * @summary Read State
+ */
+export const useReadPushState = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readPushState>>, TError,ReadPushStateMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof readPushState>>,
+        TError,
+        ReadPushStateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReadPushStateMutationOptions(options), queryClient);
+    }
+
+export const getTurnPushOnUrl = () => {
+
+
+
+
+  return `/api/notifications/push/on`
+}
+
+/**
+ * @summary Turn On
+ */
+export const turnPushOn = async (turnOn: TurnOn, options?: Parameters<typeof apiFetch>[1]): Promise<PushState> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PushState>(getTurnPushOnUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(turnOn)
+  }
+);}
+
+
+
+
+
+export const getTurnPushOnMutationKey = () => ['turnPushOn'] as const;
+
+export const getTurnPushOnMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof turnPushOn>>, TError,TurnPushOnMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof turnPushOn>>, TError,TurnPushOnMutationVariables, TContext> => {
+
+const mutationKey = getTurnPushOnMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof turnPushOn>>, TurnPushOnMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  turnPushOn(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TurnPushOnMutationResult = NonNullable<Awaited<ReturnType<typeof turnPushOn>>>
+    export type TurnPushOnMutationBody = TurnOn
+    export type TurnPushOnMutationError = unknown
+    export type TurnPushOnMutationVariables = {data: TurnOn}
+
+    /**
+ * @summary Turn On
+ */
+export const useTurnPushOn = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof turnPushOn>>, TError,TurnPushOnMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof turnPushOn>>,
+        TError,
+        TurnPushOnMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTurnPushOnMutationOptions(options), queryClient);
+    }
+
+export const getTurnPushOffUrl = () => {
+
+
+
+
+  return `/api/notifications/push/off`
+}
+
+/**
+ * The same answer whether or not the address was this user's.
+ * @summary Turn Off
+ */
+export const turnPushOff = async (turnOff: TurnOff, options?: Parameters<typeof apiFetch>[1]): Promise<PushState> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PushState>(getTurnPushOffUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(turnOff)
+  }
+);}
+
+
+
+
+
+export const getTurnPushOffMutationKey = () => ['turnPushOff'] as const;
+
+export const getTurnPushOffMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof turnPushOff>>, TError,TurnPushOffMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof turnPushOff>>, TError,TurnPushOffMutationVariables, TContext> => {
+
+const mutationKey = getTurnPushOffMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof turnPushOff>>, TurnPushOffMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  turnPushOff(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TurnPushOffMutationResult = NonNullable<Awaited<ReturnType<typeof turnPushOff>>>
+    export type TurnPushOffMutationBody = TurnOff
+    export type TurnPushOffMutationError = unknown
+    export type TurnPushOffMutationVariables = {data: TurnOff}
+
+    /**
+ * @summary Turn Off
+ */
+export const useTurnPushOff = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof turnPushOff>>, TError,TurnPushOffMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof turnPushOff>>,
+        TError,
+        TurnPushOffMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTurnPushOffMutationOptions(options), queryClient);
+    }
+
+export const getTurnPushOffEverywhereUrl = () => {
+
+
+
+
+  return `/api/notifications/push/off-everywhere`
+}
+
+/**
+ * @summary Turn Off Everywhere
+ */
+export const turnPushOffEverywhere = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PushState> => {
+
+  return apiFetch<PushState>(getTurnPushOffEverywhereUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTurnPushOffEverywhereMutationKey = () => ['turnPushOffEverywhere'] as const;
+
+export const getTurnPushOffEverywhereMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof turnPushOffEverywhere>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof turnPushOffEverywhere>>, TError,void, TContext> => {
+
+const mutationKey = getTurnPushOffEverywhereMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof turnPushOffEverywhere>>, void> = () => {
+
+
+          return  turnPushOffEverywhere(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TurnPushOffEverywhereMutationResult = NonNullable<Awaited<ReturnType<typeof turnPushOffEverywhere>>>
+
+    export type TurnPushOffEverywhereMutationError = unknown
+
+
+    /**
+ * @summary Turn Off Everywhere
+ */
+export const useTurnPushOffEverywhere = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof turnPushOffEverywhere>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof turnPushOffEverywhere>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getTurnPushOffEverywhereMutationOptions(options), queryClient);
+    }
 
 export const getCountUnreadNotificationsUrl = () => {
 

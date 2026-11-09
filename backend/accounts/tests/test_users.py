@@ -13,6 +13,7 @@ from accounts.models import LoginAttempts, Role, User
 from accounts.provisioning import generate_password
 from audit.models import AuditEntry
 from conftest import PASSWORD, post
+from notifications.models import PushSubscription
 
 pytestmark = pytest.mark.django_db
 
@@ -213,6 +214,18 @@ class TestDeactivate:
         assert r.status_code == 200 and r.json()["is_active"] is False
         assert client.get("/api/auth/session").json() == {"user": None}
         assert login("the-cno", PASSWORD)[1].status_code == 401
+
+    def test_every_push_subscription_of_theirs_ends_and_nobody_elses(self, admin, make_user):
+        user = make_user("the-cno", Role.CNO)
+        other = make_user("the-deputy", Role.DEPUTY_CNO)
+        for owner, device in [(user, "phone"), (user, "laptop"), (other, "phone-2")]:
+            PushSubscription.objects.create(user=owner, endpoint=f"https://fcm.googleapis.com/fcm/send/{device}", p256dh="k",
+                                            auth="a")
+
+        act(admin, user.pk, "deactivate")
+
+        assert list(PushSubscription.objects.values_list("user__username", flat=True)) == ["the-deputy"]
+        assert not AuditEntry.objects.filter(action__startswith="push.").exists()
 
     def test_only_their_sessions_end(self, admin, make_user):
         user = make_user("the-cno", Role.CNO)

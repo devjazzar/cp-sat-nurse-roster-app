@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from accounts.models import ONE_OF_A_KIND_CONSTRAINTS, LoginAttempts, User
 from audit.log import record
+from notifications import subscriptions
 from nurses.membership import archived_unit_in_the_way
 from units.assignment import release_managed_unit
 from units.models import Unit
@@ -114,6 +115,7 @@ def deactivate(request: HttpRequest, user_id) -> User:
             user.is_active = False
             user.save(update_fields=["is_active"])
             _end_sessions({str(user.pk)})
+            subscriptions.end_for([user.pk])
             record("user.deactivated", actor=request.user, target=user.username, request=request,
                    before={"is_active": True}, after={"is_active": False})
             release_managed_unit(request, user)
@@ -134,6 +136,7 @@ def deactivate_many(users: QuerySet[User]) -> None:
             return
         User.objects.filter(pk__in=[user.pk for user in leaving]).update(is_active=False)
         _end_sessions({str(user.pk) for user in leaving})
+        subscriptions.end_for(user.pk for user in leaving)
         for user in leaving:
             record("user.deactivated", target=user.username, before={"is_active": True}, after={"is_active": False})
 

@@ -13,6 +13,7 @@ from closes.api import router as closes_router
 from hospital.api import router as hospital_router
 from hospital.catalogue_api import router as catalogue_router
 from notifications.api import router as notifications_router
+from notifications.push_api import router as push_router
 from nurses.api import router as nurses_router
 from nurses.attributes_api import router as nurse_attributes_router
 from nurses.files_api import router as nurse_files_router
@@ -64,4 +65,5 @@ api.add_router("/nurses", nurses_router)
 api.add_router("/nurses", nurse_files_router)
 api.add_router("/nurses", my_leave_router)
 api.add_router("/nurses", nurse_skills_router)
+api.add_router("/notifications/push", push_router)
 api.add_router("/notifications", notifications_router)
