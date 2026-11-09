@@ -523,7 +523,7 @@ Full runs changed it once more (the solver's problem schema 6; the solve input's
 the weights gain `excess_full_run`, the price of each full run beyond it (absent means 0); both are optional in either
 version, so every stored solve input and close input still loads and gives what it gave. A full run is a run of exactly the
 longest run (`max_consecutive_shifts`), leave ending a run as a day off does; it counts in the month that holds its last day,
-and one reaching the month's last day is not counted. The rule, `excess_full_run`, is priced only, never refused; its match
+one reaching the month's last day included (ticket 48: it cannot grow, as the next month reads it as history). The rule, `excess_full_run`, is priced only, never refused; its match
 names the nurse, her count and the cap, and the per-nurse explanation carries it as it carries weekends above the most. Until
 the app fills the two fields (ticket 48), nothing changes.
 

@@ -320,26 +320,16 @@ def test_a_version_2_input_is_solved_with_its_skills_and_scored_with_both_rules(
 
 
 # ---- full runs --------------------------------------------------------------------------------
-@pytest.fixture
-def capped(sample):
-    """The sample (fixtures/four_nurses.json, version 1) with full runs, four shifts in a row, capped at 3 a nurse at 4
-    each above it. The fixture file itself stays without them: the app's own tests load it as a unit's rules, which gain
-    the field in ticket 48."""
-    d = copy.deepcopy(sample)
-    d["department"]["max_full_runs"] = 3
-    d["general"]["weights"]["excess_full_run"] = 4
-    return d
-
-
-def test_the_sample_carries_the_full_run_cap_and_validate_prices_each_run_above_it(client, capped):
-    """The solve's result prices the rule; a roster giving Amal six full runs (four days, a day off, five times over, and
-    a day off to end the month) costs 3 x 4 for her, in her own explanation, in the solver's words."""
-    solved = wait_for(client, client.post("/solve", json=capped).json()["job_id"], ended)["result"]
+def test_the_sample_carries_the_full_run_cap_and_validate_prices_each_run_above_it(client, sample):
+    """The sample (fixtures/four_nurses.json, version 1) runs four shifts in a row and caps full runs at 3 a nurse, at 4
+    each above it. The solve's result prices the rule; a roster giving Amal six full runs (four days, a day off, five times
+    over, and a day off to end the month) costs 3 x 4 for her, in her own explanation, in the solver's words."""
+    solved = wait_for(client, client.post("/solve", json=sample).json()["job_id"], ended)["result"]
     assert solved["ok"] is True and "excess_full_run" in solved["penalties"]
     roster = copy.deepcopy(solved["roster"])
     roster["Amal"] = {f"2026-06-{d:02d}": "" if d % 5 == 0 else "D" for d in range(1, 31)}
 
-    v = client.post("/validate", json={"solve_input": capped, "roster": roster}).json()
+    v = client.post("/validate", json={"solve_input": sample, "roster": roster}).json()
 
     rule = next(r for r in v["rules"] if r["id"] == "excess_full_run")
     [match] = [m for m in rule["matches"] if m["nurse"] == "Amal"]

@@ -79,8 +79,8 @@ pages do not change.
 - A run is a stretch of consecutive worked days with a non-worked day on each side; leave is non-worked. A full run is a run
   of exactly the longest run (`max_consecutive_shifts`). With the longest run at 0 (unbounded) or 1, nothing is priced.
 - A full run counts in the month that holds its last day: a run begun in the history and ended inside the month counts in
-  the month; a run that reaches the month's last day is not counted (the month cannot see whether it ends there). See
-  Further Notes for the one run this leaves uncounted.
+  the month; a run that reaches the month's last day counts in that month too (see Further Notes; decided at the review
+  of ticket 47).
 - The cost per nurse is the weight times the number of her full runs beyond the cap, in the model's objective and in the
   validator's explanation alike, so a solve's cost and a validation of the same grid agree. The match names the nurse, the
   count and the cap, and the per-nurse explanation carries it as for weekends above the most.
@@ -110,7 +110,7 @@ seam.
 - **Seam 1, the solver's own suite and the service contract tests** (`solver/tests`, `solver/service_tests`): the loader
   accepts the field, treats it as absent = no cap, refuses a bad value; on a known grid counted by hand, full runs beyond the
   cap cost the weight each, in the model and the validator; a run ended by leave; a run begun in the history and ended in the
-  month counts; a run reaching the last day does not; the longest run at 0 and at 1 prices nothing; a weight of 0 prices
+  month counts; a run reaching the last day counts too; the longest run at 0 and at 1 prices nothing; a weight of 0 prices
   nothing; the contract test's sample request and result carry the field. Prior art: `test_request.py`, `test_rules.py`,
   `test_preferences.py`, `test_contract.py`.
 - **Seam 2, the backend API suite** on a throwaway PostgreSQL 18 with the scripted solver: the unit rule's default, edit,
@@ -133,9 +133,11 @@ seam.
 
 ## Further Notes
 
-- **A full run that ends exactly on the month's last day is counted by neither month.** The month cannot see that it ended
-  (the next day is the next month's), and the next month cannot change it (it is in the history), so pricing it there would
-  be a constant cost the search cannot avoid. Ticket 47 should confirm this reading in its Worth your review.
+- **A full run that ends exactly on the month's last day counts in that month.** This spec first left it counted by neither
+  month, reading that the month cannot see it end. Ticket 47 found it can: with the longest run hard, the run cannot grow, as
+  the next month's longest run reads it as history and forbids a shift on its first day. Left unpriced, it let a nurse carry
+  one free full run at the end of every month. The user decided at ticket 47's review to price it in the month that holds its
+  last day, without exception; ticket 48 made the change in the model and in `validate.count_full_runs`.
 - Capping full runs does not lower the month's shifts, so a nurse with fewer full runs works more, shorter runs: with 18
   shifts, a longest run of 3 and a cap of 2, at least 8 runs. The weight is what trades the two.
 - After ticket 48 lands, a re-plan of ER's December on the dev stack is the check that Layan Alharbi has at most three.

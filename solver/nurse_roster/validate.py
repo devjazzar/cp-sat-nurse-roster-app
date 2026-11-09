@@ -368,14 +368,14 @@ def _excess_weekend(c: Ctx) -> list[Match]:
 
 def count_full_runs(seq: list[int], H: int, K: int) -> int:
     """Full runs on a history + month sequence (shift index, -1 = off): runs of exactly K worked
-    days whose last day is a month day (index H or later) before the month's last, so the day
-    after it, off, is seen. A run counts in the month that holds its last day; one reaching the
-    month's last day is not counted (that month cannot see it end, the next cannot change it).
-    The start of the sequence bounds a run like an off day, as for `_consecutive`."""
+    days whose last day is a month day (index H or later), followed by an off day or the month's
+    end. A run counts in the month that holds its last day, one reaching the month's last day
+    included: it cannot grow, since the next month's longest run reads it as history. The start
+    of the sequence bounds a run like an off day, as for `_consecutive`."""
     k = run = 0
     for t, v in enumerate(seq):
         run = run + 1 if v >= 0 else 0
-        if run == K and H <= t < len(seq) - 1 and seq[t + 1] < 0:
+        if run == K and t >= H and (t == len(seq) - 1 or seq[t + 1] < 0):
             k += 1
     return k
 

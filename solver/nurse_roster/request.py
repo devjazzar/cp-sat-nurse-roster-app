@@ -60,8 +60,8 @@ Full runs (2026-11-09, ticket 47 of the app) add two fields, optional in either 
 stored input still loads and gives what it gave: `department.max_full_runs`, the most full runs (runs
 of exactly `max_consecutive_shifts` shifts) a nurse may work in the month, a whole number 0..31,
 absent or null = no cap; and `general.weights.excess_full_run`, the price of each one above it,
-absent = 0. A full run counts in the month that holds its last day, and one reaching the month's
-last day is not counted (`validate.count_full_runs`).
+absent = 0. A full run counts in the month that holds its last day, one reaching the month's last
+day included (`validate.count_full_runs`).
 """
 from __future__ import annotations
 

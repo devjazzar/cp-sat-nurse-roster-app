@@ -38,6 +38,7 @@
    "score_deficit": 0,
    "score_spread": 0,
    "excess_weekend": 0,
+   "excess_full_run": 4,
    "shift_switch": 8,
    "undesired_day": 2,
    "desired_day": 1,
@@ -92,6 +93,7 @@
   "max_consecutive_shifts": 4,
   "double_cycle_rest": 2,
   "max_weekends": 3,
+  "max_full_runs": 3,
   "no_mixed_blocks": true,
   "max_switches": 2,
   "switches_hard": false

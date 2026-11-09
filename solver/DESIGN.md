@@ -286,10 +286,13 @@ Full runs (2026-11-09, ticket 47 of the app), one soft rule beside the run rules
   every run would be full). A run is consecutive worked days with a non-worked day, leave
   included, on each side; a **full run** is one of exactly `max_consecutive_shifts`. Each nurse's
   full runs beyond the cap cost the weight once each: per nurse `ex ≥ Σ fr − cap`, where `fr` is
-  one literal per month day t before the last, forced to 1 by the clause "K worked days to t, off
-  on t + 1, off on t − K" (held at 0 by the objective otherwise). A run counts in the month that
-  holds its last day: one begun in the history and ended in the month counts; one ending in the
-  history does not; one reaching the month's last day is not counted (`validate.count_full_runs`).
+  one literal per month day t, forced to 1 by the clause "K worked days to t, off on t + 1 (none
+  at the month's last day), off on t − K" (held at 0 by the objective otherwise). A run counts in
+  the month that holds its last day: one begun in the history and ended in the month counts; one
+  ending in the history does not; one reaching the month's last day counts in this month
+  (`validate.count_full_runs`): with the longest run hard it cannot grow, as the next month reads
+  it as history, so leaving it unpriced would let a nurse park one free full run at the end of
+  every month (ticket 48 of the app; ticket 47 first left it uncounted).
   The start of a nurse's own history bounds a run like an off day, in model and validator alike;
   the free padding before a short history is never read (the solver would fill it to make the
   run look longer). Elapsed days count, as for every soft rule. A run longer than the longest run

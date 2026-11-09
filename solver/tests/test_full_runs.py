@@ -1,7 +1,7 @@
 """Full runs (spec full-runs.md, GLOSSARY Run and Full run): a run is a nurse's consecutive worked days with a non-worked
 day on each side, leave included; a full run is one of exactly the longest run (`max_consecutive_shifts`). Each of a
 nurse's full runs beyond the unit's `max_full_runs` costs `excess_full_run` once. A full run counts in the month that holds
-its last day, and one reaching the month's last day is not counted. Constraint-verifier style: tiny months counted by
+its last day, one reaching the month's last day included. Constraint-verifier style: tiny months counted by
 hand, the model held to the validator, then the request's fields and refusals, then the ER sample."""
 from __future__ import annotations
 
@@ -115,13 +115,24 @@ def test_a_history_shift_the_unit_no_longer_works_is_a_worked_day_of_the_run():
 
 
 @pytest.mark.parametrize("row, count", [
-    (runs(".....", "WWW"), 0),                      # reaches the month's last day: not counted
+    (runs(".....", "WWW"), 1),                      # reaches the month's last day: it cannot grow, so it is this month's
     (runs("....", "WWW."), 1),                      # ends the day before it
+    (runs("WWW.", ".WWW"), 2),
+    (runs("......", "WW"), 0),                      # a run of 2 at the month's end is not full
 ])
-def test_a_run_reaching_the_months_last_day_is_not_counted(row, count):
+def test_a_run_reaching_the_months_last_day_counts_in_that_month(row, count):
     p = unit([Nurse("a")], 8, cap=0)
 
     assert penalises(p, [row], "excess_full_run") == 4 * count
+
+
+def test_the_solver_prices_a_run_reaching_the_months_last_day_as_the_validator_does():
+    p = unit([Nurse("a")], 8, cap=0)
+    row = runs(".....", "WWW")
+
+    sol = force(p, row)
+
+    assert sol.status == "OPTIMAL" and sol.solver_objective == sol.objective == 4
 
 
 def test_the_solver_cannot_fill_the_days_before_a_short_history_to_dodge_the_price():
@@ -234,11 +245,11 @@ def test_a_problem_file_must_carry_both_fields():
 # ---- the ER sample -------------------------------------------------------------------------------
 def full_runs(p: Problem, a: list[list[int]]) -> dict[str, int]:
     """Each nurse's full runs, read off her history and month as text, apart from the validator's counter: every maximal
-    stretch of exactly the longest run of W, followed by a day off, whose last day is a month day."""
+    stretch of exactly the longest run of W, followed by a day off or the month's end, whose last day is a month day."""
     K, out = p.department.max_consecutive_shifts, {}
     for nu, row in zip(p.nurses, a):
         text = "".join("W" if s else "." for s in nu.previous) + "".join("W" if v >= 0 else "." for v in row)
-        ends = [m.end() - 1 for m in re.finditer(r"(?<!W)W+(?=\.)", text) if m.end() - m.start() == K]
+        ends = [m.end() - 1 for m in re.finditer(r"(?<!W)W+(?=\.|$)", text) if m.end() - m.start() == K]
         out[nu.id] = sum(1 for e in ends if e >= len(nu.previous))
     return out
 

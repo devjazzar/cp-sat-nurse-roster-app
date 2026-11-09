@@ -203,7 +203,7 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `carry_fairness`, `carry_cap` | Let last month's `night_balance` / `friday_balance` shift this month's fair targets, by at most `carry_cap` shifts. |
 | `max_consecutive_shifts` | Hard: longest run of worked days (a "cycle"); 0 = no limit. |
 | `double_cycle_rest` | Hard: cycle, one day off, cycle ⇒ at least this many days off afterwards. |
-| `max_full_runs` | Soft: full runs (exactly `max_consecutive_shifts` worked days in a row, leave ending a run as a day off does) a nurse may work per month before `excess_full_run` applies; a whole number 0..31. Optional: absent or `null` means no cap. A run counts in the month that holds its last day (one begun in the history counts, one ending on the month's last day does not). Nothing is priced while `max_consecutive_shifts` is 0 or 1. |
+| `max_full_runs` | Soft: full runs (exactly `max_consecutive_shifts` worked days in a row, leave ending a run as a day off does) a nurse may work per month before `excess_full_run` applies; a whole number 0..31. Optional: absent or `null` means no cap. A run counts in the month that holds its last day (one begun in the history counts, and so does one ending on the month's last day). Nothing is priced while `max_consecutive_shifts` is 0 or 1. |
 | `max_weekends` | Soft: weekend days a nurse may work per month before `excess_weekend` applies. |
 | `no_mixed_blocks` | Hard: consecutive worked days are all day shifts or all night shifts. |
 | `max_switches`, `switches_hard` | Day/night switches allowed per month (the month boundary counts); hard, or priced by `shift_switch`. |
@@ -272,8 +272,8 @@ soft rules off. Save it as `small.json` and solve it.
     "overtime_month_cap": 40, "overtime_year_cap": 720, "dept_overtime_cap": 400,
     "weights": {"night_rest": 0, "dept_overtime": 1, "nurse_overtime": 1, "nurse_shortfall": 1,
                 "avoidable_shortfall": 1000, "fair_day": 1, "fair_night": 1, "fair_weekend": 1,
-                "score_deficit": 0, "score_spread": 0, "excess_weekend": 0, "shift_switch": 8,
-                "undesired_day": 2, "desired_day": 1, "change": 3}
+                "score_deficit": 0, "score_spread": 0, "excess_weekend": 0, "excess_full_run": 4,
+                "shift_switch": 8, "undesired_day": 2, "desired_day": 1, "change": 3}
   },
   "department": {
     "name": "Ward A", "shifts": ["D", "N"],
@@ -285,7 +285,7 @@ soft rules off. Save it as `small.json` and solve it.
     "night_shift": "N", "day_shift": "D", "night_rest_days": 2, "night_rest_hard": true,
     "fair_shifts": ["D", "N"], "fair_tolerance": 0.5, "fair_weekends": true,
     "carry_fairness": true, "carry_cap": 2.0,
-    "max_consecutive_shifts": 4, "double_cycle_rest": 2, "max_weekends": 3,
+    "max_consecutive_shifts": 4, "double_cycle_rest": 2, "max_weekends": 3, "max_full_runs": 3,
     "no_mixed_blocks": true, "max_switches": 2, "switches_hard": false
   },
   "nurses": [
