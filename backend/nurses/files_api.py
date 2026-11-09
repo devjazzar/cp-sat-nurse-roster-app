@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter
-from typing import Literal
 
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
@@ -137,7 +136,7 @@ class SkillImportRow(Schema):
     skill: str
     expiry: str = Field(description="As the file has it.")
     full_name: str = Field(description="The nurse's, when the hospital ID is hers; empty otherwise.")
-    change: Literal["record", "renew", "none"] | None = Field(
+    change: skills_importing.SkillImportChange | None = Field(
         description="What confirming does with a row that has no problem: records the skill, sets the expiry of the one she "
                     "holds, or nothing, since the file says what is already recorded.")
     held_expiry: dt.date | None = Field(description="The expiry a renewal replaces.")
@@ -181,19 +180,16 @@ def _save_skills(request: HttpRequest, lines: list[importing.Line], token: str) 
             raise _ChangedSincePreview
         meanings = [row.meaning for row in preview.rows]
         for meaning in meanings:
-            if meaning.change == skills_importing.Change.NONE:
+            if meaning.change == skills_importing.SkillImportChange.NONE:
                 continue
             if meaning.held is not None:
                 end_record(meaning.held, request.user)
             NurseSkill.objects.create(nurse=meaning.nurse, skill=meaning.skill, expiry=meaning.expiry, recorded_by=request.user)
         changes = Counter(meaning.change for meaning in meanings)
-        # Who and how many rows, and nothing from the file: the System Admin reads the log, not the file.
+        # Who and how many rows, and nothing from the file, not even whose skills: the System Admin reads the log, not the file.
         record("nurse.skills_imported", actor=request.user, request=request, after={"count": len(meanings)})
-        for username in sorted({meaning.nurse.user.username for meaning in meanings
-                                if meaning.change != skills_importing.Change.NONE}, key=str.lower):
-            record("nurse.skills_changed", actor=request.user, target=username, request=request)
-    return SkillImportDone(recorded=changes[skills_importing.Change.RECORD], renewed=changes[skills_importing.Change.RENEW],
-                           unchanged=changes[skills_importing.Change.NONE])
+    done = skills_importing.SkillImportChange
+    return SkillImportDone(recorded=changes[done.RECORD], renewed=changes[done.RENEW], unchanged=changes[done.NONE])
 
 
 @router.post("/skills-import/confirm", response={200: SkillImportDone, 409: SkillImportPreview}, auth=cno,

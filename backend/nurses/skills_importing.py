@@ -10,6 +10,9 @@ import datetime as dt
 import hashlib
 import json
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+from uuid import UUID
 
 from django.db.models.functions import Lower
 from pydantic import TypeAdapter
@@ -25,14 +28,15 @@ SKILLS_FILE = Layout(COLUMNS, "skill", "skills", "", "a skill name that has a co
 _EXPIRY = TypeAdapter(IsoDate)
 
 
-class Change:
+class SkillImportChange(StrEnum):
+    """What confirming does with a row that has no problem."""
     RECORD = "record"
     RENEW = "renew"
     NONE = "none"
 
 
 @dataclass(frozen=True)
-class SkillLine:
+class RowMeaning:
     """What a row means when there is no problem with it."""
     nurse: NurseProfile
     skill: Skill
@@ -40,13 +44,13 @@ class SkillLine:
     held: NurseSkill | None  # Her current record of the skill, which a renewal ends.
 
     @property
-    def change(self) -> str:
+    def change(self) -> SkillImportChange:
         if self.held is None:
-            return Change.RECORD
-        return Change.NONE if held_expiry(self.held) == self.expiry else Change.RENEW
+            return SkillImportChange.RECORD
+        return SkillImportChange.NONE if counted_expiry(self.held) == self.expiry else SkillImportChange.RENEW
 
 
-def held_expiry(row: NurseSkill) -> dt.date | None:
+def counted_expiry(row: NurseSkill) -> dt.date | None:
     """The expiry as it counts: none for a kind that no longer expires, whatever date is kept (`renew_skill`'s reading)."""
     return row.expiry if row.skill.expires else None
 
@@ -60,15 +64,15 @@ class Row:
     expiry: str = ""
     full_name: str = ""
     problems: list[Problem] = field(default_factory=list)
-    meaning: SkillLine | None = None
+    meaning: RowMeaning | None = None
 
     @property
-    def change(self) -> str | None:
+    def change(self) -> SkillImportChange | None:
         return self.meaning.change if self.meaning else None
 
     @property
     def held_expiry(self) -> dt.date | None:
-        return held_expiry(self.meaning.held) if self.meaning and self.meaning.held else None
+        return counted_expiry(self.meaning.held) if self.meaning and self.meaning.held else None
 
 
 @dataclass(frozen=True)
@@ -83,7 +87,7 @@ class _Standing:
     lines_by_key: dict[tuple[str, str], list[int]]
     nurses: dict[str, NurseProfile]  # By hospital ID in lower case.
     skills: dict[str, Skill]  # By name in lower case: unique in any case of letters.
-    held: dict[tuple, NurseSkill]  # By (nurse, skill).
+    held: dict[tuple[UUID, UUID], NurseSkill]  # By (nurse, skill).
 
 
 def _key(line: Line) -> tuple[str, str] | None:
@@ -137,7 +141,7 @@ def _judged(line: Line, standing: _Standing) -> Row:
         row.problems.append(Problem("expiry", f"{skill.name} expires. Enter the last day it counts, as YYYY-MM-DD."))
 
     if not row.problems:
-        row.meaning = SkillLine(nurse, skill, expiry, standing.held.get((nurse.pk, skill.pk)))
+        row.meaning = RowMeaning(nurse, skill, expiry, standing.held.get((nurse.pk, skill.pk)))
     return row
 
 
@@ -153,7 +157,7 @@ def _token(rows: list[Row]) -> str:
 def nurse_ids(lines: list[Line]) -> set[str]:
     """Each possible hospital ID in the file, in lower case. Only possible ones, as the database is asked about these and
     cannot take a NUL."""
-    return {hospital_id.lower() for line in lines if len(line.cells) == len(COLUMNS)
+    return {hospital_id.lower() for line in lines if not wrong_cell_count(line, SKILLS_FILE)
             if (hospital_id := parsed(HOSPITAL_ID, line.cells[0].strip()))}
 
 

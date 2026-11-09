@@ -26,10 +26,10 @@ type Check<Preview> = UseMutationResult<Preview, unknown, { data: { file: Blob }
 
 /** Choosing a CSV file and sending it to be checked, for every import. `lines` names what the file holds, as the
  *  server's refusal of a file over the size limit does: "nurses", "skills". */
-export function CheckFileForm<Preview>({ check, lines, adding, checking, onChecking, onChecked }: {
+export function CheckFileForm<Preview>({ check, lines, confirming, checking, onChecking, onChecked }: {
   check: Check<Preview>
   lines: string
-  adding: boolean
+  confirming: boolean
   checking: boolean
   onChecking: (checking: boolean) => void
   onChecked: (checked: CheckedFile<Preview>) => void
@@ -67,7 +67,7 @@ export function CheckFileForm<Preview>({ check, lines, adding, checking, onCheck
    *  this is one stretch for the page, from the press to the answer, reading the file and all. */
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (adding || checking) return
+    if (confirming || checking) return
     onChecking(true)
     try {
       await readAndSend(event)
@@ -82,7 +82,7 @@ export function CheckFileForm<Preview>({ check, lines, adding, checking, onCheck
         <FormField label="CSV file" type="file" accept=".csv,text/csv" registration={form.register("file")} error={errors.file} />
         {check.isError && serverErrors(check.error).length === 0 && <p role="alert" className="text-sm text-destructive">{COULD_NOT_CHECK}</p>}
         <div>
-          <Button type="submit" disabled={adding || checking}>{checking ? "Checking…" : "Check file"}</Button>
+          <Button type="submit" disabled={confirming || checking}>{checking ? "Checking…" : "Check file"}</Button>
         </div>
       </FieldGroup>
     </form>

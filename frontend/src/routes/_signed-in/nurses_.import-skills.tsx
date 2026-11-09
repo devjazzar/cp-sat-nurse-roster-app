@@ -189,7 +189,7 @@ function ImportSkillsPage() {
             <dd className="text-muted-foreground">The last day it counts, as YYYY-MM-DD, such as 2027-01-31. Empty for a skill that does not expire. In Excel, format the column as yyyy-mm-dd, or saving changes the dates.</dd>
           </dl>
           {/* The reset only clears what the last save said: no check runs during one, nor one during a check. */}
-          <CheckFileForm check={check} lines="skills" adding={confirm.isPending} checking={checking} onChecking={setChecking}
+          <CheckFileForm check={check} lines="skills" confirming={confirm.isPending} checking={checking} onChecking={setChecking}
             onChecked={(next) => { setDone(""); setChanged(false); confirm.reset(); setFile(next) }} />
         </CardContent>
       </Card>

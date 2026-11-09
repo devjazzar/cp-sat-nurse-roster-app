@@ -409,10 +409,8 @@ def test_an_import_is_audited_as_who_and_how_many_rows_and_nothing_from_the_file
     summary = AuditEntry.objects.get(action="nurse.skills_imported")
     assert summary.actor.username == "chief"
     assert (summary.target, summary.before, summary.after) == ("", None, {"count": 3})
-    # Each nurse whose skills changed, as a change by hand says it: whose, by whom, never which skill or date.
-    changed = AuditEntry.objects.filter(action="nurse.skills_changed")
-    assert sorted(changed.values_list("target", flat=True)) == ["H2", "h1"]
-    assert all((entry.before, entry.after) == (None, None) for entry in changed)
+    assert list(AuditEntry.objects.values_list("action", flat=True)) == ["nurse.skills_imported"], (
+        "Not even whose skills: a hospital ID is from the file.")
     everything = str(list(AuditEntry.objects.values_list("target", "before", "after")))
     for word in ("BLS", "ICU", "ACLS", "2027"):
         assert word not in everything
@@ -427,7 +425,7 @@ def test_a_preview_and_a_refused_confirm_write_no_audit_entry(cno, amal):
     assert AuditEntry.objects.count() == before
 
 
-def test_a_file_that_changes_nothing_is_still_audited_and_names_no_nurse(cno, amal, catalogue):
+def test_a_file_that_changes_nothing_is_still_audited(cno, amal, catalogue):
     recorded(cno, amal, catalogue["ICU"])
     AuditEntry.objects.all().delete()
 

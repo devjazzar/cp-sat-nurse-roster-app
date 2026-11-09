@@ -16390,6 +16390,16 @@
         "title": "SheetRow",
         "type": "object"
       },
+      "SkillImportChange": {
+        "description": "What confirming does with a row that has no problem.",
+        "enum": [
+          "record",
+          "renew",
+          "none"
+        ],
+        "title": "SkillImportChange",
+        "type": "string"
+      },
       "SkillImportPreview": {
         "properties": {
           "rows": {
@@ -16445,19 +16455,13 @@
           "change": {
             "anyOf": [
               {
-                "enum": [
-                  "record",
-                  "renew",
-                  "none"
-                ],
-                "type": "string"
+                "$ref": "#/components/schemas/SkillImportChange"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded.",
-            "title": "Change"
+            "description": "What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded."
           },
           "held_expiry": {
             "anyOf": [

@@ -247,7 +247,7 @@ function ImportPage() {
                 <dd className="text-muted-foreground">YYYY-MM-DD, such as 2027-01-31. In Excel, format the column as yyyy-mm-dd, or saving changes the dates.</dd>
               </dl>
               {/* The reset only clears what the last import said: no check runs during one, nor one during a check. */}
-              <CheckFileForm check={check} lines="nurses" adding={confirm.isPending} checking={checking} onChecking={setChecking}
+              <CheckFileForm check={check} lines="nurses" confirming={confirm.isPending} checking={checking} onChecking={setChecking}
                 onChecked={(next) => { setDone(""); setChanged(false); confirm.reset(); setFile(next) }} />
             </CardContent>
           </Card>

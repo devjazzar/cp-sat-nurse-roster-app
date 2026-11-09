@@ -729,8 +729,7 @@ already recorded changes nothing. A nurse and skill twice in a file is a problem
 transaction under the locks every skill write takes, the hospital settings' then the nurses', in which the file is
 judged again: the preview's token stands for each row's nurse, skill (its name and whether it expires), expiry and the
 record a renewal would end, so a renewal by hand since the preview is a different preview and nothing is saved. The audit
-log has one `nurse.skills_imported` entry with the number of rows and nothing from the file, and a `nurse.skills_changed`
-for each nurse whose skills it changed, as a change by hand writes. The template is its header alone, so it names no skill;
+log has one `nurse.skills_imported` entry with the number of rows and nothing from the file, not even whose skills. The template is its header alone, so it names no skill;
 every cell of every CSV this application writes goes through the staff list's guard against a formula. Neither the nurse
 import's template nor the staff list holds skills.
 

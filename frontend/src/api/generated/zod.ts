@@ -5633,7 +5633,7 @@ export const PreviewSkillsImportResponse = zod.object({
   "skill": zod.string(),
   "expiry": zod.string().describe('As the file has it.'),
   "full_name": zod.string().describe('The nurse\'s, when the hospital ID is hers; empty otherwise.'),
-  "change": zod.union([zod.enum(['record', 'renew', 'none']),zod.null()]).describe('What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded.'),
+  "change": zod.union([zod.enum(['record', 'renew', 'none']).describe('What confirming does with a row that has no problem.'),zod.null()]).describe('What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded.'),
   "held_expiry": zod.union([zod.iso.date(),zod.null()]).describe('The expiry a renewal replaces.'),
   "problems": zod.array(zod.object({
   "column": zod.union([zod.string(),zod.null()]),

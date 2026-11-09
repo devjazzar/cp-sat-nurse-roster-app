@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1
  */
 import type { ImportProblem } from './importProblem';
-import type { SkillImportRowChange } from './skillImportRowChange';
+import type { SkillImportChange } from './skillImportChange';
 
 export interface SkillImportRow {
   line: number;
@@ -16,7 +16,7 @@ export interface SkillImportRow {
   /** The nurse's, when the hospital ID is hers; empty otherwise. */
   full_name: string;
   /** What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded. */
-  change: SkillImportRowChange;
+  change: SkillImportChange | null;
   /** The expiry a renewal replaces. */
   held_expiry: string | null;
   problems: ImportProblem[];
