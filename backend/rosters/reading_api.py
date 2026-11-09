@@ -16,12 +16,14 @@ from ninja import Field, Query, Router, Schema
 
 from accounts.authz import SignedIn
 from accounts.models import Role, User
-from hospital.models import Shift
+from hospital.catalogue_api import IsoDate
+from hospital.models import HospitalSettings, PublicHoliday, Shift
 from nurses import membership
 from nurses.api import MonthText
 from nurses.models import Leave, NurseProfile
 from closes.models import CarryOver, CarrySource, MonthClose
 from rosters import review
+from rosters.day import Figures, hospital_day
 from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names
 from rosters.models import Roster, RosterState, RosterVersion
@@ -74,6 +76,112 @@ def overview(request: HttpRequest, filters: Query[OverviewFilter]) -> Overview:
     return Overview(months=[month.strftime("%Y-%m") for month in months], units=[
         OverviewUnit(id=unit.pk, name=unit.name, archived=unit.archived,
                      states=[states.get((unit.pk, month), "none") for month in months]) for unit in units])
+
+
+class DayFilter(Schema):
+    date: IsoDate | None = Field(None, description="YYYY-MM-DD. Today on the hospital's clock when left out.")
+
+
+class DayColumn(Schema):
+    code: str
+    display_name: str
+
+
+class DayNurse(Schema):
+    hospital_id: str
+    full_name: str
+    team_leader: bool
+
+
+class DayShiftCell(Schema):
+    code: str
+    present: int = Field(description="Counted as the solver counts it: the shift's own staff, plus those on the shifts that also "
+                                     "count towards it.")
+    minimum: int | None = Field(description="The range for this kind of day, weekday or weekend. Null with the unit's headcount "
+                                            "rule off, or with no headcount entry for this shift.")
+    maximum: int | None
+    short: bool
+    over: bool
+    team_leader: bool | None = Field(description="Whether a team leader is on it. Null where the unit does not require one.")
+    both_genders: bool | None = Field(description="Whether both genders are on it. Null where the unit does not require them.")
+    nurses: list[DayNurse] = Field(description="The shift's own staff, by name.")
+
+
+class DayLeave(Schema):
+    """Who is away, and never why: no leave type."""
+    hospital_id: str
+    full_name: str
+
+
+class DayFigures(Schema):
+    shifts: list[DayShiftCell] = Field(description="The shifts the unit works, and any other its roster holds that day.")
+    on_leave: list[DayLeave]
+    hours_counted: bool = Field(description="False with the hospital's hours rule off, when nothing is owed and overtime is 0.")
+    overtime: int = Field(description="The month's overtime in hours, the sum of what each nurse reads on My month.")
+    overtime_cap: int = Field(description="The hospital's department overtime cap for the month.")
+    with_overtime: int = Field(description="How many nurses have any overtime this month.")
+
+
+class DayUnit(Schema):
+    id: UUID
+    name: str
+    archived: bool
+    state: State = Field(description="The month's. `closed` is an approved roster whose month has closed.")
+    figures: DayFigures | None = Field(description="For `approved` and `closed` only: from the roster in force checked on the "
+                                                   "month as it stands, or from the close in force.")
+    unchecked: str | None = Field(description="Why an approved month's figures could not be worked out, in the solver's words.")
+
+
+class DayTotal(Schema):
+    code: str
+    on_duty: int
+
+
+class DayTotals(Schema):
+    on_duty: list[DayTotal] = Field(description="One for each of `shifts`: the units' counts summed.")
+    on_leave: int
+    overtime: int
+    units_short: int = Field(description="How many units are short on at least one shift.")
+
+
+class HospitalDayAnswer(Schema):
+    date: dt.date
+    weekday: str
+    weekend: bool = Field(description="A weekend day by the hospital rules, whose headcount range applies.")
+    holiday: str | None = Field(description="The public holiday's name. It changes the hours owed, not the range.")
+    shifts: list[DayColumn] = Field(description="The shifts any unit shown works that day, in the shift catalogue's order.")
+    units: list[DayUnit] = Field(description="Every unit not archived, and an archived one with a roster or a close that month.")
+    totals: DayTotals
+
+
+@router.get("/day", response=HospitalDayAnswer, auth=approver, operation_id="getHospitalDay")
+def day_view(request: HttpRequest, filters: Query[DayFilter]) -> HospitalDayAnswer:
+    """Read-only and not logged: it shows what its readers already read on the Unit roster and the unit's Leave page."""
+    date = filters.date or membership.today()
+    answer = hospital_day(date)
+    names = dict(Shift.objects.filter(code__in=answer.codes).values_list("code", "display_name"))
+    totals = answer.totals
+    holiday = PublicHoliday.objects.filter(date=date).first()
+    return HospitalDayAnswer(
+        date=date, weekday=date.strftime("%A"), weekend=date.weekday() in HospitalSettings.load().rules["weekend_weekdays"],
+        holiday=holiday.name if holiday else None,
+        shifts=[DayColumn(code=code, display_name=names.get(code, code)) for code in answer.codes],
+        units=[DayUnit(id=row.unit.pk, name=row.unit.name, archived=row.unit.archived, state=row.state, unchecked=row.unchecked,
+                       figures=_day_figures(row.figures) if row.figures else None) for row in answer.units],
+        totals=DayTotals(on_duty=[DayTotal(code=code, on_duty=count) for code, count in totals.on_duty.items()],
+                         on_leave=totals.on_leave, overtime=totals.overtime, units_short=totals.units_short))
+
+
+def _day_figures(figures: Figures) -> DayFigures:
+    return DayFigures(
+        shifts=[DayShiftCell(code=shift.code, present=shift.present, minimum=shift.minimum, maximum=shift.maximum,
+                             short=shift.short, over=shift.over, team_leader=shift.team_leader, both_genders=shift.both_genders,
+                             nurses=[DayNurse(hospital_id=nurse.hospital_id, full_name=nurse.full_name,
+                                              team_leader=nurse.team_leader) for nurse in shift.nurses])
+                for shift in figures.shifts],
+        on_leave=[DayLeave(hospital_id=nurse.hospital_id, full_name=nurse.full_name) for nurse in figures.on_leave],
+        hours_counted=figures.hours_counted, overtime=figures.overtime, overtime_cap=figures.overtime_cap,
+        with_overtime=figures.with_overtime)
 
 
 class WaitingRoster(Schema):

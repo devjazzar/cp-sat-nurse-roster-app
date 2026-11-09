@@ -45,6 +45,7 @@ import type {
   EditsBody,
   EndDateBody,
   ExportRosterVersionParams,
+  GetHospitalDayParams,
   GetMonthCloseParams,
   GetMyLeaveParams,
   GetMyMonthParams,
@@ -57,6 +58,7 @@ import type {
   GetRosterVersionSheetParams,
   GetSwapComposerParams,
   Health,
+  HospitalDayAnswer,
   HospitalHistory,
   HospitalRules,
   HospitalRulesState,
@@ -10378,6 +10380,115 @@ export function useGetRosterOverview<TData = Awaited<ReturnType<typeof getRoster
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetRosterOverviewQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetHospitalDayUrl = (params?: GetHospitalDayParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rosters/day?${stringifiedParams}` : `/api/rosters/day`
+}
+
+/**
+ * Read-only and not logged: it shows what its readers already read on the Unit roster and the unit's Leave page.
+ * @summary Day View
+ */
+export const getHospitalDay = async (params?: GetHospitalDayParams, options?: Parameters<typeof apiFetch>[1]): Promise<HospitalDayAnswer> => {
+
+  return apiFetch<HospitalDayAnswer>(getGetHospitalDayUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHospitalDayQueryKey = (params?: GetHospitalDayParams,) => {
+    return [
+    `/api/rosters/day`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetHospitalDayQueryOptions = <TData = Awaited<ReturnType<typeof getHospitalDay>>, TError = unknown>(params?: GetHospitalDayParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalDay>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHospitalDayQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHospitalDay>>> = ({ signal }) => getHospitalDay(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHospitalDay>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHospitalDayQueryResult = NonNullable<Awaited<ReturnType<typeof getHospitalDay>>>
+export type GetHospitalDayQueryError = unknown
+
+
+export function useGetHospitalDay<TData = Awaited<ReturnType<typeof getHospitalDay>>, TError = unknown>(
+ params: undefined |  GetHospitalDayParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalDay>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHospitalDay>>,
+          TError,
+          Awaited<ReturnType<typeof getHospitalDay>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHospitalDay<TData = Awaited<ReturnType<typeof getHospitalDay>>, TError = unknown>(
+ params?: GetHospitalDayParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalDay>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHospitalDay>>,
+          TError,
+          Awaited<ReturnType<typeof getHospitalDay>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHospitalDay<TData = Awaited<ReturnType<typeof getHospitalDay>>, TError = unknown>(
+ params?: GetHospitalDayParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalDay>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Day View
+ */
+
+export function useGetHospitalDay<TData = Awaited<ReturnType<typeof getHospitalDay>>, TError = unknown>(
+ params?: GetHospitalDayParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHospitalDay>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetHospitalDayQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
