@@ -20,7 +20,7 @@ A user who appears on a unit's rosters: any user with a nurse profile. Every sta
 _Avoid_: staff, employee, staff member
 
 **Nurse profile**:
-A user's roster identity: her hospital ID, her unit, her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding) and her skills. Her username is her hospital ID. The CNO sets and corrects her gender and her skills; her unit manager sets the rest. The CNO and the Deputy CNO read them; the System Admin never does, and nor do nurses, but for two exceptions: the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts, and she reads her own skills with their expiries, since they are hers to renew; nothing else of her attributes.
+A user's roster identity: her hospital ID, her unit, her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding) and her skills, certificates and licences. Her username is her hospital ID. The CNO sets and corrects her gender; the CNO and the Deputy CNO record her skills, certificates and licences; her unit manager sets the rest. The CNO and the Deputy CNO read them; the System Admin never does, and nor do nurses, but for two exceptions: the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts, and she reads her own skills, certificates and licences with their identifiers and expiries, since they are hers to renew; nothing else of her attributes.
 _Avoid_: staff record, employee record, nurse record
 
 **Start date**, **End date**:
@@ -64,11 +64,11 @@ The hospital IT role. Creates the accounts of the CNO, the Deputy CNO and the un
 _Avoid_: admin, superuser, IT
 
 **CNO**:
-The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the skill catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses and corrects their genders, start dates and skills, and the names of staff nurses; and may approve or reject submitted rosters like the Deputy CNO.
+The Chief Nursing Officer, exactly one per hospital. Owns the hospital rules, the shift catalogue, the skill catalogue, the leave types, the public holidays and the Ramadan dates; creates the units and assigns each its unit manager; adds nurses and corrects their genders and start dates, records their skills, certificates and licences, and corrects the names of staff nurses; and may approve or reject submitted rosters like the Deputy CNO.
 _Avoid_: nursing director, matron
 
 **Deputy CNO**:
-Approves or rejects submitted rosters. Exactly one per hospital.
+Approves or rejects submitted rosters, and records nurses' skills, certificates and licences beside the CNO. Exactly one per hospital.
 _Avoid_: assistant CNO
 
 **Unit Manager**:
@@ -276,8 +276,20 @@ A nurse who may lead a shift. A unit may require one on every shift.
 _Avoid_: in-charge, senior
 
 **Skill**:
-A named ability or certificate from the hospital's skill catalogue, which the CNO keeps, that a nurse may hold and a skill need may count. Whether it expires, whether it is required to work, and whether it lets a nurse precept, is said in the catalogue.
-_Avoid_: credential, certification, qualification, licence, competency
+An entry of the hospital's skill catalogue, which the CNO keeps, that a nurse may hold and a skill need may count. Each is of one kind, said in the catalogue: a skill in the plain sense (an ability: triage, IV cannulation), a certificate or a licence; "skill" names both the whole catalogue's entries and the plain kind, as "unit rules" names a set and a page. Whether it expires, whether it is required to work, and whether it lets a nurse precept, is said there too, and so is the body that issues it. The CNO and the Deputy CNO record what a nurse holds.
+_Avoid_: credential, competency, qualification
+
+**Certificate**:
+A skill of the kind that attests something a nurse has done or earned, from a body the catalogue names (a university, a training provider): a degree, a diploma, a course certificate. Held for good unless the catalogue says it expires. A nurse's record of one carries its identifier and its issue date.
+_Avoid_: certification, qualification, diploma (as the kind's name), degree (as the kind's name)
+
+**Licence**:
+A skill of the kind that permits a nurse to practise, from a body the catalogue names (the Saudi Commission for Health Specialties), renewed on a date: the kind the catalogue says expires and is usually required to work. A nurse's record of one carries its identifier, its issue date and its expiry.
+_Avoid_: license, registration, permit, licence check
+
+**Identifier**:
+The number or code a body gave a nurse's certificate or licence. Recorded with it, unique among the current records of one catalogue entry, read by the CNO, the Deputy CNO and the nurse herself, and in no file, notification or audit entry.
+_Avoid_: licence number, certificate number, ID (which the hospital ID is), serial
 
 **Expiry**:
 The last day a nurse's skill counts; every skill of a kind the catalogue says expires has one. From the next day the skill is expired: it counts toward no skill need and, if required to work, keeps her off every shift.
