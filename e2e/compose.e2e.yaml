@@ -27,6 +27,7 @@ services:
       - e2e_clock:/e2e-clock
 
   worker:
+    # Its way out for pushes is deploy/compose.yaml's `egress`, which this file leaves as it is.
     environment: *clock
     volumes:
       - e2e_clock:/e2e-clock:ro

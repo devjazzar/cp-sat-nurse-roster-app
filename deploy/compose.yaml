@@ -98,7 +98,9 @@ services:
       start_interval: 5s
     volumes:
       - backups:/backups
-    networks: [backend, solver]
+    # `egress` is its way out, to the browsers' push services alone (ADR 0012, notifications.subscriptions): nothing else of
+    # ours reaches the internet. deploy/INSTALL.md names the hosts a hospital's firewall should let it reach.
+    networks: [backend, solver, egress]
 
   solver:
     <<: *app
@@ -143,6 +145,8 @@ services:
 
 networks:
   public: {}
+  # Not internal: the worker's alone, for pushes. `web`, the database and the solver are on none that is not.
+  egress: {}
   frontend:
     internal: true
   backend:
