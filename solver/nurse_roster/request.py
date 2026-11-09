@@ -54,7 +54,7 @@ one that counts all month: the one dated field accepted before the month (a skil
 it is sent with that date, since absence means no record), while a date after the month is
 refused (it counts all month: null). Version 1 is still read, as version 2 with no skills, no
 needs, the needs hard, no required skills and the weight 0, since every stored input is version
-1; it may not carry any of the five fields. The result's version is unchanged.
+1; it may not carry any of those five fields. The result's version is unchanged.
 
 Full runs (2026-11-09, ticket 47 of the app) add two fields, optional in either version so every
 stored input still loads and gives what it gave: `department.max_full_runs`, the most full runs (runs
@@ -200,11 +200,10 @@ def _full_runs(general: object, department: object) -> tuple[object, object]:
     copies: no cap (`department.max_full_runs` null) and `weights.excess_full_run` 0, so an input
     made before them, of either version, loads and gives what it gave. A block that is not an
     object, or weights missing or not an object, are left for the problem's own check to name."""
-    if isinstance(department, dict) and "max_full_runs" not in department:
-        department = {**department, **_FULL_RUN_DEPARTMENT}
-    if isinstance(general, dict) and isinstance(general.get("weights"), dict) \
-            and "excess_full_run" not in general["weights"]:
-        general = {**general, "weights": {**general["weights"], **_FULL_RUN_WEIGHTS}}
+    if isinstance(department, dict):
+        department = {**_FULL_RUN_DEPARTMENT, **department}
+    if isinstance(general, dict) and isinstance(general.get("weights"), dict):
+        general = {**general, "weights": {**_FULL_RUN_WEIGHTS, **general["weights"]}}
     return general, department
 
 

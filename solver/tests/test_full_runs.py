@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -100,6 +101,17 @@ def test_a_run_counts_in_the_month_that_holds_its_last_day(previous, row, count)
     p = unit([Nurse("a", previous=previous)], 8, cap=0)
 
     assert penalises(p, [row], "excess_full_run") == 4 * count
+
+
+def test_a_history_shift_the_unit_no_longer_works_is_a_worked_day_of_the_run():
+    """"A" is no shift of this unit's: worked, of no kind, in the model as in the validator."""
+    p = unit([Nurse("a", previous=["", "A", "D"])], 8, cap=0)
+    row = runs("W.", "......")
+
+    sol = force(p, row)
+
+    assert penalises(p, [row], "excess_full_run") == 4
+    assert sol.status == "OPTIMAL" and sol.solver_objective == sol.objective == 4
 
 
 @pytest.mark.parametrize("row, count", [
@@ -221,25 +233,21 @@ def test_a_problem_file_must_carry_both_fields():
 
 # ---- the ER sample -------------------------------------------------------------------------------
 def full_runs(p: Problem, a: list[list[int]]) -> dict[str, int]:
-    """Each nurse's full runs, counted by hand from the grid and her history (runs of exactly the longest run, ended on a
-    month day before the last)."""
+    """Each nurse's full runs, read off her history and month as text, apart from the validator's counter: every maximal
+    stretch of exactly the longest run of W, followed by a day off, whose last day is a month day."""
     K, out = p.department.max_consecutive_shifts, {}
     for nu, row in zip(p.nurses, a):
-        seq = [s != "" for s in nu.previous] + [v >= 0 for v in row]
-        H, k, run = len(nu.previous), 0, 0
-        for t, worked in enumerate(seq):
-            run = run + 1 if worked else 0
-            if run == K and H <= t < len(seq) - 1 and not seq[t + 1]:
-                k += 1
-        out[nu.id] = k
+        text = "".join("W" if s else "." for s in nu.previous) + "".join("W" if v >= 0 else "." for v in row)
+        ends = [m.end() - 1 for m in re.finditer(r"(?<!W)W+(?=\.)", text) if m.end() - m.start() == K]
+        out[nu.id] = sum(1 for e in ends if e >= len(nu.previous))
     return out
 
 
 def test_with_the_cap_set_a_solve_of_the_er_sample_gives_no_nurse_more_full_runs_than_the_cap():
     """The ER sample (25 nurses, longest run 3) solved for 10 s without a cap gave nurses up to four full runs; with the cap
     at 3, the spec's default for every unit, none works more than three. The weight is 50, not the spec's default of 4: at 4
-    against this month's cost of about 2,500 a 10 s search kept the cap in some runs and left a nurse at four or five in
-    others (priced, and the validator agreed each time); at 50 it kept it in every run tried. A cap of 2 is not reached in
+    against this month's cost of about 2,500 a 10 s search kept the cap in some solves and left a nurse at four or five in
+    others (priced, and the validator agreed each time); at 50 it kept it in every solve tried. A cap of 2 is not reached in
     20 s on this month (four nurses stay at three), so the test holds the cap the month allows."""
     req = json.loads(ER.read_text())
     req["department"]["max_full_runs"] = 3
