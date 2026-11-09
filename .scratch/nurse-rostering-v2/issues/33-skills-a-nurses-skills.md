@@ -141,3 +141,5 @@ Nurses page's column, the panel, a renewal to 30 Jun 2029 through "Save expiry o
 - 36 (CSV): record and renew through the same rules as `skills_api` (`_refuse_expiry`, the retired refusals, ending a row
   to renew), under the same two locks, and audit `nurse.skills_changed` per nurse or the import's own entry as the spec says.
 - 37: see above; noted on ticket 37.
+
+**Reviewed by the user (2026-11-09):** all six Worth your review points kept as built: the Deputy CNO reads skills on Rostering attributes; her own skills from `GET /api/nurses/my-skills`; removal by `POST …/remove`; turning `expires` on means taking dateless records off and recording them again; the refusal names four at most; the CNO may record and renew on a deactivated or ended nurse. PR #7 at head `4d3e8fc`, fast-forwarded into `main`; migration `nurses.0005_nurse_skills`; dev stack rebuilt.
