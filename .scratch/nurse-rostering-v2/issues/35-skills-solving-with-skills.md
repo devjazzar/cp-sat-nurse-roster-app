@@ -23,3 +23,10 @@ on: turning `expires` off keeps the recorded dates, which must then count for no
 `nurses.skills.as_rows`). A retired skill's records stay current until the CNO takes them off. Each write audits
 `nurse.skills_changed` and ends a row rather than rewriting it, so "skills changed since the solve" can compare what the month
 sees with the stored input, or look for rows recorded or removed after the solve.
+
+**From ticket 34 (2026-11-09):** the solve input is already version 2. `solves.input.assemble` writes `"version": 2`; the
+department block carries the unit's `skill_needs` and `skill_needs_hard`; the general block carries `weights.skill_shortfall`
+and `required_skills`, the live skills marked required to work (`hospital.rules.required_skills()`, retired ones left out;
+change it there if a retired required skill should still bar). What is left here is the nurses' `skills`, changes since, the
+rename carried through stored inputs on read, and the words in dates. The four-nurse service sample is version 2 with no
+skills; the solver's `tests.er_fixture.version_1` derives a version 1 input from it.
