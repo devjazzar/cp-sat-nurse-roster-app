@@ -66,7 +66,8 @@ async function openPage(page) {
   const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true })
   const app = open.find((client) => "focus" in client)
   if (!app) return self.clients.openWindow(page)
-  await app.focus()
+  // A browser may refuse the focus (no tap behind it); the window still goes to the page.
+  await app.focus().catch(() => undefined)
   app.postMessage({ type: OPEN_PAGE, path: page })
 }
 
