@@ -273,7 +273,7 @@ soft rules off. Save it as `small.json` and solve it.
     "weights": {"night_rest": 0, "dept_overtime": 1, "nurse_overtime": 1, "nurse_shortfall": 1,
                 "avoidable_shortfall": 1000, "fair_day": 1, "fair_night": 1, "fair_weekend": 1,
                 "score_deficit": 0, "score_spread": 0, "excess_weekend": 0, "shift_switch": 8,
-                "undesired_day": 2, "desired_day": 1, "change": 3, "excess_full_run": 4}
+                "undesired_day": 2, "desired_day": 1, "change": 3}
   },
   "department": {
     "name": "Ward A", "shifts": ["D", "N"],
@@ -286,7 +286,7 @@ soft rules off. Save it as `small.json` and solve it.
     "fair_shifts": ["D", "N"], "fair_tolerance": 0.5, "fair_weekends": true,
     "carry_fairness": true, "carry_cap": 2.0,
     "max_consecutive_shifts": 4, "double_cycle_rest": 2, "max_weekends": 3,
-    "no_mixed_blocks": true, "max_switches": 2, "switches_hard": false, "max_full_runs": 3
+    "no_mixed_blocks": true, "max_switches": 2, "switches_hard": false
   },
   "nurses": [
     {"id": "Amal", "gender": "F", "team_leader": true, "score": 0.9, "ramadan_reduced": false, "breastfeeding": false,

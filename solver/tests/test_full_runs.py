@@ -245,13 +245,14 @@ def full_runs(p: Problem, a: list[list[int]]) -> dict[str, int]:
 
 def test_with_the_cap_set_a_solve_of_the_er_sample_gives_no_nurse_more_full_runs_than_the_cap():
     """The ER sample (25 nurses, longest run 3) solved for 10 s without a cap gave nurses up to four full runs; with the cap
-    at 3, the spec's default for every unit, none works more than three. The weight is 50, not the spec's default of 4: at 4
+    at 3, the spec's default for every unit, none works more than three. The weight is 200, not the spec's default of 4: at 4
     against this month's cost of about 2,500 a 10 s search kept the cap in some solves and left a nurse at four or five in
-    others (priced, and the validator agreed each time); at 50 it kept it in every solve tried. A cap of 2 is not reached in
+    others (priced, and the validator agreed each time); at 50 it still left one at four about one solve in three; at 200
+    it kept it in every solve tried. A cap of 2 is not reached in
     20 s on this month (four nurses stay at three), so the test holds the cap the month allows."""
     req = json.loads(ER.read_text())
     req["department"]["max_full_runs"] = 3
-    req["general"]["weights"]["excess_full_run"] = 50
+    req["general"]["weights"]["excess_full_run"] = 200
     p = load_request(req).problem
 
     sol = solve(build_model(p), p, time_limit=10, workers=4)
