@@ -403,6 +403,24 @@ class TestRestoring:
         assert draft["solved_at"] == details(mona, er, first)["solve"]["finished_at"]
         assert [row["in_draft"] for row in history(mona, er)["solves"]] == [False, True]
 
+    def test_a_result_stored_on_a_version_1_input_is_restored_and_checked_on_the_month_as_it_stands(self, mona, er, two_solves):
+        """Ticket 35: an input from before skills is still read, and the draft it makes is warned of skills since."""
+        from hospital.models import Skill
+        first, _ = two_solves
+        stored = Solve.objects.get(pk=first)
+        stored.input["version"] = 1
+        for key in ("skill_needs", "skill_needs_hard"):
+            del stored.input["department"][key]
+        del stored.input["general"]["required_skills"], stored.input["general"]["weights"]["skill_shortfall"]
+        stored.save()
+        amal = NurseProfile.objects.get(user__username="Amal")
+        amal.skills.create(skill=Skill.objects.create(name="ICU", expires=False, required_to_work=False), recorded_by=amal.user)
+
+        assert restore(mona, er, first).status_code == 200
+        draft = month_of(mona, er)["draft"]
+        assert draft["solve_id"] == first and {"hospital_id": "Amal", "full_name": "Amal", "what": "skills"} in draft["changes"]
+        assert details(mona, er, first)["explained"] is True
+
     def test_the_newer_solve_it_replaced_does_not_read_as_having_found_nothing(self, mona, er, two_solves):
         restore(mona, er, two_solves[0])
 

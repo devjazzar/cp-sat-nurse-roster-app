@@ -5657,7 +5657,7 @@ describe("the roster page", () => {
 
       const changes = await screen.findByRole("alert")
       expect(within(changes).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-        "The skill needs, the skills required to work or the price of a short skill changed", "Amal Saleh: skills changed"])
+        "The skill needs, the skills required to work or the skill shortfall weight changed", "Amal Saleh: skills changed"])
       expect(screen.getByText("The draft as it stands breaks 2 hard rules:")).toBeInTheDocument()
       expect(screen.getByText("Amal Saleh, 21 June: skill expired: h1 works D on 2026-06-21, BLS is required to work and its last day was 2026-06-20")).toBeInTheDocument()
       expect(screen.getByText("3 June: skill need: 2026-06-03 N has 0 holding ICU, needs 1 (1 short)")).toBeInTheDocument()

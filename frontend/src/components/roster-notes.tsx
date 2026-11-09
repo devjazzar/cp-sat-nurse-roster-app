@@ -21,7 +21,7 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
 
 /** One line of a draft's changes since its solve. A change with no hospital ID is the unit's own: only `skills` is so far. */
 export function changeSays(change: DraftChange): string {
-  if (!change.hospital_id) return "The skill needs, the skills required to work or the price of a short skill changed"
+  if (!change.hospital_id) return "The skill needs, the skills required to work or the skill shortfall weight changed"
   return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[change.what]}`
 }
 
