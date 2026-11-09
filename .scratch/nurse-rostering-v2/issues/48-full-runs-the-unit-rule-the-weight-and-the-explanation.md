@@ -26,3 +26,7 @@ subtracts `FULL_RUN_FIELDS = {"excess_full_run"}` from the weights, each with a 
 and its subtraction. The match reads "Layan: 5 full runs of 3 shifts, max 3" (nurse set, no date, amount the runs above the
 cap). On ER's sample month the spec's weight of 4 did not always hold the cap in a 10 s search (a nurse left at four or
 five, priced); see ticket 47's comment before choosing the default or the solve's time.
+
+**From the review of ticket 47 (2026-11-09), decided by the user:**
+- **Price the full run that reaches the month's last day in that month.** With the longest run hard it cannot grow (the next month forbids a shift on its day 0), so today a nurse may carry one unpriced full run at the end of each month. In the solver, drop the "off on t + 1" literal at the month's last day in the model and count such a run in `validate.count_full_runs`; update the solver tests that expect it uncounted, `solver/DESIGN.md` and the spec's Further Notes. A small solver change inside this ticket; the dev stack then needs a rebuild.
+- **Measure before you set the default weight.** On a scratch stack seeded like ER's December (Layan Alharbi had five full runs there), solve with the cap at 3 and the weight at 4, 20, 50 and 200, a few solves each at the unit's solve time, and put the counts of nurses above the cap and the month's cost in your comment as **Worth your review**. Set the default from what you find, and say which and why; the user decides at review.

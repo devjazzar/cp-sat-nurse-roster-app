@@ -142,3 +142,5 @@ hand-over, not app code). No adversarial review, by the user's call.
   `test_audit16`'s schema pin move with it. A carried balance is a nurse scalar: optional in the request as
   `preferences_not_kept` is.
 
+
+**Reviewed by the user (2026-11-09):** all eight Worth your review points kept as recommended: a full run reaching the month's last day is to be priced in that month, a small solver change carried by ticket 48 (see its comment); the default weight is chosen in ticket 48 from weights measured on ER's December; optional fields in both request versions; the names `max_full_runs` and `excess_full_run`; the history's start bounding a run; the sample file left to ticket 48; the cap inert at a longest run of 0 or 1; three backend test files narrowed until ticket 48. PR #9 at head `70a0eb9`, merged into `main` as `5a1dfba` (main had gained only docs); no migration; dev stack rebuilt.
