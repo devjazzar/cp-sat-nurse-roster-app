@@ -10,16 +10,16 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 from django.db.models import Q
 
 from closes.making import latest_close
 from closes.models import MonthClose
-from hospital.models import Shift
+from hospital.models import HospitalSettings, Shift
 from nurses import membership
-from nurses.models import Leave
+from nurses.models import Leave, NurseProfile
 from rosters.approved import headcount_of, shift_day
 from rosters.drafts import current_code
 from rosters.editing import accounted, scored
@@ -40,7 +40,7 @@ class OnShift:
 
 
 @dataclass(frozen=True)
-class ShiftDay:
+class ShiftFigures:
     """One shift of one unit's day. `minimum` and `maximum` are None where the unit's headcount rule is off or the shift has no
     headcount entry; `team_leader` and `both_genders` None where the unit does not require them on this shift."""
     code: str
@@ -62,7 +62,7 @@ class OnLeave:
 
 @dataclass(frozen=True)
 class Figures:
-    shifts: list[ShiftDay]
+    shifts: list[ShiftFigures]
     on_leave: list[OnLeave]
     hours_counted: bool
     overtime: int
@@ -93,8 +93,9 @@ class Totals:
 @dataclass
 class HospitalDay:
     date: dt.date
+    weekend: bool
     units: list[UnitDay]
-    codes: list[str] = field(default_factory=list)
+    codes: list[str]
 
     @property
     def totals(self) -> Totals:
@@ -148,7 +149,7 @@ def _figures(solve_input: dict, grid: Grid, violations: list[dict], nurses_block
                 team_leader = ("team_leader", code) not in findings
             if department["require_both_genders"]:
                 both = ("gender", code) not in findings
-        shifts.append(ShiftDay(code=current_code(code), present=present, minimum=low, maximum=high, short=short, over=over,
+        shifts.append(ShiftFigures(code=current_code(code), present=present, minimum=low, maximum=high, short=short, over=over,
                                team_leader=team_leader, both_genders=both,
                                nurses=[OnShift(hospital_id, names.get(hospital_id) or hospital_id,
                                                bool(people[hospital_id].get("team_leader"))) for hospital_id in pure]))
@@ -193,7 +194,11 @@ def _closed(close: MonthClose, date: dt.date) -> UnitDay:
     day = date.isoformat()
     rows = (Leave.objects.filter(date=date, recorded_at__lte=close.closed_at, nurse__user__username__in=list(credited))
             .filter(Q(removed_at__isnull=True) | Q(removed_at__gt=close.closed_at)).values_list("nurse__user__username", flat=True))
-    away = [hospital_id for hospital_id in rows if day in credited[hospital_id]]
+    # The close keeps no nurse's dates, so a day a correction has left outside them is read under her dates now.
+    dates = {profile.user.username: profile for profile in NurseProfile.objects.filter(user__username__in=set(rows))
+             .select_related("user")}
+    away = [hospital_id for hospital_id in rows
+            if day in credited[hospital_id] and not membership.outside_dates(dates[hospital_id], date)]
     names = full_names(credited)
     figures = _figures(solve_input, close.result["facts"], close.result["facts_broke"], close.result["nurses"], date,
                        _on_leave(away, names), names)
@@ -217,4 +222,6 @@ def hospital_day(date: dt.date) -> HospitalDay:
             rows.append(UnitDay(unit, roster.state if roster else "none"))
     used = {shift.code for row in rows if row.figures for shift in row.figures.shifts}
     catalogue = [code for code in Shift.objects.values_list("code", flat=True) if code in used]
-    return HospitalDay(date=date, units=rows, codes=catalogue + sorted(used - set(catalogue)))
+    # The heading's kind of day is the hospital rules' now; a closed month's ranges are its close's, which says what applied.
+    weekend = date.weekday() in HospitalSettings.load().rules["weekend_weekdays"]
+    return HospitalDay(date=date, weekend=weekend, units=rows, codes=catalogue + sorted(used - set(catalogue)))

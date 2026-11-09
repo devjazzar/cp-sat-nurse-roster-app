@@ -4947,7 +4947,7 @@ export const GetHospitalDayResponse = zod.object({
 }).describe('Who is away, and never why: no leave type.')),
   "hours_counted": zod.boolean().describe('False with the hospital\'s hours rule off, when nothing is owed and overtime is 0.'),
   "overtime": zod.int().describe('The month\'s overtime in hours, the sum of what each nurse reads on My month.'),
-  "overtime_cap": zod.int().describe('The hospital\'s department overtime cap for the month.'),
+  "overtime_cap": zod.int().describe('The hospital rules\' unit overtime cap for the month.'),
   "with_overtime": zod.int().describe('How many nurses have any overtime this month.')
 }),zod.null()]).describe('For `approved` and `closed` only: from the roster in force checked on the month as it stands, or from the close in force.'),
   "unchecked": zod.union([zod.string(),zod.null()]).describe('Why an approved month\'s figures could not be worked out, in the solver\'s words.')

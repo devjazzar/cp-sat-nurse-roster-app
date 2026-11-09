@@ -44,7 +44,7 @@ export function dayAfter(iso: string, by: number): string {
 }
 
 const fullDate = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
-/** "Thursday 4 June 2026" from "2026-06-04". */
+/** "Thursday, 4 June 2026" from "2026-06-04". */
 export const fullDay = (iso: string) => fullDate.format(asDate(iso))
 
 /** `Table`'s container when nothing in the table can take focus, because a keyboard still has to scroll it. */

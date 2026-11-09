@@ -198,9 +198,20 @@ class TestLeave:
         assert names(cell(answer, "N")) == [("Amal", True)]
         assert row(answer)["figures"]["on_leave"] == []
 
+    def test_leave_a_correction_left_outside_her_dates_is_not_leave_in_a_closed_month(self, june, mona, carla, er, on):
+        on(dt.date(2026, 7, 2))
+        assert record_leave(mona, er, "Dana", 4).status_code == 201
+        NurseProfile.objects.filter(user__username="Dana").update(end_date=dt.date(2026, 6, 3))
+        making.close(er, dt.date(2026, 6, 1))
+
+        answer = day(carla, "2026-06-04")
+
+        assert row(answer)["state"] == "closed" and row(answer)["figures"]["on_leave"] == []
+        assert names(cell(answer, "N")) == [("Amal", True)]
+
 
 class TestOvertime:
-    def test_each_nurses_overtime_is_my_months_summed_against_the_department_cap(self, june, carla):
+    def test_each_nurses_overtime_is_my_months_summed_against_the_unit_overtime_cap(self, june, carla):
         mine = {nurse: ok(as_user(nurse).get("/api/rosters/mine/month", {"month": "2026-06"}))["roster"]["hours"]["overtime"]
                 for nurse in NURSES}
 
@@ -265,6 +276,14 @@ class TestStates:
 
         assert [(unit["name"], unit["archived"]) for unit in june_day["units"]] == [("ER", True)]
         assert may_day["units"] == [] and may_day["shifts"] == []
+
+    def test_an_archived_unit_with_only_a_close_that_month_shows(self, june, carla, er, on):
+        on(dt.date(2026, 7, 2))
+        making.close(er, dt.date(2026, 6, 1))
+        er.archived, er.manager = True, None
+        er.save()
+
+        assert [(unit["name"], unit["state"]) for unit in day(carla, "2026-06-04")["units"]] == [("ER", "closed")]
 
     def test_today_by_default_on_the_hospitals_clock(self, june, carla, on):
         on(dt.date(2026, 6, 4))

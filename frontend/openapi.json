@@ -14667,7 +14667,7 @@
             "type": "integer"
           },
           "overtime_cap": {
-            "description": "The hospital's department overtime cap for the month.",
+            "description": "The hospital rules' unit overtime cap for the month.",
             "title": "Overtime Cap",
             "type": "integer"
           },

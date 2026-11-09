@@ -15,7 +15,7 @@ export interface DayFigures {
   hours_counted: boolean;
   /** The month's overtime in hours, the sum of what each nurse reads on My month. */
   overtime: number;
-  /** The hospital's department overtime cap for the month. */
+  /** The hospital rules' unit overtime cap for the month. */
   overtime_cap: number;
   /** How many nurses have any overtime this month. */
   with_overtime: number;

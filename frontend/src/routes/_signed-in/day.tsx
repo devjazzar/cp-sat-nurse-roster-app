@@ -6,6 +6,7 @@ import { z } from "zod"
 import { useGetHospitalDay } from "@/api/generated/endpoints"
 import { Role, type DayColumn, type DayFigures, type DayShiftCell, type DayUnit } from "@/api/generated/model"
 import { dateInAddress, MONTH_LINK } from "@/components/month-nav"
+import { plural } from "@/components/roster-notes"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -31,8 +32,6 @@ function region(label: string) {
   const scrollable = scrollableRegion(label)
   return { ...scrollable, className: cn(scrollable.className, "print:overflow-visible") }
 }
-
-const plural = (count: number, one: string) => `${count} ${one}${count === 1 ? "" : "s"}`
 
 /** "3 of 4–6 short", "2", and the team leader's and genders' words under it: never colour alone. */
 function ShiftCell({ shift }: { shift: DayShiftCell | undefined }) {

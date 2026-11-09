@@ -145,3 +145,8 @@
     size: A4 landscape;
     margin: 10mm;
 }
+@media print {
+    [data-slot="table-header"] {
+        display: table-header-group;
+    }
+}

@@ -17,13 +17,13 @@ from ninja import Field, Query, Router, Schema
 from accounts.authz import SignedIn
 from accounts.models import Role, User
 from hospital.catalogue_api import IsoDate
-from hospital.models import HospitalSettings, PublicHoliday, Shift
+from hospital.models import PublicHoliday, Shift
 from nurses import membership
 from nurses.api import MonthText
 from nurses.models import Leave, NurseProfile
 from closes.models import CarryOver, CarrySource, MonthClose
 from rosters import review
-from rosters.day import Figures, hospital_day
+from rosters.day import Figures, State, hospital_day
 from rosters.drafts import in_current_codes
 from rosters.grids import GridDay, by_name, full_names
 from rosters.models import Roster, RosterState, RosterVersion
@@ -37,7 +37,6 @@ approver = SignedIn(Role.CNO, Role.DEPUTY_CNO)
 nurse_reader = SignedIn(Role.STAFF_NURSE, Role.UNIT_MANAGER)
 OVERVIEW_MONTHS = 4
 
-State = Literal["none", "draft", "submitted", "approved", "closed"]
 
 
 class OverviewFilter(Schema):
@@ -118,7 +117,7 @@ class DayFigures(Schema):
     on_leave: list[DayLeave]
     hours_counted: bool = Field(description="False with the hospital's hours rule off, when nothing is owed and overtime is 0.")
     overtime: int = Field(description="The month's overtime in hours, the sum of what each nurse reads on My month.")
-    overtime_cap: int = Field(description="The hospital's department overtime cap for the month.")
+    overtime_cap: int = Field(description="The hospital rules' unit overtime cap for the month.")
     with_overtime: int = Field(description="How many nurses have any overtime this month.")
 
 
@@ -163,7 +162,7 @@ def day_view(request: HttpRequest, filters: Query[DayFilter]) -> HospitalDayAnsw
     totals = answer.totals
     holiday = PublicHoliday.objects.filter(date=date).first()
     return HospitalDayAnswer(
-        date=date, weekday=date.strftime("%A"), weekend=date.weekday() in HospitalSettings.load().rules["weekend_weekdays"],
+        date=date, weekday=date.strftime("%A"), weekend=answer.weekend,
         holiday=holiday.name if holiday else None,
         shifts=[DayColumn(code=code, display_name=names.get(code, code)) for code in answer.codes],
         units=[DayUnit(id=row.unit.pk, name=row.unit.name, archived=row.unit.archived, state=row.state, unchecked=row.unchecked,
