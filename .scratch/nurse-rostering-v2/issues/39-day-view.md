@@ -146,3 +146,5 @@ refuses (the `unchecked` line); the page under thirty units.
 
 **For later tickets.** The covers column above. Ticket 38 (skills on the roster in force) and any other rule the view should
 flag would add to `rosters/day.py`'s `_figures`, which reads only headcount, team leader and gender findings.
+
+**Reviewed by the user (2026-11-09):** both Worth your review points kept as recommended: the open-covers column stays out (the CNO and the Deputy CNO see no covers, per section 3) unless the CNO asks for it; the read's cost (about 7 ms a nurse) stays as built, and a batched carry-over read is ticket 57. Merged into `main` as `6becf7a` (a merge commit: main had moved by the focus fix, no file in common; the merge passed the frontend build and the app tests locally, and main's CI on GitHub); no migration; dev stack rebuilt.
