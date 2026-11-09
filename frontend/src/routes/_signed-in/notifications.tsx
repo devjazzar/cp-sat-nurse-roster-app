@@ -7,6 +7,7 @@ import {
   useMarkNotificationRead,
 } from "@/api/generated/endpoints"
 import type { NotificationLink, NotificationRow } from "@/api/generated/model"
+import { PushOnThisDevice } from "@/components/push-on-this-device"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn, hospitalTime } from "@/lib/utils"
@@ -90,6 +91,7 @@ function NotificationsPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <h1 className="text-xl font-medium">Notifications</h1>
+      <PushOnThisDevice />
       {list.isPending && <p>Loading…</p>}
       {list.isError && <p role="alert">Your notifications could not be read. Reload the page to try again.</p>}
       {answer && answer.items.length === 0 && <p>You have no notifications.</p>}

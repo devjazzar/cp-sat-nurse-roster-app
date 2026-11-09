@@ -1,8 +1,10 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { redirect, useNavigate } from "@tanstack/react-router"
+import { useState } from "react"
 
 import { getGetSessionQueryKey, getGetSessionQueryOptions, useLogout } from "@/api/generated/endpoints"
 import type { Me, Role, SessionState } from "@/api/generated/model"
+import { turnThisDeviceOffForLogOut } from "@/lib/push"
 
 /** Who is signed in. The answer is cached until login, logout, a password change or a 401 changes
  *  it, so a route guard costs no request. Nothing here polls: see SESSION_SAVE_EVERY_REQUEST. */
@@ -31,15 +33,22 @@ export function useSignOut() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const logout = useLogout()
+  const [leaving, setLeaving] = useState(false)
   return {
-    pending: logout.isPending,
-    run: () =>
+    pending: leaving || logout.isPending,
+    // This device's pushes end first (ticket 40), and signing out goes on whatever that answered. A session that expires by
+    // itself ends none, since reaching someone who is not using the app is the point.
+    run: async () => {
+      setLeaving(true)
+      await turnThisDeviceOffForLogOut()
+      setLeaving(false)
       logout.mutate(undefined, {
         onSuccess: () => {
           queryClient.clear() // what the last user saw must not outlive their session
           setCurrentUser(queryClient, null)
           void navigate({ to: "/login" })
         },
-      }),
+      })
+    },
   }
 }

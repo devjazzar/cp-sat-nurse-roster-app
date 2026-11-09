@@ -28,11 +28,14 @@ const HEALTH = {
 /** What the header's bell polls on every signed-in page. A test that needs other answers gives its own. */
 const BELL = "/api/notifications/unread"
 const NO_BELL = { [`GET ${BELL}`]: { body: { unread: 0 } } }
+/** What the Notifications page's "On this device" reads (ticket 40), where a test has no other answer. */
+const PUSH_KEY = "BAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-P0A"
+const NO_PUSH = { "POST /api/notifications/push/state": { body: { public_key: PUSH_KEY, this_device: false, devices: 0 } } }
 /** The addresses a page read, without the bell's polls, whose number depends on how long the test took. */
 const pageReads = (calls: { url: string }[]) => calls.map((call) => call.url).filter((url) => url !== BELL)
 
 function start(path: string, given: Record<string, Handler | Answer>) {
-  const handlers: Record<string, Handler | Answer> = { ...NO_BELL, ...given }
+  const handlers: Record<string, Handler | Answer> = { ...NO_BELL, ...NO_PUSH, ...given }
   const calls: { url: string; method: string; body: unknown; headers: Headers }[] = []
   vi.stubGlobal(
     "fetch",
@@ -7235,7 +7238,7 @@ describe("the notification bell", () => {
     expect(items.map((item) => item.textContent)).toEqual([
       expect.stringContaining("New " + NOTE.text), expect.stringContaining(OLDER.text)])
     expect(document.title).toBe("Notifications · Nurse roster")
-    expect(screen.getByRole("status")).toHaveTextContent("1 unread.")
+    expect(screen.getByRole("status", { name: "" })).toHaveTextContent("1 unread.")
 
     await user.click(within(items[0]).getByRole("link", { name: "Open My roster" }))
 
@@ -7271,7 +7274,7 @@ describe("the notification bell", () => {
     await user.click(await screen.findByRole("button", { name: "Mark all as read" }))
 
     expect(await screen.findByText("All read.")).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole("status", { name: "" })).toHaveFocus())
     expect(await screen.findByRole("link", { name: "Notifications" })).toBeInTheDocument()
   })
 
@@ -7286,7 +7289,7 @@ describe("the notification bell", () => {
     await user.click(await screen.findByRole("button", { name: "Mark as read" }))
 
     expect(await screen.findByText("All read.")).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole("status")).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole("status", { name: "" })).toHaveFocus())
   })
 
   it("says when there are none", async () => {
@@ -8602,5 +8605,348 @@ describe("covers", () => {
     start("/notifications", { ...session(MANAGER), "GET /api/notifications": { body: { unread: 1, items: [note("unit_covers", "c1")] } } })
 
     expect(await screen.findByRole("link", { name: "Open the cover" })).toHaveAttribute("href", "/unit-covers?month=2026-12&cover=c1")
+  })
+})
+
+// Ticket 40. The browser's push machinery is stubbed per test: a service worker registration with its push manager, the
+// Notification permission and, for an iPhone, Safari's `navigator.standalone`.
+describe("pushes on this device", () => {
+  const KEY_BYTES = Uint8Array.from({ length: 65 }, (_, index) => (index === 0 ? 4 : index))
+  const OLD_KEY_BYTES = Uint8Array.from({ length: 65 }, (_, index) => (index === 0 ? 4 : 100 + index))
+  const PHONE = "https://fcm.googleapis.com/fcm/send/this-phone"
+  const NEW_ADDRESS = "https://fcm.googleapis.com/fcm/send/subscribed-now"
+  const STATE = "POST /api/notifications/push/state"
+  const ON = { public_key: PUSH_KEY, this_device: true, devices: 1 }
+  const OFF = { public_key: PUSH_KEY, this_device: false, devices: 0 }
+  const page = (extra = {}) => ({ ...session(NURSE), "GET /api/notifications": { body: { unread: 0, items: [] } }, ...extra })
+
+  const defined: [object, string][] = []
+  const define = (on: object, name: string, value: unknown) => {
+    Object.defineProperty(on, name, { value, configurable: true, writable: true })
+    defined.push([on, name])
+  }
+  afterEach(() => {
+    for (const [on, name] of defined.splice(0)) delete (on as Record<string, unknown>)[name]
+  })
+
+  type Browser = {
+    permission?: NotificationPermission
+    /** What the permission question is answered with. */
+    answer?: NotificationPermission
+    /** The browser's own subscription, and the key it was made with. */
+    subscription?: { endpoint: string; key: Uint8Array } | null
+    noPush?: boolean
+    iPhone?: { standalone: boolean }
+    subscribeFails?: boolean
+  }
+
+  /** What the browser was asked to do, in order. */
+  function browser({ permission = "default", answer = "granted", subscription = null, noPush, iPhone, subscribeFails }: Browser = {}) {
+    const did: string[] = []
+    const subscribedWith: Uint8Array[] = []
+    let current = subscription
+    const made = (endpoint: string, key: Uint8Array) => ({
+      endpoint,
+      options: { applicationServerKey: key.buffer },
+      toJSON: () => ({ endpoint, keys: { p256dh: `p256dh-${endpoint.split("/").pop()}`, auth: "auth-secret" } }),
+      unsubscribe: async () => { did.push(`unsubscribe ${endpoint}`); current = null; return true },
+    })
+    const pushManager = {
+      getSubscription: async () => (current ? made(current.endpoint, current.key) : null),
+      subscribe: async (options: { userVisibleOnly: boolean; applicationServerKey: Uint8Array }) => {
+        did.push(`subscribe userVisibleOnly=${options.userVisibleOnly}`)
+        subscribedWith.push(options.applicationServerKey)
+        if (subscribeFails) throw new DOMException("no", "AbortError")
+        current = { endpoint: NEW_ADDRESS, key: options.applicationServerKey }
+        return made(NEW_ADDRESS, options.applicationServerKey)
+      },
+    }
+    if (iPhone) {
+      define(navigator, "standalone", iPhone.standalone)
+      define(navigator, "maxTouchPoints", 5)
+    }
+    if (!noPush) {
+      define(navigator, "serviceWorker", { getRegistration: async () => ({ pushManager }) })
+      vi.stubGlobal("PushManager", class {})
+      const notification = {
+        permission,
+        requestPermission: async () => { did.push("ask permission"); notification.permission = answer; return answer },
+      }
+      vi.stubGlobal("Notification", notification)
+    }
+    return { did, subscribedWith }
+  }
+
+  const section = async () => {
+    const heading = await screen.findByRole("heading", { name: "On this device" })
+    return within(heading.closest("section")!)
+  }
+  const told = async (words: string) => {
+    const here = await section()
+    await waitFor(() => expect(here.getByRole("status")).toHaveTextContent(words))
+  }
+  const pushCalls = (calls: { url: string; method: string; body: unknown }[]) =>
+    calls.filter((call) => call.url.startsWith("/api/notifications/push/") || call.url === "/api/auth/logout")
+      .map((call) => [call.url.replace("/api/notifications/push/", ""), call.body])
+
+  describe("its states", () => {
+    it("a browser with no push support says so, and still turns off every device", async () => {
+      browser({ noPush: true })
+      start("/notifications", page({ [STATE]: { body: { ...OFF, devices: 2 } } }))
+
+      await told("This browser cannot receive pushes.")
+      const here = await section()
+      expect(here.queryByRole("button", { name: "Turn on" })).not.toBeInTheDocument()
+      expect(here.getByText("Pushes are on on 2 devices.")).toBeInTheDocument()
+      expect(here.getByRole("button", { name: "Turn off on every device" })).toBeInTheDocument()
+    })
+
+    it("an iPhone not added to the Home Screen is told to add it, with the steps", async () => {
+      browser({ noPush: true, iPhone: { standalone: false } })
+      start("/notifications", page())
+
+      await told("Add the app to your Home Screen to turn these on.")
+      expect((await section()).getByText("In Safari, tap Share, then Add to Home Screen.")).toBeInTheDocument()
+      expect((await section()).queryByRole("button", { name: "Turn on" })).not.toBeInTheDocument()
+    })
+
+    it("an iPhone running from the Home Screen can turn them on", async () => {
+      browser({ iPhone: { standalone: true } })
+      start("/notifications", page())
+
+      expect(await (await section()).findByRole("button", { name: "Turn on" })).toBeInTheDocument()
+    })
+
+    it("notifications blocked in the browser say where to undo it", async () => {
+      browser({ permission: "denied" })
+      start("/notifications", page())
+
+      await told("Notifications are blocked for this site in your browser's settings.")
+      expect((await section()).queryByRole("button", { name: "Turn on" })).not.toBeInTheDocument()
+    })
+
+    it("off says what a push tells, and offers Turn on", async () => {
+      browser()
+      start("/notifications", page())
+
+      await told("You are told when a swap, a request window or a roster waits for you, and nothing more.")
+      expect((await section()).getByRole("button", { name: "Turn on" })).toBeInTheDocument()
+      expect((await section()).queryByRole("button", { name: "Turn off on every device" })).not.toBeInTheDocument()
+    })
+
+    it("on says so, offers Turn off, and counts the devices", async () => {
+      browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { calls } = start("/notifications", page({ [STATE]: { body: { ...ON, devices: 1 } } }))
+
+      await told("Pushes are on for this device.")
+      const here = await section()
+      expect(here.getByRole("button", { name: "Turn off" })).toBeInTheDocument()
+      expect(here.getByText("Pushes are on on 1 device.")).toBeInTheDocument()
+      expect(calls.find((call) => call.url === "/api/notifications/push/state")?.body).toEqual({ endpoint: PHONE })
+    })
+
+    it("its controls are as tall as a thumb on a touch screen", async () => {
+      browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      start("/notifications", page({ [STATE]: { body: { ...ON, devices: 2 } } }))
+
+      await told("Pushes are on for this device.")
+      for (const name of ["Turn off", "Turn off on every device"]) {
+        expect((await section()).getByRole("button", { name })).toHaveClass("pointer-coarse:h-11")
+      }
+    })
+  })
+
+  describe("Turn on", () => {
+    it("asks the browser, subscribes with the installation's key, tells the server and shows on", async () => {
+      const seen = browser()
+      let on = false
+      const { user, calls } = start("/notifications", page({
+        [STATE]: () => ({ body: on ? ON : OFF }),
+        "POST /api/notifications/push/on": () => { on = true; return { body: ON } },
+      }))
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn on" }))
+
+      await told("Pushes are on for this device.")
+      expect(seen.did).toEqual(["ask permission", "subscribe userVisibleOnly=true"])
+      expect([...seen.subscribedWith[0]]).toEqual([...KEY_BYTES])
+      expect(calls.find((call) => call.url === "/api/notifications/push/on")?.body).toEqual({
+        endpoint: NEW_ADDRESS, keys: { p256dh: "p256dh-subscribed-now", auth: "auth-secret" } })
+      expect((await section()).getByText("Pushes are on on 1 device.")).toBeInTheDocument()
+    })
+
+    it("replaces a browser subscription made with another key before subscribing", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: OLD_KEY_BYTES } })
+      const { user } = start("/notifications", page({ "POST /api/notifications/push/on": { body: ON } }))
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn on" }))
+
+      await told("Pushes are on for this device.")
+      expect(seen.did).toEqual(["ask permission", `unsubscribe ${PHONE}`, "subscribe userVisibleOnly=true"])
+    })
+
+    it("a refusal shows the blocked state, and nothing is subscribed", async () => {
+      const seen = browser({ answer: "denied" })
+      const { user, calls } = start("/notifications", page())
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn on" }))
+
+      await told("Notifications are blocked for this site in your browser's settings.")
+      expect(seen.did).toEqual(["ask permission"])
+      expect(calls.some((call) => call.url === "/api/notifications/push/on")).toBe(false)
+    })
+
+    it("a question dismissed says so, and the button stays", async () => {
+      browser({ answer: "default" })
+      const { user } = start("/notifications", page())
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn on" }))
+
+      await told("Pushes were not turned on: the browser was not given permission.")
+      expect((await section()).getByRole("button", { name: "Turn on" })).toBeEnabled()
+    })
+
+    it("a subscription the browser cannot make is said in the status line", async () => {
+      browser({ subscribeFails: true })
+      const { user } = start("/notifications", page())
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn on" }))
+
+      await told("This browser could not subscribe to pushes. Try again later.")
+    })
+
+    it("a server that cannot be told is said in the status line", async () => {
+      browser()
+      const { user } = start("/notifications", page({ "POST /api/notifications/push/on": { status: 500 } }))
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn on" }))
+
+      await told("Pushes could not be turned on. Try again.")
+    })
+  })
+
+  describe("Turn off", () => {
+    it("tells the server, ends the browser's subscription and shows off", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { user, calls } = start("/notifications", page({
+        [STATE]: { body: { ...ON, devices: 2 } },
+        "POST /api/notifications/push/off": { body: { ...OFF, devices: 1 } },
+      }))
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn off" }))
+
+      await told("You are told when a swap, a request window or a roster waits for you, and nothing more.")
+      expect(calls.find((call) => call.url === "/api/notifications/push/off")?.body).toEqual({ endpoint: PHONE })
+      expect(seen.did).toEqual([`unsubscribe ${PHONE}`])
+      expect((await section()).getByText("Pushes are on on 1 device.")).toBeInTheDocument()
+    })
+
+    it("a failure keeps this device on and says so", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { user } = start("/notifications", page({
+        [STATE]: { body: ON }, "POST /api/notifications/push/off": { status: 500 },
+      }))
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn off" }))
+
+      await told("Pushes could not be turned off. Try again.")
+      expect((await section()).getByText("Pushes are on for this device.")).toBeInTheDocument()
+      expect(seen.did).toEqual([])
+    })
+
+    it("on every device, from this one", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { user, calls } = start("/notifications", page({
+        [STATE]: { body: { ...ON, devices: 3 } },
+        "POST /api/notifications/push/off-everywhere": { body: OFF },
+      }))
+
+      await user.click(await (await section()).findByRole("button", { name: "Turn off on every device" }))
+
+      await told("You are told when a swap, a request window or a roster waits for you, and nothing more.")
+      expect(calls.some((call) => call.url === "/api/notifications/push/off-everywhere")).toBe(true)
+      expect(seen.did).toEqual([`unsubscribe ${PHONE}`])
+      expect((await section()).queryByText(/Pushes are on on/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe("at the app's start", () => {
+    it("a subscription bound to a replaced key is replaced with no question, wherever the app opens", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: OLD_KEY_BYTES } })
+      const { calls } = start("/", nurseHome("u1", { [STATE]: { body: ON }, "POST /api/notifications/push/on": { body: ON } }))
+
+      await waitFor(() => expect(calls.some((call) => call.url === "/api/notifications/push/on")).toBe(true))
+      expect(seen.did).toEqual([`unsubscribe ${PHONE}`, "subscribe userVisibleOnly=true"])
+      expect([...seen.subscribedWith[0]]).toEqual([...KEY_BYTES])
+      expect(pushCalls(calls)).toEqual([
+        ["state", { endpoint: PHONE }],
+        ["on", { endpoint: NEW_ADDRESS, keys: { p256dh: "p256dh-subscribed-now", auth: "auth-secret" }, replaces: PHONE }],
+      ])
+    })
+
+    it("one the server does not hold is left alone and shows as off", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: OLD_KEY_BYTES } })
+      const { calls } = start("/notifications", page())
+
+      await told("You are told when a swap, a request window or a roster waits for you, and nothing more.")
+      // Both reads answered: the start's own check, and the page's.
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/notifications/push/state")).toHaveLength(2))
+      expect(seen.did).toEqual([])
+      expect(calls.some((call) => call.url === "/api/notifications/push/on")).toBe(false)
+    })
+
+    it("one bound to the current key is left as it is", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { calls } = start("/notifications", page({ [STATE]: { body: ON } }))
+
+      await told("Pushes are on for this device.")
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/notifications/push/state")).toHaveLength(2))
+      expect(seen.did).toEqual([])
+    })
+  })
+
+  describe("Log out", () => {
+    it("turns this device off first, then signs out", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { user, calls } = start("/notifications", page({
+        [STATE]: { body: ON },
+        "POST /api/notifications/push/off": { body: OFF },
+        "POST /api/auth/logout": { status: 204 },
+      }))
+      await told("Pushes are on for this device.")
+
+      await user.click(screen.getByRole("button", { name: "Log out" }))
+
+      expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
+      expect(seen.did).toEqual([`unsubscribe ${PHONE}`])
+      expect(pushCalls(calls).slice(-2)).toEqual([["off", { endpoint: PHONE }], ["/api/auth/logout", undefined]])
+    })
+
+    it("signs out even when the server could not be told", async () => {
+      const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { user, calls } = start("/notifications", page({
+        [STATE]: { body: ON },
+        "POST /api/notifications/push/off": { status: 500 },
+        "POST /api/auth/logout": { status: 204 },
+      }))
+      await told("Pushes are on for this device.")
+
+      await user.click(screen.getByRole("button", { name: "Log out" }))
+
+      expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
+      expect(seen.did).toEqual([`unsubscribe ${PHONE}`])
+      expect(calls.some((call) => call.url === "/api/auth/logout")).toBe(true)
+    })
+
+    it("with no subscription here, signs out as before", async () => {
+      browser()
+      const { user, calls } = start("/notifications", page({ "POST /api/auth/logout": { status: 204 } }))
+      await told("You are told when a swap")
+
+      await user.click(screen.getByRole("button", { name: "Log out" }))
+
+      expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
+      expect(calls.some((call) => call.url === "/api/notifications/push/off")).toBe(false)
+    })
   })
 })

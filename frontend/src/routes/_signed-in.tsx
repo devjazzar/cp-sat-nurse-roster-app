@@ -1,9 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, Outlet, redirect, useRouteContext, useRouterState } from "@tanstack/react-router"
 import { MenuIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 
 import { NotificationBell } from "@/components/notification-bell"
+import { PUSH_STATE_KEY } from "@/components/push-on-this-device"
 import { Button } from "@/components/ui/button"
+import { renewAfterARotation } from "@/lib/push"
 import { cn } from "@/lib/utils"
 import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { navigation, ROLE_NAMES } from "@/roles"
@@ -35,6 +38,19 @@ function LogOutButton({ className }: { className?: string }) {
   return <Button variant="outline" size="sm" className={className} onClick={signOut.run} disabled={signOut.pending || awaitingPassword}>Log out</Button>
 }
 
+/** Once a start of the app for a signed-in user: a device bound to a replaced key re-subscribes with no question (ticket 40). */
+function useRenewedPushes() {
+  const queryClient = useQueryClient()
+  const asked = useRef(false)
+  useEffect(() => {
+    if (asked.current) return
+    asked.current = true
+    void renewAfterARotation().then((renewed) => {
+      if (renewed) void queryClient.invalidateQueries({ queryKey: PUSH_STATE_KEY })
+    })
+  }, [queryClient])
+}
+
 function SignedInLayout() {
   const { user } = useRouteContext({ from: "/_signed-in" })
   const [menuOpen, setMenuOpen] = useState(false)
@@ -42,6 +58,8 @@ function SignedInLayout() {
   const path = useRouterState({ select: (state) => state.location.pathname })
   const pages = [...navigation(user), { to: "/change-password", label: "Change password" } as const]
   const who = `${user.username} · ${ROLE_NAMES[user.role]}`
+
+  useRenewedPushes()
 
   // Choosing a page closes it: from the menu, the page already open too (below), or anywhere else, by the path changing.
   useEffect(() => setMenuOpen(false), [path])
