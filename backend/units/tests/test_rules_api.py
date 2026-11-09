@@ -86,15 +86,12 @@ def ccu(omar):
 # The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
 # deletes this set and its subtraction below.
 VERSION_2_SKILL_FIELDS = {"skill_needs", "skill_needs_hard"}
-# The solver's full-run field (ticket 47) that the app's blocks do not carry yet: ticket 48 adds it to the blocks and deletes
-# this set and its subtraction below.
-FULL_RUN_FIELDS = {"max_full_runs"}
 
 
 @pytest.mark.parametrize("schema", [UnitRules, UnitRulesAnswer])
 def test_both_schemas_are_every_field_of_the_solvers_block_but_its_name(schema):
     assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"} \
-        - VERSION_2_SKILL_FIELDS - FULL_RUN_FIELDS
+        - VERSION_2_SKILL_FIELDS
 
 
 @pytest.mark.parametrize("schema", [HeadcountRule, HeadcountAnswer])
@@ -125,6 +122,10 @@ def test_what_the_form_saves_is_what_a_solve_input_receives(mona, er):
     {"score_balance_mode": "spread", "score_target": 1, "score_band_hi": 0},
     {"fair_tolerance": 1000, "carry_cap": 1000, "max_weekends": 1000, "max_switches": 1000},
     {"fair_tolerance": 0, "carry_cap": 0, "max_weekends": 0, "max_switches": 0},
+    {"max_full_runs": 0},
+    {"max_full_runs": 31},
+    {"max_full_runs": 31, "max_consecutive_shifts": 0},
+    {"max_full_runs": 0, "max_consecutive_shifts": 1},
     {"fair_shifts": []},
     {"headcounts": [headcount("D", low=1000, high=1000), headcount("N", low=0, high=0)]},
     {"headcounts": [headcount("D", also=["N"]), headcount("N", also=["D"])]},
@@ -233,6 +234,43 @@ def test_the_system_admin_can_read_unit_rule_values_in_the_log_as_with_hospital_
     assert next(entry for entry in entries if entry["action"] == "unit_rules.changed")["after"]["score_target"] == 0.6
 
 
+# ---- the most full runs in a month (ticket 48) ----------------------------------------------------
+def test_the_manager_sets_the_most_full_runs_audited_and_a_solve_input_carries_them(mona, er):
+    put(mona, er, body())
+
+    response = put(mona, er, body(max_full_runs=2))
+
+    assert response.status_code == 200 and response.json()["rules"]["max_full_runs"] == 2
+    entry = AuditEntry.objects.filter(action="unit_rules.changed").latest("id")
+    assert (entry.before, entry.after, entry.actor.username) == ({"max_full_runs": 3}, {"max_full_runs": 2}, "mona")
+    er.refresh_from_db()
+    assert load_request(solve_input(er)).problem.department.max_full_runs == 2
+
+
+def test_the_most_full_runs_keep_their_number_through_a_change_to_the_longest_run(mona, er):
+    put(mona, er, body(max_full_runs=5))
+
+    for longest in (1, 0, 4):
+        assert put(mona, er, body(max_full_runs=5, max_consecutive_shifts=longest)).json()["rules"]["max_full_runs"] == 5
+
+
+def test_a_missing_full_run_cap_is_refused_rather_than_defaulted(mona, er):
+    rules = {key: value for key, value in DEFAULT_UNIT_RULES.items() if key != "max_full_runs"}
+
+    assert ("rules", "max_full_runs") in refused_fields(put(mona, er, body() | {"rules": rules}))
+
+
+@pytest.mark.parametrize("role", [Role.CNO, Role.DEPUTY_CNO])
+def test_the_cno_and_the_deputy_read_the_most_full_runs_but_only_the_manager_changes_them(client_of, mona, er, role):
+    put(mona, er, body(max_full_runs=1))
+    reader = client_of("reader", role)
+
+    assert reader.get(rules_of(er)).json()["rules"]["max_full_runs"] == 1
+    assert put(reader, er, body(max_full_runs=4)).status_code == 403
+    er.refresh_from_db()
+    assert er.rules["max_full_runs"] == 1
+
+
 # ---- refusals -------------------------------------------------------------------------------------
 @pytest.mark.parametrize("changes, field", [
     ({"shifts": []}, ("rules", "shifts")),
@@ -272,6 +310,12 @@ def test_the_system_admin_can_read_unit_rule_values_in_the_log_as_with_hospital_
     ({"max_consecutive_shifts": 28, "double_cycle_rest": 7}, ("rules", "max_consecutive_shifts")),
     ({"double_cycle_rest": -1}, ("rules", "double_cycle_rest")),
     ({"max_weekends": "3"}, ("rules", "max_weekends")),
+    ({"max_full_runs": -1}, ("rules", "max_full_runs")),
+    ({"max_full_runs": 32}, ("rules", "max_full_runs")),
+    ({"max_full_runs": 2.5}, ("rules", "max_full_runs")),
+    ({"max_full_runs": "3"}, ("rules", "max_full_runs")),
+    ({"max_full_runs": True}, ("rules", "max_full_runs")),
+    ({"max_full_runs": None}, ("rules", "max_full_runs")),
     ({"max_switches": True}, ("rules", "max_switches")),
     ({"headcount_enabled": "yes"}, ("rules", "headcount_enabled")),
     ({"name": "Renamed"}, ("rules", "name")),

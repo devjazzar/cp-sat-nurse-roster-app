@@ -65,6 +65,11 @@ export interface Weights {
      * @minimum 0
      * @maximum 1000000
      */
+  excess_full_run: number;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
   shift_switch: number;
   /**
      * @minimum 0

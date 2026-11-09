@@ -36,6 +36,7 @@ export interface UnitRulesAnswer {
   max_consecutive_shifts: number;
   double_cycle_rest: number;
   max_weekends: number;
+  max_full_runs: number;
   no_mixed_blocks: boolean;
   max_switches: number;
   switches_hard: boolean;

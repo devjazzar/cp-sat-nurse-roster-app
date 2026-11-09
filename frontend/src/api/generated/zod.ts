@@ -417,6 +417,9 @@ export const getHospitalRulesResponseRulesWeightsScoreSpreadMax = 1000000;
 export const getHospitalRulesResponseRulesWeightsExcessWeekendMin = 0;
 export const getHospitalRulesResponseRulesWeightsExcessWeekendMax = 1000000;
 
+export const getHospitalRulesResponseRulesWeightsExcessFullRunMin = 0;
+export const getHospitalRulesResponseRulesWeightsExcessFullRunMax = 1000000;
+
 export const getHospitalRulesResponseRulesWeightsShiftSwitchMin = 0;
 export const getHospitalRulesResponseRulesWeightsShiftSwitchMax = 1000000;
 
@@ -456,6 +459,7 @@ export const GetHospitalRulesResponse = zod.object({
   "score_deficit": zod.int().min(getHospitalRulesResponseRulesWeightsScoreDeficitMin).max(getHospitalRulesResponseRulesWeightsScoreDeficitMax),
   "score_spread": zod.int().min(getHospitalRulesResponseRulesWeightsScoreSpreadMin).max(getHospitalRulesResponseRulesWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(getHospitalRulesResponseRulesWeightsExcessWeekendMin).max(getHospitalRulesResponseRulesWeightsExcessWeekendMax),
+  "excess_full_run": zod.int().min(getHospitalRulesResponseRulesWeightsExcessFullRunMin).max(getHospitalRulesResponseRulesWeightsExcessFullRunMax),
   "shift_switch": zod.int().min(getHospitalRulesResponseRulesWeightsShiftSwitchMin).max(getHospitalRulesResponseRulesWeightsShiftSwitchMax),
   "undesired_day": zod.int().min(getHospitalRulesResponseRulesWeightsUndesiredDayMin).max(getHospitalRulesResponseRulesWeightsUndesiredDayMax),
   "desired_day": zod.int().min(getHospitalRulesResponseRulesWeightsDesiredDayMin).max(getHospitalRulesResponseRulesWeightsDesiredDayMax),
@@ -528,6 +532,9 @@ export const updateHospitalRulesBodyWeightsScoreSpreadMax = 1000000;
 export const updateHospitalRulesBodyWeightsExcessWeekendMin = 0;
 export const updateHospitalRulesBodyWeightsExcessWeekendMax = 1000000;
 
+export const updateHospitalRulesBodyWeightsExcessFullRunMin = 0;
+export const updateHospitalRulesBodyWeightsExcessFullRunMax = 1000000;
+
 export const updateHospitalRulesBodyWeightsShiftSwitchMin = 0;
 export const updateHospitalRulesBodyWeightsShiftSwitchMax = 1000000;
 
@@ -566,6 +573,7 @@ export const UpdateHospitalRulesBody = zod.object({
   "score_deficit": zod.int().min(updateHospitalRulesBodyWeightsScoreDeficitMin).max(updateHospitalRulesBodyWeightsScoreDeficitMax),
   "score_spread": zod.int().min(updateHospitalRulesBodyWeightsScoreSpreadMin).max(updateHospitalRulesBodyWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(updateHospitalRulesBodyWeightsExcessWeekendMin).max(updateHospitalRulesBodyWeightsExcessWeekendMax),
+  "excess_full_run": zod.int().min(updateHospitalRulesBodyWeightsExcessFullRunMin).max(updateHospitalRulesBodyWeightsExcessFullRunMax),
   "shift_switch": zod.int().min(updateHospitalRulesBodyWeightsShiftSwitchMin).max(updateHospitalRulesBodyWeightsShiftSwitchMax),
   "undesired_day": zod.int().min(updateHospitalRulesBodyWeightsUndesiredDayMin).max(updateHospitalRulesBodyWeightsUndesiredDayMax),
   "desired_day": zod.int().min(updateHospitalRulesBodyWeightsDesiredDayMin).max(updateHospitalRulesBodyWeightsDesiredDayMax),
@@ -630,6 +638,9 @@ export const updateHospitalRulesResponseRulesWeightsScoreSpreadMax = 1000000;
 export const updateHospitalRulesResponseRulesWeightsExcessWeekendMin = 0;
 export const updateHospitalRulesResponseRulesWeightsExcessWeekendMax = 1000000;
 
+export const updateHospitalRulesResponseRulesWeightsExcessFullRunMin = 0;
+export const updateHospitalRulesResponseRulesWeightsExcessFullRunMax = 1000000;
+
 export const updateHospitalRulesResponseRulesWeightsShiftSwitchMin = 0;
 export const updateHospitalRulesResponseRulesWeightsShiftSwitchMax = 1000000;
 
@@ -669,6 +680,7 @@ export const UpdateHospitalRulesResponse = zod.object({
   "score_deficit": zod.int().min(updateHospitalRulesResponseRulesWeightsScoreDeficitMin).max(updateHospitalRulesResponseRulesWeightsScoreDeficitMax),
   "score_spread": zod.int().min(updateHospitalRulesResponseRulesWeightsScoreSpreadMin).max(updateHospitalRulesResponseRulesWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(updateHospitalRulesResponseRulesWeightsExcessWeekendMin).max(updateHospitalRulesResponseRulesWeightsExcessWeekendMax),
+  "excess_full_run": zod.int().min(updateHospitalRulesResponseRulesWeightsExcessFullRunMin).max(updateHospitalRulesResponseRulesWeightsExcessFullRunMax),
   "shift_switch": zod.int().min(updateHospitalRulesResponseRulesWeightsShiftSwitchMin).max(updateHospitalRulesResponseRulesWeightsShiftSwitchMax),
   "undesired_day": zod.int().min(updateHospitalRulesResponseRulesWeightsUndesiredDayMin).max(updateHospitalRulesResponseRulesWeightsUndesiredDayMax),
   "desired_day": zod.int().min(updateHospitalRulesResponseRulesWeightsDesiredDayMin).max(updateHospitalRulesResponseRulesWeightsDesiredDayMax),
@@ -1227,6 +1239,7 @@ export const GetUnitRulesResponse = zod.object({
   "max_consecutive_shifts": zod.int(),
   "double_cycle_rest": zod.int(),
   "max_weekends": zod.int(),
+  "max_full_runs": zod.int(),
   "no_mixed_blocks": zod.boolean(),
   "max_switches": zod.int(),
   "switches_hard": zod.boolean()
@@ -1297,6 +1310,9 @@ export const updateUnitRulesBodyRulesDoubleCycleRestMax = 1000;
 export const updateUnitRulesBodyRulesMaxWeekendsMin = 0;
 export const updateUnitRulesBodyRulesMaxWeekendsMax = 1000;
 
+export const updateUnitRulesBodyRulesMaxFullRunsMin = 0;
+export const updateUnitRulesBodyRulesMaxFullRunsMax = 31;
+
 export const updateUnitRulesBodyRulesMaxSwitchesMin = 0;
 export const updateUnitRulesBodyRulesMaxSwitchesMax = 1000;
 
@@ -1341,6 +1357,7 @@ export const UpdateUnitRulesBody = zod.object({
   "max_consecutive_shifts": zod.int().min(updateUnitRulesBodyRulesMaxConsecutiveShiftsMin).max(updateUnitRulesBodyRulesMaxConsecutiveShiftsMax),
   "double_cycle_rest": zod.int().min(updateUnitRulesBodyRulesDoubleCycleRestMin).max(updateUnitRulesBodyRulesDoubleCycleRestMax),
   "max_weekends": zod.int().min(updateUnitRulesBodyRulesMaxWeekendsMin).max(updateUnitRulesBodyRulesMaxWeekendsMax),
+  "max_full_runs": zod.int().min(updateUnitRulesBodyRulesMaxFullRunsMin).max(updateUnitRulesBodyRulesMaxFullRunsMax),
   "no_mixed_blocks": zod.boolean(),
   "max_switches": zod.int().min(updateUnitRulesBodyRulesMaxSwitchesMin).max(updateUnitRulesBodyRulesMaxSwitchesMax),
   "switches_hard": zod.boolean()
@@ -1382,6 +1399,7 @@ export const UpdateUnitRulesResponse = zod.object({
   "max_consecutive_shifts": zod.int(),
   "double_cycle_rest": zod.int(),
   "max_weekends": zod.int(),
+  "max_full_runs": zod.int(),
   "no_mixed_blocks": zod.boolean(),
   "max_switches": zod.int(),
   "switches_hard": zod.boolean()

@@ -28,6 +28,7 @@ DEFAULT_RULES = {
         "score_deficit": 2,
         "score_spread": 1,
         "excess_weekend": 6,
+        "excess_full_run": 4,
         "shift_switch": 8,
         "undesired_day": 2,
         "desired_day": 1,

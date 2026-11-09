@@ -64,6 +64,7 @@ class Weights(StrictSchema):
     score_deficit: Weight
     score_spread: Weight
     excess_weekend: Weight
+    excess_full_run: Weight
     shift_switch: Weight
     undesired_day: Weight
     desired_day: Weight

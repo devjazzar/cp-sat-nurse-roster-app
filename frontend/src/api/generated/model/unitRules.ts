@@ -76,6 +76,11 @@ export interface UnitRules {
      * @maximum 1000
      */
   max_weekends: number;
+  /**
+     * @minimum 0
+     * @maximum 31
+     */
+  max_full_runs: number;
   no_mixed_blocks: boolean;
   /**
      * @minimum 0

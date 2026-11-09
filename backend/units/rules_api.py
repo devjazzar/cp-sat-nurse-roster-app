@@ -9,7 +9,8 @@ from uuid import UUID
 
 from django.db import transaction
 from ninja import Router, Schema
-from nurse_roster.problem import MAX_HISTORY, MAX_NURSES, MAX_PARAM, MAX_REST_DAYS, MAX_SHIFTS, needed_history
+from nurse_roster.problem import (MAX_FULL_RUNS, MAX_HISTORY, MAX_NURSES, MAX_PARAM, MAX_REST_DAYS, MAX_SHIFTS,
+                                  needed_history)
 from pydantic import Field, ValidationInfo, field_validator
 
 from accounts.authz import SignedIn
@@ -80,6 +81,7 @@ class UnitRules(StrictSchema):
     max_consecutive_shifts: Count
     double_cycle_rest: Count
     max_weekends: Count
+    max_full_runs: int = Field(ge=0, le=MAX_FULL_RUNS)
     no_mixed_blocks: bool
     max_switches: Count
     switches_hard: bool
@@ -130,6 +132,7 @@ class UnitRulesAnswer(Schema):
     max_consecutive_shifts: int
     double_cycle_rest: int
     max_weekends: int
+    max_full_runs: int
     no_mixed_blocks: bool
     max_switches: int
     switches_hard: bool

@@ -24,7 +24,7 @@ from rosters.tests.test_versions import changed, in_force_agrees, latest, works_
 from rosters.tests.test_pins import change_shift, icu, pin
 from requesting.models import PreferenceKind
 from solves.tests.conftest import start_solve
-from solves.tests.test_input import carried_from_may, preference
+from solves.tests.test_input import carried_from_may, full_runs_capped, preference
 from solves import running
 from solves.models import ReplanOutcome, Solve, SolveState
 from solves.tests.conftest import MONTH, NURSES, job, result_of
@@ -252,6 +252,15 @@ class TestFactsBeforeTheDate:
 
         assert {row["id"]: row["preferences_not_kept"] for row in solve.input["nurses"]} == {
             "Amal": 2, "Badr": 0, "Dana": 0, "Emad": 0}
+
+    def test_the_units_full_run_cap_and_the_hospitals_weight_reach_a_re_plan_as_they_reach_a_solve(self, mona, er, in_force):
+        """Ticket 48: the solver prices full runs above the cap in the days it plans again."""
+        full_runs_capped(er, 1, 50)
+
+        solve = Solve.objects.get(pk=started(mona, er)["id"])
+
+        problem = load_request(solve.input).problem
+        assert (problem.department.max_full_runs, problem.general.weights.excess_full_run) == (1, 50)
 
     def test_a_pin_set_aside_is_no_fact_and_the_day_is_the_roster_in_forces(self, mona, er, in_force):
         """Emad works Day on the 1st. A pin on Night there, then Night taken from his allowed shifts: the pin no longer fits."""

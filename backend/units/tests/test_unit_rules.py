@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 
 import pytest
+from django.apps import apps as django_apps
 from nurse_roster.problem import DepartmentRules
 from nurse_roster.request import load_request
 
 from accounts.models import Role
-from conftest import post
+from conftest import migration, post
 from hospital.models import HospitalSettings, Shift
 from hospital.rules import general_block
 from units.models import Unit
@@ -62,22 +63,20 @@ def solve_input(unit: Unit) -> dict:
 # The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
 # deletes this set and its subtraction below.
 VERSION_2_SKILL_FIELDS = {"skill_needs", "skill_needs_hard"}
-# The solver's full-run field (ticket 47) that the app's blocks do not carry yet: ticket 48 adds it to the blocks and deletes
-# this set and its subtraction below.
-FULL_RUN_FIELDS = {"max_full_runs"}
 
 
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_units_name():
     fields = {field.name for field in dataclasses.fields(DepartmentRules)}
 
-    assert set(DEFAULT_UNIT_RULES) == fields - {"name"} - VERSION_2_SKILL_FIELDS - FULL_RUN_FIELDS
+    assert set(DEFAULT_UNIT_RULES) == fields - {"name"} - VERSION_2_SKILL_FIELDS
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():
+    """The ER sample predates full runs; their cap is the spec's (full-runs.md), 3."""
     reviewed = er_request()["department"]
     del reviewed["name"]
 
-    assert DEFAULT_UNIT_RULES == reviewed
+    assert DEFAULT_UNIT_RULES == reviewed | {"max_full_runs": 3}
 
 
 # ---- seeding --------------------------------------------------------------------------------------
@@ -95,6 +94,25 @@ def test_a_new_units_block_is_one_the_solver_accepts_under_the_units_name(cno):
 
     assert department.name == "Cardiac care"
     assert department.shifts == ["D", "N"]
+
+
+def test_a_new_unit_allows_three_full_runs_a_month_and_its_block_carries_them(cno):
+    unit = new_unit(cno)
+
+    assert unit.rules["max_full_runs"] == 3
+    assert load_request(solve_input(unit)).problem.department.max_full_runs == 3
+
+
+def test_a_unit_from_before_the_full_run_cap_gets_three_and_keeps_the_rest(cno):
+    unit = new_unit(cno)
+    unit.rules = {key: value for key, value in unit.rules.items() if key != "max_full_runs"} | {"max_weekends": 5}
+    unit.rules_need_review = False
+    unit.save()
+
+    migration("units", "0004_max_full_runs").add(django_apps, None)
+
+    unit.refresh_from_db()
+    assert unit.rules == DEFAULT_UNIT_RULES | {"max_weekends": 5} and unit.rules_need_review is False
 
 
 def test_units_do_not_share_their_rules(cno):

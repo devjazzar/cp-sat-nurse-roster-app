@@ -32,6 +32,7 @@ DEFAULT_UNIT_RULES = {
     "max_consecutive_shifts": 3,
     "double_cycle_rest": 2,
     "max_weekends": 3,
+    "max_full_runs": 3,
     "no_mixed_blocks": True,
     "max_switches": 2,
     "switches_hard": False,

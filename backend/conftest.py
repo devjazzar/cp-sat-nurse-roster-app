@@ -1,3 +1,5 @@
+import importlib
+
 import pytest
 from django.test import Client
 
@@ -49,3 +51,9 @@ def client_of(make_user):
 
 def post(client, path, body):
     return client.post(path, body, content_type="application/json")
+
+
+def migration(app: str, name: str):
+    """A migration's module, whose own functions a test can run against rows written as an older release left them."""
+    return importlib.import_module(f"{app}.migrations.{name}")
+

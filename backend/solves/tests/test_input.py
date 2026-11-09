@@ -232,6 +232,62 @@ def block_of(solve_input, hospital_id):
     return next(row for row in solve_input["nurses"] if row["id"] == hospital_id)
 
 
+def full_runs_capped(unit, cap: int, weight: int) -> None:
+    unit.rules |= {"max_full_runs": cap}
+    unit.save()
+    settings = HospitalSettings.load()
+    settings.rules["weights"]["excess_full_run"] = weight
+    settings.save()
+
+
+class TestFullRuns:
+    """The unit's most full runs in a month and the hospital's price of each one above it reach every new input (ticket 48);
+    one stored without them is read as no cap. Priced by the solver package's own validator, with no search."""
+
+    @staticmethod
+    def amal_in_six_full_runs() -> dict:
+        """SOUND's June, but Amal works Day on four days in a row, off on the fifth, all month: six full runs of the
+        sample's longest run, 4, the last ended by the 30th off."""
+        from rosters.tests.test_review import SOUND
+        roster = copy.deepcopy(SOUND[MONTH]["roster"])
+        roster["Amal"] = {f"2026-06-{day:02d}": "" if day % 5 == 0 else "D" for day in range(1, 31)}
+        return roster
+
+    def test_a_solve_input_carries_the_units_cap_and_the_hospitals_weight(self, er):
+        full_runs_capped(er, 2, 20)
+
+        problem = load_request(built(er).input).problem
+
+        assert (problem.department.max_full_runs, problem.general.weights.excess_full_run) == (2, 20)
+
+    def test_each_full_run_above_the_cap_costs_the_weight_in_the_solvers_words(self, er):
+        from solver_service.grid import validate_grid
+        full_runs_capped(er, 3, 4)
+
+        [rule] = [rule for rule in validate_grid(built(er).input, self.amal_in_six_full_runs())["rules"]
+                  if rule["id"] == "excess_full_run"]
+
+        amal = next(match for match in rule["matches"] if match["nurse"] == "Amal")
+        assert (amal["amount"], amal["text"]) == (3, "Amal: 6 full runs of 4 shifts, max 3")
+        assert rule["weight"] == 4
+
+    def test_an_input_stored_before_full_runs_is_read_as_no_cap_and_prices_the_rest_as_before(self, er):
+        from solver_service.grid import validate_grid
+        full_runs_capped(er, 3, 4)
+        now = built(er).input
+        stored = copy.deepcopy(now)
+        del stored["department"]["max_full_runs"]
+        del stored["general"]["weights"]["excess_full_run"]
+        roster = self.amal_in_six_full_runs()
+
+        before, after = validate_grid(stored, roster), validate_grid(now, roster)
+
+        assert load_request(stored).problem.department.max_full_runs is None
+        assert before["penalties"]["excess_full_run"] == 0 and after["penalties"]["excess_full_run"] >= 3 * 4
+        assert before["penalties"] == after["penalties"] | {"excess_full_run": 0}
+        assert before["cost"] == after["cost"] - after["penalties"]["excess_full_run"]
+
+
 class TestPreferences:
     """A nurse's live preferences are the days she asked off (`undesired_days`) and to work (`desired_days`), each in date
     order (ADR 0013)."""

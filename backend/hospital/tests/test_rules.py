@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 
 import pytest
+from django.apps import apps as django_apps
 from django.core.management import call_command
-from nurse_roster.problem import GeneralRules, Weights
+from nurse_roster.problem import GeneralRules, Problem, Weights
 from nurse_roster.request import load_request
+from nurse_roster.rules import active
 
 from accounts.models import Role
+from conftest import migration
 from audit.models import AuditEntry
 from hospital.models import HospitalSettings
 from hospital.rules import DEFAULT_RULES, general_block
@@ -44,21 +47,20 @@ def er_request() -> dict:
 # The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
 # deletes this set and its subtraction below.
 VERSION_2_SKILL_FIELDS = {"required_skills", "skill_shortfall"}
-# The solver's full-run weight (ticket 47) that the app's weights do not carry yet: ticket 48 adds it to the weights and
-# deletes this set and its subtraction below.
-FULL_RUN_FIELDS = {"excess_full_run"}
 
 
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_shift_catalogues():
     fields = {field.name for field in dataclasses.fields(GeneralRules)}
 
     assert set(DEFAULT_RULES) == fields - {"shift_hours"} - VERSION_2_SKILL_FIELDS
-    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)} - VERSION_2_SKILL_FIELDS - FULL_RUN_FIELDS
+    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)} - VERSION_2_SKILL_FIELDS
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():
+    """The ER sample predates full runs; their weight is the spec's (full-runs.md), 4."""
     reviewed = er_request()["general"]
     del reviewed["shift_hours"]
+    reviewed["weights"]["excess_full_run"] = 4
 
     assert DEFAULT_RULES == reviewed
 
@@ -181,6 +183,57 @@ def test_a_later_change_does_not_bring_the_flag_back(signed_in):
     put(client, body())
 
     assert put(client, body(hours_per_day=7)).json()["needs_review"] is False
+
+
+# ---- the full-run weight (ticket 48) --------------------------------------------------------------
+def test_a_full_run_above_the_most_costs_4_by_default(signed_in):
+    assert signed_in(Role.CNO).get(RULES).json()["rules"]["weights"]["excess_full_run"] == 4
+
+
+def test_the_cno_changes_the_full_run_weight_audited_and_a_solve_input_carries_it(signed_in):
+    client = signed_in(Role.CNO)
+    put(client, body())
+    AuditEntry.objects.all().delete()
+
+    response = put(client, weights(excess_full_run=50))
+
+    assert response.status_code == 200 and response.json()["rules"]["weights"]["excess_full_run"] == 50
+    entry = AuditEntry.objects.get(action="hospital_rules.changed")
+    assert entry.before == {"weights.excess_full_run": 4} and entry.after == {"weights.excess_full_run": 50}
+    general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
+    assert load_request(er_request() | {"general": general}).problem.general.weights.excess_full_run == 50
+
+
+def test_a_full_run_weight_of_0_switches_the_rule_off_hospital_wide(signed_in):
+    def capped_at_0() -> Problem:
+        general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
+        request = er_request() | {"general": general}
+        request["department"] |= {"max_full_runs": 0}
+        return load_request(request).problem
+    client = signed_in(Role.CNO)
+    assert active(capped_at_0(), "excess_full_run")
+
+    assert put(client, weights(excess_full_run=0)).status_code == 200
+
+    assert not active(capped_at_0(), "excess_full_run")
+
+
+@pytest.mark.parametrize("value", [-1, 10 ** 6 + 1, 2.5, "4", True, None])
+def test_a_bad_full_run_weight_is_refused_with_its_field(signed_in, value):
+    assert ("weights", "excess_full_run") in refused_fields(put(signed_in(Role.CNO), weights(excess_full_run=value)))
+
+
+def test_an_installation_from_before_the_full_run_weight_gets_it_at_4(signed_in):
+    put(signed_in(Role.CNO), weights(change=9))
+    row = HospitalSettings.load()
+    del row.rules["weights"]["excess_full_run"]
+    row.save()
+
+    migration("hospital", "0004_excess_full_run_weight").add(django_apps, None)
+
+    row.refresh_from_db()
+    assert row.rules["weights"]["excess_full_run"] == 4 and row.rules["weights"]["change"] == 9
+    assert not row.rules_need_review
 
 
 # ---- validation -----------------------------------------------------------------------------------

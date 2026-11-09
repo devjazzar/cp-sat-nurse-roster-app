@@ -28,7 +28,7 @@ from rosters.tests.test_pins import change_shift
 from rosters.tests.test_review import SOUND, approve, carla, ok, record_leave, refused, solved, submit, url  # noqa: F401
 from solves.input import assemble
 from solves.tests.conftest import MONTH
-from solves.tests.test_input import preference
+from solves.tests.test_input import full_runs_capped, preference
 
 pytestmark = pytest.mark.django_db
 
@@ -234,6 +234,16 @@ class TestTheFacts:
 
         assert close.result["facts"]["Amal"]["2026-06-01"] == "NT"
         assert "NT" in close.input["department"]["shifts"]
+
+    def test_the_close_input_carries_the_units_full_run_cap_and_the_hospitals_weight(self, june, er, on):
+        """Ticket 48: as a solve's does, so that the close prices the month as the solver would."""
+        full_runs_capped(er, 2, 20)
+        on(dt.date(2026, 7, 1))
+
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        assert close.input["department"]["max_full_runs"] == 2
+        assert close.input["general"]["weights"]["excess_full_run"] == 20
 
     def test_a_shift_the_unit_dropped_after_its_month_counts_as_worked(self, june, er, on):
         """The user's decision (2026-11-06): the close does not refuse, and keeps the past roster as it stands."""

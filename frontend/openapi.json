@@ -7199,6 +7199,12 @@
             "title": "Excess Weekend",
             "type": "integer"
           },
+          "excess_full_run": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Excess Full Run",
+            "type": "integer"
+          },
           "shift_switch": {
             "maximum": 1000000,
             "minimum": 0,
@@ -7236,6 +7242,7 @@
           "score_deficit",
           "score_spread",
           "excess_weekend",
+          "excess_full_run",
           "shift_switch",
           "undesired_day",
           "desired_day",
@@ -7993,6 +8000,10 @@
             "title": "Max Weekends",
             "type": "integer"
           },
+          "max_full_runs": {
+            "title": "Max Full Runs",
+            "type": "integer"
+          },
           "no_mixed_blocks": {
             "title": "No Mixed Blocks",
             "type": "boolean"
@@ -8030,6 +8041,7 @@
           "max_consecutive_shifts",
           "double_cycle_rest",
           "max_weekends",
+          "max_full_runs",
           "no_mixed_blocks",
           "max_switches",
           "switches_hard"
@@ -8265,6 +8277,12 @@
             "title": "Max Weekends",
             "type": "integer"
           },
+          "max_full_runs": {
+            "maximum": 31,
+            "minimum": 0,
+            "title": "Max Full Runs",
+            "type": "integer"
+          },
           "no_mixed_blocks": {
             "title": "No Mixed Blocks",
             "type": "boolean"
@@ -8304,6 +8322,7 @@
           "max_consecutive_shifts",
           "double_cycle_rest",
           "max_weekends",
+          "max_full_runs",
           "no_mixed_blocks",
           "max_switches",
           "switches_hard"
