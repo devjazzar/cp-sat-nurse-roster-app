@@ -210,3 +210,11 @@ reads like a time and a past event, so it is now "Change" with "New", "Renewal, 
 - **An export with skill names** (none is planned): write it through `nurses.spreadsheets.csv_response`, whose `safe_cell` is the
   formula guard (decision 1).
 
+
+**Reviewed by the user (2026-11-09):** all six points kept as recommended.
+- The formula guard stays in `safe_cell`, with no new catalogue refusal.
+- A deactivated nurse is a problem in the file.
+- One audit entry per import, with no per-nurse entries.
+- The renamed "Import nurses from a file" button.
+- A row repeating what is already recorded is fine and counted unchanged.
+- The preview shows the nurse's full name.
