@@ -21,7 +21,7 @@ disagree, the documents win.
 | 7 | Ramadan and the Eids from the Umm al-Qura calendar | `specs/ramadan-and-eid-from-the-calendar.md` | 44, 45, 46 | none |
 | 8 | Full runs: a priced cap per nurse a month (added 2026-11-08) | `specs/full-runs.md` | 47, 48 | GLOSSARY: Run, Full run |
 | 9 | Overtime share: a unit's overtime spread fairly (added 2026-11-09) | `specs/overtime-share.md` | 49, 50, 51 | GLOSSARY: Overtime share |
-| 10 | Probation: a newly hired nurse beside a preceptor, counted toward nothing (added 2026-11-09) | `specs/probation.md` | to be cut, from 52 | GLOSSARY: Probation, Nurse on probation, Preceptor; ADR 0014 |
+| 10 | Probation: a newly hired nurse beside a preceptor, counted toward nothing (added 2026-11-09) | `specs/probation.md` | 52–56 | GLOSSARY: Probation, Nurse on probation, Preceptor; ADR 0014 |
 
 ## The ticket graph
 
@@ -38,7 +38,7 @@ shows open covers if covers exist by then, and Web Push (40–42) pushes a cover
 - **Ramadan:** 44 → 45; 46 beside them.
 - **Full runs:** 47 → 48.
 - **Overtime share:** 47 → 49 → 50 → 51 (49 after 47: both change the solver's input).
-- **Probation:** tickets not cut yet; its solver ticket after 49, its preceptor check after 33.
+- **Probation:** 49 → 52; 33 → 53; 54 beside them; 52 + 53 + 54 → 55 → 56 (52 after 49: both change the solver's input).
 
 ## The order to build in
 

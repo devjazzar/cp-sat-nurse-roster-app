@@ -292,10 +292,9 @@ values come from a worked example counted by hand, never recomputed the way the 
 
 - **What this waits for.** A nurse's skills (ticket 33) for the preceptor's check; the solver ticket after ticket 49, since
   both change the solver's input. The skill catalogue (ticket 32) is on `main`.
-- **The tickets foreseen** (to be cut by `/to-tickets`, numbered from 52): the solver rosters a nurse on probation; the
-  catalogue's "Lets a nurse precept" mark; probation on a nurse (the tick, the length, Extend, End, the automatic end and
-  its notification); the preceptor (assigning and changing, the solve input, swaps, covers and requests); what everyone sees
-  (the roster reads, the sheets, My month).
+- **The tickets:** 52 the solver rosters a nurse on probation (after 49); 53 the catalogue's "Lets a nurse precept" mark
+  (after 33); 54 probation on a nurse: the tick, the length and the end; 55 the preceptor, and the solve (after 52, 53 and
+  54); 56 what everyone sees (after 55).
 - **Worth the user's review when built:** her rounding overtime is on her own record but outside the unit's overtime totals
   (the department cap and the overtime share), so that it does not move her colleagues' shares; and with shifts of several
   lengths the hours bound is her shortest allowed shift, the mirror of the existing shortfall bound.
