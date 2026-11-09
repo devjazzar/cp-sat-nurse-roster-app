@@ -72,7 +72,7 @@ export function ExpiriesCount() {
   if (expiries.isPending) return null
   if (expiries.isError) return <p role="alert">The expiries could not be read, so their count is not shown. Reload the page to try again.</p>
   const { count } = expiries.data
-  const link = <Link to="/expiries" className="underline underline-offset-3">Expiries</Link>
-  if (count === 0) return <p>Nothing is on {link}: no skill expires within {HORIZON_DAYS} days and none required to work is missing.</p>
-  return <p>{count} {count === 1 ? "skill is" : "skills are"} on {link}, expired, expiring within {HORIZON_DAYS} days or not recorded.</p>
+  const link = <Link to="/expiries" className="underline underline-offset-3">the Expiries page</Link>
+  if (count === 0) return <p>Nothing is on {link}: no skill has expired or expires within {HORIZON_DAYS} days, and none required to work is missing.</p>
+  return <p>{count} {count === 1 ? "entry is" : "entries are"} on {link}: skills expired, expiring within {HORIZON_DAYS} days, or required and not recorded.</p>
 }

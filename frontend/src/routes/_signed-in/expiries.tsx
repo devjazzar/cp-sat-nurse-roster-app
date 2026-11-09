@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, useRouteContext } from "@tanstack/react-router"
 
 import { Role } from "@/api/generated/model"
 import { EXPIRIES_SAY, ExpiriesList } from "@/components/expiries"
@@ -14,10 +14,12 @@ export const Route = createFileRoute("/_signed-in/expiries")({
 })
 
 function ExpiriesPage() {
+  const { user } = useRouteContext({ from: "/_signed-in" })
+  const who = user.role === Role.cno ? "You record and renew" : "The CNO records and renews"
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-medium">Expiries</h1>
-      <p className="text-muted-foreground">{EXPIRIES_SAY} The CNO records and renews skills on the Nurses page.</p>
+      <p className="text-muted-foreground">{EXPIRIES_SAY} {who} skills on the Nurses page.</p>
       <Card>
         <CardContent>
           <ExpiriesList label="Expiries" showUnit />

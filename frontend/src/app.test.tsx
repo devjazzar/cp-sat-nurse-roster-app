@@ -2253,9 +2253,9 @@ describe("the CNO's home: the expiries count", () => {
   it("shows how many rows the Expiries page has, and links to it", async () => {
     const { user, router } = start("/", asCno({ "GET /api/units": { body: [] }, "GET /api/nurses/expiries": { body: EXPIRIES } }))
 
-    const count = await screen.findByText(/skills are on/)
-    expect(count).toHaveTextContent("3 skills are on Expiries, expired, expiring within 90 days or not recorded.")
-    await user.click(within(count).getByRole("link", { name: "Expiries" }))
+    const count = await screen.findByText(/entries are on/)
+    expect(count).toHaveTextContent("3 entries are on the Expiries page: skills expired, expiring within 90 days, or required and not recorded.")
+    await user.click(within(count).getByRole("link", { name: "the Expiries page" }))
 
     expect(await screen.findByRole("heading", { level: 1, name: "Expiries" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/expiries")
@@ -2264,14 +2264,14 @@ describe("the CNO's home: the expiries count", () => {
   it("says one in the singular", async () => {
     start("/", asCno({ "GET /api/units": { body: [] }, "GET /api/nurses/expiries": { body: { count: 1, rows: [EXPIRY] } } }))
 
-    expect(await screen.findByText(/skill is on/)).toHaveTextContent("1 skill is on Expiries")
+    expect(await screen.findByText(/entry is on/)).toHaveTextContent("1 entry is on the Expiries page")
   })
 
   it("says when nothing is on the page", async () => {
     start("/", asCno({ "GET /api/units": { body: [] } }))
 
     expect(await screen.findByText(/Nothing is on/)).toHaveTextContent(
-      "Nothing is on Expiries: no skill expires within 90 days and none required to work is missing.")
+      "Nothing is on the Expiries page: no skill has expired or expires within 90 days, and none required to work is missing.")
   })
 
   it("says so when the count cannot be read, rather than showing none", async () => {
@@ -2300,7 +2300,7 @@ describe("the expiries page", () => {
     expect(cells(rowOf("Dana Ali"))).toEqual(["Dana Ali", "h125", "ER", "BLS", "No record", "Required to work"])
     expect(within(screen.getByRole("table")).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[0].textContent))
       .toEqual(["Amal Saleh", "Badr Omar", "Dana Ali"])
-    expect(screen.getByText(/Deactivated nurses and those past their end date are left out/)).toBeInTheDocument()
+    expect(screen.getByText(/Deactivated nurses and those past their end date are left out/)).toHaveTextContent(/You record and renew skills on the Nurses page\.$/)
   })
 
   it("is the Deputy CNO's too, from the header", async () => {
@@ -2313,6 +2313,7 @@ describe("the expiries page", () => {
 
     expect(await screen.findByRole("cell", { name: "Badr Omar" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/expiries")
+    expect(screen.getByText(/The CNO records and renews skills on the Nurses page\./)).toBeInTheDocument()
   })
 
   it("says when there is nothing to list", async () => {
@@ -2601,6 +2602,9 @@ describe("the nurses page", () => {
       expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Dana Ali", "h125", "BLS", "No record", "Required to work"])
       expect(within(expiries()).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(["Name", "Hospital ID", "Skill", "State", "Expiry"])
       expect(within(expiries()).getByRole("cell", { name: "31 Oct 2026" })).toBeInTheDocument()
+      // Above the list, which can be sixty nurses long, so it is seen before a solve.
+      const nurseRow = screen.getByRole("cell", { name: "Female" })
+      expect(expiries().compareDocumentPosition(nurseRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
 
     it("says when nothing in his unit waits", async () => {
