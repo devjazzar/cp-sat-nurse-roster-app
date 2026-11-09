@@ -8,18 +8,18 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`. Reasons: `d
 
 **Status:** ready-for-agent
 
-- [ ] `deploy/compose.yaml`: a network `egress`, not internal, joined by the worker only; `web`, `db`, `solver` and `caddy` unchanged; the development and browser-check compose files give the worker a way out as their other services have
-- [ ] The sending library (pywebpush 2.5.x) as a backend dependency, imported only by `notifications.pushing`, which alone knows the protocol, headers, encryption and status codes and answers in the app's words: sent, gone, refused, unreachable; confirmed to install and send on the image's Python 3.14 before building on it; a scripted stand-in for the tests
-- [ ] `notifications.sending.notify` defers one push job per call, inside the same transaction, only when the event and step have a kind: swap step `proposed` → `swap_to_answer`, `awaiting` → `swap_to_decide`, window opened → `requests_open`, window closed (the manager's) → `requests_to_decide`, roster submitted → `roster_to_approve`, roster rejected → `roster_sent_back`; every other event and step defers none
-- [ ] The job runs under its own lock `push`; before each send it checks the reader still has a page for the notification (the Notifications page's own rule) and the thing still waits by kind (swap still pending or awaiting the manager; window still open, or closed with requests still pending; roster still submitted; a rejected roster still a draft not resubmitted); otherwise it sends nothing, counts no failure and retries nothing
-- [ ] The payload is the kind code alone; headers: time to live 24 hours, urgency normal, topic the kind
+- [x] `deploy/compose.yaml`: a network `egress`, not internal, joined by the worker only; `web`, `db`, `solver` and `caddy` unchanged; the development and browser-check compose files give the worker a way out as their other services have
+- [x] The sending library (pywebpush 2.5.x) as a backend dependency, imported only by `notifications.pushing`, which alone knows the protocol, headers, encryption and status codes and answers in the app's words: sent, gone, refused, unreachable; confirmed to install and send on the image's Python 3.14 before building on it; a scripted stand-in for the tests
+- [x] `notifications.sending.notify` defers one push job per call, inside the same transaction, only when the event and step have a kind: swap step `proposed` → `swap_to_answer`, `awaiting` → `swap_to_decide`, window opened → `requests_open`, window closed (the manager's) → `requests_to_decide`, roster submitted → `roster_to_approve`, roster rejected → `roster_sent_back`; every other event and step defers none
+- [x] The job runs under its own lock `push`; before each send it checks the reader still has a page for the notification (the Notifications page's own rule) and the thing still waits by kind (swap still pending or awaiting the manager; window still open, or closed with requests still pending; roster still submitted; a rejected roster still a draft not resubmitted); otherwise it sends nothing, counts no failure and retries nothing
+- [x] The payload is the kind code alone; headers: time to live 24 hours, urgency normal, topic the kind
 - [ ] Per subscription: success resets the failures and sets the last success; 404 or 410 ends the subscription at once; any other failure adds one, and the tenth ends it; these ends write no audit entry
-- [ ] A transient failure is tried again three times over about ten minutes for the failed subscriptions only; those reached, ended or skipped are not sent to again; each attempt is recorded once per subscription in an append-only attempts table (bigint key: when, outcome, nothing of the user or device)
-- [ ] The service worker's `push` listener shows a notification with title "Nurse roster", the kind's words, the kind as tag; always shown, app open or not; an unknown kind shows the title alone
-- [ ] The `notificationclick` listener closes the notification, focuses an open window of the app and sends it to the kind's page with no month, or opens a new window on it
-- [ ] Tests at the agreed seams: the backend suite with the scripted sender and the real queue (each of the six events makes one job for its recipients and nobody else, every other makes none, a rolled-back change makes none; payload and headers; the still-waits and still-has-a-page checks for each kind; 404/410, the count to ten and the reset; the partial retry and once-per-subscription attempts; a manager with a nurse profile gets both roles' kinds, the System Admin none); the service worker's test (the six kinds' words and tags, the unknown kind, the tap with and without an open window, no `fetch`)
+- [x] A transient failure is tried again three times over about ten minutes for the failed subscriptions only; those reached, ended or skipped are not sent to again; each attempt is recorded once per subscription in an append-only attempts table (bigint key: when, outcome, nothing of the user or device)
+- [x] The service worker's `push` listener shows a notification with title "Nurse roster", the kind's words, the kind as tag; always shown, app open or not; an unknown kind shows the title alone
+- [x] The `notificationclick` listener closes the notification, focuses an open window of the app and sends it to the kind's page with no month, or opens a new window on it
+- [x] Tests at the agreed seams: the backend suite with the scripted sender and the real queue (each of the six events makes one job for its recipients and nobody else, every other makes none, a rolled-back change makes none; payload and headers; the still-waits and still-has-a-page checks for each kind; 404/410, the count to ten and the reset; the partial retry and once-per-subscription attempts; a manager with a nurse profile gets both roles' kinds, the System Admin none); the service worker's test (the six kinds' words and tags, the unknown kind, the tap with and without an open window, no `fetch`)
 - [ ] Driven on a scratch compose project: with the worker's way out, a real browser subscribed on the implementer's own device or desktop browser receives a push for a proposed swap and the tap opens Swaps; say in the comment what was and was not driven
-- [ ] `makemigrations --check` clean; the dev stack's rebuild and `up -d` named in the comment
+- [x] `makemigrations --check` clean; the dev stack's rebuild and `up -d` named in the comment
 
 **From ticket 40 (2026-11-10):** the subscriptions and the key pair are in; nothing is sent. What this ticket builds on:
 - **The key pair** is `notifications.models.PushKeyPair`, one row (`pk=1`): `private_key` is a PEM, PKCS #8, P-256 key and
@@ -47,3 +47,191 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`. Reasons: `d
 - **Where:** refuse any other host at turn-on, in `notifications.subscriptions` (a field error, as for a malformed address), and check again before each send.
 - **Rows held already:** treat a held row whose host is not allowed as ended, deleted with no entry.
 - **Tests:** at the web API seam, for turn-on and for the send.
+
+**Implemented on 2026-11-10,** on branch `claude/ticket-41-push-sent-44e74e`, draft pull request
+Nurse-Fold/cp-sat-nurse-roster-app#29, from `main` at `0c4393f`. The commits:
+- `5b04fae`: pywebpush, alone, so GitHub built the image with it before anything rested on it;
+- `905d307`: the backend: kinds, the job, the sender, the attempts, the host allow-list, and their tests;
+- `ded1689`: the service worker's `push` and `notificationclick`, the app following a tap, and their tests;
+- `f26ea4b`: the `egress` network;
+- `7b51ed1`: a tap still moves the window when the browser refuses the focus (found while driving);
+- `fab6e57`: the review's points;
+- then this comment.
+
+The suites ran locally, one at a time under the heavy-run lock, the backend on a throwaway PostgreSQL 18 container of my own:
+- the backend, on `7b51ed1`: 3016 passed. After `fab6e57`, `notifications/` again: 129 passed;
+- the frontend, on `7b51ed1`: one `npm test` run, 744 passed, and `npm run build` succeeded; after `fab6e57`, `src/sw.test.ts`
+  again: 26 passed;
+- `makemigrations --check`: "No changes detected", on both heads;
+- the API's shape is unchanged (a field error on an existing call), so `openapi.json` and the client are untouched.
+
+GitHub ran both workflows green on `5b04fae`, the image built with pywebpush on `python:3.14-slim-trixie` with uv 0.13.7.
+
+**What the dev stack needs:** a **rebuild and `up -d`** (`docker compose up -d --build`).
+- One new backend dependency, `pywebpush>=2.5,<2.6` (2.5.0, with `py-vapid` 1.9.6, `http-ece` 1.2.1, `requests` and
+  `aiohttp`), with `uv.lock`. `cryptography` stays 50.0.2, inside pywebpush's range.
+- `deploy/compose.yaml` changed: the network `egress`. `up -d` creates it and recreates the worker on it.
+- One migration, `notifications/0008_push_attempts`, which also ends any held subscription off the push services' hosts.
+- No change to the `Dockerfile` or the solver. Vite serves the changed service worker at once.
+
+**What was built, criterion by criterion.**
+- **`egress`:** a network that is not internal, joined by the worker alone (`backend`, `solver`, `egress`). `web`, `db`,
+  `solver` and `caddy` are as they were. None of `compose.dev.yaml`, `e2e/compose.e2e.yaml` and `deploy/tests/compose.test.yaml`
+  overrides the worker's networks, so each keeps `egress`; `docker compose config` of all four combinations shows it.
+- **The library:** pywebpush is imported only by `notifications.pushing`, as is py-vapid. It knows the protocol, the headers,
+  the encryption and the status codes, and answers `sent`, `gone` (404, 410), `refused` (any other 4xx, a redirect, keys that
+  cannot be encrypted to) or `unreachable` (no connection, a timeout, 429, 5xx). It never raises. It signs with
+  `Vapid.from_pem(...)`, as ticket 40 said, and posts through one `requests` session that follows no redirect, with a 10 s
+  timeout. Before building on it I sent with it on Python 3.14.10 to a local receiver that decrypted the body (aes128gcm) and
+  read the TTL, Urgency and Topic headers; then the image built on GitHub, and the stack's worker sent with it for real.
+- **Which notification is pushed:** `notifications.kinds` maps the event and step to the six kind codes; every other event
+  and step has none. `notify` defers one `push` job per call, carrying the new rows' ids, in the caller's transaction, only
+  when rows were made and the kind is one of the six.
+- **The job:** `notifications.tasks.push`, under the lock `push` (`under_its_own_lock`). Before each send
+  (`notifications.pushes`) it reads, per notification:
+  - the kind's own check, as the pages read it, from the dates as well as the stored state: a swap `pending` by
+    `swaps.expiring.state_now` and this colleague's answer still pending; a swap `awaiting_manager`; a window open by
+    `requesting.windows.state_today`; a window closed with a request still `pending`; a roster `submitted`; a roster `draft`
+    with no submission since the notification;
+  - the Notifications page's own rule, `reading.link_of`, for the reader as they are now, and active.
+
+  A thing no longer waiting sends nothing, counts no failure and is tried again never.
+- **What is sent:** `{"kind": "<code>"}` and nothing else; TTL 86400, `Urgency: normal`, `Topic: <code>`.
+- **Per subscription:** a success sets `failures_in_a_row` to 0 and `last_success_at`; 404 or 410 deletes the row at once; a
+  push that does not reach it adds one, and the tenth deletes it; none of these writes an audit entry. The moves live in
+  `notifications.subscriptions` (`reached`, `not_reached`, `end`), beside its other ends. **Not ticked**, because of how a
+  retried push counts: see "Worth your review".
+- **Trying again:** an `unreachable` send is tried again after 1, 3 and 6 minutes (`RETRY_IN`), for the failed
+  subscriptions alone: the job defers itself with the remaining pairs of notification and subscription. Each try reads the
+  checks again and sends only to a subscription still the reader's, so an address moved to another user in between is not
+  sent this one. Each send is one row of `notifications.PushAttempt` (bigint key, `at`, `outcome`), nothing of the user or
+  the device.
+- **The service worker's `push`:** it always shows "Nurse roster", with the kind's words and the kind as tag, app open or not.
+  An unknown kind, no kind, a body that is not JSON, or none at all shows the title alone. It fetches nothing.
+- **`notificationclick`:** it closes the notification, then finds a window of the app (`includeUncontrolled`), focuses it and
+  posts it `{type: "open-page", path}`. The app (`__root.tsx`, `lib/service-worker.ts`) goes there through its own router,
+  so a page with unsaved changes still asks first. With no window open, it opens one on the page. Pages, with no month:
+  `/swaps`, `/unit-swaps`, `/my-month`, `/requests`, `/rosters`, `/roster`. An unknown kind opens `/`.
+- **The hosts:** a turn-on (`POST /api/notifications/push/on`) to any other host is refused with a 422 field error on
+  `endpoint`, "The address is not a browser push service's."; the state, Turn off and a renewal's `replaces` still read any
+  address. The job checks each row again before each send, and ends one off the list unsent. The migration ends any already
+  held. An address is allowed only over `https`, on the default port, with no user name, and no trailing dot on the host:
+  - `fcm.googleapis.com`. Google's network configuration page for FCM names it as the host for sending
+    (firebase.google.com/docs/cloud-messaging/network-configuration), and every Chrome subscription in the drive was on it;
+  - `push.services.mozilla.com` and any name under it. The autopush documentation's examples post to
+    `updates.push.services.mozilla.com` and also to the bare `push.services.mozilla.com`
+    (mozilla-services.github.io/autopush-rs/http.html);
+  - any name under `push.apple.com`. Apple's "Sending web push notifications in web apps and browsers" says to allow
+    `https://*.push.apple.com` when the network limits which URLs the server can reach;
+  - any name under `notify.windows.com`. Microsoft's "Adding WNS traffic to the firewall allowlist" lists `*.notify.windows.com`
+    as the hosts a cloud service sends to (learn.microsoft.com/windows/apps/develop/notifications/push-notifications/
+    firewall-allowlist-config).
+- **Tests at the agreed seams:**
+  - `notifications/tests/test_pushes.py` (60), on the real queue, with the push services scripted at their HTTP side:
+    - each of the six events reaching exactly its readers;
+    - every other change pushing nothing, and a rolled-back change nothing;
+    - forty phones once each from one job;
+    - the payload decrypted as a browser would, the headers and the installation's key;
+    - each kind's still-waits case, and the reader taken off the unit or deactivated;
+    - 404, 410, the refusals, the count to ten and the reset, and no audit entry;
+    - the partial retry, three tries more, one failure, one attempt a send;
+    - no retry to a subscription turned on since, or to an address moved to another user;
+    - a retry waiting for its time holding back no new push;
+    - the allow-list, at turn-on (7 allowed, 12 refused) and at send.
+
+    The root `conftest.py` makes any send in any other test fail, so no test reaches a real push service.
+  - `src/sw.test.ts`: the six kinds' words and tags, five unknown or broken pushes, the tap with an open window for each kind
+    and with none, an unknown kind's tap, no `fetch` listener and no `fetch` on a push.
+  - `src/app.test.tsx`: a message from the worker brings the open app to Swaps, and the others are ignored.
+
+**What was driven, and how.** I used my own scratch stack, `e2e/stack.sh up t41` (ports 18481 and 18941), on 10 November
+2026. Its worker was on `t41_backend`, `t41_egress` and `t41_solver`.
+- **The browser:** the installed Google Chrome 157, started by hand with a profile of its own, `--ignore-certificate-errors`
+  for Caddy's self-signed certificate and remote debugging, driven over CDP. Notifications were allowed in that profile's own
+  settings. Badr signed in over HTTPS and turned pushes on; the subscription was on `fcm.googleapis.com`.
+- **The push:** a sound swap was proposed to Badr from another browser as Amal. The worker's job sent it, Google answered
+  201, and Chrome's `gcm-internals` logged the message received. The service worker showed "Nurse roster / You have a swap
+  to answer", tagged `swap_to_answer`, with Badr's window open on `/`. The attempts table held `sent` rows and nothing else.
+- **A dead address, live:** a subscription Chrome had dropped got 404 or 410 from Google; the job ended it at once (one
+  `gone` attempt, the row gone).
+- **The tap:** you clicked the macOS notification twice; neither click reached that Chrome (most likely macOS handed it to
+  your own Chrome, which was open). So I ran the worker's own `notificationclick` listener inside that Chrome, on the real
+  notification, by dispatching the event in the worker. The notification closed and Badr's open window went to `/swaps` and
+  showed Swaps, through the app's router. **That is not a real click**, and the criterion stays unticked.
+- **The tap with no window:** the same dispatch with no app window open opened none. Chrome lets a worker open a window only
+  in a real click's activation, which a dispatched event lacks, so that case rests on `sw.test.ts`.
+- **The allow-list:** as Amal, turn-ons of `https://collector.example/push`, `https://fcm.googleapis.com.collector.example/x`
+  and `https://solver:8080/solve` each answered 422 with the field error on `endpoint`, and no row was kept.
+- **The ways out:** from the containers, the worker reached `fcm.googleapis.com:443` and the solver could not resolve it.
+  `web` reached it too, but only because `e2e/compose.e2e.yaml` already puts `web` on `public` for its HTTP port. In
+  `deploy/compose.yaml` alone `web` is on internal networks only.
+
+The stack is down and its volumes gone; the browser profile is deleted.
+
+**What was found, and fixed.**
+- **A tap with no user activation behind it:** `focus()` may be refused, and the window was then never moved. The tap now
+  posts the page whatever the focus answers (`7b51ed1`).
+
+**Findings for you, not fixed:** none in the app. One for whoever drives pushes next: a browser launched by Playwright
+receives none. Its default `--disable-background-networking` cuts Chrome off from its push service, and a permission granted
+with `grantPermissions` lapses when that connection closes, after which Chrome drops the subscription. Start Chrome by hand
+and allow notifications in its profile.
+
+**What was NOT checked.**
+- **A real click on the notification**, with a window open or none (above).
+- **An iPhone, an iPad, Safari, Firefox or Edge:** only Chrome on macOS through Google's service. Apple's, Mozilla's and
+  Microsoft's services, their status codes and their reading of the VAPID `sub`, are untested beyond the scripted stand-in.
+- **A real retry against a push service that was down,** a 429 or a 5xx from a real service: the scripted ones only.
+- **A real 401 or 403 after `rotate_push_keys`.**
+- **Pushes for the other five kinds in a real browser:** each was shown only in `sw.test.ts`, except `swap_to_decide` and
+  `requests_open`, which I sent by hand through `pushing.send` and saw shown.
+- **The six parallel frontend runs and the browser checks, locally:** GitHub runs them on the pull request.
+
+**Decisions taken here.**
+- **The stand-in is at the HTTP seam**, `pushing.push_service`, rather than replacing `pushing.send`. The real library
+  encrypts and signs in every test, and a test reads the body as the browser would, decrypted with the device's own keys.
+- **A retry has priority −1.** Procrastinate does not fetch a job while an earlier waiting job of the same lock and priority
+  exists, even one scheduled for later, so a retry waiting six minutes would hold back every new push. At a lower priority
+  it holds none back (`ops.queue.enqueue_later`, and a test).
+- **What a tap does to an open window:** a message to the app's own router, not `client.navigate()`, which is a full load
+  that would drop a roster's unsaved edits and a password shown once without asking.
+- **A refusal is not tried again;** only `unreachable` is "transient", as the ticket says.
+- **The VAPID subject** is `https://<DOMAIN>` when the installation has a domain, else `mailto:push@nurse-roster.invalid`,
+  which names no one. Apple refuses one that is neither a URL nor `mailto:`.
+- **The data migration keeps its own copy of the hosts,** so it does what it did whatever the app's list becomes.
+- **The swap to answer also checks this colleague's own answer,** so a swap she answered elsewhere, still waiting for
+  others, is not pushed to her (user story 11).
+
+**Worth your review.**
+- **How a retried push counts toward the ten.** The spec says any failure other than gone adds one. I count one per push that
+  does not get there: a refusal at once, an unreachable service after its last retry. Counting every try would end every
+  subscription after a ten-minute outage spanning three pushes, a hospital whose firewall is shut included. Recommendation:
+  keep. That is why criterion 6 is not ticked.
+- **The bare `push.services.mozilla.com`** is allowed beside the names under it: Mozilla's own example uses it. Your list
+  named `updates.push.services.mozilla.com` and `*.push.services.mozilla.com`. Recommendation: keep.
+- **"A manager with a nurse profile gets both roles' kinds"** cannot happen today: a manager's cells are never swapped and a
+  manager makes no requests (section 3), so no nurse kind reaches a manager on the bell, and the push follows the bell. The
+  test asserts that: a manager with a nurse profile gets the manager's kinds alone. Recommendation: keep; widening it would
+  be your decision.
+- **An unknown kind's tap opens the app's home.** The spec said nothing of it.
+
+**Review.** `code-review` against `0c4393f` ran its two axes in parallel.
+- **Spec.** Nothing asked for is missing. Fixed: the migration's live import of the host check. Kept: the count of a retried
+  push, the bare Mozilla host, the HTTP-level stand-in and the router message, all above.
+- **Standards.** No hard breach. Fixed:
+  - the subscription's ends moved into `notifications.subscriptions`;
+  - `still_waits` is one check per kind in a map;
+  - the worker's known-kind test is one helper;
+  - a comment in `compose.yaml` that pointed at an install-guide section not yet written;
+  - unclear names in the retry's filter.
+
+  Kept:
+  - `pushes` beside `pushing` (the job's work and the protocol);
+  - the three fields passed to `send`, which keep the sender free of the models;
+  - `Pairs` as lists, which a job's JSON arguments need;
+  - `open-page` written in both the worker and the app, since a worker cannot import the app's modules.
+
+**Things later tickets should know.**
+- **Ticket 42:** see the note on it.
+- **A new kind with a deadline** (a cover offered): one code in `notifications/kinds.py`, its check in `pushes._STILL_WAITS`,
+  and its words and page in `frontend/public/sw.js`.
