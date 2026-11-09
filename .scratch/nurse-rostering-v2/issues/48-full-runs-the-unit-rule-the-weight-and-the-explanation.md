@@ -227,3 +227,12 @@ No adversarial review, by the brief.
   - Add it to the "defaults are the reviewed set" tests as `reviewed | {...}`.
 - **Anyone touching the measurement:** `48-measure.py` makes a unit `ER25` on any scratch stack, solves a month at
   several weights and prints `MEASURE` lines. It puts the hospital rules back afterwards.
+
+**Reviewed by the user (2026-11-09):** all six points kept as recommended.
+- The default weight stays 4. After the dev stack's rebuild, re-plan ER's December there. If Layan Alharbi or anyone is still above three full runs, the CNO raises the weight to 20 on the weights page.
+- The read-only view hides the cap at a longest run of 0 or 1.
+- A wrong value behind the hidden field is replaced by the saved one on save.
+- Null is refused.
+- The solver's ER fixture stays without the fields.
+- The service sample carries them.
+- The plural in "1 full runs" is left as the solver's wording.
