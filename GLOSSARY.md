@@ -276,7 +276,7 @@ A nurse who may lead a shift. A unit may require one on every shift.
 _Avoid_: in-charge, senior
 
 **Skill**:
-An entry of the hospital's skill catalogue, which the CNO keeps, that a nurse may hold and a skill need may count: an ability, a certificate or a licence, each a kind of skill said in the catalogue. Whether it expires, whether it is required to work, and whether it lets a nurse precept, is said there too. The CNO and the Deputy CNO record what a nurse holds.
+An entry of the hospital's skill catalogue, which the CNO keeps, that a nurse may hold and a skill need may count. Each is of one kind, said in the catalogue: a skill in the plain sense (an ability, BLS), a certificate or a licence; "skill" names both the whole catalogue's entries and the plain kind, as "unit rules" names a set and a page. Whether it expires, whether it is required to work, and whether it lets a nurse precept, is said there too, and so is the body that issues it. The CNO and the Deputy CNO record what a nurse holds.
 _Avoid_: credential, competency, qualification
 
 **Certificate**:
