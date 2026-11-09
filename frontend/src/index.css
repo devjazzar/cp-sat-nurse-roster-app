@@ -140,3 +140,8 @@
     size: A4 landscape;
     margin: 10mm;
 }
+/* The Day view (`routes/_signed-in/day.tsx`): A4 landscape, with its table's header row on every page. */
+@page day-view {
+    size: A4 landscape;
+    margin: 10mm;
+}
