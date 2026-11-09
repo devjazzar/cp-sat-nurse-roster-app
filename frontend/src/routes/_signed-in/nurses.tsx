@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/react-router"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -51,6 +51,7 @@ import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { cn, monthName, scrollableRegion, shortDay } from "@/lib/utils"
+import { useFocusOnOpen } from "@/lib/use-focus-on-open"
 import { ROLE_NAMES } from "@/roles"
 import { onlyFor } from "@/session"
 
@@ -146,7 +147,7 @@ function AddNurseForm({ units, onCreated, onCancel }: { units: UnitSchema[]; onC
   })
   const { errors } = form.formState
 
-  useEffect(() => { form.setFocus("hospital_id") }, [form])
+  useFocusOnOpen(() => { form.setFocus("hospital_id") }, [form])
 
   const submit = form.handleSubmit((data) =>
     create.mutate({ data: data as z.output<typeof newNurseSchema> }, {
@@ -187,7 +188,7 @@ function ManagerProfileForm({ units, onDone, onCancel }: { units: UnitSchema[]; 
   })
   const { errors } = form.formState
 
-  useEffect(() => { if (managers.data) form.setFocus("user_id") }, [form, managers.data])
+  useFocusOnOpen(() => { if (managers.data) form.setFocus("user_id") }, [form, managers.data])
 
   const choices: ManagerToPlace[] = managers.data ?? []
   const registration = form.register("user_id", {
@@ -249,7 +250,7 @@ function TransferForm({ nurse, units, onDone, onCancel }: { nurse: NurseRow; uni
   const { errors } = form.formState
   const months = useMemo(comingMonths, [])
 
-  useEffect(() => { form.setFocus("unit_id") }, [form])
+  useFocusOnOpen(() => { form.setFocus("unit_id") }, [form])
 
   const submit = form.handleSubmit((data) =>
     transfer.mutate({ nurseId: nurse.id, data }, {
@@ -291,7 +292,7 @@ function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
   const { errors } = form.formState
   const isStaffNurse = nurse.role === Role.staff_nurse
 
-  useEffect(() => { form.setFocus(isStaffNurse ? "full_name" : "gender") }, [form, isStaffNurse])
+  useFocusOnOpen(() => { form.setFocus(isStaffNurse ? "full_name" : "gender") }, [form, isStaffNurse])
 
   const submit = form.handleSubmit((data) => {
     const { full_name, ...profile } = data as z.output<typeof detailsSchema>
@@ -339,7 +340,7 @@ function EndDateForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
   const { errors } = form.formState
   const isStaffNurse = nurse.role === Role.staff_nurse
 
-  useEffect(() => { form.setFocus("end_date") }, [form])
+  useFocusOnOpen(() => { form.setFocus("end_date") }, [form])
 
   function save(endDate: string | null) {
     setEndDate.mutate({ nurseId: nurse.id, data: { end_date: endDate } }, {

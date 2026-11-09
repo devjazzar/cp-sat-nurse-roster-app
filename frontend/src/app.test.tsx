@@ -977,8 +977,8 @@ describe("each role's navigation and home", () => {
   })
 
   it.each([
-    ["cno", "CNO", /under Hospital rules/, ["Home", "Rosters", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted", "/api/units"]],
-    ["deputy_cno", "Deputy CNO", "No roster is waiting for a decision.", ["Home", "Rosters", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted"]],
+    ["cno", "CNO", /under Hospital rules/, ["Home", "Rosters", "Day view", "Units", "Unit rules", "Rostering attributes", "Nurses", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted", "/api/units"]],
+    ["deputy_cno", "Deputy CNO", "No roster is waiting for a decision.", ["Home", "Rosters", "Day view", "Unit rules", "Rostering attributes", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted"]],
     ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Solve history", "Requests", "Swaps", "Covers", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["staff_nurse", "Staff Nurse", "No roster yet for December 2026.", ["Home", "My month", "My roster", "Swaps", "Covers", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit", "/api/rosters/mine"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
@@ -6283,11 +6283,206 @@ describe("the roster page", () => {
       expect(screen.queryByRole("region", { name: "Your decision" })).not.toBeInTheDocument()
     })
 
-    it.each(["/rosters", "/unit-roster"])("%s is for the CNO and the Deputy CNO only", async (path) => {
+    it.each(["/rosters", "/unit-roster", "/day"])("%s is for the CNO and the Deputy CNO only", async (path) => {
       const { router } = start(path, manager({ "GET /api/units": { body: [] } }))
 
       await screen.findByText(/No unit is assigned to you yet/)
       expect(router.state.location.pathname).toBe("/")
+    })
+  })
+
+  // Ticket 39. One date across every unit, for the CNO and the Deputy CNO.
+  describe("the Day view", () => {
+    const ER_UNIT = { id: "u1", name: "ER", archived: false, manager: null, rules_need_review: false }
+    const NURSE = (hospital_id: string, full_name: string, team_leader = false) => ({ hospital_id, full_name, team_leader })
+    const SHIFT = { minimum: 1, maximum: 1, short: false, over: false, team_leader: null, both_genders: null }
+    const ER_DAY = {
+      id: "u1", name: "ER", archived: false, state: "approved", unchecked: null,
+      figures: {
+        shifts: [
+          { ...SHIFT, code: "D", present: 0, short: true, team_leader: false, both_genders: false, nurses: [] },
+          { ...SHIFT, code: "N", present: 3, maximum: 2, over: true, team_leader: true, both_genders: true,
+            nurses: [NURSE("h1", "Amal Saleh", true), NURSE("h3", "Dana Ali"), NURSE("h2", "Badr Noor")] },
+        ],
+        on_leave: [{ hospital_id: "h4", full_name: "Emad Hassan" }],
+        hours_counted: true, overtime: 36, overtime_cap: 80, with_overtime: 4,
+      },
+    }
+    const ICU_DAY = {
+      id: "u2", name: "ICU", archived: true, state: "closed", unchecked: null,
+      figures: {
+        shifts: [{ code: "E", present: 2, minimum: null, maximum: null, short: false, over: false, team_leader: null, both_genders: null,
+          nurses: [NURSE("i1", "Huda Saad")] }],
+        on_leave: [], hours_counted: false, overtime: 0, overtime_cap: 80, with_overtime: 0,
+      },
+    }
+    const STATE_ONLY = [
+      { id: "u3", name: "Ward B", archived: false, state: "submitted", unchecked: null, figures: null },
+      { id: "u4", name: "Ward C", archived: false, state: "draft", unchecked: null, figures: null },
+      { id: "u5", name: "Ward D", archived: false, state: "none", unchecked: null, figures: null },
+    ]
+    const DAY = {
+      date: "2026-06-04", weekday: "Thursday", weekend: false, holiday: null,
+      shifts: [{ code: "D", display_name: "Day" }, { code: "E", display_name: "Evening" }, { code: "N", display_name: "Night" }],
+      units: [ER_DAY, ICU_DAY, ...STATE_ONLY],
+      totals: { on_duty: [{ code: "D", on_duty: 0 }, { code: "E", on_duty: 2 }, { code: "N", on_duty: 3 }], on_leave: 1, overtime: 36, units_short: 1 },
+    }
+    const onDay = (extra = {}) => ({ ...session(ME_CNO), "GET /api/rosters/day": { body: DAY }, ...extra })
+    const row = (name: string) => screen.getByRole("rowheader", { name: new RegExp(`^${name}`) }).closest("tr") as HTMLElement
+    const cells = (name: string) => within(row(name)).getAllByRole("cell").map((cell) => cell.textContent)
+
+    it.each([["CNO", ME_CNO], ["Deputy CNO", ME_DEPUTY]])("the %s opens it from the header, on today when no date is given", async (_, me) => {
+      const { user, router, calls } = start("/", { ...session(me), "GET /api/rosters/submitted": { body: [] }, "GET /api/units": { body: [] },
+        "GET /api/rosters/day": { body: DAY } })
+
+      await user.click(within(await screen.findByRole("navigation", { name: "Main" })).getByRole("link", { name: "Day view" }))
+
+      expect(await screen.findByRole("heading", { level: 2, name: "Thursday, 4 June 2026" })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe("/day")
+      expect(pageReads(calls)).toContain("/api/rosters/day")
+    })
+
+    it("is in the phone's Menu for the approvers and on no Home card", async () => {
+      const { user } = start("/", { ...session(ME_DEPUTY), "GET /api/rosters/submitted": { body: [] } })
+      await screen.findByText("No roster is waiting for a decision.")
+      expect(within(screen.getByRole("main")).queryByRole("link", { name: "Day view" })).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole("button", { name: "Menu" }))
+
+      expect(within(screen.getByRole("navigation", { name: "Main menu" })).getByRole("link", { name: "Day view" })).toHaveAttribute("href", "/day")
+    })
+
+    it("reads each unit's shifts in words, blank where a unit does not work one", async () => {
+      start("/day?date=2026-06-04", onDay())
+
+      const table = await screen.findByRole("region", { name: "Day view, Thursday, 4 June 2026" })
+      expect(within(table).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(
+        ["Unit", "Day (D)", "Evening (E)", "Night (N)", "On leave", "Overtime this month"])
+      expect(cells("ER")).toEqual(["0 of 1shortno team leader, one gender", "", "3 of 1–2over", "1", "36 h of 80, 4 nurses"])
+      expect(cells("ICU")).toEqual(["", "2", "", "0", "Hours not counted"])
+      expect(screen.getByRole("rowheader", { name: /ICU \(archived\)/ })).toBeInTheDocument()
+    })
+
+    it("gives a unit with no roster in force its state alone, Submitted a link to it", async () => {
+      start("/day?date=2026-06-04", onDay())
+
+      await screen.findByRole("region", { name: /^Day view/ })
+      expect(cells("Ward B")).toEqual(["Submitted"])
+      expect(within(row("Ward B")).getByRole("link", { name: "Submitted" })).toHaveAttribute("href", "/unit-roster?unit=u3&month=2026-06")
+      expect(cells("Ward C")).toEqual(["Draft"])
+      expect(within(row("Ward C")).queryByRole("link")).not.toBeInTheDocument()
+      expect(cells("Ward D")).toEqual(["No roster"])
+      expect(within(row("Ward D")).queryByRole("button")).not.toBeInTheDocument()
+    })
+
+    it("expands a unit to its names, team leaders marked, with no new request", async () => {
+      const { user, calls } = start("/day?date=2026-06-04", onDay())
+      const button = await screen.findByRole("button", { name: "Names in ER" })
+      expect(button).toHaveAttribute("aria-expanded", "false")
+      expect(screen.queryByText(/Amal Saleh/)).not.toBeInTheDocument()
+      const before = pageReads(calls).length
+
+      await user.click(button)
+
+      expect(button).toHaveAttribute("aria-expanded", "true")
+      const names = document.getElementById(button.getAttribute("aria-controls")!) as HTMLElement
+      expect(within(names).getAllByRole("term").map((term) => term.textContent)).toEqual(["Day", "Night", "On leave"])
+      expect(within(names).getAllByRole("definition").map((definition) => definition.textContent)).toEqual(
+        ["Nobody", "Amal Saleh (team leader), Dana Ali, Badr Noor", "Emad Hassan"])
+      expect(pageReads(calls).length).toBe(before)
+
+      await user.click(button)
+      expect(screen.queryByText(/Amal Saleh/)).not.toBeInTheDocument()
+    })
+
+    it("sums the hospital in a totals row", async () => {
+      start("/day?date=2026-06-04", onDay())
+
+      await screen.findByRole("region", { name: /^Day view/ })
+      expect(cells("All units")).toEqual(["0", "2", "3", "1", "36 h"])
+      expect(screen.getByRole("rowheader", { name: /^All units/ })).toHaveTextContent("1 unit short somewhere")
+    })
+
+    it("says a weekend day and a holiday by name in its heading", async () => {
+      start("/day?date=2026-06-05", onDay({ "GET /api/rosters/day": { body: { ...DAY, date: "2026-06-05", weekday: "Friday", weekend: true } } }))
+      expect(await screen.findByRole("heading", { level: 2, name: "Friday, 5 June 2026, weekend day" })).toBeInTheDocument()
+      cleanup()
+
+      start("/day?date=2026-06-04", onDay({ "GET /api/rosters/day": { body: { ...DAY, holiday: "Founding Day" } } }))
+      expect(await screen.findByRole("heading", { level: 2, name: "Thursday, 4 June 2026, Founding Day" })).toBeInTheDocument()
+    })
+
+    it("moves a day at a time, and to a date chosen, keeping the day shown while the next one loads", async () => {
+      const { user, router } = start("/day?date=2026-06-04", onDay({
+        "GET /api/rosters/day": ({ url }: { url: string }) => ({ body: { ...DAY, date: new URL(url, "http://x").searchParams.get("date") } }),
+      }))
+      await screen.findByRole("heading", { level: 2, name: "Thursday, 4 June 2026" })
+      const held = hold("GET /api/rosters/day?date=2026-06-05")
+
+      await user.click(screen.getByRole("link", { name: "Later day" }))
+
+      expect(router.state.location.search).toEqual({ date: "2026-06-05" })
+      await held.waitFor(1)
+      expect(screen.getByRole("heading", { level: 2, name: "Thursday, 4 June 2026" })).toBeInTheDocument()
+      await held.answer({ body: { ...DAY, date: "2026-06-05" } })
+      expect(await screen.findByRole("heading", { level: 2, name: "Friday, 5 June 2026" })).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-05-20" } })
+      await waitFor(() => expect(router.state.location.search).toEqual({ date: "2026-05-20" }))
+      expect(await screen.findByRole("heading", { level: 2, name: "Wednesday, 20 May 2026" })).toBeInTheDocument()
+
+      await user.click(screen.getByRole("link", { name: "Earlier day" }))
+      expect(await screen.findByRole("heading", { level: 2, name: "Tuesday, 19 May 2026" })).toBeInTheDocument()
+    })
+
+    it("links a unit to its roster on that month, where the date's column is marked", async () => {
+      const unitRoster = {
+        month: "2026-06", state: "approved", submitted: null, last_rejection: null, approved: null, version: 1,
+        submit_refusal: "x", approve_refusal: "x", reject_refusal: "x", close: null,
+        draft: {
+          solve_id: "s1", solved_at: "2026-05-15T10:01:00+03:00", restored_at: null, cost: 1, stopped_early: false, changes: [], edited: false,
+          solved_cost: 1, check: null, pins: [], pins_lost_to_leave: [], editor: null,
+          days: [{ date: "2026-06-03", weekend: false, holiday: false }, { date: "2026-06-04", weekend: false, holiday: false }],
+          shifts: [{ code: "N", display_name: "Night", colour: "#4338ca", hours: 12 }],
+          rows: [{ hospital_id: "h1", full_name: "Amal Saleh", cells: [{ shift: "N", kind: "shift" }, { shift: "N", kind: "shift" }] }],
+        },
+      }
+      const { user, router } = start("/day?date=2026-06-04", onDay({
+        "GET /api/units": { body: [ER_UNIT] },
+        "GET /api/units/u1/roster": { body: unitRoster },
+        "GET /api/units/u1/roster/versions": { body: [] },
+        "GET /api/units/u1/solve-history/s1": { status: 404, body: { detail: "Not found." } },
+      }))
+      const link = await screen.findByRole("link", { name: "ER" })
+      expect(link).toHaveAttribute("href", "/unit-roster?unit=u1&month=2026-06&date=2026-06-04")
+
+      await user.click(link)
+
+      const grid = await screen.findByRole("region", { name: /roster of ER, June 2026/ })
+      expect(router.state.location.search).toEqual({ unit: "u1", month: "2026-06", date: "2026-06-04" })
+      const marked = within(grid).getAllByRole("columnheader").filter((header) => header.getAttribute("aria-current") === "date")
+      expect(marked.map((header) => header.textContent)).toEqual(["4Thu, the Day view's date"])
+    })
+
+    it("marks no column on the Unit roster without a date", async () => {
+      start("/unit-roster?unit=u1&month=2026-06", { ...session(ME_CNO), "GET /api/units": { body: [ER_UNIT] },
+        "GET /api/units/u1/roster": { body: { month: "2026-06", state: "none", submitted: null, last_rejection: null, approved: null, version: null,
+          submit_refusal: "x", approve_refusal: "x", reject_refusal: "x", draft: null, close: null } } })
+
+      await screen.findByText("ER has no roster for June 2026 yet.")
+      expect(document.querySelector("[aria-current=date]")).toBeNull()
+    })
+
+    it("says when it is loading, could not be read or has no units", async () => {
+      start("/day", { ...session(ME_CNO) })
+      const held = hold("GET /api/rosters/day")
+      expect(await screen.findByText("Loading…")).toBeInTheDocument()
+      await held.answer({ status: 500, body: {} })
+      expect(await screen.findByRole("alert")).toHaveTextContent("The day could not be read. Reload the page to try again.")
+      cleanup()
+
+      start("/day", onDay({ "GET /api/rosters/day": { body: { ...DAY, units: [], shifts: [], totals: { on_duty: [], on_leave: 0, overtime: 0, units_short: 0 } } } }))
+      expect(await screen.findByText("There are no units yet.")).toBeInTheDocument()
     })
   })
 

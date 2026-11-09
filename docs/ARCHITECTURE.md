@@ -87,7 +87,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read nurses | | yes | | own unit | |
 | Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | | | |
 | Read a nurse's skills with their expiries | | yes | yes | own unit | |
-| View every unit's rosters, with the per-month state overview | | yes | yes | | |
+| View every unit's rosters, with the per-month state overview and the Day view (one date across every unit) | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
 | Read an approved roster's versions with their reasons, and compare any two | | yes | yes | own unit | |
 | Unit rules; nurses' rostering attributes (gender aside: the CNO sets and corrects it) and opening values | | | | own unit | |
@@ -610,7 +610,7 @@ change. A notification links to the reader's own page for it, by what they hold 
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types, skills,
 holidays and Ramadan, units and managers, nurses with import and export and their skills, each unit's rules, rostering attributes and leave
-to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules,
+to read, roster overview, the Day view and approvals); Deputy CNO (roster overview, the Day view, approvals, hospital rules and each unit's rules,
 rostering attributes with nurses' skills, and leave, to read); Unit Manager (unit rules, rostering attributes, nurses, request
 windows, requests and the unit's preferences (read-only), swaps, covers, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff

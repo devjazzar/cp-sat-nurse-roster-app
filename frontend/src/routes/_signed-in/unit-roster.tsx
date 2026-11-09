@@ -15,7 +15,7 @@ import {
 } from "@/api/generated/endpoints"
 import { Role, type Draft, type RosterMonth } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
+import { dateInAddress, MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { GridLegend, RosterGrid } from "@/components/roster-grid"
 import { CHANGE_SAYS, PinNotes, ResultDetails, ROSTER_HEADING, RosterStatus, Violations } from "@/components/roster-notes"
 import { RosterVersions } from "@/components/roster-versions"
@@ -27,7 +27,7 @@ import { plainRefusal, showServerErrors } from "@/lib/server-errors"
 import { monthName } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
-const searchSchema = z.object({ unit: z.string().optional().catch(undefined), month: monthInAddress })
+const searchSchema = z.object({ unit: z.string().optional().catch(undefined), month: monthInAddress, date: dateInAddress })
 
 export const Route = createFileRoute("/_signed-in/unit-roster")({
   validateSearch: (search) => searchSchema.parse(search),
@@ -106,7 +106,7 @@ function Decision({ unitId, answer, onDecided }: { unitId: string; answer: Roste
   )
 }
 
-function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: string; name: string }; unitInAddress: string | undefined; month: string | undefined }) {
+function RosterView({ unit, unitInAddress, month: inAddress, date }: { unit: { id: string; name: string }; unitInAddress: string | undefined; month: string | undefined; date: string | undefined }) {
   const queryClient = useQueryClient()
   const roster = useGetRosterMonth(unit.id, inAddress ? { month: inAddress } : undefined, { query: { placeholderData: keepPreviousData } })
   const [said, setSaid] = useState("")
@@ -151,7 +151,7 @@ function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: str
               <Changes answer={answer} draft={draft} />
               <PinNotes draft={draft} />
               {draft.check && <Violations check={draft.check} what="the roster as it stands" />}
-              <RosterGrid grid={draft} label={label} />
+              <RosterGrid grid={draft} label={label} markedDate={date} />
               <GridLegend grid={draft} />
               {answer.state === "submitted" && <Decision unitId={unit.id} answer={answer} onDecided={decided} />}
               {answer.state === "approved" && <RosterVersions unitId={unit.id} month={answer.month} />}
@@ -167,7 +167,7 @@ function RosterView({ unit, unitInAddress, month: inAddress }: { unit: { id: str
 
 function UnitRosterPage() {
   const { user } = useRouteContext({ from: "/_signed-in" })
-  const { unit: unitInAddress, month } = Route.useSearch()
+  const { unit: unitInAddress, month, date } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const { units, chosen } = useChosenUnit(user, unitInAddress)
   return (
@@ -178,7 +178,7 @@ function UnitRosterPage() {
       {units.isError && <p role="alert">The units could not be read. Reload the page to try again.</p>}
       {units.data && units.data.length === 0 && <p>There are no units yet.</p>}
       {units.data && chosen && <UnitPicker units={units.data} value={chosen.id} onChange={(unit) => void navigate({ search: { unit, month } })} />}
-      {chosen && <RosterView key={chosen.id} unit={chosen} unitInAddress={unitInAddress ?? chosen.id} month={month} />}
+      {chosen && <RosterView key={chosen.id} unit={chosen} unitInAddress={unitInAddress ?? chosen.id} month={month} date={date} />}
     </div>
   )
 }

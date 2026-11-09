@@ -6,6 +6,13 @@ import { cn, monthAfter, monthName } from "@/lib/utils"
 
 /** A month in the address. A hand-edited one is dropped rather than sent: the API would refuse it. */
 export const monthInAddress = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined)
+/** A day in a page's address, "2026-06-04": one that is not a real date is left out, as a missing one is. */
+export const dateInAddress = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((iso) => {
+    const day = new Date(`${iso}T00:00:00Z`)
+    return !Number.isNaN(day.getTime()) && day.toISOString().startsWith(iso)
+  })
+  .optional().catch(undefined)
 
 /** How a link looks here, for a page's `link`. */
 export const MONTH_LINK = cn(buttonVariants({ variant: "outline", size: "sm" }))

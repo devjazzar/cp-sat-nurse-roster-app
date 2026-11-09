@@ -4904,6 +4904,67 @@ export const GetRosterOverviewResponse = zod.object({
 
 
 /**
+ * Read-only and not logged: it shows what its readers already read on the Unit roster and the unit's Leave page.
+ * @summary Day View
+ */
+export const GetHospitalDayQueryParams = zod.object({
+  "date": zod.union([zod.iso.date(),zod.null()]).optional().describe('YYYY-MM-DD. Today on the hospital\'s clock when left out.')
+})
+
+export const GetHospitalDayResponse = zod.object({
+  "date": zod.iso.date(),
+  "weekday": zod.string(),
+  "weekend": zod.boolean().describe('A weekend day by the hospital rules, whose headcount range applies.'),
+  "holiday": zod.union([zod.string(),zod.null()]).describe('The public holiday\'s name. It changes the hours owed, not the range.'),
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "display_name": zod.string()
+})).describe('The shifts any unit shown works that day, in the shift catalogue\'s order.'),
+  "units": zod.array(zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "archived": zod.boolean(),
+  "state": zod.enum(['none', 'draft', 'submitted', 'approved', 'closed']).describe('The month\'s. `closed` is an approved roster whose month has closed.'),
+  "figures": zod.union([zod.object({
+  "shifts": zod.array(zod.object({
+  "code": zod.string(),
+  "present": zod.int().describe('Counted as the solver counts it: the shift\'s own staff, plus those on the shifts that also count towards it.'),
+  "minimum": zod.union([zod.int(),zod.null()]).describe('The range for this kind of day, weekday or weekend. Null with the unit\'s headcount rule off, or with no headcount entry for this shift.'),
+  "maximum": zod.union([zod.int(),zod.null()]),
+  "short": zod.boolean(),
+  "over": zod.boolean(),
+  "team_leader": zod.union([zod.boolean(),zod.null()]).describe('Whether a team leader is on it. Null where the unit does not require one.'),
+  "both_genders": zod.union([zod.boolean(),zod.null()]).describe('Whether both genders are on it. Null where the unit does not require them.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "team_leader": zod.boolean()
+})).describe('The shift\'s own staff, by name.')
+})).describe('The shifts the unit works, and any other its roster holds that day.'),
+  "on_leave": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string()
+}).describe('Who is away, and never why: no leave type.')),
+  "hours_counted": zod.boolean().describe('False with the hospital\'s hours rule off, when nothing is owed and overtime is 0.'),
+  "overtime": zod.int().describe('The month\'s overtime in hours, the sum of what each nurse reads on My month.'),
+  "overtime_cap": zod.int().describe('The hospital rules\' unit overtime cap for the month.'),
+  "with_overtime": zod.int().describe('How many nurses have any overtime this month.')
+}),zod.null()]).describe('For `approved` and `closed` only: from the roster in force checked on the month as it stands, or from the close in force.'),
+  "unchecked": zod.union([zod.string(),zod.null()]).describe('Why an approved month\'s figures could not be worked out, in the solver\'s words.')
+})).describe('Every unit not archived, and an archived one with a roster or a close that month.'),
+  "totals": zod.object({
+  "on_duty": zod.array(zod.object({
+  "code": zod.string(),
+  "on_duty": zod.int()
+})).describe('One for each of `shifts`: the units\' counts summed.'),
+  "on_leave": zod.int(),
+  "overtime": zod.int(),
+  "units_short": zod.int().describe('How many units are short on at least one shift.')
+})
+})
+
+
+/**
  * Oldest first, as they have waited longest.
  * @summary Submitted
  */

@@ -89,8 +89,13 @@ function Cell({ cell, shifts, title }: { cell: GridCell; shifts: Map<string, Gri
 
 /** A grid's nurses across its dates. Nurse names stay in view while it scrolls, and on a phone it scrolls sideways. With `editing`
  *  it is one stop for Tab, whose arrows move between cells and whose Enter or Space opens the cell's editor. */
-export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: GridView; label: string; editing?: GridEditing; extraShifts?: GridShift[] }) {
+export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate }: { grid: GridView; label: string; editing?: GridEditing; extraShifts?: GridShift[]; markedDate?: string }) {
   const scroller = useRef<HTMLDivElement>(null)
+  /** The date the Day view opened it on: its column scrolled into view once, and its header marked. */
+  const marked = useRef<HTMLTableCellElement>(null)
+  useEffect(() => {
+    marked.current?.scrollIntoView?.({ block: "nearest", inline: "center" })
+  }, [markedDate])
   const shifts = useMemo(() => new Map([...extraShifts, ...grid.shifts].map((shift) => [shift.code, shift])), [grid.shifts, extraShifts])
   const [active, setActive] = useState({ row: 0, col: 0 })
   /** The cell an arrow key moved to, until it has focus. */
@@ -160,12 +165,16 @@ export function RosterGrid({ grid, label, editing, extraShifts = [] }: { grid: G
               if (index === 0) return <th key={header.id} scope="col" className="sticky start-0 z-30 min-w-24 border-b sm:min-w-40 bg-background px-2 py-1 text-start font-medium">{NURSE_HEADER}</th>
               const day = grid.days[index - 1]
               const date = asDate(day.date)
+              const isMarked = day.date === markedDate
               return (
                 <th key={header.id} scope="col" title={longDay.format(date) + (day.holiday ? ", public holiday" : "")}
-                  className={cn("w-9 min-w-9 border-b border-s px-0 py-1 text-center text-xs font-medium tabular-nums", (day.weekend || day.holiday) && "bg-muted")}>
+                  ref={isMarked ? marked : undefined} aria-current={isMarked ? "date" : undefined}
+                  className={cn("w-9 min-w-9 border-b border-s px-0 py-1 text-center text-xs font-medium tabular-nums", (day.weekend || day.holiday) && "bg-muted",
+                    isMarked && "bg-primary text-primary-foreground")}>
                   <span className="block">{date.getUTCDate()}</span>
                   {/* Plain foreground: the muted one falls short of 4.5:1 on the shaded days. */}
                   <span className="block font-normal">{day.holiday ? "Hol" : weekday.format(date)}</span>
+                  {isMarked && <span className="sr-only">, the Day view's date</span>}
                 </th>
               )
             })}

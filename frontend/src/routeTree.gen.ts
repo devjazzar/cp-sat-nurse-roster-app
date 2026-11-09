@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInAuditLogRouteImport } from './routes/_signed-in/audit-log'
 import { Route as SignedInCoversRouteImport } from './routes/_signed-in/covers'
+import { Route as SignedInDayRouteImport } from './routes/_signed-in/day'
 import { Route as SignedInHealthRouteImport } from './routes/_signed-in/health'
 import { Route as SignedInHolidaysRouteImport } from './routes/_signed-in/holidays'
 import { Route as SignedInHospitalRulesRouteImport } from './routes/_signed-in/hospital-rules'
@@ -72,6 +73,11 @@ const SignedInAuditLogRoute = SignedInAuditLogRouteImport.update({
 const SignedInCoversRoute = SignedInCoversRouteImport.update({
   id: '/covers',
   path: '/covers',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInDayRoute = SignedInDayRouteImport.update({
+  id: '/day',
+  path: '/day',
   getParentRoute: () => SignedInRoute,
 } as any)
 const SignedInHealthRoute = SignedInHealthRouteImport.update({
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/audit-log': typeof SignedInAuditLogRoute
   '/covers': typeof SignedInCoversRoute
+  '/day': typeof SignedInDayRoute
   '/health': typeof SignedInHealthRoute
   '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audit-log': typeof SignedInAuditLogRoute
   '/covers': typeof SignedInCoversRoute
+  '/day': typeof SignedInDayRoute
   '/health': typeof SignedInHealthRoute
   '/holidays': typeof SignedInHolidaysRoute
   '/hospital-rules': typeof SignedInHospitalRulesRoute
@@ -301,6 +309,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_signed-in/audit-log': typeof SignedInAuditLogRoute
   '/_signed-in/covers': typeof SignedInCoversRoute
+  '/_signed-in/day': typeof SignedInDayRoute
   '/_signed-in/health': typeof SignedInHealthRoute
   '/_signed-in/holidays': typeof SignedInHolidaysRoute
   '/_signed-in/hospital-rules': typeof SignedInHospitalRulesRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit-log'
     | '/covers'
+    | '/day'
     | '/health'
     | '/holidays'
     | '/hospital-rules'
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit-log'
     | '/covers'
+    | '/day'
     | '/health'
     | '/holidays'
     | '/hospital-rules'
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_signed-in/audit-log'
     | '/_signed-in/covers'
+    | '/_signed-in/day'
     | '/_signed-in/health'
     | '/_signed-in/holidays'
     | '/_signed-in/hospital-rules'
@@ -492,6 +504,13 @@ declare module '@tanstack/react-router' {
       path: '/covers'
       fullPath: '/covers'
       preLoaderRoute: typeof SignedInCoversRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/day': {
+      id: '/_signed-in/day'
+      path: '/day'
+      fullPath: '/day'
+      preLoaderRoute: typeof SignedInDayRouteImport
       parentRoute: typeof SignedInRoute
     }
     '/_signed-in/health': {
@@ -703,6 +722,7 @@ declare module '@tanstack/react-router' {
 interface SignedInRouteChildren {
   SignedInAuditLogRoute: typeof SignedInAuditLogRoute
   SignedInCoversRoute: typeof SignedInCoversRoute
+  SignedInDayRoute: typeof SignedInDayRoute
   SignedInHealthRoute: typeof SignedInHealthRoute
   SignedInHolidaysRoute: typeof SignedInHolidaysRoute
   SignedInHospitalRulesRoute: typeof SignedInHospitalRulesRoute
@@ -738,6 +758,7 @@ interface SignedInRouteChildren {
 const SignedInRouteChildren: SignedInRouteChildren = {
   SignedInAuditLogRoute: SignedInAuditLogRoute,
   SignedInCoversRoute: SignedInCoversRoute,
+  SignedInDayRoute: SignedInDayRoute,
   SignedInHealthRoute: SignedInHealthRoute,
   SignedInHolidaysRoute: SignedInHolidaysRoute,
   SignedInHospitalRulesRoute: SignedInHospitalRulesRoute,

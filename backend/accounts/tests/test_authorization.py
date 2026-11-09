@@ -122,6 +122,7 @@ ROSTER_ROLES = {
     "GET /api/units/{unit_id}/solve-history/{solve_id}": MANAGER | APPROVERS,
     "POST /api/units/{unit_id}/solve-history/{solve_id}/restore": MANAGER,
     "GET /api/rosters/overview": APPROVERS,
+    "GET /api/rosters/day": APPROVERS,
     "GET /api/rosters/submitted": APPROVERS,
     "GET /api/rosters/mine": {Role.STAFF_NURSE, Role.UNIT_MANAGER},
     "GET /api/rosters/mine/sheet": {Role.STAFF_NURSE, Role.UNIT_MANAGER},
