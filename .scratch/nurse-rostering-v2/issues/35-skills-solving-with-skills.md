@@ -30,3 +30,7 @@ and `required_skills`, the live skills marked required to work (`hospital.rules.
 change it there if a retired required skill should still bar). What is left here is the nurses' `skills`, changes since, the
 rename carried through stored inputs on read, and the words in dates. The four-nurse service sample is version 2 with no
 skills; the solver's `tests.er_fixture.version_1` derives a version 1 input from it.
+
+**From the review of ticket 34 (2026-11-09), decided by the user:**
+- A "work this day" preference on a day barred by an expired required skill costs its weight unavoidably, because only leave supersedes a preference. Decide here whether a barred day should supersede preferences as leave does: in the solver, and in the count of preferences not kept.
+- Also decide whether a retired required skill should still bar. `hospital.rules.required_skills()` sends live ones only.

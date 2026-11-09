@@ -230,3 +230,11 @@ No adversarial review, by the brief.
   - A backend test pairing the version 1 ER sample with today's blocks needs `"version": 2` and the department's two skill
     fields: `hospital.tests.test_rules.version_2` does it.
 - **Anyone adding a required unit-rule field:** the sample is version 2 now, so a version 2 field goes straight into it.
+
+**Reviewed by the user (2026-11-09):** all five points kept as recommended.
+- The flag in its own "Skill needs" section.
+- `required_skills` carried in the general block, live skills only.
+- The four-nurse sample in version 2.
+- A shift taken out under a need refused, naming it.
+- A new need's starting pair and minimums of 1.
+- A "work this day" preference on a barred day is left to ticket 35.
