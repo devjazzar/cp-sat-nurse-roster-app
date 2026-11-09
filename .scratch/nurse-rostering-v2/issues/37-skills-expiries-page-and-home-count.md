@@ -179,3 +179,11 @@ The stack is down and its volumes gone.
 - **Ticket 38** (barred pins and requests): nothing here touches it.
 - **An export of the list** is out of scope (spec). If one comes, write it through `nurses.spreadsheets.csv_response`
   (ticket 36).
+
+**Reviewed by the user (2026-11-09):** all six points kept as recommended.
+- A joining nurse is on her joining unit's manager's list.
+- No-record rows come last.
+- Both ends of the 90 days are in.
+- A nurse whose end date is today is listed.
+- The count comes with the list.
+- The Deputy's link sits beside Rostering attributes.
