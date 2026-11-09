@@ -1,7 +1,6 @@
 """A nurse's skills (ticket 33): the CNO records, renews and takes them off; her unit manager (and the manager of a unit she is
 due to join) and the Deputy CNO read them; she reads her own; the System Admin never does, and the audit log says only whose
 changed and by whom. Today is held still, in November 2026."""
-import json
 
 import pytest
 from django.db import IntegrityError, transaction

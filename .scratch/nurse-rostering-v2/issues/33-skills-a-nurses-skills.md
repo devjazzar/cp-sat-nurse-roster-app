@@ -84,7 +84,7 @@ dependency.
   manager with a profile, a transfer to a unit she is due to join and after it, a deactivated nurse, the catalogue refusal and
   off-on-off, `skill.changed`, the audit entries' shape and what the System Admin's log does not hold);
   `nurses/tests/test_two_at_once.py` (2: a dateless record and `expires` turned on, each waiting for the other's lock and then
-  refused); `app.test.tsx` "a nurse's skills" (14: the column, a manager reading only, record with and without an expiry and
+  refused); `app.test.tsx` "a nurse's skills" (13: the column, a manager reading only, record with and without an expiry and
   what is offered, a refusal beside its field, renew with the buttons held while it saves, the body sent, an empty renewal,
   take off and focus, a 409, a retired skill, an empty catalogue, Done and focus back), "the rostering attributes page" (the
   column, the Deputy CNO), "a nurse's own month" (3: the table, empty and failed, a manager with a profile), and the audit
@@ -105,6 +105,8 @@ Nurses page's column, the panel, a renewal to 30 Jun 2029 through "Save expiry o
 - a screen-reader run; the screens held against `better-interface`, `better-writing` and `better-accessibility` by hand only
   (names unique per skill, focus after take off and after Done, the status line, no gendered words in the interface);
 - a transfer and a deactivation on the scratch stack (the API tests cover both);
+- where focus goes after "Record skill" records the last skill not yet held: the form gives way to a sentence and focus
+  falls to the page (not exercised; Amal already held both on the stack);
 - the six frontend runs at once and the browser suite: GitHub's;
 - the dev stack: untouched.
 
