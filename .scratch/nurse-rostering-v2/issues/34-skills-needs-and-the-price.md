@@ -6,13 +6,13 @@
 
 **Status:** ready-for-agent
 
-- [ ] The unit rules carry `skill_needs` and `skill_needs_hard`; seeded empty and hard; the hospital rules' weights carry `skill_shortfall`, seeded at zero. The test that holds the saved blocks to the solver's own fields covers them.
-- [ ] A need is refused when it names a shift outside the unit's shifts or a retired skill, or names the same shift and skill twice; minimums are non-negative integers within the solver's parameter limit.
-- [ ] Dropping a shift from the unit is refused while a need names it, naming the need, as it is while a pin uses it; retiring a skill is refused while a live unit's need names it, naming the units, as retiring a shift is; a skill rename runs through every unit's needs in the same transaction, audited per unit.
-- [ ] The unit rules page gains a skill needs table (add, edit, remove) and the hard flag beside night rest's; the hospital rules page gains the weight; the CNO and Deputy CNO read a unit's needs read-only as the other rules.
-- [ ] Audit: unit rule and hospital rule changes keep logging their values; skill needs say nothing about a person.
-- [ ] The architecture document's unit rules and hospital settings entries name skill needs and the weight.
-- [ ] Tests at the web API seam for the rules, the refusals, the guards and the rename; frontend tests for the table and the flag through the app test file.
+- [x] The unit rules carry `skill_needs` and `skill_needs_hard`; seeded empty and hard; the hospital rules' weights carry `skill_shortfall`, seeded at zero. The test that holds the saved blocks to the solver's own fields covers them.
+- [x] A need is refused when it names a shift outside the unit's shifts or a retired skill, or names the same shift and skill twice; minimums are non-negative integers within the solver's parameter limit.
+- [x] Dropping a shift from the unit is refused while a need names it, naming the need, as it is while a pin uses it; retiring a skill is refused while a live unit's need names it, naming the units, as retiring a shift is; a skill rename runs through every unit's needs in the same transaction, audited per unit.
+- [x] The unit rules page gains a skill needs table (add, edit, remove) and the hard flag beside night rest's; the hospital rules page gains the weight; the CNO and Deputy CNO read a unit's needs read-only as the other rules.
+- [x] Audit: unit rule and hospital rule changes keep logging their values; skill needs say nothing about a person.
+- [x] The architecture document's unit rules and hospital settings entries name skill needs and the weight.
+- [x] Tests at the web API seam for the rules, the refusals, the guards and the rename; frontend tests for the table and the flag through the app test file.
 
 ## Comments
 
