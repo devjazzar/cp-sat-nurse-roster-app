@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from urllib.parse import urlsplit
 
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from accounts.models import User
@@ -95,6 +96,25 @@ def turn_off_everywhere(user: User) -> None:
         deleted, _ = PushSubscription.objects.filter(user=user).delete()
         if deleted:
             _audit("push.turned_off", user)
+
+
+FAILURES_THAT_END = 10
+
+
+def reached(subscription_id) -> None:
+    """A push got there: its failures start again from none."""
+    PushSubscription.objects.filter(pk=subscription_id).update(failures_in_a_row=0, last_success_at=timezone.now())
+
+
+def not_reached(subscription_id) -> None:
+    """A push that did not get there counts one failure; the tenth in a row ends the subscription, with no entry."""
+    PushSubscription.objects.filter(pk=subscription_id).update(failures_in_a_row=F("failures_in_a_row") + 1)
+    PushSubscription.objects.filter(pk=subscription_id, failures_in_a_row__gte=FAILURES_THAT_END).delete()
+
+
+def end(subscription_id) -> None:
+    """The push service says it is gone, or its host is not one allowed: nobody's act, so no entry."""
+    PushSubscription.objects.filter(pk=subscription_id).delete()
 
 
 def end_for(user_ids: Iterable) -> None:

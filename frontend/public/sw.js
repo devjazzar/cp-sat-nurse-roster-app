@@ -35,10 +35,12 @@ const KINDS = {
 // What the app's window listens for, to go to a page through its own router (src/lib/service-worker.ts).
 const OPEN_PAGE = "open-page"
 
+const known = (kind) => typeof kind === "string" && Object.hasOwn(KINDS, kind)
+
 function kindOf(data) {
   try {
     const kind = data?.json()?.kind
-    return Object.hasOwn(KINDS, kind) ? kind : null
+    return known(kind) ? kind : null
   } catch {
     return null
   }
@@ -58,7 +60,7 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
   const kind = event.notification.data?.kind
-  const page = Object.hasOwn(KINDS, kind) ? KINDS[kind].page : "/"
+  const page = known(kind) ? KINDS[kind].page : "/"
   event.waitUntil(openPage(page))
 })
 

@@ -6,9 +6,6 @@ from __future__ import annotations
 
 import datetime as dt
 
-from django.db.models import F
-from django.utils import timezone
-
 from accounts.models import User
 from notifications import push_keys, pushing, reading, subscriptions
 from notifications.kinds import PushKind, kind_of
@@ -21,7 +18,6 @@ from swaps.models import Answer, Swap, SwapParticipant, SwapState
 
 RETRY_IN = (60, 180, 360)
 """Seconds before each try again of a subscription the push service could not be reached at: three, over about ten minutes."""
-FAILURES_THAT_END = 10
 
 Pairs = list[list[str]]
 """[notification id, subscription id] of the sends still to make, carried from one try to the next."""
@@ -31,47 +27,70 @@ def _month(payload: dict) -> dt.date:
     return dt.date.fromisoformat(f"{payload['month']}-01")
 
 
+def _swap(note: Notification) -> Swap | None:
+    return Swap.objects.prefetch_related("cells").filter(pk=note.payload.get("swap_id")).first()
+
+
+def _window(note: Notification) -> RequestWindow | None:
+    return RequestWindow.objects.filter(pk=note.payload.get("window_id")).first()
+
+
+def _roster(note: Notification) -> Roster | None:
+    return Roster.objects.filter(unit_id=note.payload.get("unit_id"), month=_month(note.payload)).first()
+
+
+def _swap_to_answer(note: Notification) -> bool:
+    """Still pending, and this colleague has not answered it, on another device say."""
+    swap = _swap(note)
+    return swap is not None and state_now(swap) == SwapState.PENDING and SwapParticipant.objects.filter(
+        swap=swap, nurse__user_id=note.user_id, answer=Answer.PENDING).exists()
+
+
+def _swap_to_decide(note: Notification) -> bool:
+    swap = _swap(note)
+    return swap is not None and state_now(swap) == SwapState.AWAITING_MANAGER
+
+
+def _requests_open(note: Notification) -> bool:
+    window = _window(note)
+    return window is not None and state_today(window) == WindowState.OPEN
+
+
+def _requests_to_decide(note: Notification) -> bool:
+    window = _window(note)
+    return (window is not None and state_today(window) == WindowState.CLOSED
+            and window.requests.filter(state=RequestState.PENDING).exists())
+
+
+def _roster_to_approve(note: Notification) -> bool:
+    roster = _roster(note)
+    return roster is not None and roster.state == RosterState.SUBMITTED
+
+
+def _roster_sent_back(note: Notification) -> bool:
+    """Still a draft, and not submitted again since the rejection."""
+    roster = _roster(note)
+    return (roster is not None and roster.state == RosterState.DRAFT
+            and not roster.submissions.filter(submitted_at__gt=note.created_at).exists())
+
+
+_STILL_WAITS = {
+    PushKind.SWAP_TO_ANSWER: _swap_to_answer, PushKind.SWAP_TO_DECIDE: _swap_to_decide,
+    PushKind.REQUESTS_OPEN: _requests_open, PushKind.REQUESTS_TO_DECIDE: _requests_to_decide,
+    PushKind.ROSTER_TO_APPROVE: _roster_to_approve, PushKind.ROSTER_SENT_BACK: _roster_sent_back,
+}
+
+
 def still_waits(kind: PushKind, note: Notification) -> bool:
     """Read as the pages read it, from the dates as well as the stored state, so a swap past its first date or a window past
     its close date is no longer waiting, whether or not the hourly job has stored it."""
-    payload = note.payload
-    match kind:
-        case PushKind.SWAP_TO_ANSWER | PushKind.SWAP_TO_DECIDE:
-            swap = Swap.objects.prefetch_related("cells").filter(pk=payload.get("swap_id")).first()
-            if swap is None:
-                return False
-            if kind == PushKind.SWAP_TO_DECIDE:
-                return state_now(swap) == SwapState.AWAITING_MANAGER
-            # Answered on another device: nothing to tell.
-            return state_now(swap) == SwapState.PENDING and SwapParticipant.objects.filter(
-                swap=swap, nurse__user_id=note.user_id, answer=Answer.PENDING).exists()
-        case PushKind.REQUESTS_OPEN | PushKind.REQUESTS_TO_DECIDE:
-            window = RequestWindow.objects.filter(pk=payload.get("window_id")).first()
-            if window is None:
-                return False
-            if kind == PushKind.REQUESTS_OPEN:
-                return state_today(window) == WindowState.OPEN
-            return state_today(window) == WindowState.CLOSED and window.requests.filter(state=RequestState.PENDING).exists()
-        case PushKind.ROSTER_TO_APPROVE | PushKind.ROSTER_SENT_BACK:
-            roster = Roster.objects.filter(unit_id=payload.get("unit_id"), month=_month(payload)).first()
-            if roster is None:
-                return False
-            if kind == PushKind.ROSTER_TO_APPROVE:
-                return roster.state == RosterState.SUBMITTED
-            return roster.state == RosterState.DRAFT and not roster.submissions.filter(
-                submitted_at__gt=note.created_at).exists()
-    return False
+    return _STILL_WAITS[kind](note)
 
 
 def has_page(note: Notification) -> bool:
     """The Notifications page's own rule: a reader it would give no link to (a manager taken off the unit, say) gets no push."""
     reader = User.objects.filter(pk=note.user_id, is_active=True).first()
     return reader is not None and reading.link_of(note, reader, reading.Names([note])) is not None
-
-
-def _failed(subscription_id) -> None:
-    PushSubscription.objects.filter(pk=subscription_id).update(failures_in_a_row=F("failures_in_a_row") + 1)
-    PushSubscription.objects.filter(pk=subscription_id, failures_in_a_row__gte=FAILURES_THAT_END).delete()
 
 
 def deliver(notification_ids: list[str], *, attempt: int = 0, remaining: Pairs | None = None) -> Pairs:
@@ -87,10 +106,10 @@ def deliver(notification_ids: list[str], *, attempt: int = 0, remaining: Pairs |
         # The reader's own: an address moved to another user since is not sent this one.
         held = PushSubscription.objects.filter(user_id=note.user_id).order_by("pk")
         if remaining is not None:
-            held = held.filter(pk__in=[sub for of, sub in remaining if of == str(note.pk)])
+            held = held.filter(pk__in=[subscription_id for note_id, subscription_id in remaining if note_id == str(note.pk)])
         for subscription in held:
             if not subscriptions.allowed(subscription.endpoint):
-                PushSubscription.objects.filter(pk=subscription.pk).delete()
+                subscriptions.end(subscription.pk)
                 continue
             key = key or push_keys.private_key()
             outcome = pushing.send(endpoint=subscription.endpoint, p256dh=subscription.p256dh, auth=subscription.auth,
@@ -98,12 +117,11 @@ def deliver(notification_ids: list[str], *, attempt: int = 0, remaining: Pairs |
             PushAttempt.objects.create(outcome=outcome)
             match outcome:
                 case PushOutcome.SENT:
-                    PushSubscription.objects.filter(pk=subscription.pk).update(failures_in_a_row=0,
-                                                                                last_success_at=timezone.now())
+                    subscriptions.reached(subscription.pk)
                 case PushOutcome.GONE:
-                    PushSubscription.objects.filter(pk=subscription.pk).delete()
+                    subscriptions.end(subscription.pk)
                 case PushOutcome.UNREACHABLE if not last_try:
                     retry.append([str(note.pk), str(subscription.pk)])
-                case _:  # refused, or unreachable at the last try: this push did not reach it
-                    _failed(subscription.pk)
+                case _:  # refused, or unreachable at the last try
+                    subscriptions.not_reached(subscription.pk)
     return retry
