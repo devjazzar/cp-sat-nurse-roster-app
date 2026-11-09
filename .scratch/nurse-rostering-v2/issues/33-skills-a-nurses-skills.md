@@ -25,3 +25,5 @@ catalogue's `expires` should take it too, or lock the skill row, for the two not
 `refuse((("expires",), "..."))`; the page already shows a field's refusal beside its checkbox (`showServerErrors`), so the
 Skills page needs nothing more for it. `NurseSkill.skill` should be a `PROTECT` foreign key to `Skill`, as `SkillRename`'s
 is: nothing deletes a skill. A rename changes `Skill.name` only; a row keyed by the skill's id needs no carrying.
+
+**From the review of ticket 32 (2026-11-09), decided by the user:** rename the skill catalogue's update action from `skill.updated` to `skill.changed`, as `shift.changed` and `leave_type.changed` are: in `hospital/catalogue_api.py`'s `update_skill`, its tests in `hospital/tests/test_skills.py`, the action list in `frontend/src/routes/_signed-in/audit-log.tsx` and `docs/ARCHITECTURE.md`. A small change inside this ticket.

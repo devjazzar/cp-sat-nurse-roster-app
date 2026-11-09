@@ -106,3 +106,5 @@ no sideways page scroll; ICU edited to required to work through the form, "ICU i
 - 36 has a note on CSV formula cells: a skill's name may start with `=`, `+`, `-` or `@`.
 - 37 (expiries): `required_to_work` and `active` are on the row; a retired skill's records stay.
 
+
+**Reviewed by the user (2026-11-09):** all four Worth your review points kept as recommended: the update action becomes `skill.changed`, as every other catalogue logs it, done under ticket 33 (see its comment); a name another skill used to hold refused; a change of case a rename; no skill seeded. PR #6 at head `66149fe`, fast-forwarded into `main`; migration `hospital.0003_skills`; dev stack rebuilt.
