@@ -1,0 +1,88 @@
+# Dependabot version updates: weekly, grouped and capped, so the queue stays small.
+# Options follow https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
+# Security updates are not held back: the groups apply to version updates only, and
+# open-pull-requests-limit and cooldown do not apply to security updates.
+version: 2
+
+updates:
+  # Python: the uv workspace (backend and solver) locked in the root uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(python)"
+    groups:
+      python-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+
+  # JavaScript: the React frontend and the Playwright end-to-end suite, each with its own lock.
+  - package-ecosystem: "npm"
+    directories:
+      - "/frontend"
+      - "/e2e"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(npm)"
+    groups:
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+
+  # Base images (Node, Python) in the root Dockerfile; close a Python 3.15 bump by hand (no OR-Tools wheels).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "deps(docker)"
+    groups:
+      docker-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+
+  # Service images (Caddy, Postgres, Node) in the compose files under deploy/.
+  - package-ecosystem: "docker-compose"
+    directory: "/deploy"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "deps(compose)"
+    groups:
+      compose-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+
+  # The actions used by the workflows in .github/workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "deps(actions)"
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
