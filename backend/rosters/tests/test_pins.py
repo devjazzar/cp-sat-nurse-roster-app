@@ -281,6 +281,27 @@ class TestAnEditedDraft:
 
         assert not any(v["rule"] == "pin" for v in draft["check"]["violations"])
 
+    def test_a_shift_on_a_day_an_expired_required_skill_bars_is_named_by_the_check_and_saved_with_it(self, mona, er, solver):
+        """Ticket 35: the pin is kept out of the solver's input, which would refuse it, so the grid's shift is what breaks the
+        bar; ticket 38 sets such a pin aside in words of its own."""
+        from rosters.tests.test_review import holding
+        from solves.input import assemble, solver_refusal
+        solved(mona, er, solver, finished("N", cost=7))
+        holding("Amal", "BLS", dt.date(2026, 6, 20), required=True)
+
+        checked = check(mona, er, pin("Amal", 25, "D"))
+
+        assert checked["reason"] is None
+        barred = [v for v in checked["violations"] if v["rule"] == "skill_expired"]
+        assert "2026-06-25" in [v["date"] for v in barred]
+        assert next(v for v in barred if v["date"] == "2026-06-25")["text"] == (
+            "skill expired: Amal works D on 2026-06-25, BLS is required to work and its last day was 2026-06-20")
+        draft = saved(mona, er, pin("Amal", 25, "D"))["draft"]
+        assert draft["check"]["reason"] is None and draft["check"]["ok"] is False
+        assert cell(draft, "Amal", 25)["shift"] == "D"
+        solve_input = assemble(er, dt.date(2026, 6, 1)).input
+        assert "2026-06-25" not in input_row(solve_input, "Amal").get("pinned", {}) and solver_refusal(solve_input) is None
+
     def test_a_pin_on_what_the_cell_already_held_is_no_edit_of_the_grid(self, mona, er, solver):
         solved(mona, er, solver, finished("D", cost=7))
 

@@ -246,7 +246,7 @@ def test_a_hard_skill_need_and_an_expired_required_skill_decide_the_roster(mona,
 
     plan = preview(mona, er)
     assert plan["rules_refusal"] is None
-    assert ("Badr: BLS, required to work, expires inside the month: its last day is 2026-06-20, and she works no shift after it"
+    assert ("Badr: BLS, required to work, expires inside the month: its last day is 2026-06-20, so no shift after it"
             in plan["precheck"])
 
     solve = started(mona, er, seconds=30)

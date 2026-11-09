@@ -271,7 +271,7 @@ def test_precheck_counts_the_holders_each_day_against_leave_pins_and_the_bar():
     assert [line for line in lines if line.startswith("day ")] == [
         f"day {d}: skill need D/ICU needs 2 but only {k} nurse(s) holding ICU may work D (not on leave, pinned "
         f"elsewhere or barred)" for d, k in ((1, 0), (2, 0))]
-    assert "a: BLS, required to work, expires inside the month: its last day is day 0, and she works no shift after it" \
+    assert "a: BLS, required to work, expires inside the month: its last day is day 0, so no shift after it" \
         in lines
 
 

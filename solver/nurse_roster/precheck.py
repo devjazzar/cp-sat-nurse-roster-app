@@ -255,7 +255,7 @@ def precheck(p: Problem) -> list[str]:
         for skill, last in expired_required(p, n):
             if last >= 0:
                 issues.append(f"{n.id}: {skill}, required to work, expires inside the month: its last day is "
-                              f"{expiry_words(last)}, and she works no shift after it")
+                              f"{expiry_words(last)}, so no shift after it")
 
     # ---- pins that break a pattern rule between themselves ------------------------------
     succ = set(p.successions())

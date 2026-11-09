@@ -104,6 +104,8 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         carried = assembled.carried[nurse.user.username] = chain.carry_in(nurse, month)
         values = carried.into(month)
         skills = skills_block(nurse.current_skills, month)
+        if pinned and not facts:
+            pinned = without_barred_shifts(pinned, skills, assembled.input["general"]["required_skills"], month)
         assembled.nurses.append(nurse_block(nurse, placement) | {key: values[key] for key in CARRIED} | {"leave": leave}
                                 | preferred.get(nurse.user.username, {}) | ({"pinned": pinned} if pinned else {})
                                 | ({"skills": skills} if skills else {}))
@@ -118,6 +120,22 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
     if renamed:
         assembled.input["renamed_shifts"] = renamed
     return assembled
+
+
+def barred_from(skills: dict[str, str | None], required: list[str], month: dt.date) -> str | None:
+    """The first date she may work no shift, as the solver bars it (`nurse_roster.problem.barred_days`): the day after the
+    earliest expiry of a required skill of hers that ends before the month's last day. None when nothing bars her."""
+    last = membership.last_day_of(month).isoformat()
+    ends = [expiry for name, expiry in skills.items() if name in required and expiry is not None and expiry < last]
+    return (dt.date.fromisoformat(min(ends)) + dt.timedelta(days=1)).isoformat() if ends else None
+
+
+def without_barred_shifts(pinned: dict[str, str], skills: dict, required: list[str], month: dt.date) -> dict[str, str]:
+    """Her pins less a shift pinned on a day an expired required skill bars her from, which the solver refuses on a day it plans.
+    The pin stays, and the grid holds its shift, so the check names the bar as the rule it breaks; ticket 38 sets it aside in
+    words of its own."""
+    first = barred_from(skills, required, month)
+    return pinned if first is None else {day: code for day, code in pinned.items() if not (code and day >= first)}
 
 
 def _renamed_in_histories(assembled: Assembled) -> dict[str, str]:

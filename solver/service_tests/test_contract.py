@@ -302,7 +302,7 @@ def test_a_version_2_input_is_solved_with_its_skills_and_scored_with_both_rules(
     issues = client.post("/precheck", json=skills).json()["issues"]
     job = wait_for(client, client.post("/solve", json=skills).json()["job_id"], ended)
 
-    assert "Dana: BLS, required to work, expires inside the month: its last day is day 23, and she works no shift after it" \
+    assert "Dana: BLS, required to work, expires inside the month: its last day is day 23, so no shift after it" \
         in issues
     result = job["result"]
     assert job["state"] == "finished" and result["ok"] is True and result["version"] == 1
