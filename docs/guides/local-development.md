@@ -376,6 +376,13 @@ Give it the code and the question, not your conclusion.
 - When done: `code-review` against `<base>`, then `/codex:adversarial-review --base <base>`. Fix what they find or say why not.
 - Hold the screens against `better-interface`, `better-writing`, `better-accessibility` by hand.
 - Drive the real thing on your own scratch compose project. Remove only what you created.
+- One heavy local run at a time across all ticket sessions (the user's rule, 2026-11-09): the full backend `pytest`, the
+  full solver suite, the full frontend `npm test`, and bringing up or driving a scratch compose stack (Playwright included)
+  need the lock; typechecks and single test files do not, and GitHub's checks are not limited. Take it in the background,
+  `until mkdir "$HOME/.cache/nurse-roster-heavy.lock" 2>/dev/null; do sleep 30; done; echo "ticket-NN $(date)" > "$HOME/.cache/nurse-roster-heavy.lock/owner"`,
+  and release it the moment that work ends, success or failure, with your stack down: `rm -rf "$HOME/.cache/nurse-roster-heavy.lock"`.
+  Never hold it while waiting on GitHub, never remove another session's, and ask the session that started you about one
+  older than two hours.
 
 ## Ticket comment
 The style of ticket NN-1's: what was driven and how; what was NOT checked; the decisions you took; **Worth your review**;
