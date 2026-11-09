@@ -205,3 +205,8 @@ The stack is down and its volumes gone.
 - `set_aside` may now be `barred` on the draft's pins and on the manager's request rows.
 - A close reads a barred pin as a fact (worked). If a later ticket wants leave's treatment there too, it is
   `rosters.pins.month_pins` with `facts=True`.
+
+**Reviewed by the user (2026-11-09):** all three points kept as recommended.
+- Ticket 35's filter is dropped, and the pin's set-aside is the one definition.
+- A colleague's barred cell is refused before the solver's check, as leave is.
+- `barred_from` stays in `solves.input`.
