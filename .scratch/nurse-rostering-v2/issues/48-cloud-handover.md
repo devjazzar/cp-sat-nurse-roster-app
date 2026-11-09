@@ -80,7 +80,8 @@ e2e/ci.sh
 
 The dev stack's ER (25 nurses, longest run 3) is the solver's ER sample, `solver/tests/fixtures/er_request_2026-03.json`.
 Bring up a seeded scratch stack, then add that unit to it as `ER25` for December 2026. The measurement script below does
-the adding and leaves the unit in place. Its manager is `er25mgr`, created with a random password; set one for the drive
+the adding and leaves the unit in place. "Like ER's December" means the sample's nurses (attributes, opening values) and
+rules. The sample's leave is not carried, since its dates are in March, so December has no leave and no history. Its manager is `er25mgr`, created with a random password; set one for the drive
 through the System Admin's Users page.
 
 ```bash
@@ -154,7 +155,7 @@ the CNO and Hala the Deputy CNO; the password is the stack's own. Check each of 
    - No nurse should have more than three full runs where the month allows it; count a few rows by eye, or use the
      measurement's counts.
    - Where the month does not allow it, "Penalties per rule" beside the draft shows "Full run above the most" with lines
-     like "ER25 N13: N13: 4 full runs of 3 shifts, max 3".
+     like "ER25 N13: er25-N13: 4 full runs of 3 shifts, max 3" (the solver's id is the username).
    - Start a re-plan if the month allows one (it may need approving first; skip it if that is too much) and check that its
      input carries `max_full_runs`.
 5. **Nothing for nurses:** as a staff nurse of ER, My month and My roster show nothing about full runs.

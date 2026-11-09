@@ -17,11 +17,10 @@ import os
 import re
 
 from django.db import transaction
-from nurse_roster.model import build_model, solve
+from nurse_roster.model import MAX_WORKERS, build_model, solve
 from nurse_roster.precheck import precheck
 from nurse_roster.request import load_request
 from nurse_roster.result import build_result
-from solver_service.app import default_workers
 
 from accounts.models import Role, User
 from hospital.models import HospitalSettings
@@ -35,6 +34,11 @@ DECEMBER = dt.date(2026, 12, 1)
 CAP = 3
 WEIGHTS = [int(w) for w in os.environ.get("WEIGHTS", "4,20,50,200").split(",")]
 RUNS = int(os.environ.get("RUNS", "3"))
+try:  # The service's own choice, if the web image holds the service's module; the container's CPUs otherwise.
+    from solver_service.app import default_workers
+except ImportError:
+    def default_workers() -> int:
+        return min(os.cpu_count() or 1, MAX_WORKERS)
 WORKERS = default_workers()
 
 with transaction.atomic():
