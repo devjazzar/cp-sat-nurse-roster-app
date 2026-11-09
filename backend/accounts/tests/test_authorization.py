@@ -20,7 +20,8 @@ ANY_ROLE = {"POST /api/auth/logout", "POST /api/auth/change-password",
             "GET /api/hospital/ramadan",
             # Each user's own, and nobody else's: nothing here takes a user.
             "GET /api/notifications", "GET /api/notifications/unread", "POST /api/notifications/{notification_id}/read",
-            "POST /api/notifications/read-all"}
+            "POST /api/notifications/read-all", "POST /api/notifications/push/state", "POST /api/notifications/push/on",
+            "POST /api/notifications/push/off", "POST /api/notifications/push/off-everywhere"}
 
 
 def endpoints():

@@ -658,8 +658,9 @@ def test_the_system_admin_reads_no_type_no_date_and_no_count_in_the_log(client_o
     assert page.status_code == 200 and len(page.json()["entries"]) == 1
     entry = page.json()["entries"][0]
     assert entry["before"] is None and entry["after"] is None
-    # A date would be the only trace of one here, as the entry's own time is today's.
-    assert not any(word in json.dumps(entry) for word in ("Maternity", kind("Maternity"), "2026-11-10", "2026-11-11"))
+    # A date would be the only trace of one here. The entry's own time is left out: it is today's, which can be one of them.
+    said = json.dumps({key: value for key, value in entry.items() if key != "at"})
+    assert not any(word in said for word in ("Maternity", kind("Maternity"), "2026-11-10", "2026-11-11"))
 
 
 def test_a_refused_write_is_not_logged(mona, er, amal):

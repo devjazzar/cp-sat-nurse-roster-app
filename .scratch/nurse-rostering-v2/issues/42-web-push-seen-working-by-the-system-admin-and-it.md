@@ -15,3 +15,15 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`.
 - [ ] `docs/ARCHITECTURE.md`: sections 1 and 12 no longer list push as out of scope or to revisit; section 2's table gives the worker `egress`; section 7 adds the push job and the attempts' retention; section 8 says what is pushed, how a device opts in, what Log out and deactivation do and what the health page shows; section 9's housekeeping lists attempts after seven days
 - [ ] `deploy/tests/operations.sh`: the worker is on a network that is not internal and `web`, the database and the solver are on none; the health answer carries the push block; `prepare` logged the key pair
 - [ ] Tests at the agreed seams: the backend suite (the health block's counts and last reason from scripted attempts, the two metrics, the retention's what goes and what stays); the operations check above
+
+**From ticket 40 (2026-11-10):**
+- **`prepare` logs "Made the installation's push key pair."** once, on the start that makes it: `bootstrap` prints it and
+  `prepare` turns each printed line into a JSON log line of logger `ops.prepare`. That is the line for `operations.sh` to find
+  in `web`'s first-start logs. A later start prints nothing about the pair.
+- **Docs ticket 40 left for this one.** `docs/ARCHITECTURE.md` section 8 still says the PWA's worker sends "no push". It now
+  listens for `pushsubscriptionchange` (still no `fetch`), and the Notifications page has "On this device". Section 2's
+  first start does not mention the key pair, and `rotate_push_keys` is in neither section. Section 8's security paragraph
+  does not list `push.turned_on`, `push.turned_off` or `push.keys_rotated`, all three of which hold nothing of the device
+  and no IP.
+- **Backups and restores need nothing new.** `ops.backups` takes a whole-database `pg_dump`, so the key pair and the
+  subscriptions come back with a restore.

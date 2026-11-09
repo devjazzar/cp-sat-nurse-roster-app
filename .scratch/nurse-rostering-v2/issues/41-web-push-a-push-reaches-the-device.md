@@ -20,3 +20,24 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`. Reasons: `d
 - [ ] Tests at the agreed seams: the backend suite with the scripted sender and the real queue (each of the six events makes one job for its recipients and nobody else, every other makes none, a rolled-back change makes none; payload and headers; the still-waits and still-has-a-page checks for each kind; 404/410, the count to ten and the reset; the partial retry and once-per-subscription attempts; a manager with a nurse profile gets both roles' kinds, the System Admin none); the service worker's test (the six kinds' words and tags, the unknown kind, the tap with and without an open window, no `fetch`)
 - [ ] Driven on a scratch compose project: with the worker's way out, a real browser subscribed on the implementer's own device or desktop browser receives a push for a proposed swap and the tap opens Swaps; say in the comment what was and was not driven
 - [ ] `makemigrations --check` clean; the dev stack's rebuild and `up -d` named in the comment
+
+**From ticket 40 (2026-11-10):** the subscriptions and the key pair are in; nothing is sent. What this ticket builds on:
+- **The key pair** is `notifications.models.PushKeyPair`, one row (`pk=1`): `private_key` is a PEM, PKCS #8, P-256 key and
+  `public_key` the uncompressed point in base64url without padding. Hand py-vapid the PEM, as
+  `Vapid.from_pem(row.private_key.encode())`, and pass that `Vapid` to pywebpush, rather than the string, which it reads
+  differently. `notifications.push_keys.public_key()` is what browsers subscribe with. A rotation (`rotate_push_keys`) keeps
+  every row, so sends to devices still bound to the old key fail as refusals until each one re-subscribes at its next start.
+  Those failures count toward the ten, as the spec says.
+- **pywebpush is not added yet.** Only `cryptography` (50.0.x) is. Your criterion says to confirm pywebpush 2.5.x installs and
+  sends on the image's Python 3.14 before building on it, so the library and that check land together here. pywebpush pulls
+  in py-vapid, http-ece, requests and aiohttp. `cryptography` is already pinned, so check that its range meets pywebpush's.
+- **`PushSubscription`** has `user`, `endpoint` (unique), `p256dh`, `auth`, `turned_on_at`, `failures_in_a_row` and
+  `last_success_at`. The last two are written by nothing yet: they are yours. Ending a row is a plain `delete()` with no
+  audit entry (`notifications.subscriptions.end_for` deletes a user's).
+- **An address is any `https://` URL up to 2000 characters.** Ticket 40 does not check the host. The worker sends to whatever
+  a signed-in user posted, from the `egress` network and the `backend` and `solver` networks alike. Before the first send,
+  decide whether to refuse an endpoint outside the push services' hosts (the four in ticket 42's install guide), at turn-on
+  or at send. That closes a request-forgery path through the worker; the user's decision to take, not ticket 40's.
+- **The service worker** has `install`, `activate` and `pushsubscriptionchange`, and still no `fetch`. Its test
+  (`src/sw.test.ts`) runs the worker with `self`, `caches` and `fetch` as parameters; add `push` and `notificationclick`
+  beside them. `self.registration` is already in the stand-in.
