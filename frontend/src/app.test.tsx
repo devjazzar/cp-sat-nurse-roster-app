@@ -711,7 +711,7 @@ const RULES = {
   weights: {
     night_rest: 5, dept_overtime: 1, nurse_overtime: 1, nurse_shortfall: 1, avoidable_shortfall: 1000, fair_day: 1,
     fair_night: 1, fair_weekend: 1, score_deficit: 2, score_spread: 1, excess_weekend: 6, excess_full_run: 4, shift_switch: 8,
-    undesired_day: 2, desired_day: 1, change: 3,
+    undesired_day: 2, desired_day: 1, change: 3, skill_shortfall: 0,
   },
 }
 const WEIGHT_COUNT = Object.keys(RULES.weights).length
@@ -777,6 +777,21 @@ describe("the hospital rules page", () => {
 
     await screen.findByText("Saved.")
     expect(put(calls).weights).toEqual({ ...RULES.weights, excess_full_run: 0 })
+  })
+
+  it("the price of a nurse short of a skill need is a weight like the others", async () => {
+    const { user, calls } = start("/hospital-rules", asCno(RULES_STATE, saves))
+
+    const shortfall = within(await screen.findByRole("region", { name: "Weights" })).getByLabelText("Short of a skill need")
+    expect(shortfall).toHaveValue(0)
+    expect(shortfall).toHaveAccessibleDescription(
+      "Each nurse short of a unit's skill need on a shift and day. Applies only in a unit that lets its skill needs be broken.")
+    await user.clear(shortfall)
+    await user.type(shortfall, "50")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).weights).toEqual({ ...RULES.weights, skill_shortfall: 50 })
   })
 
   it("saving the defaults untouched is the review: the button is open and the flag goes", async () => {
@@ -3730,6 +3745,8 @@ const UNIT_RULES = {
   no_mixed_blocks: true,
   max_switches: 2,
   switches_hard: false,
+  skill_needs: [] as { shift: string; skill: string; weekday_min: number; weekend_min: number }[],
+  skill_needs_hard: true,
 }
 const UNIT_RULES_STATE = {
   rules: UNIT_RULES,
@@ -3743,6 +3760,7 @@ const UNIT_RULES_STATE = {
     { code: "N", display_name: "Night", hours: 12 },
     { code: "A", display_name: "Morning", hours: 8 },
   ],
+  active_skills: ["BLS", "ICU"],
 }
 const ER_UNIT = { id: "er", name: "ER", archived: false, manager: null, rules_need_review: true }
 const ICU = { id: "icu", name: "ICU", archived: false, manager: null, rules_need_review: false }
@@ -3850,6 +3868,102 @@ describe("the unit rules page", () => {
 
     await screen.findByText("Saved.")
     expect(put(calls).rules).toEqual({ ...UNIT_RULES, max_consecutive_shifts: 1, max_full_runs: 3 })
+  })
+
+  it("the manager adds, changes and removes skill needs, and makes them soft", async () => {
+    const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+    const region = within(await screen.findByRole("region", { name: "Skill needs" }))
+    expect(region.getByText("No skill needs. The solver staffs every shift without looking at skills.")).toBeInTheDocument()
+    const hard = region.getByRole("checkbox", { name: "Never break the skill needs" })
+    expect(hard).toBeChecked()
+    expect(hard).toHaveAccessibleDescription(/at the price of the hospital's weight for each nurse short/)
+
+    await user.click(region.getByRole("button", { name: "Add a skill need" }))
+    const first = within(region.getByRole("group", { name: "Skill need 1" }))
+    expect(first.getByLabelText("Shift")).toHaveFocus()
+    expect([first.getByLabelText("Shift"), first.getByLabelText("Skill")].map((select) => (select as HTMLSelectElement).value)).toEqual(["D", "BLS"])
+    expect([...first.getByLabelText("Shift").querySelectorAll("option")].map((option) => option.value)).toEqual(["D", "N"])
+    expect([...first.getByLabelText("Skill").querySelectorAll("option")].map((option) => option.value)).toEqual(["BLS", "ICU"])
+    await user.selectOptions(first.getByLabelText("Shift"), "N")
+    await user.selectOptions(first.getByLabelText("Skill"), "ICU")
+    await user.clear(first.getByLabelText("Weekday, at least"))
+    await user.type(first.getByLabelText("Weekday, at least"), "2")
+
+    await user.click(region.getByRole("button", { name: "Add a skill need" }))
+    const second = within(region.getByRole("group", { name: "Skill need 2" }))
+    expect((second.getByLabelText("Skill") as HTMLSelectElement).value).toBe("BLS")
+    await user.click(second.getByRole("button", { name: "Remove skill need 2" }))
+    expect(region.queryByRole("group", { name: "Skill need 2" })).not.toBeInTheDocument()
+    expect(region.getByRole("button", { name: "Add a skill need" })).toHaveFocus()
+
+    await user.click(hard)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).rules).toEqual({ ...UNIT_RULES, skill_needs: [{ shift: "N", skill: "ICU", weekday_min: 2, weekend_min: 1 }], skill_needs_hard: false })
+  })
+
+  it("a second need for one shift and skill, and a shift taken out while a need names it, are refused before saving", async () => {
+    const needs = [{ shift: "N", skill: "ICU", weekday_min: 1, weekend_min: 1 }]
+    const { user, calls } = start("/unit-rules", asManager({ ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, skill_needs: needs } }, saves))
+
+    const region = within(await screen.findByRole("region", { name: "Skill needs" }))
+    await user.click(region.getByRole("button", { name: "Add a skill need" }))
+    const second = within(region.getByRole("group", { name: "Skill need 2" }))
+    await user.selectOptions(second.getByLabelText("Shift"), "N")
+    await user.selectOptions(second.getByLabelText("Skill"), "ICU")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("N already has a need for ICU.")).toBeInTheDocument()
+    expect(second.getByLabelText("Skill")).toHaveFocus()
+    await user.click(second.getByRole("button", { name: "Remove skill need 2" }))
+
+    await user.click(screen.getByRole("checkbox", { name: "N, Night, 12 hours" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("A skill need names a shift you are taking out: ICU on N. Take the need out first.")).toBeInTheDocument()
+    expect(within(screen.getByRole("group", { name: "Skill need 1" })).getByLabelText("Shift")).toHaveValue("N")
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+  })
+
+  it("a need's minimums are whole numbers from 0, and a refusal from the API on a need takes focus", async () => {
+    const needs = [{ shift: "N", skill: "ICU", weekday_min: 1, weekend_min: 1 }]
+    const { user, calls } = start("/unit-rules", asManager({ ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, skill_needs: needs } }, {
+      "PUT /api/units/er/rules": apiRefusal(["rules", "skill_needs", 0, "skill"], "ICU is not an active skill in the catalogue."),
+    }))
+
+    const need = within(await screen.findByRole("group", { name: "Skill need 1" }))
+    await user.clear(need.getByLabelText("Weekend day, at least"))
+    await user.type(need.getByLabelText("Weekend day, at least"), "-1")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(await need.findByText("Between 0 and 1000.")).toBeInTheDocument()
+    expect(need.getByLabelText("Weekend day, at least")).toHaveFocus()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+
+    await user.clear(need.getByLabelText("Weekend day, at least"))
+    await user.type(need.getByLabelText("Weekend day, at least"), "0")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await need.findByText("ICU is not an active skill in the catalogue.")).toBeInTheDocument()
+    expect(need.getByLabelText("Skill")).toHaveFocus()
+  })
+
+  it("a need on a skill no longer offered still shows as it is", async () => {
+    const needs = [{ shift: "D", skill: "PALS", weekday_min: 1, weekend_min: 0 }]
+    start("/unit-rules", asManager({ ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, skill_needs: needs } }))
+
+    const skill = within(await screen.findByRole("group", { name: "Skill need 1" })).getByLabelText("Skill")
+    expect(skill).toHaveValue("PALS")
+    expect([...skill.querySelectorAll("option")].map((option) => option.value)).toEqual(["PALS", "BLS", "ICU"])
+  })
+
+  it("with no skill in the catalogue a need cannot be added, and the page says why", async () => {
+    start("/unit-rules", asManager({ ...UNIT_RULES_STATE, active_skills: [] }))
+
+    const region = within(await screen.findByRole("region", { name: "Skill needs" }))
+    expect(region.getByText("The skill catalogue has no skills yet. The CNO adds them.")).toBeInTheDocument()
+    expect(region.getByRole("button", { name: "Add a skill need" })).toHaveAttribute("aria-disabled", "true")
   })
 
   it("a refusal from the API appears beside its field, with focus on it", async () => {
@@ -4040,6 +4154,23 @@ describe("the unit rules page", () => {
 
     await screen.findByText("0.42")
     expect(screen.queryByText("Most full runs in a month")).not.toBeInTheDocument()
+  })
+
+  it.each([["CNO", ME_CNO], ["Deputy CNO", ME_DEPUTY]])("the %s reads a unit's skill needs and whether they are hard", async (_, me) => {
+    const needs = [{ shift: "N", skill: "ICU", weekday_min: 2, weekend_min: 1 }, { shift: "D", skill: "BLS", weekday_min: 1, weekend_min: 0 }]
+    {
+      start("/unit-rules", {
+        ...session(me),
+        "GET /api/units": { body: [ER_UNIT] },
+        "GET /api/units/er/rules": { body: { ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, skill_needs: needs, skill_needs_hard: false } } },
+      })
+
+      const region = within(await screen.findByRole("region", { name: "Skill needs" }))
+      expect(region.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+        "ICU on N: at least 2 on a weekday, 1 on a weekend day", "BLS on D: at least 1 on a weekday, 0 on a weekend day"])
+      expect(region.getByText("Never break the skill needs").nextElementSibling).toHaveTextContent(/^Off$/)
+      expect(region.queryByRole("button")).not.toBeInTheDocument()
+    }
   })
 
   it("a read-only unit with a gap says what is not chosen", async () => {

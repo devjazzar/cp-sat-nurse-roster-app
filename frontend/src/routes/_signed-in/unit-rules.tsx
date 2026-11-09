@@ -6,7 +6,7 @@ import { useController, useFieldArray, useForm, type FieldError, type UseFormRet
 import { z } from "zod"
 
 import { getGetUnitRulesQueryKey, getListUnitsQueryKey, useGetUnitRules, useUpdateUnitRules } from "@/api/generated/endpoints"
-import { Role, type HeadcountRule, type ShiftChoice, type UnitRulesAnswer, type UnitRulesBody, type UnitRulesState } from "@/api/generated/model"
+import { Role, type HeadcountRule, type ShiftChoice, type SkillNeedRule, type UnitRulesAnswer, type UnitRulesBody, type UnitRulesState } from "@/api/generated/model"
 import {
   updateUnitRulesBodyPreferenceCapMax as PREFERENCE_CAP_MAX,
   updateUnitRulesBodyRequestCapMax as REQUEST_CAP_MAX,
@@ -15,6 +15,7 @@ import {
   updateUnitRulesBodyRulesMaxFullRunsMax as FULL_RUNS_MAX,
   updateUnitRulesBodyRulesNightRestDaysMax as REST_DAYS_MAX,
   updateUnitRulesBodyRulesShiftsMax as SHIFTS_MAX,
+  updateUnitRulesBodyRulesSkillNeedsMax as SKILL_NEEDS_MAX,
 } from "@/api/generated/zod"
 import { CodeCheckboxes } from "@/components/code-checkboxes"
 import { CheckboxField, FormField, SelectField } from "@/components/form-field"
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/_signed-in/unit-rules")({
 
 type Explained<Name extends string> = { name: Name; label: string; description: string }
 type NumberRule = "score_target" | "score_target_weekend" | "score_band_hi" | "score_band_hi_weekend" | "night_rest_days" | "fair_tolerance" | "carry_cap" | "max_consecutive_shifts" | "max_full_runs" | "double_cycle_rest" | "max_weekends" | "max_switches"
-type SwitchRule = "headcount_enabled" | "require_team_leader" | "require_both_genders" | "score_balance" | "night_rest_hard" | "fair_weekends" | "carry_fairness" | "no_mixed_blocks" | "switches_hard"
+type SwitchRule = "headcount_enabled" | "require_team_leader" | "require_both_genders" | "score_balance" | "night_rest_hard" | "fair_weekends" | "carry_fairness" | "no_mixed_blocks" | "switches_hard" | "skill_needs_hard"
 
 const SHIFTS_DESCRIPTION = "Chosen from the hospital's shift catalogue. A nurse in this unit can only be given these."
 const NIGHT_AND_DAY = [
@@ -56,6 +57,17 @@ const WHO_SWITCHES: Explained<SwitchRule>[] = [
   { name: "require_team_leader", label: "A team leader on every shift", description: "Every shift with a headcount needs at least one nurse marked team leader. The solver returns no roster that breaks this." },
   { name: "require_both_genders", label: "Both genders on every shift", description: "Every shift with a headcount needs at least one female and one male nurse. The solver returns no roster that breaks this." },
 ]
+const SKILL_NEEDS_DESCRIPTION = "How many nurses holding a skill a shift needs on a weekday and on a weekend day. Only nurses on exactly that shift count, and a skill counts until its expiry."
+const SKILL_NEEDS_SWITCH: Explained<SwitchRule> = {
+  name: "skill_needs_hard",
+  label: "Never break the skill needs",
+  description: "When on, the solver returns no roster that breaks them. When off, a roster may, at the price of the hospital's weight for each nurse short.",
+}
+const NEED_COUNTS = [
+  { name: "weekday_min", label: "Weekday, at least" },
+  { name: "weekend_min", label: "Weekend day, at least" },
+] as const
+
 const SCORE_TARGETS: Explained<NumberRule>[] = [
   { name: "score_target", label: "Score target on a weekday", description: "What the average score of each shift with a headcount should reach, from 0 to 1. A roster may fall short, at the price of the hospital's weight." },
   { name: "score_target_weekend", label: "Score target on a weekend day", description: "The same on a weekend day." },
@@ -190,7 +202,20 @@ function schemaFor(timeLimitCap: number) {
         no_mixed_blocks: z.boolean(),
         max_switches: count,
         switches_hard: z.boolean(),
+        skill_needs: z.array(z.object({ shift: z.string(), skill: z.string(), weekday_min: people, weekend_min: people }))
+          .max(SKILL_NEEDS_MAX, `At most ${SKILL_NEEDS_MAX} skill needs.`),
+        skill_needs_hard: z.boolean(),
       }).superRefine((rules, context) => {
+        // A shift is taken out only once no need names it, as the API asks: the manager takes the need out first.
+        const named = rules.skill_needs.filter((need) => !rules.shifts.includes(need.shift)).map((need) => `${need.skill} on ${need.shift}`)
+        if (named.length > 0)
+          context.addIssue({ code: "custom", path: ["shifts"], message: `A skill need names a shift you are taking out: ${named.join("; ")}. Take the need out first.` })
+        const pairs = new Set<string>()
+        rules.skill_needs.forEach((need, index) => {
+          const pair = `${need.shift} ${need.skill}`
+          if (pairs.has(pair)) context.addIssue({ code: "custom", path: ["skill_needs", index, "skill"], message: `${need.shift} already has a need for ${need.skill}.` })
+          pairs.add(pair)
+        })
         if (fullRunsApply(rules.max_consecutive_shifts)) {
           const checked = fullRuns.safeParse(rules.max_full_runs)
           if (!checked.success) context.addIssue({ code: "custom", path: ["max_full_runs"], message: checked.error.issues[0].message })
@@ -229,6 +254,86 @@ function withFullRunsKept(data: UnitRulesBody, saved: UnitRulesState): UnitRules
 }
 
 const NEW_HEADCOUNT = { weekday_min: 1, weekday_max: 1, weekend_min: 1, weekend_max: 1, also_counts: [] }
+
+/** The first shift and skill with no need yet, so that a new row is not refused as a second need. */
+function nextNeed(needs: SkillNeedRule[], shifts: string[], skills: string[]): SkillNeedRule | undefined {
+  const taken = new Set(needs.map((need) => `${need.shift} ${need.skill}`))
+  for (const skill of skills)
+    for (const shift of shifts)
+      if (!taken.has(`${shift} ${skill}`)) return { shift, skill, weekday_min: 1, weekend_min: 1 }
+  return undefined
+}
+
+function SkillNeedsField({ form, skills }: { form: UseFormReturn<UnitRulesBody>; skills: string[] }) {
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: "rules.skill_needs" })
+  const needs = form.watch("rules.skill_needs")
+  const working = form.watch("rules.shifts")
+  const add = useRef<HTMLButtonElement>(null)
+  const list = useRef<HTMLUListElement>(null)
+  const [focus, setFocus] = useState<"none" | "last" | "add">("none")
+  const errors = form.formState.errors.rules?.skill_needs
+
+  // After the list has drawn what the button just changed, so focus never falls back to the page.
+  useEffect(() => {
+    if (focus === "add") add.current?.focus()
+    if (focus === "last") list.current?.querySelector<HTMLElement>(":scope > li:last-child select")?.focus()
+    if (focus !== "none") setFocus("none")
+  }, [focus])
+
+  const next = nextNeed(needs, working, skills)
+  // A value outside the choices still shows as itself, so that a need is never shown as something it is not.
+  const options = (values: string[], current: string) => (values.includes(current) ? values : [current, ...values])
+
+  return (
+    <div className="flex flex-col gap-4">
+      {fields.length === 0 && <p className="text-sm text-muted-foreground">No skill needs. The solver staffs every shift without looking at skills.</p>}
+      <ul ref={list} className="flex flex-col gap-4">
+        {fields.map((row, index) => {
+          const need = needs[index] ?? row
+          return (
+            // By the field array's id: a row's inputs hold their values, and removing another moves its position.
+            <li key={row.id}>
+              <fieldset className="flex flex-col gap-3 border-t pt-4">
+                <legend className="float-left mb-3 w-full text-sm font-medium">Skill need {index + 1}</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <SelectField label="Shift" registration={form.register(`rules.skill_needs.${index}.shift`)} error={errors?.[index]?.shift}>
+                    {options(working, need.shift).map((code) => <NativeSelectOption key={code} value={code}>{code}</NativeSelectOption>)}
+                  </SelectField>
+                  <SelectField label="Skill" registration={form.register(`rules.skill_needs.${index}.skill`)} error={errors?.[index]?.skill}>
+                    {options(skills, need.skill).map((name) => <NativeSelectOption key={name} value={name}>{name}</NativeSelectOption>)}
+                  </SelectField>
+                  {NEED_COUNTS.map(({ name, label }) => (
+                    <FormField key={name} label={label} type="number" inputMode="numeric"
+                      registration={form.register(`rules.skill_needs.${index}.${name}`, { valueAsNumber: true })} error={errors?.[index]?.[name]} />
+                  ))}
+                </div>
+                <Button type="button" variant="ghost" className="self-start" aria-label={`Remove skill need ${index + 1}`}
+                  onClick={() => {
+                    remove(index)
+                    setFocus(fields.length === 1 || index === fields.length - 1 ? "add" : "none")
+                  }}>
+                  Remove this need
+                </Button>
+              </fieldset>
+            </li>
+          )
+        })}
+      </ul>
+      {(errors?.root?.message ?? errors?.message) && <p className="text-sm text-destructive">{errors?.root?.message ?? errors?.message}</p>}
+      {skills.length === 0
+        ? <p className="text-sm text-muted-foreground">The skill catalogue has no skills yet. The CNO adds them.</p>
+        : working.length === 0 && <p className="text-sm text-muted-foreground">Choose the unit's shifts before adding a need.</p>}
+      <Button ref={add} type="button" variant="outline" className="self-start" disabled={!next || fields.length >= SKILL_NEEDS_MAX}
+        onClick={() => {
+          if (!next) return
+          append(next)
+          setFocus("last")
+        }}>
+        Add a skill need
+      </Button>
+    </div>
+  )
+}
 
 function ShiftsField({ form, shifts: active }: { form: UseFormReturn<UnitRulesBody>; shifts: ShiftChoice[] }) {
   const { field } = useController({ control: form.control, name: "rules.shifts" })
@@ -381,6 +486,12 @@ function RulesForm({ unitId, state }: { unitId: string; state: UnitRulesState })
       <Section title="Who a shift needs">
         <FieldGroup>{WHO_SWITCHES.map(switchField)}</FieldGroup>
       </Section>
+      <Section title="Skill needs" description={SKILL_NEEDS_DESCRIPTION}>
+        <FieldGroup>
+          {switchField(SKILL_NEEDS_SWITCH)}
+          <SkillNeedsField form={form} skills={state.active_skills} />
+        </FieldGroup>
+      </Section>
       <Section title="Score targets">
         <FieldGroup>
           {SCORE_TARGETS.map((rule) => numberField(rule, "any"))}
@@ -462,6 +573,19 @@ function HeadcountsReadOnly({ rules }: { rules: UnitRulesAnswer }) {
   )
 }
 
+function SkillNeedsReadOnly({ rules }: { rules: UnitRulesAnswer }) {
+  if (rules.skill_needs.length === 0) return <p className="text-sm">No skill needs.</p>
+  return (
+    <ul className="flex flex-col gap-3 text-sm">
+      {rules.skill_needs.map((need) => (
+        <li key={`${need.shift} ${need.skill}`} className="tabular-nums">
+          <span className="font-medium">{need.skill} on {need.shift}</span>: at least {need.weekday_min} on a weekday, {need.weekend_min} on a weekend day
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function RulesReadOnly({ state }: { state: UnitRulesState }) {
   const { rules } = state
   const numbers = (items: Explained<NumberRule>[]) => items.map(({ name, label, description }) => ({ label, description, value: rules[name] }))
@@ -481,6 +605,12 @@ function RulesReadOnly({ state }: { state: UnitRulesState }) {
         </div>
       </Section>
       <Section title="Who a shift needs"><ReadOnlyList items={switches(WHO_SWITCHES)} /></Section>
+      <Section title="Skill needs" description={SKILL_NEEDS_DESCRIPTION}>
+        <div className="flex flex-col gap-4">
+          <ReadOnlyList items={switches([SKILL_NEEDS_SWITCH])} />
+          <SkillNeedsReadOnly rules={rules} />
+        </div>
+      </Section>
       <Section title="Score targets">
         <ReadOnlyList items={[
           ...numbers(SCORE_TARGETS),
