@@ -3820,6 +3820,7 @@ describe("the unit rules page", () => {
     for (const hidden of ["1", "0"]) {
       await user.clear(longest)
       await user.type(longest, hidden)
+      expect(screen.getByLabelText("Longest run of shifts")).toHaveValue(Number(hidden))
       expect(screen.queryByLabelText("Most full runs in a month")).not.toBeInTheDocument()
     }
     await user.clear(longest)

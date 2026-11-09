@@ -34,6 +34,7 @@ Headcount = Annotated[int, Field(ge=0, le=MAX_NURSES)]
 Count = Annotated[int, Field(ge=0, le=MAX_PARAM)]
 ScoreLevel = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 ShiftCount = Annotated[float, Field(ge=0, le=MAX_PARAM, allow_inf_nan=False)]
+FullRuns = Annotated[int, Field(ge=0, le=MAX_FULL_RUNS)]
 MAX_REQUESTS = 31  # A request, or a preference, is about one date of one month.
 
 
@@ -81,7 +82,7 @@ class UnitRules(StrictSchema):
     max_consecutive_shifts: Count
     double_cycle_rest: Count
     max_weekends: Count
-    max_full_runs: int = Field(ge=0, le=MAX_FULL_RUNS)
+    max_full_runs: FullRuns
     no_mixed_blocks: bool
     max_switches: Count
     switches_hard: bool

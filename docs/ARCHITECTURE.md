@@ -720,8 +720,8 @@ public `/api/health` says only whether the database and the solver answer. Nothi
   follow the catalogue as it stands when the unit is created: a default shift the CNO renamed
   appears under its new code, and one the CNO retired is left out, which the solver refuses until
   the unit manager has chosen the unit's shifts.
-- The most full runs in a month 3 for every unit, existing ones included (a migration wrote it in, ticket 48), and the weight
-  of a full run above it 4; the solver's sample predates both, so these are the spec's, not the sample's.
+- Every unit, existing ones included, starts with the most full runs in a month at 3 (a migration wrote it in, ticket 48), and
+  the weight of a full run above it is 4; the solver's sample predates both, so these are the spec's, not the sample's.
 - Time limit cap 300 s; unit default time limit 60 s; a new unit's request cap 3 and preference cap 10 per nurse per month;
   backup 02:00 kept 30 days; close 00:30 on the first. All editable by the role that owns them. The time
   zone, `Asia/Riyadh` by default, is the environment's `TIME_ZONE`, set at install rather than on a page.

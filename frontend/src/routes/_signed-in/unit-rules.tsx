@@ -98,7 +98,7 @@ const AFTER_TWO_RUNS: Explained<NumberRule> = {
   description: "After a run, one day off and another run, how many days off a nurse is then owed. The solver returns no roster that breaks this.",
 }
 /** Not while the longest run is blank, so that the field does not vanish while a new number is typed. */
-const fullRunsApply = (longest: number) => !(longest <= 1)
+const fullRunsApply = (longest: number) => Number.isNaN(longest) || longest > 1
 const MIXED_SWITCH: Explained<SwitchRule> = {
   name: "no_mixed_blocks",
   label: "Keep runs unmixed",
