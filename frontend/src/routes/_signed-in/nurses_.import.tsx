@@ -1,8 +1,5 @@
-import { zodResolver } from "@hookform/resolvers/zod"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { type FormEvent, useEffect, useRef, useState } from "react"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
+import { useEffect, useRef, useState } from "react"
 
 import { ApiError } from "@/api/fetcher"
 import {
@@ -11,13 +8,12 @@ import {
   usePreviewNurseImport,
 } from "@/api/generated/endpoints"
 import { Role, type ImportPreview, type ImportRow, type SheetRow } from "@/api/generated/model"
-import { FormField } from "@/components/form-field"
+import { CELL, type CheckedFile, CheckFileForm, correctTheFile, linesWithProblems, MAX_ROWS, ProblemList } from "@/components/csv-import"
 import { LeavePageDialog, LeavePageGuard } from "@/components/password-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FieldGroup } from "@/components/ui/field"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { serverErrors, showServerErrors } from "@/lib/server-errors"
+import { serverErrors } from "@/lib/server-errors"
 import { cn, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
@@ -27,10 +23,6 @@ export const Route = createFileRoute("/_signed-in/nurses_/import")({
   component: ImportPage,
 })
 
-// As in backend/nurses/importing.py, which has the last word. Here so a large file is not sent for nothing.
-const MAX_ROWS = 500
-const MAX_MEGABYTES = 1
-const COULD_NOT_CHECK = "That did not work. Check your connection and try again."
 const NO_PASSWORD_AGAIN = "Nobody can see these passwords again. A nurse without theirs needs a password reset, one at a time, on the Nurses page."
 const COLUMN_NAMES: Record<string, string> = {
   hospital_id: "Hospital ID",
@@ -39,77 +31,10 @@ const COLUMN_NAMES: Record<string, string> = {
   unit: "Unit",
   start_date: "Start date",
 }
-const CELL = "max-w-64 whitespace-normal wrap-anywhere"
 
 const nurseCount = (count: number) => (count === 1 ? "1 nurse" : `${count} nurses`)
 
-/** The file as it was when checked, and what the check said. Held as bytes, so that what is confirmed is what was
- *  read, whatever happens to the file on disk. Nothing of it is kept anywhere else. */
-type CheckedFile = { bytes: Blob; preview: ImportPreview }
-
-const fileSchema = z.object({
-  file: z.custom<FileList | null>()
-    .refine((files) => !!files?.length, "Choose a CSV file.")
-    .refine((files) => !files?.[0] || files[0].size <= MAX_MEGABYTES * 1024 * 1024,
-      `This file is larger than ${MAX_MEGABYTES} MB, which is more than ${MAX_ROWS} nurses need.`),
-})
-type FileChoice = z.infer<typeof fileSchema>
-
-function CheckFileForm({ adding, checking, onChecking, onChecked }: {
-  adding: boolean
-  checking: boolean
-  onChecking: (checking: boolean) => void
-  onChecked: (checked: CheckedFile) => void
-}) {
-  const check = usePreviewNurseImport({ mutation: { gcTime: 0 } })
-  const form = useForm<FileChoice>({ resolver: zodResolver(fileSchema), defaultValues: { file: null } })
-  const { errors } = form.formState
-
-  const readAndSend = form.handleSubmit(async ({ file: files }) => {
-    let bytes: Blob
-    try {
-      bytes = new Blob([await (files as FileList)[0].arrayBuffer()])
-    } catch {
-      // A browser refuses to read a file that was saved again after it was chosen.
-      form.setError("file", { message: "This file changed after you chose it. Choose it again." }, { shouldFocus: true })
-      return
-    }
-    let preview: ImportPreview
-    try {
-      preview = await check.mutateAsync({ data: { file: bytes } })
-    } catch (error) {
-      showServerErrors(form, error)
-      return
-    }
-    check.reset()
-    onChecked({ bytes, preview })
-  })
-
-  /** A check and an import never overlap, because a check's answer replaces the file an import is working from. So
-   *  this is one stretch for the page, from the press to the answer, reading the file and all. */
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    if (adding || checking) return
-    onChecking(true)
-    try {
-      await readAndSend(event)
-    } finally {
-      onChecking(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} noValidate>
-      <FieldGroup>
-        <FormField label="CSV file" type="file" accept=".csv,text/csv" registration={form.register("file")} error={errors.file} />
-        {check.isError && serverErrors(check.error).length === 0 && <p role="alert" className="text-sm text-destructive">{COULD_NOT_CHECK}</p>}
-        <div>
-          <Button type="submit" disabled={adding || checking}>{checking ? "Checking…" : "Check file"}</Button>
-        </div>
-      </FieldGroup>
-    </form>
-  )
-}
+type CheckedNurseFile = CheckedFile<ImportPreview>
 
 function RowsTable({ rows, label }: { rows: ImportRow[]; label: string }) {
   const hasProblems = rows.some((row) => row.problems.length > 0)
@@ -132,13 +57,7 @@ function RowsTable({ rows, label }: { rows: ImportRow[]; label: string }) {
             <TableCell className="tabular-nums">{row.line}</TableCell>
             {hasProblems && (
               <TableCell className="min-w-64 whitespace-normal text-destructive">
-                <ul className="flex flex-col gap-1">
-                  {row.problems.map((problem) => (
-                    <li key={`${problem.column}-${problem.message}`}>
-                      {problem.column ? `${COLUMN_NAMES[problem.column]}: ` : ""}{problem.message}
-                    </li>
-                  ))}
-                </ul>
+                <ProblemList problems={row.problems} columns={COLUMN_NAMES} />
               </TableCell>
             )}
             <TableCell translate="no" className={CELL}>{row.hospital_id}</TableCell>
@@ -154,7 +73,7 @@ function RowsTable({ rows, label }: { rows: ImportRow[]; label: string }) {
 }
 
 function Preview({ file, changed, adding, checking, refusal, onAdd }: {
-  file: CheckedFile
+  file: CheckedNurseFile
   changed: boolean
   adding: boolean
   checking: boolean
@@ -172,7 +91,7 @@ function Preview({ file, changed, adding, checking, refusal, onAdd }: {
     <Card>
       <CardHeader>
         <CardTitle><h2 ref={heading} tabIndex={-1} className="outline-none">
-          {token ? `${nurseCount(rows.length)} ready to add` : `${withProblems.length} of ${rows.length} ${rows.length === 1 ? "line" : "lines"} ${withProblems.length === 1 ? "has" : "have"} a problem`}
+          {token ? `${nurseCount(rows.length)} ready to add` : linesWithProblems(withProblems.length, rows.length)}
         </h2></CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -180,10 +99,7 @@ function Preview({ file, changed, adding, checking, refusal, onAdd }: {
         {token ? (
           <p>Nothing is saved until you add them.</p>
         ) : (
-          <p>
-            Nothing can be saved until every line is right. Correct the file, choose it above and check it again.
-            {fine > 0 && ` The other ${fine === 1 ? "line has" : `${fine} lines have`} no problem.`}
-          </p>
+          <p>{correctTheFile(fine)}</p>
         )}
         {token && (
           <div className="flex flex-col items-start gap-2">
@@ -266,9 +182,10 @@ function PasswordSheetCard({ rows, onDone }: { rows: SheetRow[]; onDone: () => v
 }
 
 function ImportPage() {
-  const [file, setFile] = useState<CheckedFile | null>(null)
+  const [file, setFile] = useState<CheckedNurseFile | null>(null)
   const [changed, setChanged] = useState(false)
   const [checking, setChecking] = useState(false)
+  const check = usePreviewNurseImport({ mutation: { gcTime: 0 } })
   const confirm = useConfirmNurseImport({ mutation: { gcTime: 0 } })
   const [sheet, setSheet] = useState<SheetRow[] | null>(null) // The passwords live in this state and nowhere else.
   const [finishing, setFinishing] = useState(false)
@@ -330,7 +247,7 @@ function ImportPage() {
                 <dd className="text-muted-foreground">YYYY-MM-DD, such as 2027-01-31. In Excel, format the column as yyyy-mm-dd, or saving changes the dates.</dd>
               </dl>
               {/* The reset only clears what the last import said: no check runs during one, nor one during a check. */}
-              <CheckFileForm adding={confirm.isPending} checking={checking} onChecking={setChecking}
+              <CheckFileForm check={check} lines="nurses" adding={confirm.isPending} checking={checking} onChecking={setChecking}
                 onChecked={(next) => { setDone(""); setChanged(false); confirm.reset(); setFile(next) }} />
             </CardContent>
           </Card>

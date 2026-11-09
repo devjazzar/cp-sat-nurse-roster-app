@@ -5613,6 +5613,55 @@ export const ConfirmNurseImportResponse = zod.object({
 
 
 /**
+ * @summary Skills Import Template
+ */
+export const DownloadSkillsImportTemplateResponse = zod.unknown()
+
+
+/**
+ * Every row's problems, and what each row would do. It saves nothing and keeps nothing: confirming sends the file again.
+ * @summary Preview Skills Import
+ */
+export const PreviewSkillsImportBody = zod.object({
+  "file": zod.instanceof(Blob)
+})
+
+export const PreviewSkillsImportResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "line": zod.int(),
+  "hospital_id": zod.string(),
+  "skill": zod.string(),
+  "expiry": zod.string().describe('As the file has it.'),
+  "full_name": zod.string().describe('The nurse\'s, when the hospital ID is hers; empty otherwise.'),
+  "change": zod.union([zod.enum(['record', 'renew', 'none']),zod.null()]).describe('What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded.'),
+  "held_expiry": zod.union([zod.iso.date(),zod.null()]).describe('The expiry a renewal replaces.'),
+  "problems": zod.array(zod.object({
+  "column": zod.union([zod.string(),zod.null()]),
+  "message": zod.string()
+}))
+})),
+  "token": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
+ * `token` is the preview's. The file is judged again from the start: with any problem, or when it no longer means
+ * what was previewed, nothing is saved and the answer is 409 with the preview as it now stands.
+ * @summary Confirm Skills Import
+ */
+export const ConfirmSkillsImportBody = zod.object({
+  "file": zod.instanceof(Blob),
+  "token": zod.string()
+})
+
+export const ConfirmSkillsImportResponse = zod.object({
+  "recorded": zod.int(),
+  "renewed": zod.int(),
+  "unchanged": zod.int()
+})
+
+
+/**
  * Every nurse the CNO's list shows, deactivated ones too, by name. Its first columns are the import's.
  * @summary Export Staff List
  */

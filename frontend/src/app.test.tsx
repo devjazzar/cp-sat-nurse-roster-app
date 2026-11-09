@@ -1951,13 +1951,14 @@ describe("the skills page", () => {
   it("the audit log names what was done to the catalogue", async () => {
     const entry = (id: number, action: string) => ({ id, action, actor: "the-cno", target: "BLS", at: "2026-11-05T07:00:00+03:00", ip: null, before: null, after: null })
     start("/audit-log", admin({
-      "GET /api/audit/entries": { body: { entries: [entry(1, "skill.created"), entry(2, "skill.changed"), { ...entry(3, "nurse.skills_changed"), target: "h123" }], next_before: null } },
+      "GET /api/audit/entries": { body: { entries: [entry(1, "skill.created"), entry(2, "skill.changed"), { ...entry(3, "nurse.skills_changed"), target: "h123" }, { ...entry(4, "nurse.skills_imported"), target: "" }], next_before: null } },
       "GET /api/audit/filter-options": { body: { users: [], actions: [] } },
     }))
 
     expect(await screen.findByText("Added a skill")).toBeInTheDocument()
     expect(screen.getByText("Changed a skill")).toBeInTheDocument()
     expect(screen.getByText("Changed a nurse's skills")).toBeInTheDocument()
+    expect(screen.getByText("Imported skills")).toBeInTheDocument()
   })
 })
 
@@ -3696,10 +3697,11 @@ describe("importing nurses", () => {
     expect(await screen.findByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument()
   })
 
-  it("links the CNO to the import and the staff list from the nurses page, and not a manager", async () => {
+  it("links the CNO to the imports and the staff list from the nurses page, and not a manager", async () => {
     start("/nurses", here({ "GET /api/nurses": { body: [] }, "GET /api/units": { body: [] } }))
 
-    expect(await screen.findByRole("link", { name: "Import from a file" })).toHaveAttribute("href", "/nurses/import")
+    expect(await screen.findByRole("link", { name: "Import nurses from a file" })).toHaveAttribute("href", "/nurses/import")
+    expect(screen.getByRole("link", { name: "Import skills from a file" })).toHaveAttribute("href", "/nurses/import-skills")
     expect(screen.getByRole("link", { name: "Export staff list" })).toHaveAttribute("href", "/api/nurses/export")
   })
 
@@ -3711,8 +3713,162 @@ describe("importing nurses", () => {
     })
 
     await screen.findByRole("heading", { name: "Nurses" })
-    expect(screen.queryByRole("link", { name: "Import from a file" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /^Import/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Export staff list" })).not.toBeInTheDocument()
+  })
+})
+
+describe("importing skills", () => {
+  const CHIEF = { ...ME, username: "chief", full_name: "The Chief", role: "cno" }
+  const here = (extra = {}) => ({ ...session(CHIEF), ...extra })
+  const ROW = { line: 2, hospital_id: "h1", full_name: "Amal Saleh", skill: "BLS", expiry: "2027-12-31", change: "renew", held_expiry: "2026-12-31", problems: [] }
+  const NEW = { ...ROW, line: 3, hospital_id: "h2", full_name: "Badr Omar", skill: "ACLS", expiry: "2027-03-01", change: "record", held_expiry: null }
+  const SAME = { ...ROW, line: 4, skill: "ICU", expiry: "", change: "none", held_expiry: null }
+  const BAD = { ...NEW, full_name: "", change: null, problems: [
+    { column: "hospital_id", message: "No nurse has this hospital ID. Use the one on the Nurses page." },
+    { column: "expiry", message: "ACLS expires. Enter the last day it counts, as YYYY-MM-DD." },
+  ] }
+  const GOOD = { rows: [ROW, NEW, SAME], token: "the-token" }
+  const csv = (content = "a file") => new File([content], "skills.csv", { type: "text/csv" })
+
+  async function check(user: ReturnType<typeof userEvent.setup>, file = csv()) {
+    await user.upload(await screen.findByLabelText("CSV file"), file)
+    await user.click(screen.getByRole("button", { name: "Check file" }))
+  }
+
+  it("offers the CNO the template and says what each column holds", async () => {
+    const { router } = start("/nurses/import-skills", here())
+
+    const link = await screen.findByRole("link", { name: "Download the template" })
+    expect(link).toHaveAttribute("href", "/api/nurses/skills-import/template")
+    expect(link).toHaveAttribute("download")
+    expect(document.title).toBe("Import skills · Nurse roster")
+    expect(screen.getByText(/Empty for a skill that does not expire/)).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/nurses/import-skills")
+  })
+
+  it("sends a unit manager home", async () => {
+    const { router } = start("/nurses/import-skills", {
+      ...session({ ...ME, username: "mona", role: "unit_manager" }),
+      "GET /api/units": { body: [] },
+    })
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+  })
+
+  it("refuses a large file before sending it, in the skills' words", async () => {
+    const { user, calls } = start("/nurses/import-skills", here())
+
+    await check(user, csv("x".repeat(1024 * 1024 + 1)))
+
+    expect(await screen.findByText("This file is larger than 1 MB, which is more than 500 skills need.")).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === "POST")).toEqual([])
+  })
+
+  it("shows a refusal of the whole file beside the field", async () => {
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { status: 422, body: { detail: [{ type: "value_error", loc: ["body", "body", "file"], msg: "This is not a CSV file in UTF-8." }] } },
+    }))
+
+    await check(user)
+
+    expect(await screen.findByText("This is not a CSV file in UTF-8.")).toBeInTheDocument()
+    expect(screen.getByLabelText("CSV file")).toHaveFocus()
+  })
+
+  it("shows only the lines with problems, each beside its column's name, and offers nothing to save", async () => {
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { body: { rows: [ROW, BAD], token: null } },
+    }))
+
+    await check(user)
+
+    expect(await screen.findByRole("heading", { name: "1 of 2 lines has a problem" })).toHaveFocus()
+    expect(screen.getByText("Hospital ID: No nurse has this hospital ID. Use the one on the Nurses page.")).toBeInTheDocument()
+    expect(screen.getByText("Expiry: ACLS expires. Enter the last day it counts, as YYYY-MM-DD.")).toBeInTheDocument()
+    expect(screen.queryByText("Amal Saleh")).not.toBeInTheDocument()
+    expect(screen.getByText(/The other line has no problem/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Save/ })).not.toBeInTheDocument()
+  })
+
+  it("shows what saving does with each line, saves the very bytes it checked with the token, and says what was saved", async () => {
+    let sent: FormData | undefined
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { body: GOOD },
+      "POST /api/nurses/skills-import/confirm": ({ body }: { body: unknown }) => {
+        sent = body as FormData
+        return { body: { recorded: 1, renewed: 1, unchanged: 1 } }
+      },
+    }))
+
+    await check(user, csv("the bytes"))
+
+    expect(await screen.findByRole("heading", { name: "3 lines ready to save" })).toHaveFocus()
+    expect(screen.getByText("Saving records 1 skill and renews 1 skill. Nothing is saved until you do. 1 line says what is already recorded.")).toBeInTheDocument()
+    const lines = within(screen.getByRole("region", { name: "Lines of the file" })).getAllByRole("row").slice(1)
+    expect(lines.map((line) => within(line).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+      ["2", "Renewed, was until 31 Dec 2026", "h1", "Amal Saleh", "BLS", "2027-12-31"],
+      ["3", "Recorded", "h2", "Badr Omar", "ACLS", "2027-03-01"],
+      ["4", "Already recorded", "h1", "Amal Saleh", "ICU", ""],
+    ])
+
+    await user.click(screen.getByRole("button", { name: "Save 2 skills" }))
+
+    expect(await screen.findByText("1 skill recorded and 1 skill renewed.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Import skills" })).toHaveFocus()
+    expect(screen.queryByRole("heading", { name: "3 lines ready to save" })).not.toBeInTheDocument()
+    expect(sent?.get("token")).toBe("the-token")
+    expect(await (sent?.get("file") as Blob).text()).toBe("the bytes")
+  })
+
+  it("offers nothing to save when every line is already recorded", async () => {
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { body: { rows: [SAME], token: "the-token" } },
+    }))
+
+    await check(user)
+
+    expect(await screen.findByText("Every line says what is already recorded, so there is nothing to save.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Save/ })).not.toBeInTheDocument()
+  })
+
+  it("shows what changed when the file no longer means what was previewed, and saves nothing", async () => {
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { body: GOOD },
+      "POST /api/nurses/skills-import/confirm": { status: 409, body: { rows: [ROW, BAD], token: null } },
+    }))
+    await check(user)
+
+    await user.click(await screen.findByRole("button", { name: "Save 2 skills" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something changed since the last check, so nothing was saved.")
+    expect(await screen.findByRole("heading", { name: "1 of 2 lines has a problem" })).toHaveFocus()
+    expect(screen.queryByRole("button", { name: /^Save/ })).not.toBeInTheDocument()
+  })
+
+  it("says plainly when it cannot tell whether the skills were saved", async () => {
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { body: GOOD },
+      "POST /api/nurses/skills-import/confirm": { status: 502 },
+    }))
+    await check(user)
+
+    await user.click(await screen.findByRole("button", { name: "Save 2 skills" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("It is not known whether these skills were saved.")
+  })
+
+  it("holds back Save while it saves and Check file with it", async () => {
+    const { user } = start("/nurses/import-skills", here({ "POST /api/nurses/skills-import/preview": { body: GOOD } }))
+    await check(user)
+    const saving = hold("POST /api/nurses/skills-import/confirm")
+
+    await user.click(await screen.findByRole("button", { name: "Save 2 skills" }))
+
+    expect(await screen.findByRole("button", { name: "Saving…" })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: "Check file" })).toHaveAttribute("aria-disabled", "true")
+    await saving.answer({ body: { recorded: 1, renewed: 1, unchanged: 1 } })
+    expect(await screen.findByText("1 skill recorded and 1 skill renewed.")).toBeInTheDocument()
   })
 })
 

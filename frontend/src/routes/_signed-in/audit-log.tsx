@@ -64,6 +64,7 @@ const ACTION_NAMES: Record<string, string> = {
   "nurse.details_corrected": "Corrected a nurse's details",
   "nurse.end_date_changed": "Changed a nurse's end date",
   "nurse.skills_changed": "Changed a nurse's skills",
+  "nurse.skills_imported": "Imported skills",
   "nurse.transferred": "Transferred a nurse",
   "nurses.exported": "Exported the staff list",
   "nurses.imported": "Imported nurses",

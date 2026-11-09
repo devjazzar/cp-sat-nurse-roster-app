@@ -634,7 +634,8 @@ function NursesPage() {
         <div className="flex flex-wrap gap-2">
           <Button disabled={awaitingPassword} onClick={(event) => open({ kind: "add" }, event.currentTarget)}>Add a nurse</Button>
           <Button variant="outline" disabled={awaitingPassword} onClick={(event) => open({ kind: "manager" }, event.currentTarget)}>Give a unit manager a nurse profile</Button>
-          <Link to="/nurses/import" className={cn(buttonVariants({ variant: "outline" }))}>Import from a file</Link>
+          <Link to="/nurses/import" className={cn(buttonVariants({ variant: "outline" }))}>Import nurses from a file</Link>
+          <Link to="/nurses/import-skills" className={cn(buttonVariants({ variant: "outline" }))}>Import skills from a file</Link>
           <a href={getExportStaffListUrl()} download className={cn(buttonVariants({ variant: "outline" }))}>Export staff list</a>
         </div>
       )}

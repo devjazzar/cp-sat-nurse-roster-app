@@ -5824,6 +5824,146 @@
         ]
       }
     },
+    "/api/nurses/skills-import/template": {
+      "get": {
+        "operationId": "downloadSkillsImportTemplate",
+        "summary": "Skills Import Template",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A CSV file.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/skills-import/preview": {
+      "post": {
+        "operationId": "previewSkillsImport",
+        "summary": "Preview Skills Import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillImportPreview"
+                }
+              }
+            }
+          }
+        },
+        "description": "Every row's problems, and what each row would do. It saves nothing and keeps nothing: confirming sends the file again.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "title": "File",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "title": "FileParams",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/nurses/skills-import/confirm": {
+      "post": {
+        "operationId": "confirmSkillsImport",
+        "summary": "Confirm Skills Import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillImportDone"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillImportPreview"
+                }
+              }
+            }
+          }
+        },
+        "description": "`token` is the preview's. The file is judged again from the start: with any problem, or when it no longer means\nwhat was previewed, nothing is saved and the answer is 409 with the preview as it now stands.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "title": "File",
+                    "type": "string"
+                  },
+                  "token": {
+                    "title": "Token",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file",
+                  "token"
+                ],
+                "title": "MultiPartBodyParams",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/nurses/export": {
       "get": {
         "operationId": "exportStaffList",
@@ -16248,6 +16388,132 @@
           "generated_password"
         ],
         "title": "SheetRow",
+        "type": "object"
+      },
+      "SkillImportPreview": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SkillImportRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          }
+        },
+        "required": [
+          "rows",
+          "token"
+        ],
+        "title": "SkillImportPreview",
+        "type": "object"
+      },
+      "SkillImportRow": {
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "skill": {
+            "title": "Skill",
+            "type": "string"
+          },
+          "expiry": {
+            "description": "As the file has it.",
+            "title": "Expiry",
+            "type": "string"
+          },
+          "full_name": {
+            "description": "The nurse's, when the hospital ID is hers; empty otherwise.",
+            "title": "Full Name",
+            "type": "string"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "enum": [
+                  "record",
+                  "renew",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded.",
+            "title": "Change"
+          },
+          "held_expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The expiry a renewal replaces.",
+            "title": "Held Expiry"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/ImportProblem"
+            },
+            "title": "Problems",
+            "type": "array"
+          }
+        },
+        "required": [
+          "line",
+          "hospital_id",
+          "skill",
+          "expiry",
+          "full_name",
+          "change",
+          "held_expiry",
+          "problems"
+        ],
+        "title": "SkillImportRow",
+        "type": "object"
+      },
+      "SkillImportDone": {
+        "properties": {
+          "recorded": {
+            "title": "Recorded",
+            "type": "integer"
+          },
+          "renewed": {
+            "title": "Renewed",
+            "type": "integer"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "recorded",
+          "renewed",
+          "unchanged"
+        ],
+        "title": "SkillImportDone",
         "type": "object"
       },
       "MyLeaveMonth": {
