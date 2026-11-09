@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 
 import { useGetMyRoster, useGetMyUnit, useListSubmittedRosters, useListUnits } from "@/api/generated/endpoints"
 import { Role } from "@/api/generated/model"
+import { ExpiriesCount } from "@/components/expiries"
 import { ROLE_NAMES } from "@/roles"
 import { hospitalTime, monthName } from "@/lib/utils"
 
@@ -54,6 +55,7 @@ function CnoHome() {
           <Link to="/units" className="underline underline-offset-3">Assign one under Units</Link>
         </p>
       )}
+      <ExpiriesCount />
     </>
   )
 }

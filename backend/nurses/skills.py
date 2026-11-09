@@ -21,11 +21,22 @@ class NurseSkillRow(Schema):
                                                "recorded while it did is kept.")
 
 
+def counted_expiry(row: NurseSkill) -> dt.date | None:
+    """Her record's expiry as it counts: none for a kind that does not expire, whatever date is kept from when it did."""
+    return row.expiry if row.skill.expires else None
+
+
+def tracked(rows) -> list[NurseSkill]:
+    """Her records of live skills. A retired skill is tracked no more: to a solve input and to the expiries it is no record,
+    counting toward no need and barring nobody, as `hospital.rules.required_skills` leaves it out."""
+    return [row for row in rows if row.skill.active]
+
+
 def as_rows(rows) -> list[NurseSkillRow]:
     """`rows`: her current `NurseSkill`s with their skills."""
     return [NurseSkillRow(skill_id=row.skill.pk, name=row.skill.name, expires=row.skill.expires,
                           required_to_work=row.skill.required_to_work, active=row.skill.active,
-                          expiry=row.expiry if row.skill.expires else None)
+                          expiry=counted_expiry(row))
             for row in sorted(rows, key=lambda row: (row.skill.name.lower(), row.skill.pk))]
 
 

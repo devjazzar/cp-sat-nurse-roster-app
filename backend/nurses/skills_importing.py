@@ -21,6 +21,7 @@ from hospital.catalogue_api import FIRST_YEAR, LAST_YEAR, IsoDate
 from hospital.models import Skill
 from nurses.importing import HOSPITAL_ID, Layout, Line, Problem, parsed, wrong_cell_count
 from nurses.models import NurseProfile, NurseSkill
+from nurses.skills import counted_expiry
 
 COLUMNS = ("Hospital ID", "Skill", "Expiry")
 SKILLS_FILE = Layout(COLUMNS, "skill", "skills", "", "a skill name that has a comma in it")
@@ -48,11 +49,6 @@ class RowMeaning:
         if self.held is None:
             return SkillImportChange.RECORD
         return SkillImportChange.NONE if counted_expiry(self.held) == self.expiry else SkillImportChange.RENEW
-
-
-def counted_expiry(row: NurseSkill) -> dt.date | None:
-    """The expiry as it counts: none for a kind that no longer expires, whatever date is kept (`renew_skill`'s reading)."""
-    return row.expiry if row.skill.expires else None
 
 
 @dataclass

@@ -27,6 +27,7 @@ const CATALOGUE = [
 ] as const
 const UNITS = { to: "/units", label: "Units" } as const
 const NURSES = { to: "/nurses", label: "Nurses" } as const
+const EXPIRIES = { to: "/expiries", label: "Expiries" } as const
 const UNIT_RULES = { to: "/unit-rules", label: "Unit rules" } as const
 const ATTRIBUTES = { to: "/rostering-attributes", label: "Rostering attributes" } as const
 const ROSTER = { to: "/roster", label: "Roster" } as const
@@ -47,8 +48,8 @@ const MANAGER_PAGES = linkOptions([HOME, ROSTER, SOLVE_HISTORY, REQUESTS, UNIT_S
  *  unit's pages, since My roster's heading names the unit as Roster's does. A Staff Nurse's requests, swaps and covers are
  *  not theirs: only staff nurses' cells are swapped or offered. */
 const MANAGER_NURSE_PAGES = linkOptions([HOME, MY_ROSTER, MY_MONTH, ...MANAGER_PAGES.filter((page) => page !== HOME)])
-const DEPUTY_PAGES = linkOptions([HOME, ROSTERS, DAY_VIEW, UNIT_RULES, ATTRIBUTES, LEAVE, RULES, ...CATALOGUE])
-const CNO_PAGES = linkOptions([HOME, ROSTERS, DAY_VIEW, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, LEAVE, RULES, ...CATALOGUE])
+const DEPUTY_PAGES = linkOptions([HOME, ROSTERS, DAY_VIEW, UNIT_RULES, ATTRIBUTES, EXPIRIES, LEAVE, RULES, ...CATALOGUE])
+const CNO_PAGES = linkOptions([HOME, ROSTERS, DAY_VIEW, UNITS, UNIT_RULES, ATTRIBUTES, NURSES, EXPIRIES, LEAVE, RULES, ...CATALOGUE])
 
 const NAVIGATION = {
   system_admin: ADMIN_PAGES,

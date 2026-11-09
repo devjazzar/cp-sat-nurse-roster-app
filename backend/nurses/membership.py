@@ -235,9 +235,12 @@ def placed_outside(user: User, unit_id: UUID | None) -> Unit | None:
 def belonging_to(unit: Unit) -> QuerySet[NurseProfile]:
     """The nurses who stop a unit being archived: placed there now or due to join, and not ended. A deactivated
     nurse does not count, because nurses are never deleted and the refusal's advice would otherwise be false."""
-    return (on_the_list_of(unit)
-            .filter(user__is_active=True)
-            .filter(Q(end_date__isnull=True) | Q(end_date__gte=today())))
+    return serving(on_the_list_of(unit))
+
+
+def serving(nurses: QuerySet[NurseProfile]) -> QuerySet[NurseProfile]:
+    """Those with an active account whose end date has not passed: today, the last day, still counts."""
+    return nurses.filter(user__is_active=True).filter(Q(end_date__isnull=True) | Q(end_date__gte=today()))
 
 
 def archived_unit_in_the_way(user: User) -> Unit | None:
