@@ -14,7 +14,7 @@ from uuid import UUID
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Field, Router, Status
+from ninja import Field, Router, Schema, Status
 from ninja.errors import HttpError
 
 from accounts.authz import SignedIn
@@ -23,9 +23,12 @@ from audit.log import record
 from hospital.api import refuse
 from hospital.catalogue_api import IsoDate
 from hospital.models import HospitalSettings, Skill
-from nurses.api import Body
+from nurses import membership
+from nurses.api import Body, UnitName
+from nurses.expiries import ExpiryState, expiries
 from nurses.models import NurseProfile, NurseSkill
 from nurses.skills import NurseSkillRow, as_rows, end_record, skills_of
+from units.scope import HOSPITAL_WIDE, units_in_scope
 
 router = Router(tags=["nurses"])
 cno = SignedIn(Role.CNO)
@@ -122,3 +125,35 @@ def my_skills(request: HttpRequest) -> list[NurseSkillRow]:
     too; one with no profile simply has none."""
     return as_rows(NurseSkill.objects.current().filter(nurse__user=request.user).select_related("skill"))
 
+
+
+class ExpiryRow(Schema):
+    nurse_id: UUID
+    hospital_id: str
+    full_name: str
+    unit: UnitName = Field(description="Her unit today; for a unit manager, his own, which she may be due to join.")
+    skill: str
+    state: ExpiryState = Field(description="`expired`: the expiry has passed. `expiring`: it is today or within 90 days. "
+                                           "`no_record`: the skill is required to work and she has no record of it.")
+    expiry: dt.date | None = Field(description="The last day the skill counts. Null for `no_record`.")
+
+
+class Expiries(Schema):
+    count: int = Field(description="How many rows there are: the CNO's home shows it.")
+    rows: list[ExpiryRow]
+
+
+@router.get("/expiries", response=Expiries, auth=SignedIn(Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER),
+            operation_id="listExpiries")
+def list_expiries(request: HttpRequest) -> Expiries:
+    """Every unit's for the CNO and the Deputy CNO; for a manager, his unit's nurses and those due to join it, as his Nurses
+    page lists them, naming no other unit."""
+    if request.user.role in HOSPITAL_WIDE:
+        found = expiries(NurseProfile.objects.all(), lambda nurse: membership.from_now_on(nurse)[0].unit)
+    else:
+        unit = units_in_scope(request.user).first()
+        found = [] if unit is None else expiries(membership.on_the_list_of(unit), lambda nurse: unit)
+    rows = [ExpiryRow(nurse_id=row.nurse.pk, hospital_id=row.nurse.user.username, full_name=row.nurse.user.full_name,
+                      unit=UnitName(id=row.unit.pk, name=row.unit.name), skill=row.skill, state=row.state, expiry=row.expiry)
+            for row in found]
+    return Expiries(count=len(rows), rows=rows)

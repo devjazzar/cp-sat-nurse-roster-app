@@ -45,6 +45,7 @@ import type {
   EditRequestBody,
   EditsBody,
   EndDateBody,
+  Expiries,
   ExportRosterVersionParams,
   GetHospitalDayParams,
   GetMonthCloseParams,
@@ -12959,6 +12960,109 @@ export function useGetMySkills<TData = Awaited<ReturnType<typeof getMySkills>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMySkillsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListExpiriesUrl = () => {
+
+
+
+
+  return `/api/nurses/expiries`
+}
+
+/**
+ * Every unit's for the CNO and the Deputy CNO; for a manager, his unit's nurses and those due to join it, as his Nurses
+ * page lists them, naming no other unit.
+ * @summary List Expiries
+ */
+export const listExpiries = async ( options?: Parameters<typeof apiFetch>[1]): Promise<Expiries> => {
+
+  return apiFetch<Expiries>(getListExpiriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExpiriesQueryKey = () => {
+    return [
+    `/api/nurses/expiries`
+    ] as const;
+    }
+
+
+export const getListExpiriesQueryOptions = <TData = Awaited<ReturnType<typeof listExpiries>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExpiries>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExpiriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExpiries>>> = ({ signal }) => listExpiries({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExpiries>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListExpiriesQueryResult = NonNullable<Awaited<ReturnType<typeof listExpiries>>>
+export type ListExpiriesQueryError = unknown
+
+
+export function useListExpiries<TData = Awaited<ReturnType<typeof listExpiries>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExpiries>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listExpiries>>,
+          TError,
+          Awaited<ReturnType<typeof listExpiries>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListExpiries<TData = Awaited<ReturnType<typeof listExpiries>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExpiries>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listExpiries>>,
+          TError,
+          Awaited<ReturnType<typeof listExpiries>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListExpiries<TData = Awaited<ReturnType<typeof listExpiries>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExpiries>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Expiries
+ */
+
+export function useListExpiries<TData = Awaited<ReturnType<typeof listExpiries>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExpiries>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListExpiriesQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
