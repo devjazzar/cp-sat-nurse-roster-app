@@ -27,6 +27,7 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(renewSubscription(event.oldSubscription))
 })
 
+// The app's own `renewAfterARotation` (src/lib/push.ts) does the same at its start, after a key rotation.
 async function renewSubscription(old) {
   if (!old || !self.cookieStore) return
   const token = (await self.cookieStore.get("csrftoken"))?.value
@@ -49,6 +50,7 @@ async function renewSubscription(old) {
   await post("on", { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth }, replaces: old.endpoint })
 }
 
+// As `bytesOf` in src/lib/push.ts: a worker cannot import the app's modules.
 function bytesOf(base64url) {
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(base64url.length / 4) * 4, "=")
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))

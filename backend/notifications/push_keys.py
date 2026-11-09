@@ -7,6 +7,7 @@ import base64
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from audit.log import record
 from notifications.models import PushKeyPair
@@ -35,13 +36,16 @@ def ensure() -> bool:
 def public_key() -> str:
     """What a browser subscribes with, as `applicationServerKey` takes it. An installation that never ran `prepare` (a test)
     gets its pair here."""
-    ensure()
-    return PushKeyPair.objects.values_list("public_key", flat=True).get()
+    found = PushKeyPair.objects.values_list("public_key", flat=True).first()
+    if found is None:
+        ensure()
+        found = PushKeyPair.objects.values_list("public_key", flat=True).get()
+    return found
 
 
 def rotate() -> None:
     """A new pair in place of the old, from the server, so no actor. No subscription is deleted: a device bound to the old key
     re-subscribes at its next start of the app."""
     with transaction.atomic():
-        PushKeyPair.objects.update_or_create(pk=1, defaults=_new_pair())
+        PushKeyPair.objects.update_or_create(pk=1, defaults=_new_pair() | {"created_at": timezone.now()})
         record("push.keys_rotated", after={"from": "the server"})

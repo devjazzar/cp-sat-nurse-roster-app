@@ -1,16 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
-import { turnPushOffEverywhere } from "@/api/generated/endpoints"
 import type { PushState } from "@/api/generated/model"
 import { Button } from "@/components/ui/button"
-import { browserSubscription, deviceState, pushSupport, turnOff, turnOn, TurnOnFailed } from "@/lib/push"
+import { browserSubscription, deviceState, PUSH_STATE_KEY, pushSupport, turnOff, turnOffEverywhere, turnOn, TurnOnFailed } from "@/lib/push"
 
-export const PUSH_STATE_KEY = ["push", "this-device"] as const
-
-const SAID: Record<TurnOnFailed["step"], string> = {
+/** What the status line says when Turn on stops; a refusal shows the blocked state instead. */
+const SAID: Record<Exclude<TurnOnFailed["step"], "blocked">, string> = {
   dismissed: "Pushes were not turned on: the browser was not given permission.",
-  blocked: "",
   subscribe: "This browser could not subscribe to pushes. Try again later.",
   server: "Pushes could not be turned on. Try again.",
 }
@@ -57,9 +54,7 @@ export function PushOnThisDevice() {
   })
   const onTurnOffEverywhere = () => run(async () => {
     try {
-      const answer = await turnPushOffEverywhere()
-      await (await browserSubscription())?.unsubscribe().catch(() => undefined)
-      settle(answer)
+      settle(await turnOffEverywhere())
     } catch {
       setFailure("Pushes could not be turned off on every device. Try again.")
     }

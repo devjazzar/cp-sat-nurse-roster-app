@@ -1,5 +1,6 @@
 """Pushes on a device (ticket 40): the installation's key pair, and the four calls a device makes. Nothing is sent here."""
 import base64
+from datetime import UTC, datetime
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -110,6 +111,14 @@ class TestRotation:
         assert after["public_key"] != before
         assert after["this_device"] is True and after["devices"] == 1
 
+    def test_it_says_when_the_new_pair_was_made(self, amal):
+        state(amal)
+        PushKeyPair.objects.update(created_at=datetime(2026, 1, 1, tzinfo=UTC))
+
+        call_command("rotate_push_keys")
+
+        assert PushKeyPair.objects.get().created_at > datetime(2026, 11, 1, tzinfo=UTC)
+
     def test_it_is_audited_from_the_server(self, amal):
         state(amal)
 
@@ -186,17 +195,23 @@ class TestTurningOn:
         assert state(amal, PHONE)["this_device"] is False
         assert len(entries()) == 1
 
-    def test_replacing_an_address_that_is_not_held_is_a_turning_on(self, amal):
+    def test_renewing_an_address_no_longer_held_turns_nothing_on(self, amal):
+        """Turned off on every device from another one: the renewal that follows, at this device's start or in its worker,
+        must not undo it."""
+        turn_on(amal, PHONE)
+        turn_off_everywhere(amal)
+
         answer = turn_on(amal, LAPTOP, replaces=PHONE)
 
-        assert answer["devices"] == 1 and len(entries("push.turned_on")) == 1
+        assert answer["this_device"] is False and answer["devices"] == 0
+        assert [entry.action for entry in entries()] == ["push.turned_on", "push.turned_off"]
 
     def test_replacing_another_users_address_leaves_it_theirs(self, amal, badr):
         turn_on(badr, PHONE)
 
         turn_on(amal, LAPTOP, replaces=PHONE)
 
-        assert state(badr, PHONE)["this_device"] is True and state(amal)["devices"] == 1
+        assert state(badr, PHONE)["this_device"] is True and state(amal)["devices"] == 0
 
     def test_a_replacement_already_held_ends_the_old_address(self, amal):
         turn_on(amal, PHONE)

@@ -13,6 +13,6 @@ export interface TurnOn {
      */
   endpoint: string;
   keys: SubscriptionKeys;
-  /** An address of this user's that this one replaces: a subscription the browser renewed, or one bound to a public key since replaced. */
+  /** An address of this user's that this one replaces: a subscription the browser renewed, or one bound to a public key since replaced. When it is no longer held, nothing is turned on. */
   replaces?: string | null;
 }

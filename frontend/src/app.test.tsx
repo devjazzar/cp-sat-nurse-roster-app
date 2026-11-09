@@ -8884,23 +8884,29 @@ describe("pushes on this device", () => {
       ])
     })
 
+    // Both reads, the start's own check and the page's, are answered inside `act`, which runs everything they lead to.
     it("one the server does not hold is left alone and shows as off", async () => {
       const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: OLD_KEY_BYTES } })
       const { calls } = start("/notifications", page())
+      const reads = hold(STATE)
+
+      await reads.answerAt(0, { body: OFF })
+      await reads.answerAt(1, { body: OFF })
 
       await told("You are told when a swap, a request window or a roster waits for you, and nothing more.")
-      // Both reads answered: the start's own check, and the page's.
-      await waitFor(() => expect(calls.filter((call) => call.url === "/api/notifications/push/state")).toHaveLength(2))
       expect(seen.did).toEqual([])
       expect(calls.some((call) => call.url === "/api/notifications/push/on")).toBe(false)
     })
 
     it("one bound to the current key is left as it is", async () => {
       const seen = browser({ permission: "granted", subscription: { endpoint: PHONE, key: KEY_BYTES } })
-      const { calls } = start("/notifications", page({ [STATE]: { body: ON } }))
+      start("/notifications", page())
+      const reads = hold(STATE)
+
+      await reads.answerAt(0, { body: ON })
+      await reads.answerAt(1, { body: ON })
 
       await told("Pushes are on for this device.")
-      await waitFor(() => expect(calls.filter((call) => call.url === "/api/notifications/push/state")).toHaveLength(2))
       expect(seen.did).toEqual([])
     })
   })
@@ -8936,6 +8942,21 @@ describe("pushes on this device", () => {
       expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
       expect(seen.did).toEqual([`unsubscribe ${PHONE}`])
       expect(calls.some((call) => call.url === "/api/auth/logout")).toBe(true)
+    })
+
+    it("ends this device's subscription even when notifications were blocked since", async () => {
+      const seen = browser({ permission: "denied", subscription: { endpoint: PHONE, key: KEY_BYTES } })
+      const { user, calls } = start("/notifications", page({
+        "POST /api/notifications/push/off": { body: OFF },
+        "POST /api/auth/logout": { status: 204 },
+      }))
+      await told("Notifications are blocked for this site in your browser's settings.")
+
+      await user.click(screen.getByRole("button", { name: "Log out" }))
+
+      expect(await screen.findByRole("button", { name: "Log in" })).toBeInTheDocument()
+      expect(seen.did).toEqual([`unsubscribe ${PHONE}`])
+      expect(pushCalls(calls).slice(-2)).toEqual([["off", { endpoint: PHONE }], ["/api/auth/logout", undefined]])
     })
 
     it("with no subscription here, signs out as before", async () => {

@@ -26,13 +26,18 @@ def _audit(action: str, user: User) -> None:
 
 def turn_on(user: User, *, endpoint: str, p256dh: str, auth: str, replaces: str | None = None) -> None:
     """Idempotent for the same user and address. An address another user holds moves to this one, since it belongs to whoever
-    last subscribed it. With `replaces`, one of this user's addresses the browser renewed or a rotation retired: it is gone
-    afterwards, and that renewal writes no entry."""
+    last subscribed it. With `replaces`, a renewal: one of this user's addresses the browser renewed or a rotation retired
+    takes the new one, and writes no entry. A renewal of an address no longer held does nothing, so a device turned off from
+    another one (every device) is not turned back on by its own renewal."""
     keys = {"p256dh": p256dh, "auth": auth}
     with transaction.atomic():
         # One user's calls one at a time: a double tap must not make two rows or two entries.
         User.objects.select_for_update(no_key=True).filter(pk=user.pk).first()
-        old = PushSubscription.objects.filter(user=user, endpoint=replaces).first() if replaces and replaces != endpoint else None
+        old = None
+        if replaces and replaces != endpoint:
+            old = PushSubscription.objects.select_for_update().filter(user=user, endpoint=replaces).first()
+            if old is None:
+                return
         held = PushSubscription.objects.select_for_update().filter(endpoint=endpoint).first()
         if held is not None and held.user_id == user.pk:
             PushSubscription.objects.filter(pk=held.pk).update(**keys)

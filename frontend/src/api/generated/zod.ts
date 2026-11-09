@@ -5848,7 +5848,7 @@ export const TurnPushOnBody = zod.object({
   "p256dh": zod.string().min(1).max(turnPushOnBodyKeysP256dhMax).regex(turnPushOnBodyKeysP256dhRegExp),
   "auth": zod.string().min(1).max(turnPushOnBodyKeysAuthMax).regex(turnPushOnBodyKeysAuthRegExp)
 }),
-  "replaces": zod.union([zod.string().max(turnPushOnBodyReplacesOneMax).regex(turnPushOnBodyReplacesOneRegExp),zod.null()]).optional().describe('An address of this user\'s that this one replaces: a subscription the browser renewed, or one bound to a public key since replaced.')
+  "replaces": zod.union([zod.string().max(turnPushOnBodyReplacesOneMax).regex(turnPushOnBodyReplacesOneRegExp),zod.null()]).optional().describe('An address of this user\'s that this one replaces: a subscription the browser renewed, or one bound to a public key since replaced. When it is no longer held, nothing is turned on.')
 })
 
 export const TurnPushOnResponse = zod.object({

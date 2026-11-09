@@ -1,8 +1,11 @@
 /** Pushes on this device (ticket 40, ADR 0012): what the browser can do, its own subscription, and the calls that turn this
  *  device on and off. Decided by feature detection and the permission's state alone, never by a browser's name. Nothing is
  *  sent from here; the service worker shows what arrives (ticket 41). */
-import { readPushState, turnPushOff, turnPushOn } from "@/api/generated/endpoints"
+import { readPushState, turnPushOff, turnPushOffEverywhere, turnPushOn } from "@/api/generated/endpoints"
 import type { PushState } from "@/api/generated/model"
+
+/** The query that holds this device's state, for the page and for the start's renewal. */
+export const PUSH_STATE_KEY = ["push", "this-device"] as const
 
 /** Why this device has no Turn on button, or `ready` when it may have one. */
 export type PushSupport = "unsupported" | "add_to_home_screen" | "blocked" | "ready"
@@ -25,6 +28,7 @@ export function pushSupport(): PushSupport {
   return "ready"
 }
 
+/** As `bytesOf` in public/sw.js, which cannot import this module. */
 function bytesOf(base64url: string): Uint8Array<ArrayBuffer> {
   const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(base64url.length / 4) * 4, "=")
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
@@ -56,7 +60,7 @@ export async function deviceState(): Promise<PushState> {
   return readPushState({ endpoint: subscription?.endpoint ?? null })
 }
 
-function sent(subscription: PushSubscription) {
+function subscriptionBody(subscription: PushSubscription) {
   const { endpoint, keys } = subscription.toJSON()
   return { endpoint: endpoint!, keys: { p256dh: keys!.p256dh, auth: keys!.auth } }
 }
@@ -85,7 +89,7 @@ export async function turnOn(publicKey: string): Promise<PushState> {
     throw new TurnOnFailed("subscribe")
   }
   try {
-    return await turnPushOn(sent(subscription))
+    return await turnPushOn(subscriptionBody(subscription))
   } catch {
     throw new TurnOnFailed("server")
   }
@@ -98,11 +102,20 @@ export async function turnOff(subscription: PushSubscription): Promise<PushState
   return answer
 }
 
+/** Every device of the user, from this one, for a phone that was lost; this browser's own subscription goes too. */
+export async function turnOffEverywhere(): Promise<PushState> {
+  const answer = await turnPushOffEverywhere()
+  await (await browserSubscription())?.unsubscribe().catch(() => undefined)
+  return answer
+}
+
 /** Log out's first step: this device stops being reached, whatever the server answers, since the next person at a shared
  *  computer must get none of these pushes. Never throws, so Log out goes on. */
 export async function turnThisDeviceOffForLogOut(): Promise<void> {
   try {
-    const subscription = await browserSubscription()
+    // Not `browserSubscription`: notifications blocked since turning on leave a subscription the server still holds.
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
+    const subscription = (await (await registration())?.pushManager.getSubscription()) ?? null
     if (!subscription) return
     const endpoint = subscription.endpoint
     await subscription.unsubscribe().catch(() => undefined)
@@ -112,7 +125,7 @@ export async function turnThisDeviceOffForLogOut(): Promise<void> {
   }
 }
 
-/** At each start of the app for a signed-in user: a subscription the server holds but bound to a public key since replaced
+/** At each start of the app for a signed-in user (public/sw.js's `renewSubscription` does the same for a renewal by the browser): a subscription the server holds but bound to a public key since replaced
  *  (`rotate_push_keys`) is replaced, with no question, since the permission is already given. One the server does not hold is
  *  left alone, so Turn off on every device from another one is not undone by a visit. Never throws. */
 export async function renewAfterARotation(): Promise<boolean> {
@@ -125,7 +138,7 @@ export async function renewAfterARotation(): Promise<boolean> {
     if (!state.this_device || boundTo(old, state.public_key)) return false
     await old.unsubscribe()
     const renewed = await pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesOf(state.public_key) })
-    await turnPushOn({ ...sent(renewed), replaces: old.endpoint })
+    await turnPushOn({ ...subscriptionBody(renewed), replaces: old.endpoint })
     return true
   } catch {
     return false

@@ -38,7 +38,8 @@ class TurnOn(Schema):
     endpoint: Address
     keys: SubscriptionKeys
     replaces: Address | None = Field(None, description="An address of this user's that this one replaces: a subscription "
-                                     "the browser renewed, or one bound to a public key since replaced.")
+                                     "the browser renewed, or one bound to a public key since replaced. When it is no longer "
+                                     "held, nothing is turned on.")
 
 
 class TurnOff(Schema):
