@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 from asgiref.sync import sync_to_async
 from django.db import connection, connections
+from django.db.models import Q
+from django.utils import timezone
 from procrastinate import PsycopgConnector
 from procrastinate.contrib.django import app
 from procrastinate.contrib.django.db_cleanup import with_db_cleanup
@@ -160,11 +162,11 @@ def started(client, unit, month=MONTH, seconds=60) -> dict:
     return response.json()
 
 
-def run_the_queue(concurrency: int = 1) -> None:
+def run_the_queue(concurrency: int = 1, *, leave_waiting: bool = False) -> None:
     """A real worker, on real connections and with the cleanup `manage.py procrastinate worker` has, until the queue is empty:
     needs `django_db(transaction=True)`. `deploy/compose.yaml` runs it at a concurrency of 4 (ADR 0009). A worker that does not
     wait stops once it finds nothing it may fetch, which at a concurrency above 1 can be while a job waits on another's lock, so it
-    is run again until no job waits."""
+    is run again until no job waits; with `leave_waiting`, until no job it may run now waits, leaving one deferred for later."""
     async def work():
         queue_app = app.with_connector(PsycopgConnector(kwargs=connector_params()))
         async with queue_app.open_async():
@@ -174,7 +176,10 @@ def run_the_queue(concurrency: int = 1) -> None:
         await sync_to_async(connections.close_all, thread_sensitive=True)()
     for _ in range(100):
         asyncio.run(work())
-        if not ProcrastinateJob.objects.filter(status="todo").exists():
+        waiting = ProcrastinateJob.objects.filter(status="todo")
+        if leave_waiting:
+            waiting = waiting.filter(Q(scheduled_at__isnull=True) | Q(scheduled_at__lte=timezone.now()))
+        if not waiting.exists():
             return
     raise AssertionError("jobs still wait on the queue")
 

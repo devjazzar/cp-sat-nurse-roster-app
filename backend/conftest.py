@@ -19,6 +19,19 @@ def no_real_backups(settings, tmp_path, monkeypatch):
     monkeypatch.setattr(backups, "dump_database", lambda out: out.write(b"PGDMP-in-a-test"))
 
 
+class _NoPushService:
+    def post(self, url, **_):
+        raise AssertionError(f"a push left the test for a real push service: {url}")
+
+
+@pytest.fixture(autouse=True)
+def no_real_push_service(monkeypatch):
+    """Any test whose change is pushed (a swap proposed, a window opened, a roster submitted) defers a push job, and a test that
+    runs the real worker runs it. No send leaves the test: `notifications.tests.conftest.push_service` scripts the answers."""
+    from notifications import pushing
+    monkeypatch.setattr(pushing, "push_service", _NoPushService())
+
+
 @pytest.fixture
 def make_user(db):
     def make(username="someone", role=Role.STAFF_NURSE, password=PASSWORD, **fields):

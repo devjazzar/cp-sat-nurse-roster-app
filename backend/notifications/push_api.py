@@ -6,7 +6,7 @@ from typing import Annotated
 
 from django.http import HttpRequest
 from ninja import Field, Router, Schema
-from pydantic import StringConstraints
+from pydantic import AfterValidator, StringConstraints
 
 from accounts.authz import SignedIn
 from notifications import push_keys, subscriptions
@@ -14,6 +14,16 @@ from notifications import push_keys, subscriptions
 router = Router(tags=["push"])
 
 Address = Annotated[str, StringConstraints(pattern=r"^https://\S+$", max_length=2000)]
+
+
+def _a_push_service(endpoint: str) -> str:
+    if not subscriptions.allowed(endpoint):
+        raise ValueError("The address is not a browser push service's.")
+    return endpoint
+
+
+# Only a turn-on is refused: the state, a turn-off and the address a renewal replaces read an address, and send nothing to it.
+PushServiceAddress = Annotated[Address, AfterValidator(_a_push_service)]
 Key = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]+={0,2}$", min_length=1, max_length=200)]
 # Log out is allowed during a forced password change and turns this device off first, so turning off is too.
 ALSO_DURING_A_FORCED_CHANGE = SignedIn(during_forced_change=True)
@@ -35,7 +45,7 @@ class SubscriptionKeys(Schema):
 
 
 class TurnOn(Schema):
-    endpoint: Address
+    endpoint: PushServiceAddress
     keys: SubscriptionKeys
     replaces: Address | None = Field(None, description="An address of this user's that this one replaces: a subscription "
                                      "the browser renewed, or one bound to a public key since replaced. When it is no longer "

@@ -65,6 +65,12 @@ def enqueue(job: Callable, **arguments) -> int:
     return job.defer(**arguments)
 
 
+def enqueue_later(job: Callable, *, seconds: int, priority: int = 0, **arguments) -> int:
+    """As `enqueue`, to run no sooner than `seconds` from now. A job waiting for its time still holds its lock against every
+    later job of the same lock and priority, so a job that may wait behind it should be deferred at a lower `priority`."""
+    return job.configure(schedule_in={"seconds": seconds}, priority=priority).defer(**arguments)
+
+
 def requeue_stalled() -> list[int]:
     """Jobs whose worker died with them, which would otherwise hold their lock for good. A job is `doing` until then, however
     long it has run: a worker that lives keeps beating. The library's own call for this is async only, and this is the same

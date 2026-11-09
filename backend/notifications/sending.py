@@ -10,8 +10,10 @@ from uuid import UUID
 from django.db.models import QuerySet, TextChoices
 
 from accounts.models import Role, User
+from notifications.kinds import kind_of
 from notifications.models import Event, Notification, SolveOutcome
 from nurses import membership
+from ops import queue
 from units.models import Unit
 
 if TYPE_CHECKING:
@@ -22,7 +24,9 @@ if TYPE_CHECKING:
 
 def notify(users: Iterable[User | None], event: Event, **payload) -> int:
     """Each active user once, whatever the list repeats: a manager with a nurse profile is a nurse of the month too. A
-    deactivated user is told nothing, as they can read nothing. Payload values are identifiers and numbers only."""
+    deactivated user is told nothing, as they can read nothing. Payload values are identifiers and numbers only. A notification
+    of a kind with a deadline (`notifications.kinds`) is also pushed, by one job for all its readers, deferred in the same
+    transaction so it is rolled back with them (ADR 0012)."""
     seen, rows = set(), []
     for user in users:
         if user is None or not user.is_active or user.pk in seen:
@@ -30,6 +34,10 @@ def notify(users: Iterable[User | None], event: Event, **payload) -> int:
         seen.add(user.pk)
         rows.append(Notification(user=user, event=event, payload=payload))
     Notification.objects.bulk_create(rows)
+    if rows and kind_of(event, payload) is not None:
+        from notifications.tasks import push  # the job reads the notifications' pages, which read this module
+
+        queue.enqueue(push, notification_ids=[str(row.pk) for row in rows])
     return len(rows)
 
 
