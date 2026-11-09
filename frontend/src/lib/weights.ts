@@ -11,6 +11,7 @@ export const WEIGHTS: Explained<keyof Weights>[] = [
   { name: "night_rest", label: "Night rest", description: "Each day shift that follows a night shift with too little rest. Applies only in a unit that lets this rule be broken." },
   { name: "shift_switch", label: "Day and night switches", description: "Each switch between day and night shifts above the unit's maximum. Applies only in a unit that lets this rule be broken." },
   { name: "excess_weekend", label: "Too many weekend days", description: "Each weekend day a nurse works above the unit's maximum." },
+  { name: "excess_full_run", label: "Full run above the most", description: "Each full run a nurse works in a month above the unit's most. A full run is as many shifts in a row as the unit's longest run allows." },
   { name: "fair_day", label: "Fair share of day shifts", description: "Each tenth of a shift that a nurse's day shifts stray from their fair share, beyond the unit's tolerance." },
   { name: "fair_night", label: "Fair share of night shifts", description: "Each tenth of a shift that a nurse's night shifts stray from their fair share, beyond the unit's tolerance." },
   { name: "fair_weekend", label: "Fair share of weekend days", description: "Each tenth of a shift that a nurse's weekend days stray from their fair share, beyond the unit's tolerance." },

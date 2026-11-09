@@ -523,9 +523,14 @@ Full runs changed it once more (the solver's problem schema 6; the solve input's
 the weights gain `excess_full_run`, the price of each full run beyond it (absent means 0); both are optional in either
 version, so every stored solve input and close input still loads and gives what it gave. A full run is a run of exactly the
 longest run (`max_consecutive_shifts`), leave ending a run as a day off does; it counts in the month that holds its last day,
-one reaching the month's last day included (ticket 48: it cannot grow, as the next month reads it as history). The rule, `excess_full_run`, is priced only, never refused; its match
-names the nurse, her count and the cap, and the per-nurse explanation carries it as it carries weekends above the most. Until
-the app fills the two fields (ticket 48), nothing changes.
+one reaching the month's last day included (ticket 48: it cannot grow, as the next month reads it as history). The rule,
+`excess_full_run`, is priced only, never refused; its match names the nurse, her count and the cap, and the per-nurse
+explanation carries it as it carries weekends above the most. In the app (ticket 48) the cap is a unit rule, "Most full runs in
+a month", among the run rules beside the longest run and the rest after two runs, shown on Unit rules only while the longest
+run is above 1 and kept while hidden; the weight, "Full run above the most", is the CNO's beside the other weights, 0
+switching it off hospital-wide. Every new solve, re-plan and close input carries both, as the unit rules and the weights are
+carried; a stored one without them reads as no cap. Hand edits, swaps, covers and requests are never refused for it, and no
+nurse page shows it.
 
 ## 7. The worker and the queue (ADR 0006)
 
@@ -715,6 +720,8 @@ public `/api/health` says only whether the database and the solver answer. Nothi
   follow the catalogue as it stands when the unit is created: a default shift the CNO renamed
   appears under its new code, and one the CNO retired is left out, which the solver refuses until
   the unit manager has chosen the unit's shifts.
+- The most full runs in a month 3 for every unit, existing ones included (a migration wrote it in, ticket 48), and the weight
+  of a full run above it 4; the solver's sample predates both, so these are the spec's, not the sample's.
 - Time limit cap 300 s; unit default time limit 60 s; a new unit's request cap 3 and preference cap 10 per nurse per month;
   backup 02:00 kept 30 days; close 00:30 on the first. All editable by the role that owns them. The time
   zone, `Asia/Riyadh` by default, is the environment's `TIME_ZONE`, set at install rather than on a page.

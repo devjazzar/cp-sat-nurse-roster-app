@@ -12,6 +12,7 @@ import {
   updateUnitRulesBodyRequestCapMax as REQUEST_CAP_MAX,
   updateUnitRulesBodyRulesCarryCapMax as PARAM_MAX,
   updateUnitRulesBodyRulesHeadcountsItemWeekdayMinMax as HEADCOUNT_MAX,
+  updateUnitRulesBodyRulesMaxFullRunsMax as FULL_RUNS_MAX,
   updateUnitRulesBodyRulesNightRestDaysMax as REST_DAYS_MAX,
   updateUnitRulesBodyRulesShiftsMax as SHIFTS_MAX,
 } from "@/api/generated/zod"
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/_signed-in/unit-rules")({
 })
 
 type Explained<Name extends string> = { name: Name; label: string; description: string }
-type NumberRule = "score_target" | "score_target_weekend" | "score_band_hi" | "score_band_hi_weekend" | "night_rest_days" | "fair_tolerance" | "carry_cap" | "max_consecutive_shifts" | "double_cycle_rest" | "max_weekends" | "max_switches"
+type NumberRule = "score_target" | "score_target_weekend" | "score_band_hi" | "score_band_hi_weekend" | "night_rest_days" | "fair_tolerance" | "carry_cap" | "max_consecutive_shifts" | "max_full_runs" | "double_cycle_rest" | "max_weekends" | "max_switches"
 type SwitchRule = "headcount_enabled" | "require_team_leader" | "require_both_genders" | "score_balance" | "night_rest_hard" | "fair_weekends" | "carry_fairness" | "no_mixed_blocks" | "switches_hard"
 
 const SHIFTS_DESCRIPTION = "Chosen from the hospital's shift catalogue. A nurse in this unit can only be given these."
@@ -80,10 +81,24 @@ const NIGHT_REST_SWITCH: Explained<SwitchRule> = {
   label: "Never break the night rest",
   description: "When on, the solver returns no roster that breaks it. When off, a roster may, at the price of the hospital's weight.",
 }
-const RUNS: Explained<NumberRule>[] = [
-  { name: "max_consecutive_shifts", label: "Longest run of shifts", description: "The most days in a row a nurse may work. 0 means no limit. The solver returns no roster that breaks this." },
-  { name: "double_cycle_rest", label: "Days off after two runs", description: "After a run, one day off and another run, how many days off a nurse is then owed. The solver returns no roster that breaks this." },
-]
+const LONGEST_RUN: Explained<NumberRule> = {
+  name: "max_consecutive_shifts",
+  label: "Longest run of shifts",
+  description: "The most days in a row a nurse may work. 0 means no limit. The solver returns no roster that breaks this.",
+}
+/** Shown only while the longest run is above 1: at 0 a run has no limit and at 1 every run would be full. */
+const FULL_RUNS: Explained<NumberRule> = {
+  name: "max_full_runs",
+  label: "Most full runs in a month",
+  description: "A full run is as many shifts in a row as the longest run allows. Each one beyond this costs the solver, which then breaks the work into shorter runs.",
+}
+const AFTER_TWO_RUNS: Explained<NumberRule> = {
+  name: "double_cycle_rest",
+  label: "Days off after two runs",
+  description: "After a run, one day off and another run, how many days off a nurse is then owed. The solver returns no roster that breaks this.",
+}
+/** Not while the longest run is blank, so that the field does not vanish while a new number is typed. */
+const fullRunsApply = (longest: number) => !(longest <= 1)
 const MIXED_SWITCH: Explained<SwitchRule> = {
   name: "no_mixed_blocks",
   label: "Keep runs unmixed",
@@ -130,6 +145,7 @@ const count = wholeNumber(0, PARAM_MAX)
 const scoreLevel = number(1)
 const shiftCount = number(PARAM_MAX)
 const people = wholeNumber(0, HEADCOUNT_MAX)
+const fullRuns = wholeNumber(0, FULL_RUNS_MAX)
 
 function schemaFor(timeLimitCap: number) {
   return z
@@ -166,12 +182,19 @@ function schemaFor(timeLimitCap: number) {
         carry_fairness: z.boolean(),
         carry_cap: shiftCount,
         max_consecutive_shifts: count,
+        // Checked below, and only while the field shows: a hidden field cannot show its error. `withFullRunsKept` sends the
+        // saved value instead of one left wrong behind it.
+        max_full_runs: z.union([z.number(), z.nan()]),
         double_cycle_rest: count,
         max_weekends: count,
         no_mixed_blocks: z.boolean(),
         max_switches: count,
         switches_hard: z.boolean(),
       }).superRefine((rules, context) => {
+        if (fullRunsApply(rules.max_consecutive_shifts)) {
+          const checked = fullRuns.safeParse(rules.max_full_runs)
+          if (!checked.success) context.addIssue({ code: "custom", path: ["max_full_runs"], message: checked.error.issues[0].message })
+        }
         if (rules.night_shift && rules.night_shift === rules.day_shift)
           context.addIssue({ code: "custom", path: ["day_shift"], message: "Cannot be the night shift too." })
         if (rules.score_balance && rules.score_balance_mode === "band") {
@@ -197,6 +220,13 @@ function formPath(loc: (string | number)[]): string {
 }
 
 const shiftLabel = ({ code, display_name }: ShiftChoice) => `${code}, ${display_name}`
+
+/** The cap keeps its value while hidden, but one typed wrong and then hidden by lowering the longest run is no value: the
+ *  saved one goes instead. */
+function withFullRunsKept(data: UnitRulesBody, saved: UnitRulesState): UnitRulesBody {
+  if (fullRuns.safeParse(data.rules.max_full_runs).success) return data
+  return { ...data, rules: { ...data.rules, max_full_runs: saved.rules.max_full_runs } }
+}
 
 const NEW_HEADCOUNT = { weekday_min: 1, weekday_max: 1, weekend_min: 1, weekend_max: 1, also_counts: [] }
 
@@ -304,6 +334,7 @@ function RulesForm({ unitId, state }: { unitId: string; state: UnitRulesState })
   const working = form.watch("rules.shifts")
   const rows = form.watch("rules.headcounts") as HeadcountRule[]
   const withHeadcount = working.filter((code) => rows.some((row) => row.shift === code))
+  const longest = form.watch("rules.max_consecutive_shifts")
 
   const numberField = ({ name, label, description }: Explained<NumberRule>, step?: string) => (
     <FormField key={name} label={label} type="number" inputMode={step ? "decimal" : "numeric"} step={step} description={description}
@@ -315,7 +346,7 @@ function RulesForm({ unitId, state }: { unitId: string; state: UnitRulesState })
 
   const submit = form.handleSubmit((data) =>
     update.mutate(
-      { unitId, data },
+      { unitId, data: withFullRunsKept(data, state) },
       {
         onSuccess: (saved) => {
           queryClient.setQueryData(getGetUnitRulesQueryKey(unitId), saved)
@@ -368,7 +399,9 @@ function RulesForm({ unitId, state }: { unitId: string; state: UnitRulesState })
       </Section>
       <Section title="Runs of shifts">
         <FieldGroup>
-          {RUNS.map((rule) => numberField(rule))}
+          {numberField(LONGEST_RUN)}
+          {fullRunsApply(longest) && numberField(FULL_RUNS)}
+          {numberField(AFTER_TWO_RUNS)}
           {switchField(MIXED_SWITCH)}
         </FieldGroup>
       </Section>
@@ -457,7 +490,14 @@ function RulesReadOnly({ state }: { state: UnitRulesState }) {
         ]} />
       </Section>
       <Section title="Night rest"><ReadOnlyList items={[...numbers([NIGHT_REST_DAYS]), ...switches([NIGHT_REST_SWITCH])]} /></Section>
-      <Section title="Runs of shifts"><ReadOnlyList items={[...numbers(RUNS), ...switches([MIXED_SWITCH])]} /></Section>
+      <Section title="Runs of shifts">
+        <ReadOnlyList items={[
+          ...numbers([LONGEST_RUN]),
+          ...(fullRunsApply(rules.max_consecutive_shifts) ? numbers([FULL_RUNS]) : []),
+          ...numbers([AFTER_TWO_RUNS]),
+          ...switches([MIXED_SWITCH]),
+        ]} />
+      </Section>
       <Section title="Fairness">
         <ReadOnlyList items={[
           { label: "Shifts to spread fairly", description: FAIR_SHIFTS_DESCRIPTION, value: named(rules.fair_shifts, "None") },

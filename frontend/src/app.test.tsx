@@ -710,7 +710,7 @@ const RULES = {
   dept_overtime_cap: 400,
   weights: {
     night_rest: 5, dept_overtime: 1, nurse_overtime: 1, nurse_shortfall: 1, avoidable_shortfall: 1000, fair_day: 1,
-    fair_night: 1, fair_weekend: 1, score_deficit: 2, score_spread: 1, excess_weekend: 6, shift_switch: 8,
+    fair_night: 1, fair_weekend: 1, score_deficit: 2, score_spread: 1, excess_weekend: 6, excess_full_run: 4, shift_switch: 8,
     undesired_day: 2, desired_day: 1, change: 3,
   },
 }
@@ -762,6 +762,21 @@ describe("the hospital rules page", () => {
     expect(weights.getByLabelText("Off on a day asked to work")).toHaveAccessibleDescription(
       "Each day a nurse preferred to work but is off; twice that for a nurse whose preference last month was not kept.")
     expect(weights.queryByText(/Nothing reaches this/)).not.toBeInTheDocument()
+  })
+
+  it("the price of a full run above the most is a weight like the others, and 0 switches it off", async () => {
+    const { user, calls } = start("/hospital-rules", asCno(RULES_STATE, saves))
+
+    const fullRun = within(await screen.findByRole("region", { name: "Weights" })).getByLabelText("Full run above the most")
+    expect(fullRun).toHaveValue(4)
+    expect(fullRun).toHaveAccessibleDescription(
+      "Each full run a nurse works in a month above the unit's most. A full run is as many shifts in a row as the unit's longest run allows.")
+    await user.clear(fullRun)
+    await user.type(fullRun, "0")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).weights).toEqual({ ...RULES.weights, excess_full_run: 0 })
   })
 
   it("saving the defaults untouched is the review: the button is open and the flag goes", async () => {
@@ -3711,6 +3726,7 @@ const UNIT_RULES = {
   max_consecutive_shifts: 3,
   double_cycle_rest: 2,
   max_weekends: 3,
+  max_full_runs: 3,
   no_mixed_blocks: true,
   max_switches: 2,
   switches_hard: false,
@@ -3762,7 +3778,7 @@ describe("the unit rules page", () => {
     expect(day.getByLabelText("Weekend day, at most")).toHaveValue(9)
     expect(day.getByRole("checkbox", { name: "N" })).not.toBeChecked()
     for (const [name, value] of [["Score target on a weekday", 0.7], ["Score target on a weekend day", 0.8], ["Score ceiling on a weekday", 0.78],
-      ["Score ceiling on a weekend day", 0.88], ["Days off after a night shift", 2], ["Longest run of shifts", 3], ["Days off after two runs", 2],
+      ["Score ceiling on a weekend day", 0.88], ["Days off after a night shift", 2], ["Longest run of shifts", 3], ["Most full runs in a month", 3], ["Days off after two runs", 2],
       ["Free difference from a fair share (shifts)", 0.5], ["Most a month's share can move (shifts)", 2], ["Weekend days a month", 3],
       ["Switches between day and night a month", 2], ["Requests per nurse per month", 3], ["Preferences per nurse per month", 10], ["Default time limit (seconds)", 60]] as const) {
       expect(screen.getByLabelText(name)).toHaveValue(value)
@@ -3788,6 +3804,51 @@ describe("the unit rules page", () => {
     expect(put(calls)).toEqual({ rules: UNIT_RULES, request_cap: 3, preference_cap: 10, default_time_limit: 60 })
     expect(screen.queryByText(FLAG)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("the most full runs show beside the longest run only while it is above 1, and keep their value while hidden", async () => {
+    const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+    const fullRuns = await screen.findByLabelText("Most full runs in a month")
+    expect(fullRuns).toHaveAccessibleDescription(
+      "A full run is as many shifts in a row as the longest run allows. Each one beyond this costs the solver, which then breaks the work into shorter runs.")
+    const longest = screen.getByLabelText("Longest run of shifts")
+    const runs = within(screen.getByRole("region", { name: "Runs of shifts" })).getAllByRole("spinbutton")
+    expect(runs.slice(0, 2)).toEqual([longest, fullRuns])
+    await user.clear(fullRuns)
+    await user.type(fullRuns, "2")
+    for (const hidden of ["1", "0"]) {
+      await user.clear(longest)
+      await user.type(longest, hidden)
+      expect(screen.queryByLabelText("Most full runs in a month")).not.toBeInTheDocument()
+    }
+    await user.clear(longest)
+    await user.type(longest, "4")
+
+    expect(screen.getByLabelText("Most full runs in a month")).toHaveValue(2)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await screen.findByText("Saved.")
+    expect(put(calls).rules).toEqual({ ...UNIT_RULES, max_consecutive_shifts: 4, max_full_runs: 2 })
+  })
+
+  it("the most full runs are a whole number from 0 to 31, and one left wrong behind a hidden field is not sent", async () => {
+    const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+    const fullRuns = await screen.findByLabelText("Most full runs in a month")
+    await user.clear(fullRuns)
+    await user.type(fullRuns, "32")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(await screen.findByText("Between 0 and 31.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Most full runs in a month")).toHaveFocus()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+
+    const longest = screen.getByLabelText("Longest run of shifts")
+    await user.clear(longest)
+    await user.type(longest, "1")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).rules).toEqual({ ...UNIT_RULES, max_consecutive_shifts: 1, max_full_runs: 3 })
   })
 
   it("a refusal from the API appears beside its field, with focus on it", async () => {
@@ -3959,6 +4020,25 @@ describe("the unit rules page", () => {
 
     expect(await screen.findByText("0.42")).toBeInTheDocument()
     expect(router.state.location.search).toEqual({ unit: "icu" })
+  })
+
+  it("the CNO reads the most full runs beside the longest run, and not at a longest run of 1", async () => {
+    const { user } = start("/unit-rules", {
+      ...session(ME_CNO),
+      "GET /api/units": { body: [ER_UNIT, ICU] },
+      "GET /api/units/er/rules": { body: { ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, max_full_runs: 2 } } },
+      "GET /api/units/icu/rules": { body: { ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, max_consecutive_shifts: 1, score_target: 0.42 } } },
+    })
+
+    const runs = within(await screen.findByRole("region", { name: "Runs of shifts" }))
+    expect(runs.getByText("Most full runs in a month").nextElementSibling).toHaveTextContent(/^2$/)
+    expect(runs.getByText("Longest run of shifts").compareDocumentPosition(runs.getByText("Most full runs in a month")))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    await user.selectOptions(screen.getByLabelText("Unit"), "icu")
+
+    await screen.findByText("0.42")
+    expect(screen.queryByText("Most full runs in a month")).not.toBeInTheDocument()
   })
 
   it("a read-only unit with a gap says what is not chosen", async () => {
@@ -5029,6 +5109,19 @@ describe("the roster page", () => {
     const facts = await screen.findByRole("region", { name: "Recorded facts that broke rules" })
     expect(within(facts).getByText(/Amal Saleh, 5 Jun 2026/)).toHaveTextContent("6 shifts in a row")
     expect(screen.queryByRole("region", { name: "Hard rules this roster breaks" })).not.toBeInTheDocument()
+  })
+
+  it("names a full run above the most by its weight, with each nurse in the solver's words", async () => {
+    const rules = [{
+      rule: "excess_full_run", penalty: 8, weight: 4, amount: 2, counted_in: "full run above the maximum",
+      largest: [{ hospital_id: "h1", full_name: "Amal Saleh", date: null, amount: 2, text: "h1: 5 full runs of 3 shifts, max 3" }], others: 0,
+    }]
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules } } }))
+
+    const region = within(await screen.findByRole("region", { name: "Penalties per rule" }))
+    expect(region.getByText("Full run above the most").parentElement).toHaveTextContent("8")
+    expect(region.getByText(/2 × 4/)).toHaveTextContent("full run above the maximum")
+    expect(region.getByText("Amal Saleh: h1: 5 full runs of 3 shifts, max 3")).toBeInTheDocument()
   })
 
   it("does not repeat a date the solver's words already hold", async () => {
