@@ -85,6 +85,8 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read units | | yes | yes | own unit | |
 | Add nurses (form or CSV import), give a unit manager a nurse profile, correct a nurse's gender and start date and a staff nurse's name, transfer, set end dates, export staff list | | yes | | | |
 | Read nurses | | yes | | own unit | |
+| Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | | | |
+| Read a nurse's skills with their expiries | | yes | yes | own unit | |
 | View every unit's rosters, with the per-month state overview | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
 | Read an approved roster's versions with their reasons, and compare any two | | yes | yes | own unit | |
@@ -99,6 +101,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | View own unit's approved roster (names and shifts only) and own summary | | | | | yes |
 | Make and withdraw requests; make and withdraw preferences, or ask for one as a request; propose, accept and reject swaps; accept and decline covers offered to them | | | | | yes |
 | Read own leave with its type (a manager with a nurse profile too) | | | | yes | yes |
+| Read own skills with their expiries (a manager with a nurse profile too) | | | | yes | yes |
 
 Cardinalities: exactly one active CNO and one active Deputy CNO per hospital (a deactivated one
 stays on record, so a successor gets a new account); one Unit Manager per unit and one unit per
@@ -150,7 +153,9 @@ a forbidden succession names, cannot be retired, and the refusal names the units
 every role reads it, the System Admin included, since it names no one. Never deleted, only retired: nurses' records of it
 and past rosters keep it. The name may be renamed: each rename is recorded (old name, new name, by whom and when), and no
 other skill may take a name a skill used to hold, as for a shift's code, so that an old name in a stored solve input
-still means one skill. A change goes to the audit log with its values (`skill.created`, `skill.updated`).
+still means one skill. A change goes to the audit log with its values (`skill.created`, `skill.changed`). Turning `expires`
+on is refused, naming the nurses, while a current record of the skill has no expiry; turning it off is allowed, and the
+expiries recorded stay, counting for nothing until it is on again.
 
 **Public holiday**: date, name. **Ramadan days**: per month, the CNO's fixed dates or range,
 else derived from the Umm al-Qura calendar.
@@ -165,7 +170,17 @@ the unit's) with a review flag, request cap per nurse per month (default 3), pre
 **Nurse profile** (0..1 per user): hospital ID (= username), gender, start date, end date,
 team leader, score, Ramadan-reduced, breastfeeding, opening values (overtime this year, hours balance,
 night and weekend fairness balances; editable until her first month closes), whether a manager has ever saved
-these, which is how a score at the default is told from one somebody looked at.
+these, which is how a score at the default is told from one somebody looked at. Her skills are rows of their own (below).
+
+**Nurse skill**: nurse, skill, expiry (null for a kind that does not expire), recorded by and when; removed by and when. At
+most one current row a nurse and skill; a renewal or removal ends the row rather than rewriting it, as leave's does, because
+the audit log says only whose skills changed and by whom (`nurse.skills_changed`), never which skill or date, since a lapse
+says something about a person. The CNO records, renews and takes them off on the nurse's row of the Nurses page, a manager
+with a nurse profile's too; her unit's manager (and the manager of a unit she is due to join) reads them on the Nurses page
+and Rostering attributes, the Deputy CNO on Rostering attributes for any unit, and she reads her own on My month. The System
+Admin reads none. On the profile, not a placement, so they follow her across a transfer and stay when she is deactivated or
+ends. A retired skill can be neither recorded nor renewed, and a record of it stays until the CNO takes it off. Every write
+takes the hospital settings' lock before the nurse's, as a catalogue change and a transfer do.
 
 **Placement**: nurse, unit, first month, allowed shifts. A nurse's allowed shifts are on the placement, not the
 profile, because a list means something only in a unit and two units can each roster their own months of one nurse at
@@ -585,13 +600,13 @@ change. A notification links to the reader's own page for it, by what they hold 
 
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types, skills,
-holidays and Ramadan, units and managers, nurses with import and export, each unit's rules, rostering attributes and leave
+holidays and Ramadan, units and managers, nurses with import and export and their skills, each unit's rules, rostering attributes and leave
 to read, roster overview and approvals); Deputy CNO (roster overview, approvals, hospital rules and each unit's rules,
-rostering attributes and leave to read); Unit Manager (unit rules, rostering attributes, nurses, request
+rostering attributes with nurses' skills, and leave, to read); Unit Manager (unit rules, rostering attributes, nurses, request
 windows, requests and the unit's preferences (read-only), swaps, covers, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff
 Nurse reads them, but no requests, swaps or covers of their own); Staff Nurse (unit roster, own month: hours, overtime, what
-is carried, shift counts and leave with its type, requests, a Preferences card beside them ("4 of 5 kept" once the roster
+is carried, shift counts, her skills with their expiries and leave with its type, requests, a Preferences card beside them ("4 of 5 kept" once the roster
 is approved, "No roster yet" before, each one Kept, Not kept or On leave, and when hers count double this month, the month
 that caused it), swaps, covers offered to them,
 notifications, password). A nurse's own hours are
