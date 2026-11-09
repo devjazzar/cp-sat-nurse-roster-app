@@ -144,7 +144,7 @@ The result (`result.build_result`, written by `solve --out`):
   row begins (`validate.last_worked`, `validate.rest_owed_after`), so a history of any length
   collapses into one month plus two scalars with nothing the rules read lost), and
   `preferences_not_kept` = this month's days asked off and worked plus asked to work and off,
-  leave days out, whatever the weights (`validate.preferences_not_kept`). The app resets
+  leave days and barred days out (`problem.superseding`), whatever the weights (`validate.preferences_not_kept`). The app resets
   the year-to-date value and the balances at year start. Leave days are `""` in `roster` and listed under `nurses[id].leave`;
   `"L"` never appears in JSON (it is the CSV export's marker only).
 * `ok` is true exactly when the CLI exits 0 (`result.verdict`: 1 no roster, 2 hard violations,
@@ -323,7 +323,10 @@ Skills (2026-11-09, request version 2, ADR 0010 of the app), two rules in the re
   month" for one expired earlier). Fairness counts a barred day as leave (2026-11-09, the
   user's decision at ticket 31's review of the app): her fair Friday share is prorated for the
   weekend days she is barred from (`fairness.weekend_available`), so she pays no `fair_weekend`
-  and carries no lower `friday_balance` for Fridays she could not work.
+  and carries no lower `friday_balance` for Fridays she could not work. A barred day also supersedes a preference, as leave does (2026-11-09,
+  ticket 35 of the app): `problem.superseding` (leave and barred days) is what the model, the
+  `undesired_day`/`desired_day` matches and `preferences_not_kept` leave out, so a wish to work
+  a barred day costs nothing and is not carried as not kept.
 * Precheck: barred days count like leave in every capacity sum (per nurse and per day); a need
   whose skill no nurse holds on any free day; a need whose largest minimum exceeds the nurses who
   hold the skill and may work the shift; per free day, a minimum above the holders who may work

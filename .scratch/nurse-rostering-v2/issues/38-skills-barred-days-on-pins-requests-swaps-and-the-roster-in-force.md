@@ -12,3 +12,18 @@
 - [ ] The Roster page's check of an approved roster on the month as it stands shows a skill rule now broken, as it shows any other.
 - [ ] The architecture document's pinned cell, request and swap paragraphs say so.
 - [ ] Tests at the web API seam: the pin set aside and counting again, the request refusals, each swap wording from the proposer's and the manager's side, an approval refused, the Roster page's check.
+
+**From ticket 35 (2026-11-09):** every solve, re-plan, draft check, swap and cover judging, submit and approval input now carries
+each nurse's `skills` (`nurses.rostering.skills_block`, called by `solves.input.assemble`), so the two rules already reach
+everything that checks a grid with the solver's code. What that means for this ticket:
+- **Swap judging needed no change to stay hidden.** `swaps.judging._violation_problem` already hides a violation on a colleague
+  ("This swap cannot work for <name> on <date>"), says the proposer's own in full, and hides every unit-level rule but
+  `headcount` (`SAID_AS_IT_IS`). So `skill_expired` and `skill_need` take the forms the spec asks for. No test pins them yet:
+  they are this ticket's.
+- **Pins and requests still don't know a barred day.** `rosters.pins.Judge.day_why` has no `barred` reason. A pin on a barred
+  free day reaches the solver and is refused by its loader ("day N is after the expiry of 'BLS', required to work, …"), so the
+  solve fails `refused` and reads as rules to review. Add the reason here; a barred day is every day after the nurse's first
+  required skill to expire, read as `nurse_roster.problem.barred_days` reads it. That is the solver's definition.
+- **The Roster page already shows an approved roster's skill rules** among "what the grid breaks on the month as it stands".
+  Ticket 35 tested the draft's case and the submit and approval refusals, not the approved roster's.
+- **A barred day supersedes a preference** since ticket 35, in the solver and on My month, where it reads "Skill expired".

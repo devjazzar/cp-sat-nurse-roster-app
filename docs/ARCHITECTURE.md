@@ -485,6 +485,13 @@ backup time and retention, close time.
   shift history. A shift renamed since is mapped into histories (`renamed_shifts`).
 - A draft solved before the month before it closed warns that the month before has closed since (`closed` among its changes),
   and is checked again on the month as it stands, as at submit. A re-plan is never made outdated by a close.
+- A draft solved before a nurse's skills changed as the month sees them (a skill recorded, renewed, taken off, retired or expired
+  into the month) warns `skills` for her, and one solved before the unit's skill needs or their flag, the skills required to work or
+  the skill shortfall's price changed warns `skills` as a change of the unit's (ticket 35); a rename is no change. A stored input
+  of version 1 had no skills, so a nurse who has some since is a change. A submission keeps each nurse's skills, so a skill change
+  while it waits is news to the approver, and a re-plan whose month's skills changed while it ran ends `outdated`. Submit and
+  approval refuse a grid that breaks a hard skill need or fills a barred day on the month as it stands, as any hard rule; the
+  close reports a barred day worked or a need left short among what the facts broke and never refuses.
 - The carry-over handed into January has overtime-to-date and both fairness balances reset
   to zero.
 - Days before a nurse's start date and after her end date are credited like leave in every
@@ -528,10 +535,18 @@ absence meaning no record), the department's `skill_needs` and `skill_needs_hard
 hard, no required skills, the weight 0), so every stored solve input and close input still loads, explains and closes; the
 result's version is unchanged. The app writes version 2 since ticket 34: the unit's skill needs and flag, the hospital's skill
 shortfall weight and the catalogue's required skills reach every new solve, re-plan and close input as the other rules do.
-A nurse's `skills` are ticket 35's; until then no nurse carries any, so a need counts nobody and none is barred. The solver
-counts a day barred by an expired required skill as leave in fairness (ticket 34, the user's decision): her fair share of
-weekend days is prorated for it, so she pays no `fair_weekend` and carries no lower `friday_balance` for a Friday she could
-not work.
+Each nurse carries her `skills` since ticket 35, clamped to the month by the assembler (`nurses.rostering.skills_block`): a
+current record of a live skill by its name, with its expiry when that falls in the month or before it, and null when it is valid
+past the month's last day or its kind does not expire (an expiry kept while `expires` was off counts for nothing). A nurse with no
+record of a skill has no entry for it, and a retired skill is no record: it counts toward no need and bars nobody, as it is left
+out of `required_skills`. The solver counts a day barred by an expired required skill as leave in fairness (ticket 34, the user's
+decision): her fair share of weekend days is prorated for it, so she pays no `fair_weekend` and carries no lower
+`friday_balance` for a Friday she could not work. Such a day also supersedes a preference, as leave does (ticket 35): a wish to
+work it costs nothing and is no preference not kept, in the search, the explanation and the carry-over alike
+(`nurse_roster.problem.superseding`), and My month marks it "Skill expired", counted neither way. A stored input keeps the skill
+names it was given and is read under today's (`solves.input.in_current_skill_names`, through the rename log) where the solver's
+code explains or compares it: a result's explanation, a re-plan's comparison and a draft's changes since. A skill name the solver
+would refuse (one a spreadsheet reads as a formula, or with a line break) is refused by the catalogue.
 
 Full runs changed it once more (the solver's problem schema 6; the solve input's version unchanged). The department gains
 `max_full_runs`, the most full runs a nurse may work in the month (a whole number 0 to 31; absent or null means no cap), and
@@ -654,7 +669,9 @@ warnings, penalties per rule, per-nurse cost and hours accounting, the explanati
 largest violations per rule, solver statistics, recorded facts that broke rules, and in a
 re-plan the comparison with the roster in force. A nurse's carry-over waits for the month close.
 A stored result holds the penalties' totals only, so the explanation is worked out when asked.
-The solver's words count days from 0, so what the pages show says dates instead.
+The solver's words count days from 0, so what the pages show says dates instead. The two skill rules read as the others do: a
+skill need short, per shift and day with how many short, under the skill shortfall weight's name, "Short of a skill need", when
+soft, and as a violation when hard; a shift on a barred day as a violation on her, saying the skill and its last day (ticket 35).
 
 The System Admin's solve history is unit, month, state, the failure kind (in fixed words naming no one), who asked, when, how
 long, the time limit, the attempts and the cost, and only that (not even whether a solve was a re-plan, whose date is about a
