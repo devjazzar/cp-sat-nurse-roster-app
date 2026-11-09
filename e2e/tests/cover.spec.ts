@@ -10,6 +10,11 @@ import { anotherPhone, desktop, expectThumbSized, go, monthName, signIn, soundCo
 // the shift-day is as full as before, with the colleague in it, and the absent nurse's day is a day off. The check runs again
 // on a later day, or on whoever is next, since the finder reads the month as it stands.
 
+/** The page says an offer or an acceptance happened only once its request and a fresh read of the cover are both back, and
+ *  each of those judges the cover against ICU's nurses. On a CI runner an offer came to about five seconds (3.0 s and 1.8 s),
+ *  the whole of expect's default wait, so these two waits allow for the app's work rather than for a page already drawn. */
+const JUDGED = { timeout: 20_000 }
+
 test("a sick call: the manager offers the cover on the desktop, and a colleague takes it on her phone", async ({ browser, page }) => {
   const month = stack.approved_month
   const { absent, colleague, date, shift } = soundCover(stack, stack.large_unit, month)
@@ -37,7 +42,7 @@ test("a sick call: the manager offers the cover on the desktop, and a colleague 
   await expect(who.getByRole("checkbox", { name: `Offer it to ${stack.names[colleague]}` })).toBeChecked()
   await manager.getByLabel("Note (optional)").fill("Thank you for helping out.")
   await manager.getByRole("button", { name: "Offer the cover" }).click()
-  await expect(manager.getByText(/^You offered the cover for .* to 1 nurse\. Each is told\.$/)).toBeVisible()
+  await expect(manager.getByText(/^You offered the cover for .* to 1 nurse\. Each is told\.$/)).toBeVisible(JUDGED)
 
   const theirs = await anotherPhone(browser, page, colleague)
   // Covers from the phone's Menu, then the month the cover is in, which may not be the hospital's current one.
@@ -48,7 +53,7 @@ test("a sick call: the manager offers the cover on the desktop, and a colleague 
   await expectThumbSized(accept)
   await expectThumbSized(theirs.getByRole("button", { name: new RegExp(`^Decline the cover for .* on ${day}$`) }))
   await accept.click()
-  await expect(theirs.getByText(/^You took the cover for .*\. It is in your cell on My roster now\.$/)).toBeVisible()
+  await expect(theirs.getByText(/^You took the cover for .*\. It is in your cell on My roster now\.$/)).toBeVisible(JUDGED)
 
   await theirs.goto(`/my-roster?month=${month}`)
   const grid = theirs.getByRole("region", { name: `Roster of ${stack.large_unit}, ${monthName(month)}` })
