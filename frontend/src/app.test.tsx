@@ -137,6 +137,10 @@ const onChangePassword = async (router: ReturnType<typeof start>["router"]) => {
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
 }
 
+/** A nurse's skills as the API reads them (ticket 33). */
+const BLS_HELD = { skill_id: "s1", name: "BLS", expires: true, required_to_work: true, active: true, expiry: "2027-06-30" }
+const ICU_HELD = { skill_id: "s2", name: "ICU", expires: false, required_to_work: false, active: true, expiry: null }
+
 afterEach(() => {
   vi.unstubAllGlobals()
   document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT"
@@ -1028,7 +1032,7 @@ describe("each role's navigation and home", () => {
 
     it("has them in the phone's Menu, and My month opens from it", async () => {
       const { user, router } = start("/", managerNurse({ "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, ...NO_REQUESTS,
-        "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } }))
+        "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } }))
       await user.click(await screen.findByRole("button", { name: "Menu" }))
       const menu = screen.getByRole("navigation", { name: "Main menu" })
       expect(within(menu).getAllByRole("link").map((link) => link.textContent)).toEqual(MANAGER_LINKS)
@@ -1056,7 +1060,7 @@ describe("each role's navigation and home", () => {
 
     it("the Menu button opens the same pages, the password and Log out, and choosing a page closes it", async () => {
       const { user, router } = start("/", { ...nurseHome(), "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, ...NO_REQUESTS,
-        "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
+        "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
       const button = await screen.findByRole("button", { name: "Menu" })
       expect(button).toHaveAttribute("aria-expanded", "false")
       expect(screen.queryByRole("navigation", { name: "Main menu" })).not.toBeInTheDocument()
@@ -1917,12 +1921,13 @@ describe("the skills page", () => {
   it("the audit log names what was done to the catalogue", async () => {
     const entry = (id: number, action: string) => ({ id, action, actor: "the-cno", target: "BLS", at: "2026-11-05T07:00:00+03:00", ip: null, before: null, after: null })
     start("/audit-log", admin({
-      "GET /api/audit/entries": { body: { entries: [entry(1, "skill.created"), entry(2, "skill.updated")], next_before: null } },
+      "GET /api/audit/entries": { body: { entries: [entry(1, "skill.created"), entry(2, "skill.changed"), { ...entry(3, "nurse.skills_changed"), target: "h123" }], next_before: null } },
       "GET /api/audit/filter-options": { body: { users: [], actions: [] } },
     }))
 
     expect(await screen.findByText("Added a skill")).toBeInTheDocument()
     expect(screen.getByText("Changed a skill")).toBeInTheDocument()
+    expect(screen.getByText("Changed a nurse's skills")).toBeInTheDocument()
   })
 })
 
@@ -2420,7 +2425,7 @@ describe("the nurses page", () => {
   const UNIT_OLD = { ...UNIT_ER, id: "u3", name: "Old", archived: true }
   const AMAL = {
     id: "n1", hospital_id: "h123", full_name: "Amal Saleh", role: "staff_nurse", gender: "F", start_date: "2026-01-10",
-    end_date: null, is_active: true, must_change_password: false, unit: { id: "u1", name: "ER" }, transfers: [],
+    end_date: null, is_active: true, must_change_password: false, unit: { id: "u1", name: "ER" }, transfers: [], skills: [],
   }
   const BADR = { ...AMAL, id: "n2", hospital_id: "h124", full_name: "Badr Omar", gender: "M", unit: { id: "u2", name: "ICU" } }
   const MONA_NURSE = { ...AMAL, id: "n3", hospital_id: "mona", full_name: "Mona Ali", role: "unit_manager" }
@@ -3063,6 +3068,204 @@ describe("the nurses page", () => {
     start("/nurses", asManagerHere([]))
 
     expect(await screen.findByText(/ER has no nurses yet/)).toBeInTheDocument()
+  })
+
+  describe("a nurse's skills", () => {
+    const CATALOGUE = [
+      { id: "s3", name: "ACLS", expires: true, required_to_work: false, active: false, renames: [] },
+      { id: "s1", name: "BLS", expires: true, required_to_work: true, active: true, renames: [] },
+      { id: "s2", name: "ICU", expires: false, required_to_work: false, active: true, renames: [] },
+    ]
+    /** The list as the API reads it after each write, so the page is seen to take the fresh one. */
+    function withSkills(first: unknown[], extra: Record<string, Handler | Answer> = {}) {
+      let skills = first
+      const after = (next: unknown[], answer: Answer = {}) => () => { skills = next; return { body: next, ...answer } }
+      return {
+        handlers: asCnoHere({
+          "GET /api/nurses": () => ({ body: [{ ...AMAL, skills }, BADR] }),
+          "GET /api/hospital/skills": { body: CATALOGUE },
+          ...extra,
+        }),
+        after,
+      }
+    }
+    const openSkills = async (user: ReturnType<typeof start>["user"]) => {
+      await user.click(await screen.findByRole("button", { name: "Skills of Amal Saleh" }))
+      return screen.findByRole("heading", { level: 2, name: "Skills of Amal Saleh" })
+    }
+    const status = () => screen.getAllByRole("status").find((region) => region.textContent)
+
+    it("shows each nurse's skills on their row, with the last day each counts", async () => {
+      start("/nurses", asCnoHere({}, [{ ...AMAL, skills: [BLS_HELD, ICU_HELD] }, BADR]))
+
+      const row = (await screen.findByText("Amal Saleh")).closest("tr") as HTMLElement
+      expect(within(row).getByText("until 30 Jun 2027")).toBeInTheDocument()
+      expect(within(row).getByText("ICU")).toBeInTheDocument()
+      expect(within(screen.getByText("Badr Omar").closest("tr") as HTMLElement).getByText("None")).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Skills" })).toBeInTheDocument()
+    })
+
+    it("lets a manager read them and change none", async () => {
+      const { calls } = start("/nurses", asManagerHere([{ ...AMAL, skills: [{ ...BLS_HELD, active: false }] }]))
+
+      const row = (await screen.findByText("Amal Saleh")).closest("tr") as HTMLElement
+      expect(within(row).getByText("BLS")).toBeInTheDocument()
+      expect(within(row).getByText("Retired")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /Skills of/ })).not.toBeInTheDocument()
+      expect(screen.getByText(/records their skills/)).toBeInTheDocument()
+      expect(calls.some((call) => call.url === "/api/hospital/skills")).toBe(false)
+    })
+
+    it("records a skill that expires with its expiry, and offers only active skills not held", async () => {
+      const { handlers, after } = withSkills([ICU_HELD])
+      const { user, calls } = start("/nurses", { ...handlers, "POST /api/nurses/n1/skills": after([BLS_HELD, ICU_HELD], { status: 201 }) })
+      await openSkills(user)
+
+      const skill = await screen.findByLabelText("Skill")
+      expect(within(skill).getAllByRole("option").map((option) => option.textContent)).toEqual(["Choose a skill", "BLS"])
+      expect(screen.queryByLabelText("Expiry")).not.toBeInTheDocument()
+      await user.selectOptions(skill, "BLS")
+      await user.click(screen.getByRole("button", { name: "Record skill" }))
+      expect(screen.getByLabelText("Expiry")).toHaveAccessibleDescription(/BLS expires. Enter the last day it counts./)
+      expect(screen.getByLabelText("Expiry")).toHaveFocus()
+      expect(calls.some((call) => call.method === "POST")).toBe(false)
+
+      await user.type(screen.getByLabelText("Expiry"), "2027-06-30")
+      await user.click(screen.getByRole("button", { name: "Record skill" }))
+
+      await waitFor(() => expect(status()).toHaveTextContent("BLS is recorded for Amal Saleh."))
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ skill_id: "s1", expiry: "2027-06-30" })
+      expect(await screen.findByLabelText("Expiry of BLS")).toHaveValue("2027-06-30")
+      expect(screen.getByText("Amal Saleh holds every skill in the catalogue.")).toBeInTheDocument()
+    })
+
+    it("records a skill that does not expire with no expiry", async () => {
+      const { handlers, after } = withSkills([])
+      const { user, calls } = start("/nurses", { ...handlers, "POST /api/nurses/n1/skills": after([ICU_HELD], { status: 201 }) })
+      await openSkills(user)
+      expect(screen.getByText("No skills are recorded for Amal Saleh.")).toBeInTheDocument()
+
+      await user.selectOptions(await screen.findByLabelText("Skill"), "ICU")
+      expect(screen.queryByLabelText("Expiry")).not.toBeInTheDocument()
+      await user.click(screen.getByRole("button", { name: "Record skill" }))
+
+      await waitFor(() => expect(status()).toHaveTextContent("ICU is recorded for Amal Saleh."))
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ skill_id: "s2", expiry: null })
+      expect(await screen.findByRole("list", { name: "Skills of Amal Saleh" })).toHaveTextContent("Does not expire")
+    })
+
+    it("shows the API's refusal beside its field", async () => {
+      const { handlers } = withSkills([])
+      const { user } = start("/nurses", { ...handlers, "POST /api/nurses/n1/skills": refusal(["skill_id"], "ICU is retired, so it can no longer be recorded.") })
+      await openSkills(user)
+
+      await user.selectOptions(await screen.findByLabelText("Skill"), "ICU")
+      await user.click(screen.getByRole("button", { name: "Record skill" }))
+
+      await waitFor(() => expect(screen.getByLabelText("Skill")).toHaveAccessibleDescription("ICU is retired, so it can no longer be recorded."))
+      expect(screen.getByLabelText("Skill")).toHaveFocus()
+    })
+
+    it("renews a skill by its expiry, and keeps the buttons still while it saves", async () => {
+      const renewed = { ...BLS_HELD, expiry: "2029-06-30" }
+      const { handlers } = withSkills([BLS_HELD])
+      const { user, calls } = start("/nurses", handlers)
+      await openSkills(user)
+      const renewing = hold("PUT /api/nurses/n1/skills/s1")
+
+      await user.clear(screen.getByLabelText("Expiry of BLS"))
+      await user.type(screen.getByLabelText("Expiry of BLS"), "2029-06-30")
+      await user.click(screen.getByRole("button", { name: "Save expiry of BLS" }))
+
+      await waitFor(() => expect(screen.getByRole("button", { name: "Take off BLS" })).toHaveAttribute("aria-disabled", "true"))
+      expect(screen.getByRole("button", { name: "Save expiry of BLS" })).toHaveAttribute("aria-disabled", "true")
+      calls.length = 0
+      await renewing.answer({ body: [renewed] })
+
+      await waitFor(() => expect(status()).toHaveTextContent("BLS of Amal Saleh now counts until 30 Jun 2029."))
+      await waitFor(() => expect(calls.some((call) => call.url === "/api/nurses")).toBe(true))
+    })
+
+    it("sends the new expiry alone", async () => {
+      const { handlers, after } = withSkills([BLS_HELD])
+      const { user, calls } = start("/nurses", { ...handlers, "PUT /api/nurses/n1/skills/s1": after([{ ...BLS_HELD, expiry: "2029-06-30" }]) })
+      await openSkills(user)
+
+      await user.clear(screen.getByLabelText("Expiry of BLS"))
+      await user.type(screen.getByLabelText("Expiry of BLS"), "2029-06-30")
+      await user.click(screen.getByRole("button", { name: "Save expiry of BLS" }))
+
+      await waitFor(() => expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ expiry: "2029-06-30" }))
+      expect(await screen.findByLabelText("Expiry of BLS")).toHaveValue("2029-06-30")
+    })
+
+    it("asks for an expiry before renewing to none", async () => {
+      const { handlers } = withSkills([BLS_HELD])
+      const { user, calls } = start("/nurses", handlers)
+      await openSkills(user)
+
+      await user.clear(screen.getByLabelText("Expiry of BLS"))
+      await user.click(screen.getByRole("button", { name: "Save expiry of BLS" }))
+
+      expect(screen.getByLabelText("Expiry of BLS")).toHaveAccessibleDescription(/BLS expires. Enter the last day it counts./)
+      expect(calls.some((call) => call.method === "PUT")).toBe(false)
+    })
+
+    it("takes a skill off, and moves focus on to recording one", async () => {
+      const { handlers, after } = withSkills([BLS_HELD, ICU_HELD])
+      const { user, calls } = start("/nurses", { ...handlers, "POST /api/nurses/n1/skills/s1/remove": after([ICU_HELD]) })
+      await openSkills(user)
+
+      await user.click(screen.getByRole("button", { name: "Take off BLS" }))
+
+      await waitFor(() => expect(status()).toHaveTextContent("BLS is taken off Amal Saleh."))
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Take off BLS" })).not.toBeInTheDocument())
+      expect(screen.getByRole("heading", { level: 3, name: "Record a skill" })).toHaveFocus()
+      expect(calls.find((call) => call.url === "/api/nurses/n1/skills/s1/remove")?.method).toBe("POST")
+    })
+
+    it("says so when the page was out of date", async () => {
+      const { handlers } = withSkills([ICU_HELD])
+      const { user } = start("/nurses", { ...handlers,
+        "POST /api/nurses/n1/skills/s2/remove": { status: 409, body: { detail: "Amal Saleh does not hold this skill now. Reload the page to see their skills as they are." } } })
+      await openSkills(user)
+
+      await user.click(screen.getByRole("button", { name: "Take off ICU" }))
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Amal Saleh does not hold this skill now.")
+    })
+
+    it("offers a retired skill only to take off, and a skill that no longer expires no date", async () => {
+      const { handlers } = withSkills([{ ...BLS_HELD, active: false }, ICU_HELD])
+      const { user } = start("/nurses", handlers)
+      await openSkills(user)
+
+      const list = screen.getByRole("list", { name: "Skills of Amal Saleh" })
+      expect(within(list).getByText("Retired")).toBeInTheDocument()
+      expect(within(list).getByText("until 30 Jun 2027")).toBeInTheDocument()
+      expect(within(list).getByText(/can no longer be renewed/)).toBeInTheDocument()
+      expect(screen.queryByLabelText(/Expiry of/)).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Take off BLS" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Take off ICU" })).toBeInTheDocument()
+    })
+
+    it("says where to add skills when the catalogue is empty", async () => {
+      const { user } = start("/nurses", asCnoHere({ "GET /api/hospital/skills": { body: [] } }, [{ ...AMAL, skills: [] }]))
+      await openSkills(user)
+
+      expect(await screen.findByRole("link", { name: "Add skills under Skills" })).toHaveAttribute("href", "/skills")
+    })
+
+    it("closes with Done and gives focus back to the row's button", async () => {
+      const { handlers } = withSkills([])
+      const { user } = start("/nurses", handlers)
+      await openSkills(user)
+
+      await user.click(screen.getByRole("button", { name: "Done" }))
+
+      expect(screen.queryByRole("heading", { level: 2, name: "Skills of Amal Saleh" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Skills of Amal Saleh" })).toHaveFocus()
+    })
   })
 })
 
@@ -3785,7 +3988,7 @@ describe("the rostering attributes page", () => {
   const AMAL = {
     id: "n1", hospital_id: "h1", full_name: "Amal Saleh", is_active: true, gender: "F", joins_from: null, leaves_from: null,
     team_leader: true, score: 0.9, ramadan_reduced: false, breastfeeding: true, ytd_overtime: 12, hours_balance: -3, night_balance: 1.5, friday_balance: -0.5,
-    allowed_shifts: ["D"], allowed_shifts_to_check: false, opening_values_locked: false,
+    allowed_shifts: ["D"], allowed_shifts_to_check: false, opening_values_locked: false, skills: [],
   }
   const BADR = {
     ...AMAL, id: "n2", hospital_id: "h2", full_name: "Badr Omar", gender: "M", joins_from: "2030-01", team_leader: false, score: 0.8, breastfeeding: false,
@@ -3801,12 +4004,13 @@ describe("the rostering attributes page", () => {
   const put = (calls: { method: string; url: string; body: unknown }[]) => calls.find((call) => call.method === "PUT")!
 
   it("lists what the solver needs to know of each nurse", async () => {
-    start("/rostering-attributes", pageOf(ME_MANAGER))
+    start("/rostering-attributes", pageOf(ME_MANAGER, [{ ...AMAL, skills: [BLS_HELD] }, BADR]))
 
     const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
     expect(document.title).toBe("Rostering attributes · Nurse roster")
     expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(
-      ["Amal Saleh", "Set attributes", "h1", "In the unit", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5"])
+      ["Amal Saleh", "Set attributes", "h1", "In the unit", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5", "BLSuntil 30 Jun 2027"])
+    expect(within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!).getByText("None")).toBeInTheDocument()
     const badr = within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!)
     expect(badr.getByText("Joins from January 2030")).toBeInTheDocument()
     expect(badr.getByText("Any")).toBeInTheDocument()
@@ -3947,6 +4151,15 @@ describe("the rostering attributes page", () => {
     expect(screen.getByRole("region", { name: "Rostering attributes of ER" })).toHaveAttribute("tabindex", "0")
     expect(screen.getByText(/Only the unit's manager can change these/)).toBeInTheDocument()
     expect(screen.queryByText(/came with allowed shifts/)).not.toBeInTheDocument()
+  })
+
+  it("shows the Deputy CNO each nurse's skills, set by the CNO", async () => {
+    start("/rostering-attributes", pageOf(ME_DEPUTY, [{ ...AMAL, skills: [BLS_HELD, ICU_HELD] }]))
+
+    const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
+    expect(row.getByText("until 30 Jun 2027")).toBeInTheDocument()
+    expect(row.getByText("ICU")).toBeInTheDocument()
+    expect(screen.getByText(/The CNO sets skills on the Nurses page/)).toBeInTheDocument()
   })
 
   it("a staff nurse has no way in", async () => {
@@ -4361,7 +4574,7 @@ describe("the leave pages", () => {
     const { user, router } = start("/my-month", {
       ...session(NURSE), ...NO_REQUESTS,
       "GET /api/rosters/mine/month": { body: NO_HOURS_YET },
-      "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [{ first: "2026-11-10", last: "2026-11-12", days: 3, leave_type: "Annual" }] } },
+      "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [{ first: "2026-11-10", last: "2026-11-12", days: 3, leave_type: "Annual" }] } },
     })
 
     const row = within((await screen.findByRole("cell", { name: "Annual" })).closest("tr")!)
@@ -4386,13 +4599,13 @@ describe("the leave pages", () => {
   })
 
   it("a nurse with none in a month is told so", async () => {
-    start("/my-month", { ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
+    start("/my-month", { ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: { month: "2026-11", runs: [] } } })
 
     expect(await screen.findByText("You have no leave recorded in November 2026.")).toBeInTheDocument()
   })
 
   it("a failed read says so", async () => {
-    start("/my-month", { ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-leave": { status: 500 } })
+    start("/my-month", { ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: NO_HOURS_YET }, "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { status: 500 } })
 
     expect((await screen.findByRole("alert")).textContent).toMatch(/leave could not be read/)
   })
@@ -6338,7 +6551,7 @@ describe("a nurse's own month", () => {
     },
   }
   const mine = (month: unknown, leave: unknown = LEAVE) => ({
-    ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: month }, "GET /api/nurses/my-leave": { body: leave },
+    ...session(NURSE), ...NO_REQUESTS, "GET /api/rosters/mine/month": { body: month }, "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: leave },
   })
   const terms = () => Object.fromEntries(screen.getAllByRole("term").map((term) => [term.textContent, term.nextElementSibling?.textContent]))
 
@@ -6396,6 +6609,31 @@ describe("a nurse's own month", () => {
     start("/my-month", mine({ ...IN_FORCE, roster: { ...IN_FORCE.roster, hours: null } }))
 
     expect(await screen.findByText("You are not on this roster.")).toBeInTheDocument()
+  })
+
+  it("shows the nurse's own skills with the last day each counts", async () => {
+    start("/my-month", { ...mine(IN_FORCE), "GET /api/nurses/my-skills": { body: [BLS_HELD, { ...ICU_HELD, active: false }] } })
+
+    const table = await screen.findByRole("region", { name: "Your skills" })
+    expect(within(table).getAllByRole("row").map((row) => row.textContent)).toEqual(
+      ["SkillCounts until", "BLS30 Jun 2027", "ICURetiredDoes not expire"])
+    expect(screen.getByText(/The CNO records your skills/)).toBeInTheDocument()
+  })
+
+  it("says so when no skill is recorded, or they cannot be read", async () => {
+    start("/my-month", mine(IN_FORCE))
+    expect(await screen.findByText("No skills are recorded for you.")).toBeInTheDocument()
+    cleanup()
+
+    start("/my-month", { ...mine(IN_FORCE), "GET /api/nurses/my-skills": { status: 500 } })
+    expect(await screen.findByText("Your skills could not be read. Reload the page to try again.")).toBeInTheDocument()
+  })
+
+  it("shows a manager with a nurse profile their own skills too", async () => {
+    start("/my-month", { ...mine(IN_FORCE), ...session({ ...NURSE, username: "mona", role: "unit_manager" }),
+      "GET /api/nurses/my-skills": { body: [ICU_HELD] } })
+
+    expect(await screen.findByRole("cell", { name: "ICU" })).toBeInTheDocument()
   })
 
   it("My leave's old address leads here, keeping its month", async () => {
@@ -6520,7 +6758,7 @@ describe("requests", () => {
   }
   const myMonth = (requests: Handler | Answer, extra = {}) => ({
     ...session(NURSE), "GET /api/rosters/mine/month": { body: { ...NO_HOURS_YET, month: "2026-12" } },
-    "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": requests,
+    "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": requests,
     "GET /api/preferences/mine": { body: { ...NO_PREFERENCE_WINDOW, month: "2026-12" } }, ...extra,
   })
 
@@ -6607,7 +6845,7 @@ describe("requests", () => {
   it("a manager with a nurse profile reads My month without a requests card", async () => {
     const { calls } = start("/my-month?month=2026-12", {
       ...session(MANAGER), "GET /api/rosters/mine/month": { body: { ...NO_HOURS_YET, month: "2026-12" } },
-      "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } },
+      "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } },
     })
 
     expect(await screen.findByText("You have no leave recorded in December 2026.")).toBeInTheDocument()
@@ -6827,7 +7065,7 @@ describe("preferences", () => {
   }
   const myMonth = (preferences: Handler | Answer, extra = {}) => ({
     ...session(NURSE), "GET /api/rosters/mine/month": { body: { ...NO_HOURS_YET, month: "2026-12" } },
-    "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": { body: REQUESTS },
+    "GET /api/nurses/my-skills": { body: [] }, "GET /api/nurses/my-leave": { body: { month: "2026-12", runs: [] } }, "GET /api/requests/mine": { body: REQUESTS },
     "GET /api/preferences/mine": preferences, ...extra,
   })
   const card = () => within(screen.getByRole("heading", { name: "Preferences" }).closest("[data-slot=card]") as HTMLElement)

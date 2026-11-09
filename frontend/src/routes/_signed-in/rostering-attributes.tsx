@@ -19,6 +19,7 @@ import {
 } from "@/api/generated/zod"
 import { CodeCheckboxes } from "@/components/code-checkboxes"
 import { CheckboxField, FormField } from "@/components/form-field"
+import { SkillList } from "@/components/nurse-skills"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -220,6 +221,7 @@ function NurseTable({ nurses, unitName, mayChange, onEdit }: { nurses: NurseAttr
           <TableHead>Hours balance</TableHead>
           <TableHead>Night balance</TableHead>
           <TableHead>Weekend balance</TableHead>
+          <TableHead>Skills</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -251,6 +253,7 @@ function NurseTable({ nurses, unitName, mayChange, onEdit }: { nurses: NurseAttr
             <TableCell className="tabular-nums">{nurse.hours_balance}</TableCell>
             <TableCell className="tabular-nums">{nurse.night_balance}</TableCell>
             <TableCell className="tabular-nums">{nurse.friday_balance}</TableCell>
+            <TableCell><SkillList skills={nurse.skills} /></TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -323,7 +326,8 @@ function RosteringAttributesPage() {
       <p className="text-muted-foreground">
         What the solver needs to know about each nurse, and where each one stands when they are added.
         {!mayChange && " Only the unit's manager can change these."}
-        {mayChange && " Gender is the CNO's to correct. Nurses do not see any of this."}
+        {mayChange && " Gender and skills are the CNO's to set. Nurses do not see any of this but their own skills."}
+        {!mayChange && " The CNO sets skills on the Nurses page."}
       </p>
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">The units could not be read. Reload the page to try again.</p>}

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/react-router"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -14,18 +14,23 @@ import {
   useGiveManagerNurseProfile,
   useListManagersToPlace,
   useListNurses,
+  useListSkills,
   useListUnits,
+  useRecordNurseSkill,
+  useRemoveNurseSkill,
+  useRenewNurseSkill,
   useResetNursePassword,
   useSetNurseEndDate,
   useTransferNurse,
 } from "@/api/generated/endpoints"
-import { Role, type ManagerToPlace, type NurseRow, type UnitSchema } from "@/api/generated/model"
+import { Role, type ManagerToPlace, type NurseRow, type NurseSkillRow, type UnitSchema } from "@/api/generated/model"
 import {
   createNurseBodyFullNameMax as FULL_NAME_MAX,
   createNurseBodyHospitalIdMax as HOSPITAL_ID_MAX,
   createNurseBodyHospitalIdRegExp as HOSPITAL_ID,
 } from "@/api/generated/zod"
 import { FormField, SelectField } from "@/components/form-field"
+import { SkillList, untilWords } from "@/components/nurse-skills"
 import { LeavePageGuard, PasswordDialog, type Shown } from "@/components/password-dialog"
 import {
   AlertDialog,
@@ -43,7 +48,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAwaitingPassword } from "@/lib/use-awaiting-password"
-import { serverErrors, showServerErrors } from "@/lib/server-errors"
+import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
 import { cn, monthName, scrollableRegion, shortDay } from "@/lib/utils"
 import { ROLE_NAMES } from "@/roles"
@@ -400,6 +405,151 @@ function ResetDialog({ nurse, onCancel, onReset }: { nurse: NurseRow | null; onC
   )
 }
 
+const EXPIRY_HINT = "The last day it counts."
+
+function PlainRefusal({ error }: { error: unknown }) {
+  if (!error) return null
+  const said = plainRefusal(error)
+  if (!said && serverErrors(error).length > 0) return null
+  return <p role="alert" className="text-sm text-destructive">{said ?? COULD_NOT_SAVE}</p>
+}
+
+const heldSchema = z.object({ expiry: z.string() })
+type Held = z.infer<typeof heldSchema>
+
+/** One skill she holds: a new expiry renews it, and it can come off. A retired skill only comes off. */
+function HeldSkill({ nurse, skill, onSaid, onGone }: { nurse: NurseRow; skill: NurseSkillRow; onSaid: (message: string) => void; onGone: () => void }) {
+  const refresh = useRefreshNurses()
+  const renew = useRenewNurseSkill()
+  const remove = useRemoveNurseSkill()
+  const form = useForm<Held>({ resolver: zodResolver(heldSchema), defaultValues: { expiry: skill.expiry ?? "" } })
+  const { errors } = form.formState
+  const pending = renew.isPending || remove.isPending
+  const mayRenew = skill.expires && skill.active
+  const ids = { nurseId: nurse.id, skillId: skill.skill_id }
+
+  const submit = form.handleSubmit(({ expiry }) => {
+    if (!expiry) {
+      form.setError("expiry", { message: `${skill.name} expires. Enter the last day it counts.` }, { shouldFocus: true })
+      return
+    }
+    remove.reset()
+    renew.mutate({ ...ids, data: { expiry } }, {
+      onSuccess: () => {
+        refresh()
+        onSaid(expiry === skill.expiry ? `Nothing changed for ${skill.name}.` : `${skill.name} of ${nurse.full_name} now counts until ${shortDay(expiry)}.`)
+      },
+      onError: (error) => { refresh(); showServerErrors(form, error) },
+    })
+  })
+
+  function takeOff() {
+    renew.reset()
+    remove.mutate(ids, {
+      onSuccess: () => { refresh(); onSaid(`${skill.name} is taken off ${nurse.full_name}.`); onGone() },
+      onError: () => refresh(),
+    })
+  }
+
+  return (
+    <li className="flex flex-col gap-2 border-b pb-4 last:border-b-0 last:pb-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="font-medium">{skill.name}</h3>
+        {!skill.expires && <span className="text-sm text-muted-foreground">Does not expire</span>}
+        {!skill.active && <Badge variant="outline">Retired</Badge>}
+        {!mayRenew && skill.expiry && <span className="text-sm tabular-nums text-muted-foreground">{untilWords(skill)}</span>}
+      </div>
+      {!skill.active && <p className="text-sm text-muted-foreground">A retired skill can no longer be renewed. The record stays until you take it off.</p>}
+      <form onSubmit={submit} noValidate className="flex flex-col gap-2">
+        {mayRenew && (
+          <FormField id={`expiry-${skill.skill_id}`} label={`Expiry of ${skill.name}`} type="date" description={EXPIRY_HINT}
+            registration={form.register("expiry")} error={errors.expiry} />
+        )}
+        <PlainRefusal error={renew.error ?? remove.error} />
+        <div className="flex flex-wrap gap-2">
+          {mayRenew && <Button type="submit" size="sm" disabled={pending} aria-label={`Save expiry of ${skill.name}`}>Save expiry</Button>}
+          <Button type="button" size="sm" variant="outline" disabled={pending} aria-label={`Take off ${skill.name}`} onClick={takeOff}>Take off</Button>
+        </div>
+      </form>
+    </li>
+  )
+}
+
+const newSkillSchema = z.object({ skill_id: required("Choose a skill."), expiry: z.string() })
+type NewSkill = z.infer<typeof newSkillSchema>
+
+function RecordSkillForm({ nurse, onSaid }: { nurse: NurseRow; onSaid: (message: string) => void }) {
+  const refresh = useRefreshNurses()
+  const catalogue = useListSkills()
+  const record = useRecordNurseSkill()
+  const form = useForm<NewSkill>({ resolver: zodResolver(newSkillSchema), defaultValues: { skill_id: "", expiry: "" } })
+  const { errors } = form.formState
+  const held = new Set(nurse.skills.map((skill) => skill.skill_id))
+  const choices = (catalogue.data ?? []).filter((skill) => skill.active && !held.has(skill.id))
+  const chosen = choices.find((skill) => skill.id === form.watch("skill_id"))
+
+  const submit = form.handleSubmit(({ skill_id, expiry }) => {
+    if (chosen?.expires && !expiry) {
+      form.setError("expiry", { message: `${chosen.name} expires. Enter the last day it counts.` }, { shouldFocus: true })
+      return
+    }
+    record.mutate({ nurseId: nurse.id, data: { skill_id, expiry: chosen?.expires ? expiry : null } }, {
+      onSuccess: () => {
+        refresh()
+        form.reset()
+        onSaid(`${chosen?.name ?? "The skill"} is recorded for ${nurse.full_name}.`)
+      },
+      onError: (error) => { refresh(); showServerErrors(form, error) },
+    })
+  })
+
+  if (catalogue.isPending) return <p>Loading…</p>
+  if (catalogue.isError) return <p role="alert">The skill catalogue could not be read. Reload the page to try again.</p>
+  if (catalogue.data.length === 0) {
+    return <p>The skill catalogue is empty. <Link to="/skills" className="underline underline-offset-3">Add skills under Skills</Link></p>
+  }
+  if (choices.length === 0) return <p>{nurse.full_name} holds every skill in the catalogue.</p>
+  return (
+    <form onSubmit={submit} noValidate>
+      <FieldGroup>
+        <SelectField label="Skill" registration={form.register("skill_id")} error={errors.skill_id}>
+          <NativeSelectOption value="">Choose a skill</NativeSelectOption>
+          {choices.map((skill) => <NativeSelectOption key={skill.id} value={skill.id}>{skill.name}</NativeSelectOption>)}
+        </SelectField>
+        {chosen?.expires && (
+          <FormField label="Expiry" type="date" description={EXPIRY_HINT} registration={form.register("expiry")} error={errors.expiry} />
+        )}
+        <Unexpected error={record.error} />
+        <div><Button type="submit" disabled={record.isPending}>Record skill</Button></div>
+      </FieldGroup>
+    </form>
+  )
+}
+
+/** Stays open through each change, which says what it did in the page's status line. Reads her skills from the list as it
+ *  refreshes, so a renewal elsewhere on the page shows here. */
+function SkillsPanel({ nurse, onSaid, onClose }: { nurse: NurseRow; onSaid: (message: string) => void; onClose: () => void }) {
+  // Taking a skill off removes the buttons it was taken off with, so focus goes on to what is left to do.
+  const recordHeading = useRef<HTMLHeadingElement>(null)
+  return (
+    <div className="flex flex-col gap-6">
+      {nurse.skills.length === 0
+        ? <p>No skills are recorded for {nurse.full_name}.</p>
+        : (
+          <ul className="flex flex-col gap-4" aria-label={`Skills of ${nurse.full_name}`}>
+            {nurse.skills.map((skill) => <HeldSkill key={`${skill.skill_id}-${skill.expiry}`} nurse={nurse} skill={skill} onSaid={onSaid}
+              onGone={() => recordHeading.current?.focus()} />)}
+          </ul>
+        )}
+      <section className="flex flex-col gap-3" aria-labelledby="record-skill">
+        <h3 id="record-skill" ref={recordHeading} tabIndex={-1} className="font-medium outline-none">Record a skill</h3>
+        <RecordSkillForm nurse={nurse} onSaid={onSaid} />
+      </section>
+      <div><Button type="button" variant="outline" onClick={onClose}>Done</Button></div>
+    </div>
+  )
+}
+
 /** What the coming transfers mean to the caller. A manager learns only when a nurse joins or leaves their unit. */
 function transferLines({ unit, transfers }: NurseRow, isCno: boolean): string[] {
   if (isCno) return transfers.map((transfer) => `${transfer.unit?.name} from ${monthName(transfer.from_month)}`)
@@ -436,6 +586,7 @@ type Panel =
   | { kind: "details"; nurse: NurseRow }
   | { kind: "transfer"; nurse: NurseRow }
   | { kind: "end"; nurse: NurseRow }
+  | { kind: "skills"; nurse: NurseRow }
 
 const PANEL_TITLES: Record<Panel["kind"], (name: string) => string> = {
   add: () => "Add a nurse",
@@ -443,6 +594,7 @@ const PANEL_TITLES: Record<Panel["kind"], (name: string) => string> = {
   details: (name) => `Correct the details of ${name}`,
   transfer: (name) => `Transfer ${name}`,
   end: (name) => `End date of ${name}`,
+  skills: (name) => `Skills of ${name}`,
 }
 
 function NursesPage() {
@@ -475,7 +627,7 @@ function NursesPage() {
       <p className="text-muted-foreground">
         {isCno
           ? "Everyone on a unit's rosters. Nurses are never deleted: an end date deactivates them."
-          : "The CNO adds nurses, transfers them and sets their end dates. You can reset the password of a nurse in your unit."}
+          : "The CNO adds nurses, transfers them, sets their end dates and records their skills. You can reset the password of a nurse in your unit."}
       </p>
       {(nurses.isPending || units.isPending) && <p>Loading…</p>}
       {(nurses.isError || units.isError) && <p role="alert">The nurses could not be read. Reload the page to try again.</p>}
@@ -504,6 +656,10 @@ function NursesPage() {
             )}
             {panel.kind === "transfer" && <TransferForm key={panel.nurse.id} nurse={panel.nurse} units={liveUnits} onCancel={finish} onDone={finished} />}
             {panel.kind === "end" && <EndDateForm key={panel.nurse.id} nurse={panel.nurse} onCancel={finish} onDone={finished} />}
+            {panel.kind === "skills" && (
+              <SkillsPanel key={panel.nurse.id} nurse={nurses.data?.find((nurse) => nurse.id === panel.nurse.id) ?? panel.nurse}
+                onSaid={setDone} onClose={finish} />
+            )}
           </CardContent>
         </Card>
       )}
@@ -538,6 +694,7 @@ function NursesPage() {
                     <TableHead>Gender</TableHead>
                     <TableHead>Start date</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Skills</TableHead>
                     <TableHead><span className="sr-only">Actions</span></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -550,6 +707,7 @@ function NursesPage() {
                       <TableCell>{GENDERS[nurse.gender]}</TableCell>
                       <TableCell className="tabular-nums">{shortDay(nurse.start_date)}</TableCell>
                       <TableCell><Status nurse={nurse} isCno={isCno} /></TableCell>
+                      <TableCell><SkillList skills={nurse.skills} /></TableCell>
                       <TableCell>
                         {/* Two by two for the CNO, because four in a line push the last out of view on a laptop. */}
                         <div className={isCno ? "ml-auto grid w-fit grid-cols-[auto_auto] gap-2" : "flex justify-end"}>
@@ -566,6 +724,10 @@ function NursesPage() {
                               <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`${nurse.end_date ? "Change" : "Set"} end date of ${nurse.full_name}`}
                                 onClick={(event) => open({ kind: "end", nurse }, event.currentTarget)}>
                                 {nurse.end_date ? "Change end date" : "Set end date"}
+                              </Button>
+                              <Button variant="outline" size="sm" disabled={awaitingPassword} aria-label={`Skills of ${nurse.full_name}`}
+                                onClick={(event) => open({ kind: "skills", nurse }, event.currentTarget)}>
+                                Skills
                               </Button>
                             </>
                           )}
