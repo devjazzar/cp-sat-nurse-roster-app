@@ -6414,7 +6414,7 @@ describe("the roster page", () => {
 
     it("moves a day at a time, and to a date chosen, keeping the day shown while the next one loads", async () => {
       const { user, router } = start("/day?date=2026-06-04", onDay({
-        "GET /api/rosters/day": ({ url }) => ({ body: { ...DAY, date: new URL(url, "http://x").searchParams.get("date") } }),
+        "GET /api/rosters/day": ({ url }: { url: string }) => ({ body: { ...DAY, date: new URL(url, "http://x").searchParams.get("date") } }),
       }))
       await screen.findByRole("heading", { level: 2, name: "Thursday, 4 June 2026" })
       const held = hold("GET /api/rosters/day?date=2026-06-05")
