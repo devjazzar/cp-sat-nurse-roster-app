@@ -14,19 +14,18 @@ from uuid import UUID
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from ninja import Field, Router, Status
 from ninja.errors import HttpError
 
 from accounts.authz import SignedIn
-from accounts.models import Role, User
+from accounts.models import Role
 from audit.log import record
 from hospital.api import refuse
 from hospital.catalogue_api import IsoDate
 from hospital.models import HospitalSettings, Skill
 from nurses.api import Body
 from nurses.models import NurseProfile, NurseSkill
-from nurses.skills import NurseSkillRow, as_rows, skills_of
+from nurses.skills import NurseSkillRow, as_rows, end_record, skills_of
 
 router = Router(tags=["nurses"])
 cno = SignedIn(Role.CNO)
@@ -59,11 +58,6 @@ def _held(nurse: NurseProfile, skill_id: UUID) -> NurseSkill:
     if row is None:
         raise HttpError(409, f"{nurse.user.full_name} does not hold this skill now. Reload the page to see their skills as they are.")
     return row
-
-
-def _end(row: NurseSkill, user: User) -> None:
-    row.removed_at, row.removed_by = timezone.now(), user
-    row.save(update_fields=["removed_at", "removed_by"])
 
 
 def _changed(request: HttpRequest, nurse: NurseProfile) -> None:
@@ -104,7 +98,7 @@ def renew_skill(request: HttpRequest, nurse_id: UUID, skill_id: UUID, body: Nurs
         if not skill.active:
             refuse((("expiry",), f"{skill.name} is retired, so it can no longer be renewed."))
         _refuse_expiry(skill, body.expiry)
-        _end(row, request.user)
+        end_record(row, request.user)
         NurseSkill.objects.create(nurse=nurse, skill=skill, expiry=body.expiry, recorded_by=request.user)
         _changed(request, nurse)
         return skills_of(nurse)
@@ -116,7 +110,7 @@ def remove_skill(request: HttpRequest, nurse_id: UUID, skill_id: UUID) -> list[N
     with transaction.atomic():
         HospitalSettings.load(for_update=True)
         nurse = _locked_nurse(nurse_id)
-        _end(_held(nurse, skill_id), request.user)
+        end_record(_held(nurse, skill_id), request.user)
         _changed(request, nurse)
         return skills_of(nurse)
 

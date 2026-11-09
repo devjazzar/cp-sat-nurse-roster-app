@@ -1,5 +1,6 @@
-"""Reading a nurse import file and judging every row of it, against the rules adding one nurse holds. Nothing here
-saves anything: `nurses.files_api` does, after checking what is confirmed is what was previewed.
+"""Reading an import file, for every import (`read_file`), and judging every row of a nurse import against the rules adding
+one nurse holds. Nothing here saves anything: `nurses.files_api` does, after checking what is confirmed is what was previewed.
+The skills import's rows are judged in `nurses.skills_importing`.
 
 How a large file behaves: a password hash takes about half a second on purpose, and the passwords may be kept nowhere,
 so the worker cannot make them and hand them back later. Confirming therefore stays one long request, bounded by
@@ -31,7 +32,7 @@ MAX_BYTES = 1024 * 1024  # Far more than 500 rows need. Under FILE_UPLOAD_MAX_ME
 
 _DELIMITERS = ",;\t"  # Excel uses the list separator of its locale, and a tab for "Unicode Text".
 _GENDERS = {"f": Gender.FEMALE, "m": Gender.MALE}
-_HOSPITAL_ID = TypeAdapter(Username)
+HOSPITAL_ID = TypeAdapter(Username)
 _FULL_NAME = TypeAdapter(FullName)
 _START_DATE = TypeAdapter(IsoDate)
 
@@ -89,10 +90,24 @@ def _decoded(raw: bytes) -> str:
         raise FileRefused("This is not a CSV file in UTF-8. In Excel, choose Save As and then “CSV UTF-8”.") from None
 
 
-def _trimmed(cells: list[str]) -> list[str]:
+@dataclass(frozen=True)
+class Layout:
+    """What one kind of import file holds: its columns, and how its refusals name a line of it. Every import reads its
+    file through `read_file`, under the same encodings and limits; `nurses.skills_importing` has the other one."""
+    columns: tuple[str, ...]
+    a_line: str  # "nurse": "one nurse per line".
+    lines: str  # "nurses": "more than 500 nurses".
+    split_by: str  # How to split a file over the limit, ending the sentence: "Split it, by unit for example, and …".
+    quote_hint: str  # What to quote when a line's cells do not match the columns.
+
+
+NURSE_FILE = Layout(COLUMNS, "nurse", "nurses", ", by unit for example,", "a name that has a comma in it")
+
+
+def _trimmed(cells: list[str], columns: tuple[str, ...]) -> list[str]:
     """Excel pads every line to the longest one, so blank cells past the last column say nothing."""
     cells = list(cells)
-    while len(cells) > len(COLUMNS) and not cells[-1].strip():
+    while len(cells) > len(columns) and not cells[-1].strip():
         cells.pop()
     return cells
 
@@ -101,12 +116,12 @@ def _is_blank(cells: list[str]) -> bool:
     return not any(cell.strip() for cell in cells)
 
 
-def _is_the_header(cells: list[str]) -> bool:
-    return [cell.strip().casefold() for cell in _trimmed(cells)] == [column.casefold() for column in COLUMNS]
+def _is_the_header(cells: list[str], columns: tuple[str, ...]) -> bool:
+    return [cell.strip().casefold() for cell in _trimmed(cells, columns)] == [column.casefold() for column in columns]
 
 
-def _reader_after_header(text: str):
-    wrong_columns = FileRefused(f"The first line must name exactly these columns: {', '.join(COLUMNS)}. "
+def _reader_after_header(text: str, columns: tuple[str, ...]):
+    wrong_columns = FileRefused(f"The first line must name exactly these columns: {', '.join(columns)}. "
                                 "Download the template to start from.")
     for delimiter in _DELIMITERS:
         # Strict, or an unclosed quote would swallow the lines after it without a word.
@@ -117,32 +132,40 @@ def _reader_after_header(text: str):
             continue
         if first is None:
             raise FileRefused("This file is empty. Download the template to start from.")
-        if _is_the_header(first):
+        if _is_the_header(first, columns):
             return reader
     raise wrong_columns
 
 
-def read_file(raw: bytes) -> list[Line]:
+def read_file(raw: bytes, layout: Layout = NURSE_FILE) -> list[Line]:
     """The file's lines below the header, blank ones left out. Raises `FileRefused`."""
     if len(raw) > MAX_BYTES:
-        raise FileRefused(f"This file is larger than {MAX_BYTES // 1024 // 1024} MB, which is more than {MAX_ROWS} nurses need.")
-    reader = _reader_after_header(_decoded(raw))
+        raise FileRefused(f"This file is larger than {MAX_BYTES // 1024 // 1024} MB, which is more than {MAX_ROWS} {layout.lines} need.")
+    reader = _reader_after_header(_decoded(raw), layout.columns)
     lines: list[Line] = []
     try:
         for cells in reader:
             if _is_blank(cells):
                 continue
             if len(lines) == MAX_ROWS:
-                raise FileRefused(f"This file has more than {MAX_ROWS} nurses. Split it, by unit for example, and import each part.")
-            lines.append(Line(reader.line_num, _trimmed(cells)))
+                raise FileRefused(f"This file has more than {MAX_ROWS} {layout.lines}. Split it{layout.split_by} and import each part.")
+            lines.append(Line(reader.line_num, _trimmed(cells, layout.columns)))
     except csv.Error:
         raise FileRefused(f"Line {reader.line_num} could not be read: check its quotation marks.") from None
     if not lines:
-        raise FileRefused("This file has no nurses below its first line. Add one nurse per line.")
+        raise FileRefused(f"This file has no {layout.lines} below its first line. Add one {layout.a_line} per line.")
     return lines
 
 
-def _parsed(adapter: TypeAdapter, value: str):
+def wrong_cell_count(line: Line, layout: Layout) -> Problem | None:
+    """The cells cannot be matched to the columns, so nothing can be said about any one of them."""
+    if len(line.cells) == len(layout.columns):
+        return None
+    return Problem(None, f"This line has {len(line.cells)} cells, not {len(layout.columns)}. "
+                         f"Put double quotes around {layout.quote_hint}.")
+
+
+def parsed(adapter: TypeAdapter, value: str):
     """The value as the rule for adding one nurse leaves it, or None when that rule refuses it."""
     try:
         return adapter.validate_python(value)
@@ -155,7 +178,7 @@ def _lines_by_hospital_id(lines: list[Line]) -> dict[str, list[int]]:
     Only possible ones, as the database is asked about these and cannot take a NUL."""
     seen: dict[str, list[int]] = {}
     for line in lines:
-        hospital_id = _parsed(_HOSPITAL_ID, line.cells[0].strip()) if len(line.cells) == len(COLUMNS) else None
+        hospital_id = parsed(HOSPITAL_ID, line.cells[0].strip()) if len(line.cells) == len(COLUMNS) else None
         if hospital_id:
             seen.setdefault(hospital_id.lower(), []).append(line.number)
     return seen
@@ -171,15 +194,13 @@ class _Standing:
 
 
 def _judged(line: Line, standing: _Standing) -> Row:
-    if len(line.cells) != len(COLUMNS):
-        # The cells cannot be matched to the columns, so nothing can be said about any one of them.
+    if problem := wrong_cell_count(line, NURSE_FILE):
         row = Row(line.number, *(line.cells + [""] * len(COLUMNS))[:len(COLUMNS)])
-        row.problems.append(Problem(None, f"This line has {len(line.cells)} cells, not {len(COLUMNS)}. "
-                                          "Put double quotes around a name that has a comma in it."))
+        row.problems.append(problem)
         return row
     row = Row(line.number, *(cell.strip() for cell in line.cells))  # `Row`'s fields are in the order of `COLUMNS`.
 
-    hospital_id = _parsed(_HOSPITAL_ID, row.hospital_id)
+    hospital_id = parsed(HOSPITAL_ID, row.hospital_id)
     if hospital_id is None:
         row.problems.append(Problem("hospital_id", "Use 1 to 150 letters, digits, dots, dashes and underscores."))
     else:
@@ -189,7 +210,7 @@ def _judged(line: Line, standing: _Standing) -> Row:
         if hospital_id.lower() in standing.taken:
             row.problems.append(Problem("hospital_id", f"{hospital_id} is already in use. Give this nurse another, or remove the line if they are already added."))
 
-    full_name = _parsed(_FULL_NAME, row.full_name)
+    full_name = parsed(_FULL_NAME, row.full_name)
     if full_name is None:
         row.problems.append(Problem("full_name", "Enter a full name of at most 200 characters."))
 
@@ -205,7 +226,7 @@ def _judged(line: Line, standing: _Standing) -> Row:
     else:
         row.unit = unit.name
 
-    start_date = _parsed(_START_DATE, row.start_date)
+    start_date = parsed(_START_DATE, row.start_date)
     if start_date is None:
         row.problems.append(Problem("start_date", f"Use a date as YYYY-MM-DD, between {FIRST_YEAR} and {LAST_YEAR}."))
 

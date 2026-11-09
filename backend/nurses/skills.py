@@ -5,6 +5,7 @@ import datetime as dt
 from uuid import UUID
 
 from django.db.models import Prefetch
+from django.utils import timezone
 from ninja import Field, Schema
 
 from nurses.models import NurseSkill
@@ -39,3 +40,9 @@ def skills_of(nurse) -> list[NurseSkillRow]:
     if rows is None:
         rows = NurseSkill.objects.current().filter(nurse=nurse).select_related("skill")
     return as_rows(rows)
+
+
+def end_record(row: NurseSkill, user) -> None:
+    """A renewal or a removal ends her record of a skill rather than rewriting or deleting it (`NurseSkill`)."""
+    row.removed_at, row.removed_by = timezone.now(), user
+    row.save(update_fields=["removed_at", "removed_by"])
