@@ -22,6 +22,7 @@ disagree, the documents win.
 | 8 | Full runs: a priced cap per nurse a month (added 2026-11-08) | `specs/full-runs.md` | 47, 48 | GLOSSARY: Run, Full run |
 | 9 | Overtime share: a unit's overtime spread fairly (added 2026-11-09) | `specs/overtime-share.md` | 49, 50, 51 | GLOSSARY: Overtime share |
 | 10 | Probation: a newly hired nurse beside a preceptor, counted toward nothing (added 2026-11-09) | `specs/probation.md` | 52–56 | GLOSSARY: Probation, Nurse on probation, Preceptor; ADR 0014 |
+| 11 | Certificates and licences: kinds of skill, with an identifier and an issue date (added 2026-11-09) | `specs/certificates-and-licences.md` | tickets to come, from 58 | GLOSSARY: Skill (widened), Certificate, Licence, Identifier; the Deputy CNO records |
 
 ## The ticket graph
 
