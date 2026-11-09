@@ -278,7 +278,7 @@ def test_result_roster_and_carry_over_round_trip():
     assert set(res["penalties"]) == {"night_rest", "shift_switch", "dept_overtime", "nurse_overtime",
                                      "nurse_shortfall", "avoidable_shortfall", "fair_day", "fair_night", "fair_weekend",
                                      "score_deficit", "score_spread", "excess_weekend", "undesired_day",
-                                     "desired_day", "change", "skill_need"}
+                                     "desired_day", "change", "skill_need", "excess_full_run"}
     share, per = F.share_m(q), F.friday_slots_m(q)
     need = needed_history(q.department, q.general)
     assert need == 8

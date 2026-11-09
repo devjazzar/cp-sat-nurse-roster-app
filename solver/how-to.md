@@ -145,6 +145,7 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `desired_day` | day a nurse asked to work but is off; 2 for a nurse with `preferences_not_kept` above 0. |
 | `change` | cell that differs from the `published` roster in a re-plan. |
 | `skill_shortfall` | nurse a skill need is short on one shift-day (only when `skill_needs_hard` is false; the rule is `skill_need`). |
+| `excess_full_run` | full run a nurse works above `max_full_runs`. Optional: absent means 0. |
 
 ### 2.3 `department`: the unit's rules
 
@@ -202,6 +203,7 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `carry_fairness`, `carry_cap` | Let last month's `night_balance` / `friday_balance` shift this month's fair targets, by at most `carry_cap` shifts. |
 | `max_consecutive_shifts` | Hard: longest run of worked days (a "cycle"); 0 = no limit. |
 | `double_cycle_rest` | Hard: cycle, one day off, cycle ⇒ at least this many days off afterwards. |
+| `max_full_runs` | Soft: full runs (exactly `max_consecutive_shifts` worked days in a row, leave ending a run as a day off does) a nurse may work per month before `excess_full_run` applies; a whole number 0..31. Optional: absent or `null` means no cap. A run counts in the month that holds its last day (one begun in the history counts, one ending on the month's last day does not). Nothing is priced while `max_consecutive_shifts` is 0 or 1. |
 | `max_weekends` | Soft: weekend days a nurse may work per month before `excess_weekend` applies. |
 | `no_mixed_blocks` | Hard: consecutive worked days are all day shifts or all night shifts. |
 | `max_switches`, `switches_hard` | Day/night switches allowed per month (the month boundary counts); hard, or priced by `shift_switch`. |

@@ -86,12 +86,15 @@ def ccu(omar):
 # The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
 # deletes this set and its subtraction below.
 VERSION_2_SKILL_FIELDS = {"skill_needs", "skill_needs_hard"}
+# The solver's full-run field (ticket 47) that the app's blocks do not carry yet: ticket 48 adds it to the blocks and deletes
+# this set and its subtraction below.
+FULL_RUN_FIELDS = {"max_full_runs"}
 
 
 @pytest.mark.parametrize("schema", [UnitRules, UnitRulesAnswer])
 def test_both_schemas_are_every_field_of_the_solvers_block_but_its_name(schema):
     assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"} \
-        - VERSION_2_SKILL_FIELDS
+        - VERSION_2_SKILL_FIELDS - FULL_RUN_FIELDS
 
 
 @pytest.mark.parametrize("schema", [HeadcountRule, HeadcountAnswer])

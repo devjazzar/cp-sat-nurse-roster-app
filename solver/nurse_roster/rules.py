@@ -101,6 +101,8 @@ _RULES = [
          lambda p: p.department.score_balance),
     Rule("excess_weekend", SOFT, "excess_weekend", "weekend day above the maximum",
          lambda p: True),
+    Rule("excess_full_run", SOFT, "excess_full_run", "full run above the maximum",
+         lambda p: p.department.max_full_runs is not None and p.department.max_consecutive_shifts > 1),
     Rule("undesired_day", SOFT, "undesired_day", "requested-off day worked",
          lambda p: any(nu.undesired_days for nu in p.nurses)),
     Rule("desired_day", SOFT, "desired_day", "requested-work day not worked",

@@ -16,3 +16,13 @@
 - [ ] `docs/ARCHITECTURE.md` names the rule beside the other run rules and the weight beside the others; the OpenAPI document and the generated client regenerated
 
 ## Comments
+
+**From ticket 47 (2026-11-09), the solver's side.** The names are the department's `max_full_runs` (a whole number 0..31,
+or null for no cap) and the weight `excess_full_run`; the rule's id is `excess_full_run`, as `excess_weekend` is
+`max_weekends`'s. Both are optional in either request version, so the app may keep writing version 1 and add them. Ticket 47
+narrowed three backend test files that hold the app's blocks to the solver's: `units/tests/test_unit_rules.py` and
+`units/tests/test_rules_api.py` subtract `FULL_RUN_FIELDS = {"max_full_runs"}`, `hospital/tests/test_rules.py`
+subtracts `FULL_RUN_FIELDS = {"excess_full_run"}` from the weights, each with a comment that this ticket deletes the set
+and its subtraction. The match reads "Layan: 5 full runs of 3 shifts, max 3" (nurse set, no date, amount the runs above the
+cap). On ER's sample month the spec's weight of 4 did not always hold the cap in a 10 s search (a nurse left at four or
+five, priced); see ticket 47's comment before choosing the default or the solve's time.

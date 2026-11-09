@@ -30,7 +30,7 @@ MAX_HOURS = 10 ** 6      # overtime caps, YTD overtime, a carried hours balance
 MAX_PARAM = 1000         # rule counts (max in a row, switches), balances, caps
 MAX_REST_DAYS = 7        # night_rest_days: its clause encoding lists every day of the gap, so
                          # the model grows with the square of it; a week is beyond any real rule
-SCHEMA_VERSION = 5       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
+SCHEMA_VERSION = 6       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
                          # explicit; no migration from 1 or 2 (they relied on defaults). 4 (2026-11-08):
                          # a nurse's optional `preferences_not_kept` (absent = 0) doubles the price of
                          # her undesired and desired days (ADR 0013); a version-3 file is refused
@@ -39,7 +39,11 @@ SCHEMA_VERSION = 5       # of the problem JSON. 3 (2026-11-03): every rule, swit
                          # (absent = no record), the department's `skill_needs` and `skill_needs_hard`,
                          # the general `required_skills` and `weights.skill_shortfall`, all but the
                          # first required; a version-4 file is refused like any other (the request
-                         # loader reads its version 1 as version 2 with no skills)
+                         # loader reads its version 1 as version 2 with no skills). 6 (2026-11-09):
+                         # full runs: the department's `max_full_runs` (null = no cap) and
+                         # `weights.excess_full_run`, both required; a version-5 file is refused like
+                         # any other (the request takes both as optional, in either of its versions)
+MAX_FULL_RUNS = 31       # max_full_runs: a month holds at most 31 days
 MAX_SKILLS = 100         # skills a nurse holds, skills required to work, a unit's skill needs
 MAX_NAME = 100           # nurse ids and shift names (the CSV reader's field limit is 128 kB)
 _MONTH = re.compile(r"(\d{4})-(\d{2})")
@@ -147,6 +151,7 @@ class Weights:
     desired_day: int             # per requested-work day not worked
     change: int                  # per cell that differs from the published roster (re-solves)
     skill_shortfall: int = 0     # per nurse a soft skill need is short on a shift-day (rule skill_need)
+    excess_full_run: int = 0     # per full run a nurse works above the department maximum
 
 
 @dataclass(slots=True)
@@ -224,6 +229,8 @@ class DepartmentRules:
     switches_hard: bool                  # True: hard cap; False: soft, weight shift_switch
     skill_needs: list[SkillNeed] = field(default_factory=list)  # several per unit, one per shift and skill
     skill_needs_hard: bool = True        # True: every need is hard; False: soft, weight skill_shortfall
+    max_full_runs: int | None = None     # soft: full runs (exactly max_consecutive_shifts in a row) a nurse
+                                         # works per month, 0..31; None = no cap (full_runs)
 
 
 @dataclass(slots=True)
@@ -558,6 +565,10 @@ class Problem:
         for name in ("max_consecutive_shifts", "double_cycle_rest", "max_weekends", "max_switches"):
             if not _is_int(getattr(dep, name)) or not 0 <= getattr(dep, name) <= MAX_PARAM:
                 raise err(f"department.{name} must be an integer within 0..{MAX_PARAM}")
+        if dep.max_full_runs is not None and \
+                (not _is_int(dep.max_full_runs) or not 0 <= dep.max_full_runs <= MAX_FULL_RUNS):
+            raise err(f"department.max_full_runs must be a whole number within 0..{MAX_FULL_RUNS} or null, "
+                      f"got {dep.max_full_runs!r}")
         if not _is_int(dep.night_rest_days) or not 0 <= dep.night_rest_days <= MAX_REST_DAYS:
             raise err(f"department.night_rest_days must be an integer within 0..{MAX_REST_DAYS}")
         for name in ("score_target", "score_target_weekend", "score_band_hi", "score_band_hi_weekend"):
