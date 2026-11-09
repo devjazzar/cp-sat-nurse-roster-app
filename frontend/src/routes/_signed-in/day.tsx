@@ -118,7 +118,9 @@ function UnitRows({ unit, columns, date }: { unit: DayUnit; columns: DayColumn[]
 function DayPage() {
   const { date } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
-  const day = useGetHospitalDay(date ? { date } : undefined, { query: { placeholderData: keepPreviousData } })
+  // No polling: it reads on load and on a date change, and a reload is the refresh (not a return to the window).
+  const day = useGetHospitalDay(date ? { date } : undefined,
+    { query: { placeholderData: keepPreviousData, refetchOnWindowFocus: false, refetchOnReconnect: false } })
   const answer = day.data
   /** The day asked for: while it loads, the one before stays shown, but the controls move on from the new one. */
   const asked = date ?? answer?.date ?? ""
