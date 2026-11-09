@@ -34,8 +34,8 @@ const lineCount = (n: number) => count(n, "line", "lines")
 /** What saving does with a row, in the page's words. */
 function changeWords(row: SkillImportRow) {
   switch (row.change) {
-    case "record": return "Recorded"
-    case "renew": return row.held_expiry ? `Renewed, was until ${shortDay(row.held_expiry)}` : "Renewed"
+    case "record": return "New"
+    case "renew": return row.held_expiry ? `Renewal, was until ${shortDay(row.held_expiry)}` : "Renewal"
     case "none": return "Already recorded"
     default: return ""
   }
@@ -61,7 +61,7 @@ function RowsTable({ rows, label }: { rows: SkillImportRow[]; label: string }) {
       <TableHeader>
         <TableRow>
           <TableHead>Line</TableHead>
-          {hasProblems ? <TableHead>Problems</TableHead> : <TableHead>When saved</TableHead>}
+          {hasProblems ? <TableHead>Problems</TableHead> : <TableHead>Change</TableHead>}
           <TableHead>Hospital ID</TableHead>
           <TableHead>Nurse</TableHead>
           <TableHead>Skill</TableHead>

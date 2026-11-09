@@ -3807,8 +3807,8 @@ describe("importing skills", () => {
     expect(screen.getByText("Saving records 1 skill and renews 1 skill. Nothing is saved until you do. 1 line says what is already recorded.")).toBeInTheDocument()
     const lines = within(screen.getByRole("region", { name: "Lines of the file" })).getAllByRole("row").slice(1)
     expect(lines.map((line) => within(line).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
-      ["2", "Renewed, was until 31 Dec 2026", "h1", "Amal Saleh", "BLS", "2027-12-31"],
-      ["3", "Recorded", "h2", "Badr Omar", "ACLS", "2027-03-01"],
+      ["2", "Renewal, was until 31 Dec 2026", "h1", "Amal Saleh", "BLS", "2027-12-31"],
+      ["3", "New", "h2", "Badr Omar", "ACLS", "2027-03-01"],
       ["4", "Already recorded", "h1", "Amal Saleh", "ICU", ""],
     ])
 
