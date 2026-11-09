@@ -21,6 +21,7 @@ disagree, the documents win.
 | 7 | Ramadan and the Eids from the Umm al-Qura calendar | `specs/ramadan-and-eid-from-the-calendar.md` | 44, 45, 46 | none |
 | 8 | Full runs: a priced cap per nurse a month (added 2026-11-08) | `specs/full-runs.md` | 47, 48 | GLOSSARY: Run, Full run |
 | 9 | Overtime share: a unit's overtime spread fairly (added 2026-11-09) | `specs/overtime-share.md` | 49, 50, 51 | GLOSSARY: Overtime share |
+| 10 | Probation: a newly hired nurse beside a preceptor, counted toward nothing (added 2026-11-09) | `specs/probation.md` | to be cut, from 52 | GLOSSARY: Probation, Nurse on probation, Preceptor; ADR 0014 |
 
 ## The ticket graph
 
@@ -37,12 +38,13 @@ shows open covers if covers exist by then, and Web Push (40–42) pushes a cover
 - **Ramadan:** 44 → 45; 46 beside them.
 - **Full runs:** 47 → 48.
 - **Overtime share:** 47 → 49 → 50 → 51 (49 after 47: both change the solver's input).
+- **Probation:** tickets not cut yet; its solver ticket after 49, its preceptor check after 33.
 
 ## The order to build in
 
 The order the features were proposed in, by value: cover first (the most-used thing in nurse scheduling apps is picking up
 an open shift), then preferences (the solver already prices them), then skills (the largest; touches the solver, ADR 0010),
-then the Day view, Web Push, the comparison, and the calendar. Full runs and the overtime share, added after the seven, join the end of the queue in that order. Tickets with no blocker from different features can run at the
+then the Day view, Web Push, the comparison, and the calendar. Full runs, the overtime share and probation, added after the seven, join the end of the queue in that order. Tickets with no blocker from different features can run at the
 same time in their own sessions; two tickets of one feature go in order.
 
 ## How a ticket is built

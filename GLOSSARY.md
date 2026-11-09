@@ -35,6 +35,18 @@ _Avoid_: move, reassignment, secondment
 From a given month on, the unit a nurse belongs to and the shifts she may work there. The latest that has begun is in force; a later one is a transfer still to come.
 _Avoid_: assignment, membership record
 
+**Probation**:
+A newly hired nurse's first months, counted in whole calendar months from her start date: one to three as her unit manager sets, extended to six at most. It ends on a month's last day, by itself or earlier by her unit manager, and follows her across a transfer.
+_Avoid_: orientation, trial period, preceptorship
+
+**Nurse on probation**:
+A nurse during her probation. She works day shifts only, beside her preceptor on the days her preceptor works one, with no overtime beyond rounding her hours up to a whole shift, and counts toward nothing about a shift: a shift is fully staffed without her.
+_Avoid_: trainee, orientee, preceptee, new hire, probationer; and "regular nurse" for one whose probation is over
+
+**Preceptor**:
+The nurse of her unit a nurse on probation works beside, one nurse on probation at a time. She holds a skill the catalogue marks as letting a nurse precept.
+_Avoid_: mentor, trainer, buddy
+
 **Hospital ID**:
 The hospital's own identifier for a nurse. It is her username and the name she carries on every roster.
 _Avoid_: employee number, badge number, staff number
@@ -264,7 +276,7 @@ A nurse who may lead a shift. A unit may require one on every shift.
 _Avoid_: in-charge, senior
 
 **Skill**:
-A named ability or certificate from the hospital's skill catalogue, which the CNO keeps, that a nurse may hold and a skill need may count. Whether it expires, and whether it is required to work, is said in the catalogue.
+A named ability or certificate from the hospital's skill catalogue, which the CNO keeps, that a nurse may hold and a skill need may count. Whether it expires, whether it is required to work, and whether it lets a nurse precept, is said in the catalogue.
 _Avoid_: credential, certification, qualification, licence, competency
 
 **Expiry**:
