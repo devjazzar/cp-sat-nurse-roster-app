@@ -120,9 +120,10 @@ function UnitOptions({ units }: { units: UnitSchema[] }) {
   )
 }
 
+/** What an answer says when it is not about a field (a 409 explains itself), or that it did not work. */
 function Unexpected({ error }: { error: unknown }) {
   return error && serverErrors(error).length === 0
-    ? <p role="alert" className="text-sm text-destructive">{COULD_NOT_SAVE}</p>
+    ? <p role="alert" className="text-sm text-destructive">{plainRefusal(error) ?? COULD_NOT_SAVE}</p>
     : null
 }
 
@@ -407,12 +408,7 @@ function ResetDialog({ nurse, onCancel, onReset }: { nurse: NurseRow | null; onC
 
 const EXPIRY_HINT = "The last day it counts."
 
-function PlainRefusal({ error }: { error: unknown }) {
-  if (!error) return null
-  const said = plainRefusal(error)
-  if (!said && serverErrors(error).length > 0) return null
-  return <p role="alert" className="text-sm text-destructive">{said ?? COULD_NOT_SAVE}</p>
-}
+const needsExpiry = (name: string) => `${name} expires. Enter the last day it counts.`
 
 const heldSchema = z.object({ expiry: z.string() })
 type Held = z.infer<typeof heldSchema>
@@ -430,7 +426,7 @@ function HeldSkill({ nurse, skill, onSaid, onGone }: { nurse: NurseRow; skill: N
 
   const submit = form.handleSubmit(({ expiry }) => {
     if (!expiry) {
-      form.setError("expiry", { message: `${skill.name} expires. Enter the last day it counts.` }, { shouldFocus: true })
+      form.setError("expiry", { message: needsExpiry(skill.name) }, { shouldFocus: true })
       return
     }
     remove.reset()
@@ -465,7 +461,7 @@ function HeldSkill({ nurse, skill, onSaid, onGone }: { nurse: NurseRow; skill: N
           <FormField id={`expiry-${skill.skill_id}`} label={`Expiry of ${skill.name}`} type="date" description={EXPIRY_HINT}
             registration={form.register("expiry")} error={errors.expiry} />
         )}
-        <PlainRefusal error={renew.error ?? remove.error} />
+        <Unexpected error={renew.error ?? remove.error} />
         <div className="flex flex-wrap gap-2">
           {mayRenew && <Button type="submit" size="sm" disabled={pending} aria-label={`Save expiry of ${skill.name}`}>Save expiry</Button>}
           <Button type="button" size="sm" variant="outline" disabled={pending} aria-label={`Take off ${skill.name}`} onClick={takeOff}>Take off</Button>
@@ -490,7 +486,7 @@ function RecordSkillForm({ nurse, onSaid }: { nurse: NurseRow; onSaid: (message:
 
   const submit = form.handleSubmit(({ skill_id, expiry }) => {
     if (chosen?.expires && !expiry) {
-      form.setError("expiry", { message: `${chosen.name} expires. Enter the last day it counts.` }, { shouldFocus: true })
+      form.setError("expiry", { message: needsExpiry(chosen.name) }, { shouldFocus: true })
       return
     }
     record.mutate({ nurseId: nurse.id, data: { skill_id, expiry: chosen?.expires ? expiry : null } }, {
@@ -709,7 +705,7 @@ function NursesPage() {
                       <TableCell><Status nurse={nurse} isCno={isCno} /></TableCell>
                       <TableCell><SkillList skills={nurse.skills} /></TableCell>
                       <TableCell>
-                        {/* Two by two for the CNO, because four in a line push the last out of view on a laptop. */}
+                        {/* Two by two for the CNO, because four or five in a line push the last out of view on a laptop. */}
                         <div className={isCno ? "ml-auto grid w-fit grid-cols-[auto_auto] gap-2" : "flex justify-end"}>
                           {isCno && (
                             <>

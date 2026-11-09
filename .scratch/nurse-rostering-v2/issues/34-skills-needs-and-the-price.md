@@ -37,3 +37,8 @@ through every unit's `skill_needs` when `"name" in new`, beside the `SkillRename
 rename log is there for stored solve inputs, read on the way out (spec: a map of old to current names applied on read).
 No other skill may take a name a skill used to hold (`_refuse_a_taken_name`), so that map is one to one. The audit action
 for a catalogue change is `skill.updated` (the ticket's word; every other catalogue uses `.changed`).
+
+**From ticket 33 (2026-11-09):** the catalogue's update action is now `skill.changed` (the user's decision on ticket 32's
+review), so read the line above with that name. `update_skill` now also refuses `expires` turned on while a current
+`nurses.NurseSkill` of it has no expiry (`_refuse_records_without_expiry`, after `differing`, under the same lock): put the
+retire refusal beside it. A nurse's record is keyed by the skill's id, so a rename needs carrying through unit rules only.

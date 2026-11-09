@@ -326,7 +326,7 @@ function RosteringAttributesPage() {
       <p className="text-muted-foreground">
         What the solver needs to know about each nurse, and where each one stands when they are added.
         {!mayChange && " Only the unit's manager can change these."}
-        {mayChange && " Gender and skills are the CNO's to set. Nurses do not see any of this but their own skills."}
+        {mayChange && " Gender and skills are the CNO's to set. Of all this, nurses see only their own skills."}
         {!mayChange && " The CNO sets skills on the Nurses page."}
       </p>
       {units.isPending && <p>Loading…</p>}

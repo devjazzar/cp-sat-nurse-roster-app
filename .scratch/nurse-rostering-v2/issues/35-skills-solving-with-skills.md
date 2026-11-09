@@ -14,3 +14,12 @@
 - [ ] The failure kind `refused` covers a version 2 input the solver refuses, read as rules to review.
 - [ ] The architecture document's solve input, lifecycle and "what a solve shows" paragraphs say so.
 - [ ] Tests at the web API seam with the scripted solver for the assembled input (each clamping case, a nurse with no record, a renewed skill), changes since, the words in dates, submit and approval refusals; a few end to end with the real solver in process on a small month where a need or a bar decides the roster.
+
+## Comments
+
+**From ticket 33 (2026-11-09):** a nurse's skills are `nurses.models.NurseSkill` rows: `NurseSkill.objects.current()` are
+the ones that count, one per nurse and skill, `expiry` the last day it counts. Read `expiry` only when `skill.expires` is
+on: turning `expires` off keeps the recorded dates, which must then count for nothing (the API already sends null there,
+`nurses.skills.as_rows`). A retired skill's records stay current until the CNO takes them off. Each write audits
+`nurse.skills_changed` and ends a row rather than rewriting it, so "skills changed since the solve" can compare what the month
+sees with the stored input, or look for rows recorded or removed after the solve.

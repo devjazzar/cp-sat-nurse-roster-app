@@ -15,3 +15,6 @@
 - [ ] `docs/ARCHITECTURE.md` names the mark where it names the other two; the OpenAPI document and the generated client regenerated; the migration
 
 ## Comments
+
+**From ticket 33 (2026-11-09):** the catalogue's update action is `skill.changed` now, not `skill.updated` (the user's
+decision on ticket 32's review); the criterion's `skill.updated` means that entry.

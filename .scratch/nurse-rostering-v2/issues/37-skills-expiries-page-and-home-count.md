@@ -12,3 +12,9 @@
 - [ ] The horizon is fixed at 90 days; no job, no notification, no export.
 - [ ] The architecture document's screens-per-role paragraph names the page.
 - [ ] Tests at the web API seam for each role, the three row kinds, the horizon's edge, a deactivated nurse and one past her end date, and the home count; frontend tests for the page and the count.
+
+## Comments
+
+**From ticket 33 (2026-11-09):** no page says yet that an expiry has passed: the Nurses page, Rostering attributes and My
+month show "until 30 Jun 2027" and a Retired badge only, because "expired" needs the hospital's today, which this page will
+compute. Records are `nurses.models.NurseSkill.objects.current()`; for a kind whose `expires` is off, ignore the kept date.
