@@ -36,6 +36,8 @@ DEFAULT_UNIT_RULES = {
     "no_mixed_blocks": True,
     "max_switches": 2,
     "switches_hard": False,
+    "skill_needs": [],
+    "skill_needs_hard": True,
 }
 
 
@@ -68,7 +70,15 @@ def with_shift_codes(rules: dict, codes: dict[str, str | None]) -> dict:
         "day_shift": code(rules["day_shift"]) or "",
         "headcounts": [headcount | {"shift": code(headcount["shift"]), "also_counts": named(headcount["also_counts"])}
                        for headcount in rules["headcounts"] if code(headcount["shift"]) is not None],
+        "skill_needs": [need | {"shift": code(need["shift"])} for need in rules["skill_needs"]
+                        if code(need["shift"]) is not None],
     }
+
+
+def with_skill_renamed(rules: dict, old_name: str, new_name: str) -> dict:
+    """The rules with every skill need on `old_name` naming `new_name` instead. Returns a new block."""
+    return rules | {"skill_needs": [need | {"skill": new_name} if need["skill"] == old_name else need
+                                    for need in rules["skill_needs"]]}
 
 
 def units_using(code: str) -> list[str]:
@@ -77,6 +87,13 @@ def units_using(code: str) -> list[str]:
     places a block names a shift are all within `shifts`. An archived unit rosters nothing more, so it does not count."""
     return [unit.name for unit in Unit.objects.filter(archived=False)
             if code in (*unit.rules["shifts"], unit.rules["night_shift"], unit.rules["day_shift"])]
+
+
+def units_needing(skill: str) -> list[str]:
+    """The names of the live units with a skill need on this skill. An archived unit rosters nothing more, so it does
+    not count."""
+    return [unit.name for unit in Unit.objects.filter(archived=False).order_by("name")
+            if any(need["skill"] == skill for need in unit.rules["skill_needs"])]
 
 
 def _current_code(default_code: str) -> str | None:

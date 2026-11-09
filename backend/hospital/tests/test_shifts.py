@@ -10,6 +10,7 @@ from accounts.models import Role
 from audit.models import AuditEntry
 from hospital.models import HospitalSettings
 from hospital.rules import DEFAULT_RULES, general_block
+from hospital.tests.test_rules import version_2
 
 pytestmark = pytest.mark.django_db
 
@@ -84,7 +85,7 @@ def test_the_catalogues_hours_and_the_seeded_rules_pass_the_solver(catalogue, si
 
     general = general_block(HospitalSettings.load(), shift_hours=hours)
 
-    assert load_request(er_request() | {"general": general}).problem.general.shift_hours == hours
+    assert load_request(version_2(er_request()) | {"general": general}).problem.general.shift_hours == hours
 
 
 # ---- the list and the form ------------------------------------------------------------------------
@@ -163,7 +164,7 @@ def test_what_this_api_accepts_the_solver_accepts_too(signed_in, catalogue, hour
 
     general = general_block(HospitalSettings.load(), shift_hours=shift_hours)
 
-    assert load_request(er_request() | {"general": general}).problem.general.shift_hours["a-1_Z"] == hours
+    assert load_request(version_2(er_request()) | {"general": general}).problem.general.shift_hours["a-1_Z"] == hours
 
 
 # ---- a code rename --------------------------------------------------------------------------------

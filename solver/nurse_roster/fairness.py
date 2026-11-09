@@ -4,7 +4,7 @@ Integer units: shares and targets in thousandths of a shift, balances in tenths.
 """
 from __future__ import annotations
 
-from .problem import Nurse, Problem
+from .problem import Nurse, Problem, barred_days
 
 
 def fair_shifts(p: Problem) -> list[str]:
@@ -57,8 +57,9 @@ def coverage(p: Problem) -> dict[str, int]:
 
 
 def weekend_available(p: Problem, nurse: Nurse) -> tuple[int, int]:
-    """(weekend days the nurse is not on leave, weekend days in the month)."""
-    leave = set(nurse.unavailable)
+    """(weekend days the nurse is not on leave, weekend days in the month). A day barred by an expired
+    required skill (`barred_days`) counts as leave here: she cannot work it either."""
+    leave = set(nurse.unavailable) | set(barred_days(p, nurse))
     we = [d for d in range(p.days) if p.is_weekend(d)]
     return sum(1 for d in we if d not in leave), len(we)
 
@@ -75,7 +76,7 @@ def friday_slots_m(p: Problem) -> float:
 
 def friday_expected_m(p: Problem, nurse: Nurse | None = None, per: float | None = None) -> int:
     """Fair number of weekend (Friday) shifts per nurse, in thousandths of a shift. For a
-    given nurse it is prorated by the weekend days she is not on leave, so a month of leave
+    given nurse it is prorated by the weekend days she is not on leave or barred, so a month of leave
     neither penalises her nor builds a Friday debt in the carried balance. With overlapping
     coverage (`also_counts`) one person can satisfy several headcounts, so the summed
     midpoints are divided by that multiplicity: the share is of people, not of headcounts.

@@ -109,7 +109,9 @@ with transaction.atomic():
     carla = User.objects.create_user("carla", PASSWORD, Role.CNO, full_name=NAMES["carla"])
     hala = User.objects.create_user("hala", PASSWORD, Role.DEPUTY_CNO, full_name=NAMES["hala"])
     settings = HospitalSettings.load()
-    settings.rules = {k: v for k, v in copy.deepcopy(SAMPLE["general"]).items() if k != "shift_hours"}
+    # The catalogues give a solve input its shift hours and required skills.
+    settings.rules = {k: v for k, v in copy.deepcopy(SAMPLE["general"]).items()
+                      if k not in ("shift_hours", "required_skills")}
     settings.save()
 
     er = Unit.objects.create(name="ER", manager=mona, rules=rules_times(SAMPLE["department"], 1))

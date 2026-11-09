@@ -7205,6 +7205,12 @@
             "title": "Excess Full Run",
             "type": "integer"
           },
+          "skill_shortfall": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Skill Shortfall",
+            "type": "integer"
+          },
           "shift_switch": {
             "maximum": 1000000,
             "minimum": 0,
@@ -7243,6 +7249,7 @@
           "score_spread",
           "excess_weekend",
           "excess_full_run",
+          "skill_shortfall",
           "shift_switch",
           "undesired_day",
           "desired_day",
@@ -7892,6 +7899,34 @@
         "title": "ShiftChoice",
         "type": "object"
       },
+      "SkillNeedAnswer": {
+        "properties": {
+          "shift": {
+            "title": "Shift",
+            "type": "string"
+          },
+          "skill": {
+            "title": "Skill",
+            "type": "string"
+          },
+          "weekday_min": {
+            "title": "Weekday Min",
+            "type": "integer"
+          },
+          "weekend_min": {
+            "title": "Weekend Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "shift",
+          "skill",
+          "weekday_min",
+          "weekend_min"
+        ],
+        "title": "SkillNeedAnswer",
+        "type": "object"
+      },
       "UnitRulesAnswer": {
         "description": "Not the request's schema: `shifts` may be empty and `night_shift` and `day_shift` may be \"\" in a unit whose\ndefault shifts were retired before it was created (`units.rules.seeded_rules`), and that unit must still open, since\nthis is where it gets fixed. tests/test_rules_api.py holds both schemas to the solver's fields.",
         "properties": {
@@ -8015,6 +8050,17 @@
           "switches_hard": {
             "title": "Switches Hard",
             "type": "boolean"
+          },
+          "skill_needs": {
+            "items": {
+              "$ref": "#/components/schemas/SkillNeedAnswer"
+            },
+            "title": "Skill Needs",
+            "type": "array"
+          },
+          "skill_needs_hard": {
+            "title": "Skill Needs Hard",
+            "type": "boolean"
           }
         },
         "required": [
@@ -8044,7 +8090,9 @@
           "max_full_runs",
           "no_mixed_blocks",
           "max_switches",
-          "switches_hard"
+          "switches_hard",
+          "skill_needs",
+          "skill_needs_hard"
         ],
         "title": "UnitRulesAnswer",
         "type": "object"
@@ -8083,6 +8131,14 @@
             },
             "title": "Active Shifts",
             "type": "array"
+          },
+          "active_skills": {
+            "description": "The skills a skill need may name, in the catalogue's order.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Active Skills",
+            "type": "array"
           }
         },
         "required": [
@@ -8092,7 +8148,8 @@
           "preference_cap",
           "default_time_limit",
           "time_limit_cap",
-          "active_shifts"
+          "active_shifts",
+          "active_skills"
         ],
         "title": "UnitRulesState",
         "type": "object"
@@ -8145,6 +8202,40 @@
           "also_counts"
         ],
         "title": "HeadcountRule",
+        "type": "object"
+      },
+      "SkillNeedRule": {
+        "additionalProperties": false,
+        "description": "At least so many nurses holding `skill` on exactly `shift`, each weekday and each weekend day.",
+        "properties": {
+          "shift": {
+            "title": "Shift",
+            "type": "string"
+          },
+          "skill": {
+            "title": "Skill",
+            "type": "string"
+          },
+          "weekday_min": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Weekday Min",
+            "type": "integer"
+          },
+          "weekend_min": {
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Weekend Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "shift",
+          "skill",
+          "weekday_min",
+          "weekend_min"
+        ],
+        "title": "SkillNeedRule",
         "type": "object"
       },
       "UnitRules": {
@@ -8296,6 +8387,18 @@
           "switches_hard": {
             "title": "Switches Hard",
             "type": "boolean"
+          },
+          "skill_needs": {
+            "items": {
+              "$ref": "#/components/schemas/SkillNeedRule"
+            },
+            "maxItems": 100,
+            "title": "Skill Needs",
+            "type": "array"
+          },
+          "skill_needs_hard": {
+            "title": "Skill Needs Hard",
+            "type": "boolean"
           }
         },
         "required": [
@@ -8325,7 +8428,9 @@
           "max_full_runs",
           "no_mixed_blocks",
           "max_switches",
-          "switches_hard"
+          "switches_hard",
+          "skill_needs",
+          "skill_needs_hard"
         ],
         "title": "UnitRules",
         "type": "object"

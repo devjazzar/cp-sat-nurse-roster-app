@@ -320,7 +320,10 @@ Skills (2026-11-09, request version 2, ADR 0010 of the app), two rules in the re
   nurse with no record of a required skill is not barred. A shift pinned on a barred free day is
   refused by `Problem.check` (as one on a leave day is). The match reads "skill expired: N01
   works D on day 15, BLS is required to work and its last day was day 14" ("was before the
-  month" for one expired earlier).
+  month" for one expired earlier). Fairness counts a barred day as leave (2026-11-09, the
+  user's decision at ticket 31's review of the app): her fair Friday share is prorated for the
+  weekend days she is barred from (`fairness.weekend_available`), so she pays no `fair_weekend`
+  and carries no lower `friday_balance` for Fridays she could not work.
 * Precheck: barred days count like leave in every capacity sum (per nurse and per day); a need
   whose skill no nurse holds on any free day; a need whose largest minimum exceeds the nurses who
   hold the skill and may work the shift; per free day, a minimum above the holders who may work

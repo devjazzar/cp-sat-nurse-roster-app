@@ -321,7 +321,7 @@ def test_a_version_2_input_is_solved_with_its_skills_and_scored_with_both_rules(
 
 # ---- full runs --------------------------------------------------------------------------------
 def test_the_sample_carries_the_full_run_cap_and_validate_prices_each_run_above_it(client, sample):
-    """The sample (fixtures/four_nurses.json, version 1) runs four shifts in a row and caps full runs at 3 a nurse, at 4
+    """The sample (fixtures/four_nurses.json, version 2 with no skills) runs four shifts in a row and caps full runs at 3 a nurse, at 4
     each above it. The solve's result prices the rule; a roster giving Amal six full runs (four days, a day off, five times
     over, and a day off to end the month) costs 3 x 4 for her, in her own explanation, in the solver's words."""
     solved = wait_for(client, client.post("/solve", json=sample).json()["job_id"], ended)["result"]

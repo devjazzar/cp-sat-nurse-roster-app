@@ -77,7 +77,7 @@ def test_the_solvers_own_sample_as_this_app_holds_it_comes_out_as_the_sample(er,
         # The chain carries the count of preferences not kept (ticket 28): 0, since none were ever priced.
         row["preferences_not_kept"] = 0
     assert solve_input["nurses"] == expected["nurses"]
-    assert (solve_input["version"], solve_input["month"], solve_input["ramadan_days"]) == (1, MONTH, [])
+    assert (solve_input["version"], solve_input["month"], solve_input["ramadan_days"]) == (2, MONTH, [])
     assert solve_input["solver"] == SAMPLE["solver"]
     assert [row.id for row in load_request(solve_input).problem.nurses] == ["Amal", "Badr", "Dana", "Emad"]
 

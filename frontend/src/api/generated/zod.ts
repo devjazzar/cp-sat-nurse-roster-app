@@ -420,6 +420,9 @@ export const getHospitalRulesResponseRulesWeightsExcessWeekendMax = 1000000;
 export const getHospitalRulesResponseRulesWeightsExcessFullRunMin = 0;
 export const getHospitalRulesResponseRulesWeightsExcessFullRunMax = 1000000;
 
+export const getHospitalRulesResponseRulesWeightsSkillShortfallMin = 0;
+export const getHospitalRulesResponseRulesWeightsSkillShortfallMax = 1000000;
+
 export const getHospitalRulesResponseRulesWeightsShiftSwitchMin = 0;
 export const getHospitalRulesResponseRulesWeightsShiftSwitchMax = 1000000;
 
@@ -460,6 +463,7 @@ export const GetHospitalRulesResponse = zod.object({
   "score_spread": zod.int().min(getHospitalRulesResponseRulesWeightsScoreSpreadMin).max(getHospitalRulesResponseRulesWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(getHospitalRulesResponseRulesWeightsExcessWeekendMin).max(getHospitalRulesResponseRulesWeightsExcessWeekendMax),
   "excess_full_run": zod.int().min(getHospitalRulesResponseRulesWeightsExcessFullRunMin).max(getHospitalRulesResponseRulesWeightsExcessFullRunMax),
+  "skill_shortfall": zod.int().min(getHospitalRulesResponseRulesWeightsSkillShortfallMin).max(getHospitalRulesResponseRulesWeightsSkillShortfallMax),
   "shift_switch": zod.int().min(getHospitalRulesResponseRulesWeightsShiftSwitchMin).max(getHospitalRulesResponseRulesWeightsShiftSwitchMax),
   "undesired_day": zod.int().min(getHospitalRulesResponseRulesWeightsUndesiredDayMin).max(getHospitalRulesResponseRulesWeightsUndesiredDayMax),
   "desired_day": zod.int().min(getHospitalRulesResponseRulesWeightsDesiredDayMin).max(getHospitalRulesResponseRulesWeightsDesiredDayMax),
@@ -535,6 +539,9 @@ export const updateHospitalRulesBodyWeightsExcessWeekendMax = 1000000;
 export const updateHospitalRulesBodyWeightsExcessFullRunMin = 0;
 export const updateHospitalRulesBodyWeightsExcessFullRunMax = 1000000;
 
+export const updateHospitalRulesBodyWeightsSkillShortfallMin = 0;
+export const updateHospitalRulesBodyWeightsSkillShortfallMax = 1000000;
+
 export const updateHospitalRulesBodyWeightsShiftSwitchMin = 0;
 export const updateHospitalRulesBodyWeightsShiftSwitchMax = 1000000;
 
@@ -574,6 +581,7 @@ export const UpdateHospitalRulesBody = zod.object({
   "score_spread": zod.int().min(updateHospitalRulesBodyWeightsScoreSpreadMin).max(updateHospitalRulesBodyWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(updateHospitalRulesBodyWeightsExcessWeekendMin).max(updateHospitalRulesBodyWeightsExcessWeekendMax),
   "excess_full_run": zod.int().min(updateHospitalRulesBodyWeightsExcessFullRunMin).max(updateHospitalRulesBodyWeightsExcessFullRunMax),
+  "skill_shortfall": zod.int().min(updateHospitalRulesBodyWeightsSkillShortfallMin).max(updateHospitalRulesBodyWeightsSkillShortfallMax),
   "shift_switch": zod.int().min(updateHospitalRulesBodyWeightsShiftSwitchMin).max(updateHospitalRulesBodyWeightsShiftSwitchMax),
   "undesired_day": zod.int().min(updateHospitalRulesBodyWeightsUndesiredDayMin).max(updateHospitalRulesBodyWeightsUndesiredDayMax),
   "desired_day": zod.int().min(updateHospitalRulesBodyWeightsDesiredDayMin).max(updateHospitalRulesBodyWeightsDesiredDayMax),
@@ -641,6 +649,9 @@ export const updateHospitalRulesResponseRulesWeightsExcessWeekendMax = 1000000;
 export const updateHospitalRulesResponseRulesWeightsExcessFullRunMin = 0;
 export const updateHospitalRulesResponseRulesWeightsExcessFullRunMax = 1000000;
 
+export const updateHospitalRulesResponseRulesWeightsSkillShortfallMin = 0;
+export const updateHospitalRulesResponseRulesWeightsSkillShortfallMax = 1000000;
+
 export const updateHospitalRulesResponseRulesWeightsShiftSwitchMin = 0;
 export const updateHospitalRulesResponseRulesWeightsShiftSwitchMax = 1000000;
 
@@ -681,6 +692,7 @@ export const UpdateHospitalRulesResponse = zod.object({
   "score_spread": zod.int().min(updateHospitalRulesResponseRulesWeightsScoreSpreadMin).max(updateHospitalRulesResponseRulesWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(updateHospitalRulesResponseRulesWeightsExcessWeekendMin).max(updateHospitalRulesResponseRulesWeightsExcessWeekendMax),
   "excess_full_run": zod.int().min(updateHospitalRulesResponseRulesWeightsExcessFullRunMin).max(updateHospitalRulesResponseRulesWeightsExcessFullRunMax),
+  "skill_shortfall": zod.int().min(updateHospitalRulesResponseRulesWeightsSkillShortfallMin).max(updateHospitalRulesResponseRulesWeightsSkillShortfallMax),
   "shift_switch": zod.int().min(updateHospitalRulesResponseRulesWeightsShiftSwitchMin).max(updateHospitalRulesResponseRulesWeightsShiftSwitchMax),
   "undesired_day": zod.int().min(updateHospitalRulesResponseRulesWeightsUndesiredDayMin).max(updateHospitalRulesResponseRulesWeightsUndesiredDayMax),
   "desired_day": zod.int().min(updateHospitalRulesResponseRulesWeightsDesiredDayMin).max(updateHospitalRulesResponseRulesWeightsDesiredDayMax),
@@ -1242,7 +1254,14 @@ export const GetUnitRulesResponse = zod.object({
   "max_full_runs": zod.int(),
   "no_mixed_blocks": zod.boolean(),
   "max_switches": zod.int(),
-  "switches_hard": zod.boolean()
+  "switches_hard": zod.boolean(),
+  "skill_needs": zod.array(zod.object({
+  "shift": zod.string(),
+  "skill": zod.string(),
+  "weekday_min": zod.int(),
+  "weekend_min": zod.int()
+})),
+  "skill_needs_hard": zod.boolean()
 }).describe('Not the request\'s schema: `shifts` may be empty and `night_shift` and `day_shift` may be "" in a unit whose\ndefault shifts were retired before it was created (`units.rules.seeded_rules`), and that unit must still open, since\nthis is where it gets fixed. tests/test_rules_api.py holds both schemas to the solver\'s fields.'),
   "needs_review": zod.boolean().describe('Still the seeded defaults: nobody has saved them yet.'),
   "request_cap": zod.int(),
@@ -1253,7 +1272,8 @@ export const GetUnitRulesResponse = zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
   "hours": zod.int()
-})).describe('What the unit may choose its shifts from.')
+})).describe('What the unit may choose its shifts from.'),
+  "active_skills": zod.array(zod.string()).describe('The skills a skill need may name, in the catalogue\'s order.')
 })
 
 
@@ -1316,6 +1336,14 @@ export const updateUnitRulesBodyRulesMaxFullRunsMax = 31;
 export const updateUnitRulesBodyRulesMaxSwitchesMin = 0;
 export const updateUnitRulesBodyRulesMaxSwitchesMax = 1000;
 
+export const updateUnitRulesBodyRulesSkillNeedsItemWeekdayMinMin = 0;
+export const updateUnitRulesBodyRulesSkillNeedsItemWeekdayMinMax = 1000;
+
+export const updateUnitRulesBodyRulesSkillNeedsItemWeekendMinMin = 0;
+export const updateUnitRulesBodyRulesSkillNeedsItemWeekendMinMax = 1000;
+
+export const updateUnitRulesBodyRulesSkillNeedsMax = 100;
+
 export const updateUnitRulesBodyRequestCapMin = 0;
 export const updateUnitRulesBodyRequestCapMax = 31;
 
@@ -1360,7 +1388,14 @@ export const UpdateUnitRulesBody = zod.object({
   "max_full_runs": zod.int().min(updateUnitRulesBodyRulesMaxFullRunsMin).max(updateUnitRulesBodyRulesMaxFullRunsMax),
   "no_mixed_blocks": zod.boolean(),
   "max_switches": zod.int().min(updateUnitRulesBodyRulesMaxSwitchesMin).max(updateUnitRulesBodyRulesMaxSwitchesMax),
-  "switches_hard": zod.boolean()
+  "switches_hard": zod.boolean(),
+  "skill_needs": zod.array(zod.object({
+  "shift": zod.string(),
+  "skill": zod.string(),
+  "weekday_min": zod.int().min(updateUnitRulesBodyRulesSkillNeedsItemWeekdayMinMin).max(updateUnitRulesBodyRulesSkillNeedsItemWeekdayMinMax),
+  "weekend_min": zod.int().min(updateUnitRulesBodyRulesSkillNeedsItemWeekendMinMin).max(updateUnitRulesBodyRulesSkillNeedsItemWeekendMinMax)
+}).describe('At least so many nurses holding `skill` on exactly `shift`, each weekday and each weekend day.')).max(updateUnitRulesBodyRulesSkillNeedsMax),
+  "skill_needs_hard": zod.boolean()
 }).describe('Every field of the solver\'s `department` block but its name, which is the unit\'s. What depends on another field,\non the catalogue or on the hospital rules is in `_refusals`, so that a refusal can name the field it belongs to.'),
   "request_cap": zod.int().min(updateUnitRulesBodyRequestCapMin).max(updateUnitRulesBodyRequestCapMax).describe('Requests per nurse per month.'),
   "preference_cap": zod.int().min(updateUnitRulesBodyPreferenceCapMin).max(updateUnitRulesBodyPreferenceCapMax).describe('Preferences per nurse per month. 0 switches them off.'),
@@ -1402,7 +1437,14 @@ export const UpdateUnitRulesResponse = zod.object({
   "max_full_runs": zod.int(),
   "no_mixed_blocks": zod.boolean(),
   "max_switches": zod.int(),
-  "switches_hard": zod.boolean()
+  "switches_hard": zod.boolean(),
+  "skill_needs": zod.array(zod.object({
+  "shift": zod.string(),
+  "skill": zod.string(),
+  "weekday_min": zod.int(),
+  "weekend_min": zod.int()
+})),
+  "skill_needs_hard": zod.boolean()
 }).describe('Not the request\'s schema: `shifts` may be empty and `night_shift` and `day_shift` may be "" in a unit whose\ndefault shifts were retired before it was created (`units.rules.seeded_rules`), and that unit must still open, since\nthis is where it gets fixed. tests/test_rules_api.py holds both schemas to the solver\'s fields.'),
   "needs_review": zod.boolean().describe('Still the seeded defaults: nobody has saved them yet.'),
   "request_cap": zod.int(),
@@ -1413,7 +1455,8 @@ export const UpdateUnitRulesResponse = zod.object({
   "code": zod.string(),
   "display_name": zod.string(),
   "hours": zod.int()
-})).describe('What the unit may choose its shifts from.')
+})).describe('What the unit may choose its shifts from.'),
+  "active_skills": zod.array(zod.string()).describe('The skills a skill need may name, in the catalogue\'s order.')
 })
 
 

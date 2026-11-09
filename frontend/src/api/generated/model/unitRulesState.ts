@@ -18,4 +18,6 @@ export interface UnitRulesState {
   time_limit_cap: number;
   /** What the unit may choose its shifts from. */
   active_shifts: ShiftChoice[];
+  /** The skills a skill need may name, in the catalogue's order. */
+  active_skills: string[];
 }

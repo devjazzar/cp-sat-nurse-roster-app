@@ -679,7 +679,7 @@ def solve_input(unit, nurse: NurseProfile) -> dict:
     block = nurse_block(nurse, nurse.placements.last()) | {"leave": leave_dates(nurse, dt.date(2026, 3, 1))}
     request["nurses"].append(block)
     shift_hours = {shift.code: shift.hours for shift in Shift.objects.filter(active=True)}
-    return request | {"general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
+    return request | {"version": 2, "general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
                       "department": unit_block(unit)}
 
 

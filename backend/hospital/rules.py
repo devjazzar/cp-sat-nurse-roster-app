@@ -1,5 +1,6 @@
 """The hospital rules: the solver's `general` block, kept in the solver's own field names so a solve
-input can carry them as they are. `shift_hours` is not among them: it comes from the shift catalogue."""
+input can carry them as they are. `shift_hours` and `required_skills` are not among them: they come from the shift
+catalogue and the skill catalogue."""
 from __future__ import annotations
 
 # The reviewed set the solver was shaped on. hospital/tests/test_rules.py holds it to the solver's own.
@@ -29,6 +30,7 @@ DEFAULT_RULES = {
         "score_spread": 1,
         "excess_weekend": 6,
         "excess_full_run": 4,
+        "skill_shortfall": 0,
         "shift_switch": 8,
         "undesired_day": 2,
         "desired_day": 1,
@@ -37,9 +39,17 @@ DEFAULT_RULES = {
 }
 
 
+def required_skills() -> list[str]:
+    """The names of the live skills required to work, in the catalogue's order. A retired skill is tracked no more, so
+    it bars nobody."""
+    from hospital.models import Skill  # The models read the defaults from here.
+
+    return list(Skill.objects.filter(active=True, required_to_work=True).values_list("name", flat=True))
+
+
 def general_block(settings, *, shift_hours: dict[str, int]) -> dict:
     """The `general` block of a solve input."""
-    return settings.rules | {"shift_hours": shift_hours}
+    return settings.rules | {"shift_hours": shift_hours, "required_skills": required_skills()}
 
 
 def changes(before: dict, after: dict) -> tuple[dict, dict]:

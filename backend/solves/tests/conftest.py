@@ -135,7 +135,8 @@ def sample_rules() -> dict:
 def make_sample_unit(name, manager, make_user, prefix="") -> Unit:
     """The solver's own four-nurse sample, as this app would hold it. The general block's weights are the sample's too."""
     settings = HospitalSettings.load()
-    settings.rules = {key: value for key, value in copy.deepcopy(SAMPLE["general"]).items() if key != "shift_hours"}
+    settings.rules = {key: value for key, value in copy.deepcopy(SAMPLE["general"]).items()
+                      if key not in ("shift_hours", "required_skills")}
     settings.save()
     unit = make_unit(name, manager)
     unit.rules = sample_rules()

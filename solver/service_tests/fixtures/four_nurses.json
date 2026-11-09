@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "month": "2026-06",
  "ramadan_days": [],
  "public_holidays": [],
@@ -42,8 +42,10 @@
    "shift_switch": 8,
    "undesired_day": 2,
    "desired_day": 1,
-   "change": 3
-  }
+   "change": 3,
+   "skill_shortfall": 0
+  },
+  "required_skills": []
  },
  "department": {
   "name": "Ward A",
@@ -96,7 +98,9 @@
   "max_full_runs": 3,
   "no_mixed_blocks": true,
   "max_switches": 2,
-  "switches_hard": false
+  "switches_hard": false,
+  "skill_needs": [],
+  "skill_needs_hard": true
  },
  "nurses": [
   {

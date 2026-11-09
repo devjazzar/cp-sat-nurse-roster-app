@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from nurse_roster.__main__ import main
+from nurse_roster import fairness as F
 from nurse_roster.explain import explain, report
 from nurse_roster.model import build_model, solve
 from nurse_roster.precheck import precheck
@@ -20,7 +21,7 @@ from nurse_roster.request import load_request
 from nurse_roster.rules import HARD, SOFT, active, level
 from nurse_roster.validate import validate
 from solver_service.grid import nurses_of, validate_grid
-from tests.er_fixture import request_of
+from tests.er_fixture import request_of, version_1
 from tests.rules_helper import only, penalises, violates
 from tests.test_audit import hours_general, mini, quiet
 
@@ -195,6 +196,45 @@ def test_a_pin_on_a_barred_free_day_is_refused_and_an_elapsed_one_is_a_fact():
         "skill expired: a works D on day 1, BLS is required to work and its last day was day 0"]
 
 
+def fridays(**nurses) -> Problem:
+    """Fourteen days from a Monday: the Fridays are days 4 and 11. D needs 2 and N 1 every day, so the weekend slots are
+    2 Fridays x 3 = 6, among five nurses 1.2 each (1200 thousandths). BLS is required to work."""
+    team = [Nurse("A"), Nurse("B"), Nurse("C")] + [Nurse(i, **kw) for i, kw in nurses.items()]
+    p = mini(14, ["D", "N"], team, weights=only("fair_weekend", 1), fair_weekends=True,
+             headcounts=[Headcount("D", 2, 2, 2, 2), Headcount("N", 1, 1, 1, 1)], headcount_enabled=True)
+    p.general.required_skills = ["BLS"]
+    return p
+
+
+def test_fairness_counts_a_barred_day_as_leave():
+    """The user's decision at ticket 31's review: a nurse barred from the second Friday by her BLS (last day 6) is owed
+    half the Fridays, as one on leave that Friday is, and carries no Friday debt for the Friday she could not work."""
+    p = fridays(barred={"skills": {"BLS": 6}}, on_leave={"unavailable": [11]})
+    barred, on_leave = p.nurses[3], p.nurses[4]
+
+    assert F.friday_expected_m(p, p.nurses[0]) == 1200
+    assert F.friday_expected_m(p, barred) == F.friday_expected_m(p, on_leave) == 600
+    worked_the_first_friday = [OFF] * 4 + [D] + [OFF] * 9
+    assert F.balances_out(p, barred, worked_the_first_friday)[1] == F.balances_out(p, on_leave, worked_the_first_friday)[1] == 0.4
+
+
+def test_fairness_owes_no_friday_to_a_nurse_barred_all_month():
+    p = fridays(barred={"skills": {"BLS": -1}})
+
+    assert F.friday_expected_m(p, p.nurses[3]) == 0
+    assert F.balances_out(p, p.nurses[3], [OFF] * 14)[1] == 0.0
+
+
+def test_the_solver_prices_a_barred_nurses_fridays_as_the_validator_does():
+    p = fridays(barred={"skills": {"BLS": 6}})
+
+    sol = solve(build_model(p), p, time_limit=10, workers=4)
+
+    assert sol.status == "OPTIMAL" and sol.hard_errors == []
+    _, pen, total = validate(p, sol.assignment)
+    assert total == sol.objective == pen["fair_weekend"]
+
+
 # ---- the registry ----------------------------------------------------------------------------------
 def test_the_registry_switches_both_rules_on_their_data():
     p = unit(icu("a"), hard=True)
@@ -271,7 +311,7 @@ def test_an_expiry_before_the_month_is_read_as_expired_and_one_on_its_last_day_a
 
 
 def test_version_1_loads_as_version_2_with_no_skills():
-    v1 = sample("four_nurses.json")
+    v1 = version_1(sample("four_nurses.json"))
     before = copy.deepcopy(v1)
 
     p = load_request(v1).problem
@@ -339,7 +379,7 @@ def test_version_2_refuses(path, value, text):
 ])
 def test_version_1_refuses_a_field_of_version_2(path, value, text):
     with pytest.raises(ValueError, match=text):
-        load_request(_set(sample("four_nurses.json"), path, value))
+        load_request(_set(version_1(sample("four_nurses.json")), path, value))
 
 
 def test_a_pin_on_a_barred_day_is_refused_with_its_date():

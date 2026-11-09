@@ -253,6 +253,8 @@ export * from './shiftRenameSchema';
 export * from './shiftSchema';
 export * from './shiftTakenOff';
 export * from './skillBody';
+export * from './skillNeedAnswer';
+export * from './skillNeedRule';
 export * from './skillRenameSchema';
 export * from './skillSchema';
 export * from './solvePreview';

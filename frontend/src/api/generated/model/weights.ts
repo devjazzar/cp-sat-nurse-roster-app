@@ -70,6 +70,11 @@ export interface Weights {
      * @minimum 0
      * @maximum 1000000
      */
+  skill_shortfall: number;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
   shift_switch: number;
   /**
      * @minimum 0

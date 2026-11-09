@@ -53,7 +53,7 @@ def solve_input(unit) -> dict:
     for nurse in request["nurses"]:
         nurse["previous"], nurse["allowed_shifts"] = [], None
     shift_hours = {shift.code: shift.hours for shift in Shift.objects.filter(active=True)}
-    return request | {"general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
+    return request | {"version": 2, "general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
                       "department": unit_block(unit)}
 
 
@@ -83,15 +83,9 @@ def ccu(omar):
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
-# The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
-# deletes this set and its subtraction below.
-VERSION_2_SKILL_FIELDS = {"skill_needs", "skill_needs_hard"}
-
-
 @pytest.mark.parametrize("schema", [UnitRules, UnitRulesAnswer])
 def test_both_schemas_are_every_field_of_the_solvers_block_but_its_name(schema):
-    assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"} \
-        - VERSION_2_SKILL_FIELDS
+    assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"}
 
 
 @pytest.mark.parametrize("schema", [HeadcountRule, HeadcountAnswer])

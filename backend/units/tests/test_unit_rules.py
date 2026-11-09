@@ -55,28 +55,24 @@ def solve_input(unit: Unit) -> dict:
     for nurse in request["nurses"]:
         # Her history and her allowed shifts are tickets 11's and 09's to carry through a rename.
         nurse["previous"], nurse["allowed_shifts"] = [], None
-    return request | {"general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
+    return request | {"version": 2, "general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
                       "department": unit_block(unit)}
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
-# The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
-# deletes this set and its subtraction below.
-VERSION_2_SKILL_FIELDS = {"skill_needs", "skill_needs_hard"}
-
-
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_units_name():
     fields = {field.name for field in dataclasses.fields(DepartmentRules)}
 
-    assert set(DEFAULT_UNIT_RULES) == fields - {"name"} - VERSION_2_SKILL_FIELDS
+    assert set(DEFAULT_UNIT_RULES) == fields - {"name"}
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():
-    """The ER sample predates full runs; their cap is the spec's (full-runs.md), 3."""
+    """The ER sample predates full runs and skills; their cap is the spec's (full-runs.md), 3, and a unit starts with
+    no skill needs and the needs hard (skills-per-shift-day.md)."""
     reviewed = er_request()["department"]
     del reviewed["name"]
 
-    assert DEFAULT_UNIT_RULES == reviewed | {"max_full_runs": 3}
+    assert DEFAULT_UNIT_RULES == reviewed | {"max_full_runs": 3, "skill_needs": [], "skill_needs_hard": True}
 
 
 # ---- seeding --------------------------------------------------------------------------------------
@@ -110,6 +106,24 @@ def test_a_unit_from_before_the_full_run_cap_gets_three_and_keeps_the_rest(cno):
     unit.save()
 
     migration("units", "0004_max_full_runs").add(django_apps, None)
+
+    unit.refresh_from_db()
+    assert unit.rules == DEFAULT_UNIT_RULES | {"max_weekends": 5} and unit.rules_need_review is False
+
+
+def test_a_new_unit_has_no_skill_needs_and_the_needs_hard(cno):
+    department = load_request(solve_input(new_unit(cno))).problem.department
+
+    assert (department.skill_needs, department.skill_needs_hard) == ([], True)
+
+
+def test_a_unit_from_before_skill_needs_gets_none_and_the_needs_hard_and_keeps_the_rest(cno):
+    unit = new_unit(cno)
+    unit.rules = {key: value for key, value in unit.rules.items() if not key.startswith("skill_")} | {"max_weekends": 5}
+    unit.rules_need_review = False
+    unit.save()
+
+    migration("units", "0005_skill_needs").add(django_apps, None)
 
     unit.refresh_from_db()
     assert unit.rules == DEFAULT_UNIT_RULES | {"max_weekends": 5} and unit.rules_need_review is False

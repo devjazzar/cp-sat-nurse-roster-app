@@ -13,7 +13,7 @@ from nurse_roster.rules import active
 from accounts.models import Role
 from conftest import migration
 from audit.models import AuditEntry
-from hospital.models import HospitalSettings
+from hospital.models import HospitalSettings, Skill
 from hospital.rules import DEFAULT_RULES, general_block
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("catalogue")]
@@ -43,24 +43,26 @@ def er_request() -> dict:
     return json.loads(ER_REQUEST.read_text())
 
 
+def version_2(request: dict) -> dict:
+    """The ER sample is version 1; a general block with `required_skills` is version 2's, whose department has needs."""
+    return request | {"version": 2, "department": request["department"] | {"skill_needs": [], "skill_needs_hard": True}}
+
+
 # ---- the solver's contract ------------------------------------------------------------------------
-# The solver's version 2 fields (ticket 31) that the app's blocks do not carry yet: ticket 34 adds them to the blocks and
-# deletes this set and its subtraction below.
-VERSION_2_SKILL_FIELDS = {"required_skills", "skill_shortfall"}
-
-
-def test_the_rules_are_every_field_of_the_solvers_block_but_the_shift_catalogues():
+def test_the_rules_are_every_field_of_the_solvers_block_but_the_catalogues():
+    """The shift catalogue gives `shift_hours`, the skill catalogue `required_skills`."""
     fields = {field.name for field in dataclasses.fields(GeneralRules)}
 
-    assert set(DEFAULT_RULES) == fields - {"shift_hours"} - VERSION_2_SKILL_FIELDS
-    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)} - VERSION_2_SKILL_FIELDS
+    assert set(DEFAULT_RULES) == fields - {"shift_hours", "required_skills"}
+    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)}
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():
-    """The ER sample predates full runs; their weight is the spec's (full-runs.md), 4."""
+    """The ER sample predates full runs and skills; the full-run weight is the spec's (full-runs.md), 4, and the skill
+    shortfall's is 0, no price until the CNO sets one (skills-per-shift-day.md)."""
     reviewed = er_request()["general"]
     del reviewed["shift_hours"]
-    reviewed["weights"]["excess_full_run"] = 4
+    reviewed["weights"] |= {"excess_full_run": 4, "skill_shortfall": 0}
 
     assert DEFAULT_RULES == reviewed
 
@@ -72,8 +74,8 @@ def test_what_the_cno_saved_is_what_a_solve_input_receives(signed_in):
 
     general = general_block(HospitalSettings.load(), shift_hours=shift_hours)
 
-    assert general == saved | {"shift_hours": shift_hours}
-    problem = load_request(er_request() | {"general": general}).problem
+    assert general == saved | {"shift_hours": shift_hours, "required_skills": []}
+    problem = load_request(version_2(er_request()) | {"general": general}).problem
     assert problem.general.hours_per_day == 7 and problem.general.weights.change == 9
 
 
@@ -201,13 +203,13 @@ def test_the_cno_changes_the_full_run_weight_audited_and_a_solve_input_carries_i
     entry = AuditEntry.objects.get(action="hospital_rules.changed")
     assert entry.before == {"weights.excess_full_run": 4} and entry.after == {"weights.excess_full_run": 50}
     general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
-    assert load_request(er_request() | {"general": general}).problem.general.weights.excess_full_run == 50
+    assert load_request(version_2(er_request()) | {"general": general}).problem.general.weights.excess_full_run == 50
 
 
 def test_a_full_run_weight_of_0_switches_the_rule_off_hospital_wide(signed_in):
     def capped_at_0() -> Problem:
         general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
-        request = er_request() | {"general": general}
+        request = version_2(er_request()) | {"general": general}
         request["department"] |= {"max_full_runs": 0}
         return load_request(request).problem
     client = signed_in(Role.CNO)
@@ -223,6 +225,37 @@ def test_a_bad_full_run_weight_is_refused_with_its_field(signed_in, value):
     assert ("weights", "excess_full_run") in refused_fields(put(signed_in(Role.CNO), weights(excess_full_run=value)))
 
 
+def test_the_cno_prices_a_skill_shortfall_audited_and_a_solve_input_carries_it(signed_in):
+    client = signed_in(Role.CNO)
+    put(client, body())
+    AuditEntry.objects.all().delete()
+
+    response = put(client, weights(skill_shortfall=50))
+
+    assert response.status_code == 200 and response.json()["rules"]["weights"]["skill_shortfall"] == 50
+    entry = AuditEntry.objects.get(action="hospital_rules.changed")
+    assert entry.before == {"weights.skill_shortfall": 0} and entry.after == {"weights.skill_shortfall": 50}
+    general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
+    assert load_request(version_2(er_request()) | {"general": general}).problem.general.weights.skill_shortfall == 50
+
+
+@pytest.mark.parametrize("value", [-1, 10 ** 6 + 1, 2.5, "4", True, None])
+def test_a_bad_skill_shortfall_weight_is_refused_with_its_field(signed_in, value):
+    assert ("weights", "skill_shortfall") in refused_fields(put(signed_in(Role.CNO), weights(skill_shortfall=value)))
+
+
+def test_a_solve_inputs_required_skills_are_the_live_skills_required_to_work():
+    Skill.objects.bulk_create([Skill(name="BLS", expires=True, required_to_work=True),
+                               Skill(name="acls", expires=True, required_to_work=True),
+                               Skill(name="ICU", expires=False, required_to_work=False),
+                               Skill(name="PALS", expires=True, required_to_work=True, active=False)])
+
+    general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
+
+    assert general["required_skills"] == ["acls", "BLS"]
+    assert load_request(version_2(er_request()) | {"general": general}).problem.general.required_skills == ["acls", "BLS"]
+
+
 def test_an_installation_from_before_the_full_run_weight_gets_it_at_4(signed_in):
     put(signed_in(Role.CNO), weights(change=9))
     row = HospitalSettings.load()
@@ -233,6 +266,19 @@ def test_an_installation_from_before_the_full_run_weight_gets_it_at_4(signed_in)
 
     row.refresh_from_db()
     assert row.rules["weights"]["excess_full_run"] == 4 and row.rules["weights"]["change"] == 9
+    assert not row.rules_need_review
+
+
+def test_an_installation_from_before_the_skill_shortfall_weight_gets_it_at_0(signed_in):
+    put(signed_in(Role.CNO), weights(change=9))
+    row = HospitalSettings.load()
+    del row.rules["weights"]["skill_shortfall"]
+    row.save()
+
+    migration("hospital", "0005_skill_shortfall_weight").add(django_apps, None)
+
+    row.refresh_from_db()
+    assert row.rules["weights"]["skill_shortfall"] == 0 and row.rules["weights"]["change"] == 9
     assert not row.rules_need_review
 
 
@@ -313,7 +359,7 @@ def test_what_this_api_accepts_the_solver_accepts_too(signed_in, rules):
 
     general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
 
-    assert load_request(er_request() | {"general": general}).problem.general.hours_per_day == rules["hours_per_day"]
+    assert load_request(version_2(er_request()) | {"general": general}).problem.general.hours_per_day == rules["hours_per_day"]
 
 
 # ---- authorization --------------------------------------------------------------------------------

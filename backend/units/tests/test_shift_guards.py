@@ -209,7 +209,8 @@ def test_after_a_rename_the_solver_still_takes_the_unit_and_its_nurses(cno, make
         row["previous"], row["allowed_shifts"] = [], None
     request["nurses"].append(nurse_block(nurse, placement))
     shift_hours = {shift.code: shift.hours for shift in Shift.objects.filter(active=True)}
-    loaded = load_request(request | {"general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
+    loaded = load_request(request | {"version": 2,
+                                     "general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
                                      "department": unit_block(er)}).problem
     assert loaded.department.night_shift == "NT"
     assert loaded.nurses[-1].allowed_shifts == ["NT"]

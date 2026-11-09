@@ -18,7 +18,7 @@ from nurse_roster.problem import Headcount, Nurse, Problem
 from nurse_roster.request import load_request
 from nurse_roster.rules import active
 from nurse_roster.validate import validate
-from tests.er_fixture import raw
+from tests.er_fixture import raw, version_1
 from tests.rules_helper import only, penalises
 from tests.test_audit import force, mini
 
@@ -178,10 +178,13 @@ def test_the_match_names_the_nurse_her_count_and_the_cap_and_her_explanation_car
 
 # ---- the request ---------------------------------------------------------------------------------
 def sample(name: str = "four_nurses_skills.json") -> dict:
+    """"v1" is the four-nurse sample written as version 1."""
+    if name == "v1":
+        return version_1(json.loads((FIXTURES / "four_nurses.json").read_text()))
     return json.loads((FIXTURES / name).read_text())
 
 
-@pytest.mark.parametrize("name", ["four_nurses.json", "four_nurses_skills.json"])   # versions 1 and 2
+@pytest.mark.parametrize("name", ["v1", "four_nurses.json", "four_nurses_skills.json"])   # versions 1 and 2
 def test_an_input_without_the_fields_has_no_cap_and_no_weight(name):
     req = sample(name)
     req["department"].pop("max_full_runs", None)
@@ -195,7 +198,7 @@ def test_an_input_without_the_fields_has_no_cap_and_no_weight(name):
     assert not active(p, "excess_full_run")
 
 
-@pytest.mark.parametrize("name", ["four_nurses.json", "four_nurses_skills.json"])
+@pytest.mark.parametrize("name", ["v1", "four_nurses.json", "four_nurses_skills.json"])
 @pytest.mark.parametrize("cap", [0, 3, 31, None])
 def test_either_version_takes_the_cap_and_the_weight(name, cap):
     req = sample(name)
@@ -207,7 +210,7 @@ def test_either_version_takes_the_cap_and_the_weight(name, cap):
     assert p.department.max_full_runs == cap and p.general.weights.excess_full_run == 4
 
 
-@pytest.mark.parametrize("name", ["four_nurses.json", "four_nurses_skills.json"])
+@pytest.mark.parametrize("name", ["v1", "four_nurses.json", "four_nurses_skills.json"])
 @pytest.mark.parametrize("path, value, text", [
     (["department", "max_full_runs"], -1, "request: department.max_full_runs must be a whole number within 0..31 or null, got -1"),
     (["department", "max_full_runs"], 32, "request: department.max_full_runs must be a whole number within 0..31 or null, got 32"),

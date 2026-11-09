@@ -97,7 +97,7 @@ def solve_input(unit, *nurses) -> dict:
         row["previous"], row["allowed_shifts"] = [], None
     request["nurses"] += [nurse_block(nurse, placement) for nurse, placement in nurses]
     shift_hours = {shift.code: shift.hours for shift in Shift.objects.filter(active=True)}
-    return request | {"general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
+    return request | {"version": 2, "general": general_block(HospitalSettings.load(), shift_hours=shift_hours),
                       "department": unit_block(unit)}
 
 

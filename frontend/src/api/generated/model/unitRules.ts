@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1
  */
 import type { HeadcountRule } from './headcountRule';
+import type { SkillNeedRule } from './skillNeedRule';
 import type { UnitRulesScoreBalanceMode } from './unitRulesScoreBalanceMode';
 
 /**
@@ -88,4 +89,7 @@ export interface UnitRules {
      */
   max_switches: number;
   switches_hard: boolean;
+  /** @maxItems 100 */
+  skill_needs: SkillNeedRule[];
+  skill_needs_hard: boolean;
 }

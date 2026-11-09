@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1
  */
 import type { HeadcountAnswer } from './headcountAnswer';
+import type { SkillNeedAnswer } from './skillNeedAnswer';
 import type { UnitRulesAnswerScoreBalanceMode } from './unitRulesAnswerScoreBalanceMode';
 
 /**
@@ -40,4 +41,6 @@ export interface UnitRulesAnswer {
   no_mixed_blocks: boolean;
   max_switches: number;
   switches_hard: boolean;
+  skill_needs: SkillNeedAnswer[];
+  skill_needs_hard: boolean;
 }

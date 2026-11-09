@@ -7,6 +7,7 @@ dict helpers build complete problem dicts for the JSON contract tests.
 """
 from __future__ import annotations
 
+import copy
 import json
 import random
 from datetime import timedelta
@@ -238,3 +239,15 @@ def er_request(month: str = "2026-03", seed: int = 0, **kw) -> dict:
 def write_request(req: dict, path) -> None:
     with open(path, "w") as f:
         json.dump(req, f, indent=1)
+
+
+def version_1(raw: dict) -> dict:
+    """A version 2 request with no skills written as version 1, as every input stored before version 2 was. The
+    four-nurse sample is version 2 (ticket 34 of the app), with no skills, needs or required skills."""
+    out = copy.deepcopy(raw)
+    out["version"] = 1
+    del out["general"]["required_skills"], out["general"]["weights"]["skill_shortfall"]
+    del out["department"]["skill_needs"], out["department"]["skill_needs_hard"]
+    for nurse in out["nurses"]:
+        nurse.pop("skills", None)
+    return out

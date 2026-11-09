@@ -263,7 +263,7 @@ soft rules off. Save it as `small.json` and solve it.
 
 ```json
 {
-  "version": 1, "month": "2026-06", "ramadan_days": [], "public_holidays": [],
+  "version": 2, "month": "2026-06", "ramadan_days": [], "public_holidays": [],
   "general": {
     "shift_hours": {"D": 12, "N": 12}, "hours_per_day": 8, "ramadan_hours_per_day": 6,
     "breastfeeding_reduction": 1, "weekend_weekdays": [4],
@@ -273,7 +273,8 @@ soft rules off. Save it as `small.json` and solve it.
     "weights": {"night_rest": 0, "dept_overtime": 1, "nurse_overtime": 1, "nurse_shortfall": 1,
                 "avoidable_shortfall": 1000, "fair_day": 1, "fair_night": 1, "fair_weekend": 1,
                 "score_deficit": 0, "score_spread": 0, "excess_weekend": 0, "excess_full_run": 4,
-                "shift_switch": 8, "undesired_day": 2, "desired_day": 1, "change": 3}
+                "shift_switch": 8, "undesired_day": 2, "desired_day": 1, "change": 3, "skill_shortfall": 0},
+    "required_skills": []
   },
   "department": {
     "name": "Ward A", "shifts": ["D", "N"],
@@ -286,7 +287,8 @@ soft rules off. Save it as `small.json` and solve it.
     "fair_shifts": ["D", "N"], "fair_tolerance": 0.5, "fair_weekends": true,
     "carry_fairness": true, "carry_cap": 2.0,
     "max_consecutive_shifts": 4, "double_cycle_rest": 2, "max_weekends": 3, "max_full_runs": 3,
-    "no_mixed_blocks": true, "max_switches": 2, "switches_hard": false
+    "no_mixed_blocks": true, "max_switches": 2, "switches_hard": false,
+    "skill_needs": [], "skill_needs_hard": true
   },
   "nurses": [
     {"id": "Amal", "gender": "F", "team_leader": true, "score": 0.9, "ramadan_reduced": false, "breastfeeding": false,
@@ -309,8 +311,9 @@ soft rules off. Save it as `small.json` and solve it.
 uv run python -m nurse_roster solve small.json --out small_result.json --csv small.csv
 ```
 
-This sample is written as version 1, as every request stored before skills is, and is read as one
-with no skills. The same four nurses at version 2, with skills, are in
+This sample is version 2 with no skills: no required skills, no skill needs and the price at 0. A
+request stored before skills is version 1 and is read as one with no skills. The same four nurses
+with skills are in
 `service_tests/fixtures/four_nurses_skills.json`: BLS is required to work and Dana's lasts to
 24 June, so she works no shift from the 25th; Badr's ICU lasts to the 20th; one ICU nurse is
 needed on each night, soft at 50 a nurse short.

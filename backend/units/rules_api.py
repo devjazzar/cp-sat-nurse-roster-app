@@ -10,14 +10,14 @@ from uuid import UUID
 from django.db import transaction
 from ninja import Router, Schema
 from nurse_roster.problem import (MAX_FULL_RUNS, MAX_HISTORY, MAX_NURSES, MAX_PARAM, MAX_REST_DAYS, MAX_SHIFTS,
-                                  needed_history)
+                                  MAX_SKILLS, needed_history)
 from pydantic import Field, ValidationInfo, field_validator
 
 from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
 from hospital.api import StrictSchema, differing, refuse
-from hospital.models import HospitalSettings, Shift
+from hospital.models import HospitalSettings, Shift, Skill
 from nurses.membership import narrow_allowed_shifts, stranded_by, this_month
 from ops.models import TechnicalSettings
 from rosters.drafts import frozen_cells_on_shifts_going
@@ -56,6 +56,14 @@ class HeadcountRule(StrictSchema):
     _distinct_also = field_validator("also_counts")(distinct_shifts)
 
 
+class SkillNeedRule(StrictSchema):
+    """At least so many nurses holding `skill` on exactly `shift`, each weekday and each weekend day."""
+    shift: str
+    skill: str
+    weekday_min: Headcount
+    weekend_min: Headcount
+
+
 class UnitRules(StrictSchema):
     """Every field of the solver's `department` block but its name, which is the unit's. What depends on another field,
     on the catalogue or on the hospital rules is in `_refusals`, so that a refusal can name the field it belongs to."""
@@ -86,6 +94,8 @@ class UnitRules(StrictSchema):
     no_mixed_blocks: bool
     max_switches: Count
     switches_hard: bool
+    skill_needs: list[SkillNeedRule] = Field(max_length=MAX_SKILLS)
+    skill_needs_hard: bool
 
     _distinct_lists = field_validator("shifts", "fair_shifts")(distinct_shifts)
 
@@ -104,6 +114,13 @@ class HeadcountAnswer(Schema):
     weekend_min: int
     weekend_max: int
     also_counts: list[str]
+
+
+class SkillNeedAnswer(Schema):
+    shift: str
+    skill: str
+    weekday_min: int
+    weekend_min: int
 
 
 class UnitRulesAnswer(Schema):
@@ -137,6 +154,8 @@ class UnitRulesAnswer(Schema):
     no_mixed_blocks: bool
     max_switches: int
     switches_hard: bool
+    skill_needs: list[SkillNeedAnswer]
+    skill_needs_hard: bool
 
 
 class ShiftChoice(Schema):
@@ -153,13 +172,15 @@ class UnitRulesState(Schema):
     default_time_limit: int
     time_limit_cap: int = Field(description="The longest a solve may search, set by the System Admin. In seconds.")
     active_shifts: list[ShiftChoice] = Field(description="What the unit may choose its shifts from.")
+    active_skills: list[str] = Field(description="The skills a skill need may name, in the catalogue's order.")
 
 
 def _state(unit: Unit) -> dict:
     return {"rules": unit.rules, "needs_review": unit.rules_need_review, "request_cap": unit.request_cap,
             "preference_cap": unit.preference_cap, "default_time_limit": unit.default_time_limit,
             "time_limit_cap": TechnicalSettings.load().time_limit_cap_seconds,
-            "active_shifts": list(Shift.objects.filter(active=True))}
+            "active_shifts": list(Shift.objects.filter(active=True)),
+            "active_skills": list(Skill.objects.filter(active=True).values_list("name", flat=True))}
 
 
 def _night_rules_on(rules: UnitRules, hospital_weights: dict) -> bool:
@@ -170,7 +191,7 @@ def _night_rules_on(rules: UnitRules, hospital_weights: dict) -> bool:
         or rules.carry_fairness
 
 
-def _refusals(rules: UnitRules, hospital_weights: dict) -> list[tuple[tuple, str]]:
+def _refusals(rules: UnitRules, hospital_weights: dict, saved_shifts: list[str]) -> list[tuple[tuple, str]]:
     """Each thing the solver would refuse, said beside its field, all at once. Call under the catalogue's lock."""
     active = set(Shift.objects.filter(active=True).values_list("code", flat=True))
     shifts = set(rules.shifts)
@@ -218,6 +239,25 @@ def _refusals(rules: UnitRules, hospital_weights: dict) -> list[tuple[tuple, str
         if rules.score_target_weekend > rules.score_band_hi_weekend:
             found.append((("rules", "score_band_hi_weekend"), "Must not be below the weekend score target."))
 
+    # A shift being taken out that a need names is refused beside the shifts, as one a pin holds is: the manager takes the
+    # need out first. A need on a shift the unit never worked is the need's own mistake.
+    going = set(saved_shifts) - shifts
+    needed = "; ".join(f"{need.skill} on {need.shift}" for need in rules.skill_needs if need.shift in going)
+    if needed:
+        found.append((("rules", "shifts"), f"A skill need names a shift you are taking out: {needed}. Take the need out "
+                                           "first."))
+    skills = set(Skill.objects.filter(active=True).values_list("name", flat=True))
+    pairs = set()
+    for index, need in enumerate(rules.skill_needs):
+        where = ("rules", "skill_needs", index)
+        if need.shift not in shifts and need.shift not in going:
+            found.append(((*where, "shift"), f"{need.shift} is not one of this unit's shifts."))
+        if need.skill not in skills:
+            found.append(((*where, "skill"), f"{need.skill} is not an active skill in the catalogue."))
+        elif (need.shift, need.skill) in pairs:
+            found.append(((*where, "skill"), f"{need.shift} already has a need for {need.skill}."))
+        pairs.add((need.shift, need.skill))
+
     looks_back = needed_history(SimpleNamespace(**rules.model_dump()))
     if looks_back > MAX_HISTORY:
         found.append((("rules", "max_consecutive_shifts"),
@@ -257,7 +297,7 @@ def update_unit_rules(request, unit_id: UUID, body: UnitRulesBody) -> dict:
     with transaction.atomic():
         hospital = HospitalSettings.load(for_update=True)
         unit = unit_in_scope(request.user, unit_id, for_update=True)
-        refused = _refusals(body.rules, hospital.rules["weights"])
+        refused = _refusals(body.rules, hospital.rules["weights"], unit.rules.get("shifts", []))
         cap = TechnicalSettings.load().time_limit_cap_seconds
         if body.default_time_limit > cap:
             refused.append((("default_time_limit",), f"The System Admin's cap is {cap} seconds."))

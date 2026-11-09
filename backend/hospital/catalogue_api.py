@@ -31,7 +31,7 @@ from rosters.drafts import carry_rename_through_grids, current_code, using_shift
 from rosters.pins import counted_uses
 from solves.models import ACTIVE_STATES, Solve
 from units.models import Unit
-from units.rules import units_using, with_shift_codes
+from units.rules import units_needing, units_using, with_shift_codes, with_skill_renamed
 
 router = Router(tags=["hospital"])
 cno = SignedIn(Role.CNO)
@@ -334,6 +334,17 @@ def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
 NAMED_AT_MOST = 3
 
 
+def _carry_skill_rename_through_the_units(request, old_name: str, new_name: str) -> None:
+    """Unit rules store a skill by its name, so a new name is carried through every unit's skill needs, archived units
+    too, as a shift's new code is (`_carry_rename_through_the_units`). A nurse's record keeps the skill's id."""
+    for unit in Unit.objects.select_for_update().order_by("pk"):  # By id, as the shift rename locks them.
+        old, new = differing(unit.rules, with_skill_renamed(unit.rules, old_name, new_name))
+        if new:
+            unit.rules = unit.rules | new
+            unit.save(update_fields=["rules"])
+            record("unit_rules.changed", actor=request.user, target=unit.name, before=old, after=new, request=request)
+
+
 def _refuse_records_without_expiry(skill: Skill) -> None:
     """Turning `expires` on would leave a record dateless, an unknown the solver cannot model: refused, naming a few of the
     nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`)."""
@@ -377,9 +388,15 @@ def update_skill(request, skill_id: UUID, body: SkillBody) -> Skill:
             return skill
         if new.get("expires"):
             _refuse_records_without_expiry(skill)
+        if new.get("active") is False:
+            units = units_needing(skill.name)
+            if units:
+                refuse((("active",), f"{skill.name} is in the skill needs of {', '.join(units)}. "
+                                     "The unit's manager has to take it out of them first."))
         if "name" in new:
             _refuse_a_taken_name(body.name, skill.pk)
             SkillRename.objects.create(skill=skill, old_name=old["name"], new_name=body.name, by=request.user)
+            _carry_skill_rename_through_the_units(request, old["name"], body.name)
         _write_skill(skill, body)
         record("skill.changed", actor=request.user, target=skill.name, before=old, after=new, request=request)
     return skill

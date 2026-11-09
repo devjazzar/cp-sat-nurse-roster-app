@@ -80,7 +80,7 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
     shift_hours = {shift.code: shift.hours for shift in Shift.objects.filter(active=True)}
     label = month.strftime("%Y-%m")
     assembled = Assembled(input={
-        "version": 1,
+        "version": 2,
         "month": label,
         "ramadan_days": [day.isoformat() for day in ramadan_dates(label)],
         "public_holidays": [holiday.date.isoformat() for holiday in PublicHoliday.objects.filter(
