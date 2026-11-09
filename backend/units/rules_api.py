@@ -242,9 +242,9 @@ def _refusals(rules: UnitRules, hospital_weights: dict, saved_shifts: list[str])
     # A shift being taken out that a need names is refused beside the shifts, as one a pin holds is: the manager takes the
     # need out first. A need on a shift the unit never worked is the need's own mistake.
     going = set(saved_shifts) - shifts
-    needed = "; ".join(f"{need.skill} on {need.shift}" for need in rules.skill_needs if need.shift in going)
-    if needed:
-        found.append((("rules", "shifts"), f"A skill need names a shift you are taking out: {needed}. Take the need out "
+    stranded = "; ".join(f"{need.skill} on {need.shift}" for need in rules.skill_needs if need.shift in going)
+    if stranded:
+        found.append((("rules", "shifts"), f"A skill need names a shift you are taking out: {stranded}. Take the need out "
                                            "first."))
     skills = set(Skill.objects.filter(active=True).values_list("name", flat=True))
     pairs = set()

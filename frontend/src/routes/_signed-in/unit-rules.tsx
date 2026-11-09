@@ -63,6 +63,8 @@ const SKILL_NEEDS_SWITCH: Explained<SwitchRule> = {
   label: "Never break the skill needs",
   description: "When on, the solver returns no roster that breaks them. When off, a roster may, at the price of the hospital's weight for each nurse short.",
 }
+/** One need a shift and skill: what identifies a need. A skill's name may hold spaces, so the two are not joined by one. */
+const needKey = ({ shift, skill }: { shift: string; skill: string }) => JSON.stringify([shift, skill])
 const NEED_COUNTS = [
   { name: "weekday_min", label: "Weekday, at least" },
   { name: "weekend_min", label: "Weekend day, at least" },
@@ -212,7 +214,7 @@ function schemaFor(timeLimitCap: number) {
           context.addIssue({ code: "custom", path: ["shifts"], message: `A skill need names a shift you are taking out: ${named.join("; ")}. Take the need out first.` })
         const pairs = new Set<string>()
         rules.skill_needs.forEach((need, index) => {
-          const pair = `${need.shift} ${need.skill}`
+          const pair = needKey(need)
           if (pairs.has(pair)) context.addIssue({ code: "custom", path: ["skill_needs", index, "skill"], message: `${need.shift} already has a need for ${need.skill}.` })
           pairs.add(pair)
         })
@@ -257,10 +259,10 @@ const NEW_HEADCOUNT = { weekday_min: 1, weekday_max: 1, weekend_min: 1, weekend_
 
 /** The first shift and skill with no need yet, so that a new row is not refused as a second need. */
 function nextNeed(needs: SkillNeedRule[], shifts: string[], skills: string[]): SkillNeedRule | undefined {
-  const taken = new Set(needs.map((need) => `${need.shift} ${need.skill}`))
+  const taken = new Set(needs.map(needKey))
   for (const skill of skills)
     for (const shift of shifts)
-      if (!taken.has(`${shift} ${skill}`)) return { shift, skill, weekday_min: 1, weekend_min: 1 }
+      if (!taken.has(needKey({ shift, skill }))) return { shift, skill, weekday_min: 1, weekend_min: 1 }
   return undefined
 }
 
@@ -578,7 +580,7 @@ function SkillNeedsReadOnly({ rules }: { rules: UnitRulesAnswer }) {
   return (
     <ul className="flex flex-col gap-3 text-sm">
       {rules.skill_needs.map((need) => (
-        <li key={`${need.shift} ${need.skill}`} className="tabular-nums">
+        <li key={needKey(need)} className="tabular-nums">
           <span className="font-medium">{need.skill} on {need.shift}</span>: at least {need.weekday_min} on a weekday, {need.weekend_min} on a weekend day
         </li>
       ))}

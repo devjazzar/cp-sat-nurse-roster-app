@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+from collections.abc import Callable
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -191,7 +192,7 @@ def update_shift(request, shift_id: UUID, body: ShiftBody) -> Shift:
             _refuse_a_taken_code(body.code, shift.pk)
             ShiftRename.objects.create(shift=shift, old_code=before["code"], new_code=body.code, by=request.user)
             _carry_rename_through_the_rules(request, settings, before["code"], body.code)
-            _carry_rename_through_the_units(request, before["code"], body.code)
+            _carry_rename_through_the_units(request, lambda rules: with_shift_codes(rules, {before["code"]: body.code}))
             carry_rename_through_allowed_shifts(before["code"], body.code)
             carry_rename_through_grids(before["code"], body.code)
         _write_shift(shift, body)
@@ -223,11 +224,12 @@ def _carry_rename_through_the_rules(request, settings: HospitalSettings, old_cod
                request=request)
 
 
-def _carry_rename_through_the_units(request, old_code: str, new_code: str) -> None:
-    """Archived units too, because a block has to go on naming shifts that exist. The review flag stays as it is: a
-    new name is not a review. The rows are locked because `units.api.update_unit` saves the whole row."""
+def _carry_rename_through_the_units(request, renamed: Callable[[dict], dict]) -> None:
+    """`renamed` gives a unit's rules under the new name. Archived units too, because a block has to go on naming shifts
+    and skills that exist. The review flag stays as it is: a new name is not a review. The rows are locked because
+    `units.api.update_unit` saves the whole row."""
     for unit in Unit.objects.select_for_update().order_by("pk"):  # By id, as an import locks them, so neither waits on the other.
-        after = with_shift_codes(unit.rules, {old_code: new_code})
+        after = renamed(unit.rules)
         old, new = differing(unit.rules, after)
         if new:
             unit.rules = after
@@ -334,17 +336,6 @@ def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
 NAMED_AT_MOST = 3
 
 
-def _carry_skill_rename_through_the_units(request, old_name: str, new_name: str) -> None:
-    """Unit rules store a skill by its name, so a new name is carried through every unit's skill needs, archived units
-    too, as a shift's new code is (`_carry_rename_through_the_units`). A nurse's record keeps the skill's id."""
-    for unit in Unit.objects.select_for_update().order_by("pk"):  # By id, as the shift rename locks them.
-        old, new = differing(unit.rules, with_skill_renamed(unit.rules, old_name, new_name))
-        if new:
-            unit.rules = unit.rules | new
-            unit.save(update_fields=["rules"])
-            record("unit_rules.changed", actor=request.user, target=unit.name, before=old, after=new, request=request)
-
-
 def _refuse_records_without_expiry(skill: Skill) -> None:
     """Turning `expires` on would leave a record dateless, an unknown the solver cannot model: refused, naming a few of the
     nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`)."""
@@ -396,7 +387,8 @@ def update_skill(request, skill_id: UUID, body: SkillBody) -> Skill:
         if "name" in new:
             _refuse_a_taken_name(body.name, skill.pk)
             SkillRename.objects.create(skill=skill, old_name=old["name"], new_name=body.name, by=request.user)
-            _carry_skill_rename_through_the_units(request, old["name"], body.name)
+            # Unit rules store a skill by its name; a nurse's record keeps the skill's id.
+            _carry_rename_through_the_units(request, lambda rules: with_skill_renamed(rules, old["name"], body.name))
         _write_skill(skill, body)
         record("skill.changed", actor=request.user, target=skill.name, before=old, after=new, request=request)
     return skill
