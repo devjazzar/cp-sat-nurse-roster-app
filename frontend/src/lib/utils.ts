@@ -36,6 +36,17 @@ export function monthAfter(month: string, by: number): string {
   return day.toISOString().slice(0, 7)
 }
 
+/** "2026-06-05" from "2026-06-04" and 1. */
+export function dayAfter(iso: string, by: number): string {
+  const day = asDate(iso)
+  day.setUTCDate(day.getUTCDate() + by)
+  return day.toISOString().slice(0, 10)
+}
+
+const fullDate = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+/** "Thursday, 4 June 2026" from "2026-06-04". */
+export const fullDay = (iso: string) => fullDate.format(asDate(iso))
+
 /** `Table`'s container when nothing in the table can take focus, because a keyboard still has to scroll it. */
 /** For a small table whose columns should all fit a phone: below 640 px its cells wrap rather than scroll out of view (ticket 23). */
 export const WRAP_ON_PHONE = "max-sm:[&_td]:whitespace-normal max-sm:[&_th]:whitespace-normal"

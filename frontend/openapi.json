@@ -5043,6 +5043,54 @@
         ]
       }
     },
+    "/api/rosters/day": {
+      "get": {
+        "operationId": "getHospitalDay",
+        "summary": "Day View",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM-DD. Today on the hospital's clock when left out.",
+              "title": "Date"
+            },
+            "required": false,
+            "description": "YYYY-MM-DD. Today on the hospital's clock when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HospitalDayAnswer"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read-only and not logged: it shows what its readers already read on the Unit roster and the unit's Leave page.",
+        "tags": [
+          "rosters"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/rosters/submitted": {
       "get": {
         "operationId": "listSubmittedRosters",
@@ -14552,6 +14600,396 @@
           "states"
         ],
         "title": "OverviewUnit",
+        "type": "object"
+      },
+      "DayFilter": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM-DD. Today on the hospital's clock when left out.",
+            "title": "Date"
+          }
+        },
+        "title": "DayFilter",
+        "type": "object"
+      },
+      "DayColumn": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "display_name"
+        ],
+        "title": "DayColumn",
+        "type": "object"
+      },
+      "DayFigures": {
+        "properties": {
+          "shifts": {
+            "description": "The shifts the unit works, and any other its roster holds that day.",
+            "items": {
+              "$ref": "#/components/schemas/DayShiftCell"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "on_leave": {
+            "items": {
+              "$ref": "#/components/schemas/DayLeave"
+            },
+            "title": "On Leave",
+            "type": "array"
+          },
+          "hours_counted": {
+            "description": "False with the hospital's hours rule off, when nothing is owed and overtime is 0.",
+            "title": "Hours Counted",
+            "type": "boolean"
+          },
+          "overtime": {
+            "description": "The month's overtime in hours, the sum of what each nurse reads on My month.",
+            "title": "Overtime",
+            "type": "integer"
+          },
+          "overtime_cap": {
+            "description": "The hospital rules' unit overtime cap for the month.",
+            "title": "Overtime Cap",
+            "type": "integer"
+          },
+          "with_overtime": {
+            "description": "How many nurses have any overtime this month.",
+            "title": "With Overtime",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "shifts",
+          "on_leave",
+          "hours_counted",
+          "overtime",
+          "overtime_cap",
+          "with_overtime"
+        ],
+        "title": "DayFigures",
+        "type": "object"
+      },
+      "DayLeave": {
+        "description": "Who is away, and never why: no leave type.",
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name"
+        ],
+        "title": "DayLeave",
+        "type": "object"
+      },
+      "DayNurse": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "team_leader": {
+            "title": "Team Leader",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "team_leader"
+        ],
+        "title": "DayNurse",
+        "type": "object"
+      },
+      "DayShiftCell": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "present": {
+            "description": "Counted as the solver counts it: the shift's own staff, plus those on the shifts that also count towards it.",
+            "title": "Present",
+            "type": "integer"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The range for this kind of day, weekday or weekend. Null with the unit's headcount rule off, or with no headcount entry for this shift.",
+            "title": "Minimum"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "short": {
+            "title": "Short",
+            "type": "boolean"
+          },
+          "over": {
+            "title": "Over",
+            "type": "boolean"
+          },
+          "team_leader": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether a team leader is on it. Null where the unit does not require one.",
+            "title": "Team Leader"
+          },
+          "both_genders": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether both genders are on it. Null where the unit does not require them.",
+            "title": "Both Genders"
+          },
+          "nurses": {
+            "description": "The shift's own staff, by name.",
+            "items": {
+              "$ref": "#/components/schemas/DayNurse"
+            },
+            "title": "Nurses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "present",
+          "minimum",
+          "maximum",
+          "short",
+          "over",
+          "team_leader",
+          "both_genders",
+          "nurses"
+        ],
+        "title": "DayShiftCell",
+        "type": "object"
+      },
+      "DayTotal": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "on_duty": {
+            "title": "On Duty",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "on_duty"
+        ],
+        "title": "DayTotal",
+        "type": "object"
+      },
+      "DayTotals": {
+        "properties": {
+          "on_duty": {
+            "description": "One for each of `shifts`: the units' counts summed.",
+            "items": {
+              "$ref": "#/components/schemas/DayTotal"
+            },
+            "title": "On Duty",
+            "type": "array"
+          },
+          "on_leave": {
+            "title": "On Leave",
+            "type": "integer"
+          },
+          "overtime": {
+            "title": "Overtime",
+            "type": "integer"
+          },
+          "units_short": {
+            "description": "How many units are short on at least one shift.",
+            "title": "Units Short",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "on_duty",
+          "on_leave",
+          "overtime",
+          "units_short"
+        ],
+        "title": "DayTotals",
+        "type": "object"
+      },
+      "DayUnit": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "state": {
+            "description": "The month's. `closed` is an approved roster whose month has closed.",
+            "enum": [
+              "none",
+              "draft",
+              "submitted",
+              "approved",
+              "closed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "figures": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayFigures"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For `approved` and `closed` only: from the roster in force checked on the month as it stands, or from the close in force."
+          },
+          "unchecked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why an approved month's figures could not be worked out, in the solver's words.",
+            "title": "Unchecked"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "archived",
+          "state",
+          "figures",
+          "unchecked"
+        ],
+        "title": "DayUnit",
+        "type": "object"
+      },
+      "HospitalDayAnswer": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "string"
+          },
+          "weekend": {
+            "description": "A weekend day by the hospital rules, whose headcount range applies.",
+            "title": "Weekend",
+            "type": "boolean"
+          },
+          "holiday": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The public holiday's name. It changes the hours owed, not the range.",
+            "title": "Holiday"
+          },
+          "shifts": {
+            "description": "The shifts any unit shown works that day, in the shift catalogue's order.",
+            "items": {
+              "$ref": "#/components/schemas/DayColumn"
+            },
+            "title": "Shifts",
+            "type": "array"
+          },
+          "units": {
+            "description": "Every unit not archived, and an archived one with a roster or a close that month.",
+            "items": {
+              "$ref": "#/components/schemas/DayUnit"
+            },
+            "title": "Units",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DayTotals"
+          }
+        },
+        "required": [
+          "date",
+          "weekday",
+          "weekend",
+          "holiday",
+          "shifts",
+          "units",
+          "totals"
+        ],
+        "title": "HospitalDayAnswer",
         "type": "object"
       },
       "WaitingRoster": {
