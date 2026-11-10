@@ -405,7 +405,8 @@ backup time and retention, close time.
   leave and pins itself.
 - A month with no approved roster shows "no roster yet" to its nurses; the CNO's and the Deputy CNO's homes
   list submitted rosters waiting, oldest first. A nurse sees their unit's approved roster for this month and later, the unit
-  being the one each month falls under for them: names and shifts only, a colleague's leave the same empty cell as a day off,
+  being the one each month falls under for them (none for a month that begins after their end date, a manager's included,
+  whose account outlives the profile): names and shifts only, a colleague's leave the same empty cell as a day off,
   and their own leave as leave.
 
 ### Requests

@@ -10,7 +10,7 @@ export interface MyMonth {
   month: string;
   /** The earliest month with hours here: this one, or the earliest of theirs that has closed. */
   first_month: string;
-  /** The unit this month falls under for the reader. Null with no nurse profile, or before their first placement. */
+  /** The unit this month falls under for the reader. Null with no nurse profile, before their first placement, or for a month that begins after their end date. */
   unit: string | null;
   /** Null until that unit's roster of the month is approved, and for a month before `first_month`. */
   roster: MyMonthInForce | null;

@@ -234,8 +234,8 @@ class MyRosterMonth(Schema):
     month: str
     first_month: str = Field(description="The earliest month shown here: this one, or the earliest of theirs that has closed. An "
                                          "earlier month shows once it has closed, as its close read it.")
-    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
-                                         "their first placement.")
+    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, before "
+                                         "their first placement, or for a month that begins after their end date.")
     roster: NurseRoster | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
                                                    "before `first_month`.")
 
@@ -294,10 +294,13 @@ def _first_month(nurse: NurseProfile | None) -> dt.date:
 
 def in_force(user: User, chosen: str | None) -> MonthInForce:
     """The unit is the one the month falls under for them, so across a transfer each month shows its own unit's roster, and a
-    nurse due to start sees their unit's with no row of their own. A month before this one only once it has closed."""
+    nurse due to start sees their unit's with no row of their own. A month before this one only once it has closed. A month that
+    begins after their end date falls under no unit, whatever their role: the end date is the last day they are part of it, and
+    a manager's account outlives their profile (`nurses.api.set_end_date`)."""
     month = dt.date.fromisoformat(f"{chosen}-01") if chosen else membership.this_month()
     nurse = NurseProfile.objects.filter(user=user).select_related("user").first()
-    placement = membership.placement_in(nurse, month) if nurse else None
+    ended = nurse is not None and nurse.end_date is not None and nurse.end_date < month
+    placement = membership.placement_in(nurse, month) if nurse and not ended else None
     found = MonthInForce(month=month, first=_first_month(nurse), nurse=nurse, unit=placement.unit if placement else None)
     if found.unit is None or month < found.first:
         return found
@@ -342,8 +345,8 @@ class MyRosterSheet(Schema):
     month: str
     first_month: str = Field(description="The earliest month shown here: this one, or the earliest of theirs that has closed. An "
                                          "earlier month shows once it has closed, as its close read it.")
-    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
-                                         "their first placement.")
+    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, before "
+                                         "their first placement, or for a month that begins after their end date.")
     sheet: RosterSheet | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
                                                   "before `first_month`.")
 
@@ -393,8 +396,8 @@ class MyMonthInForce(Schema):
 class MyMonth(Schema):
     month: str
     first_month: str = Field(description="The earliest month with hours here: this one, or the earliest of theirs that has closed.")
-    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, or before "
-                                         "their first placement.")
+    unit: str | None = Field(description="The unit this month falls under for the reader. Null with no nurse profile, before "
+                                         "their first placement, or for a month that begins after their end date.")
     roster: MyMonthInForce | None = Field(description="Null until that unit's roster of the month is approved, and for a month "
                                                       "before `first_month`.")
 

@@ -5256,7 +5256,7 @@ export const GetMyRosterQueryParams = zod.object({
 export const GetMyRosterResponse = zod.object({
   "month": zod.string(),
   "first_month": zod.string().describe('The earliest month shown here: this one, or the earliest of theirs that has closed. An earlier month shows once it has closed, as its close read it.'),
-  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, before their first placement, or for a month that begins after their end date.'),
   "roster": zod.union([zod.object({
   "approved_at": zod.iso.datetime({"offset":true}),
   "version": zod.int(),
@@ -5300,7 +5300,7 @@ export const GetMyRosterSheetQueryParams = zod.object({
 export const GetMyRosterSheetResponse = zod.object({
   "month": zod.string(),
   "first_month": zod.string().describe('The earliest month shown here: this one, or the earliest of theirs that has closed. An earlier month shows once it has closed, as its close read it.'),
-  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, before their first placement, or for a month that begins after their end date.'),
   "sheet": zod.union([zod.object({
   "unit": zod.string(),
   "month": zod.string(),
@@ -5348,7 +5348,7 @@ export const GetMyMonthQueryParams = zod.object({
 export const GetMyMonthResponse = zod.object({
   "month": zod.string(),
   "first_month": zod.string().describe('The earliest month with hours here: this one, or the earliest of theirs that has closed.'),
-  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, or before their first placement.'),
+  "unit": zod.union([zod.string(),zod.null()]).describe('The unit this month falls under for the reader. Null with no nurse profile, before their first placement, or for a month that begins after their end date.'),
   "roster": zod.union([zod.object({
   "version": zod.int(),
   "approved_at": zod.iso.datetime({"offset":true}),

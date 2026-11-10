@@ -722,6 +722,48 @@ class TestTheNursesView:
         nurse.delete()
         assert mine(mona) == {"month": MONTH, "first_month": "2026-05", "unit": None, "roster": None}
 
+    def test_a_manager_whose_profile_ended_reads_no_later_month_of_the_unit_they_left(self, mona, carla, er, solver, client_of):
+        """The end date is the last day a nurse is part of her unit, whatever her role. A manager's account outlives the profile
+        by design (`nurses.api.set_end_date`), so the profile's dates decide, not the account."""
+        from nurses.models import Placement
+        from units.models import Unit
+        nurse = NurseProfile.objects.create(user=User.objects.get(username="mona"), gender="F", start_date=dt.date(2026, 1, 1),
+                                            end_date=dt.date(2026, 5, 10))
+        Placement.objects.create(nurse=nurse, unit=er, from_month=dt.date(2026, 1, 1))
+        approved(mona, carla, er, solver)
+        client_of("omar", Role.UNIT_MANAGER)
+        Unit.objects.filter(pk=er.pk).update(manager=User.objects.get(username="omar"))
+
+        assert mine(mona) == {"month": MONTH, "first_month": "2026-05", "unit": None, "roster": None}
+        assert ok(mona.get("/api/rosters/mine/sheet", {"month": MONTH}))["unit"] is None
+        assert ok(mona.get("/api/rosters/mine/month", {"month": MONTH}))["roster"] is None
+
+    def test_a_manager_whose_profile_runs_on_still_reads_the_unit_they_left(self, mona, carla, er, solver, client_of):
+        from nurses.models import Placement
+        from units.models import Unit
+        nurse = NurseProfile.objects.create(user=User.objects.get(username="mona"), gender="F", start_date=dt.date(2026, 1, 1))
+        Placement.objects.create(nurse=nurse, unit=er, from_month=dt.date(2026, 1, 1))
+        approved(mona, carla, er, solver)
+        client_of("omar", Role.UNIT_MANAGER)
+        Unit.objects.filter(pk=er.pk).update(manager=User.objects.get(username="omar"))
+
+        seen = mine(mona)
+        assert seen["unit"] == "ER" and seen["roster"] is not None
+
+    def test_a_staff_nurse_reads_the_month_her_end_date_falls_in_and_no_unit_after_it(self, mona, carla, er, solver,
+                                                                                       nurses_of_er):
+        """Her account is active until the date passes (`nurses.tasks.close_ended_nurses`); a month that begins after it falls
+        under no unit, so she reads no roster of it and the swap composer offers it to her as no unit's."""
+        approved(mona, carla, er, solver)
+        amal = nurses_of_er("Amal")
+        NurseProfile.objects.filter(user__username="Amal").update(end_date=dt.date(2026, 6, 20))
+
+        june, july = mine(amal), mine(amal, JULY)
+
+        assert june["unit"] == "ER" and june["roster"]["mine"] is not None
+        assert (july["unit"], july["roster"]) == (None, None)
+        assert ok(amal.get("/api/swaps/compose", {"month": JULY}))["refusal"] == "You are on no unit's roster for July 2026."
+
     def test_a_month_already_over_is_not_shown(self, mona, carla, er, solver, monkeypatch, nurses_of_er):
         approved(mona, carla, er, solver)
         amal = nurses_of_er("Amal")
