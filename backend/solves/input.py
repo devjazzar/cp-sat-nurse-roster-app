@@ -236,7 +236,8 @@ def _skill_rules(solve_input: dict) -> tuple:
             general.get("weights", {}).get("skill_shortfall", 0))
 
 
-def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.datetime | None = None) -> list[dict]:
+def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.datetime | None = None,
+                  assembled: Assembled | None = None) -> list[dict]:
     """What has changed since this input was stored that the draft was not solved for: a gender, a nurse's credited days,
     who is in the month, the pins that count, her preferences (an input stored before them had none), or her skills as the
     month sees them (one stored in version 1 had none); and, as a change of the unit's with no hospital ID, its skill needs,
@@ -245,8 +246,10 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
 
     With `since`, when the input was stored, also each nurse a month before whom has closed since (ticket 21): the input started
     from a projected carry-over, and the close worked out the real one. A re-plan's end does not ask this, so a close never makes
-    a re-plan outdated (ADR 0009)."""
-    assembled = assemble(unit, month)
+    a re-plan outdated (ADR 0009).
+
+    `assembled` is the month as `assemble(unit, month)` reads it now, when the caller has it already."""
+    assembled = assembled or assemble(unit, month)
     now = {row["id"]: row for row in assembled.nurses}
     changes = []
     named_now = in_current_skill_names(solve_input)

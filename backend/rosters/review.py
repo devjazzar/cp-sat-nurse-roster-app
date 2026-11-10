@@ -15,7 +15,7 @@ from rosters.drafts import FROZEN
 from rosters.editing import Checked
 from rosters.models import Decision, Roster, RosterState, RosterVersion, Submission, VersionOrigin
 from rosters.versions import make_version
-from solves.input import assemble, changes_since
+from solves.input import Assembled, assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve
 from units.models import Unit
 
@@ -115,10 +115,11 @@ def submit(roster: Roster, by: User) -> Submission:
     return Submission.objects.create(roster=roster, submitted_by=by, month_at_submit=month)
 
 
-def new_since(submission: Submission) -> list[dict]:
-    """`changes_since` against the month as it stood at the submit."""
+def new_since(submission: Submission, assembled: Assembled | None = None) -> list[dict]:
+    """`changes_since` against the month as it stood at the submit; `assembled` is the month now, if the caller has it."""
     roster = submission.roster
-    return changes_since({"nurses": submission.month_at_submit}, roster.unit, roster.month, since=submission.submitted_at)
+    return changes_since({"nurses": submission.month_at_submit}, roster.unit, roster.month, since=submission.submitted_at,
+                         assembled=assembled)
 
 
 def _decide(roster: Roster, decision: Decision, by: User, comment: str = "") -> Submission:

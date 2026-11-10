@@ -31,7 +31,7 @@ from rosters.models import Roster, RosterState, RosterVersion, VersionOrigin
 from rosters.pins import AsideWhy, lost_to_leave, month_pins
 from rosters.versions import cells_changed, differences, make_version
 from solves.api import MonthFilter, SolveProgress, chosen_month, manager, progress_of
-from solves.input import assemble, changes_since
+from solves.input import Assembled, assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve, SolveState
 from solves.result import has_a_roster_to_keep, in_dates
 from units.models import Unit
@@ -226,14 +226,14 @@ def _changes(changes: list[dict]) -> list[DraftChange]:
             for change in changes]
 
 
-def _checked(roster: Roster, changes: list[dict]) -> Checked | None:
+def _checked(roster: Roster, changes: list[dict], solve_input: dict) -> Checked | None:
     """None while neither the grid nor the month has changed since its solve, whose own answer then holds: it breaks no hard
-    rule, since a roster that does never becomes a draft."""
+    rule, since a roster that does never becomes a draft. `solve_input` is the month as it stands (`check_saved`'s)."""
     edited = roster.grid != in_current_codes(roster.solve.result["roster"])
-    return check_saved(roster) if edited or changes else None
+    return scored(solve_input, roster.grid) if edited or changes else None
 
 
-def _draft(roster: Roster, changes: list[dict], checked: Checked | None, user: User) -> Draft:
+def _draft(roster: Roster, changes: list[dict], checked: Checked | None, user: User, solve_input: dict) -> Draft:
     solve = roster.solve
     edited = roster.grid != in_current_codes(solve.result["roster"])
     # The solve's own cost and its roster's soundness hold only for the month it was given.
@@ -246,7 +246,7 @@ def _draft(roster: Roster, changes: list[dict], checked: Checked | None, user: U
                  pins=[DraftPin(hospital_id=pin.nurse.user.username, full_name=pin.nurse.user.full_name, date=pin.date,
                                 shift=pin.code, origin=pin.origin, set_aside=pin.aside) for pin in pins.rows],
                  pins_lost_to_leave=_lost_to_leave(roster),
-                 editor=_editor(roster, assemble(roster.unit, roster.month).input, user), changes=_changes(changes))
+                 editor=_editor(roster, solve_input, user), changes=_changes(changes))
 
 
 def _not_the_draft(ended: Solve | None, roster: Roster | None) -> Solve | None:
@@ -255,12 +255,12 @@ def _not_the_draft(ended: Solve | None, roster: Roster | None) -> Solve | None:
     return ended if ended.pk != roster.solve_id and ended.finished_at > roster.updated_at else None
 
 
-def _waiting(roster: Roster) -> Waiting | None:
+def _waiting(roster: Roster, assembled: Assembled) -> Waiting | None:
     submission = review.waiting(roster)
     if submission is None:
         return None
     return Waiting(submitted_by=review.name_of(submission.submitted_by), submitted_at=timezone.localtime(submission.submitted_at),
-                   new_since=_changes(review.new_since(submission)))
+                   new_since=_changes(review.new_since(submission, assembled)))
 
 
 def _rejection(roster: Roster) -> Rejection | None:
@@ -288,12 +288,15 @@ def _roster_month(unit: Unit, month: dt.date, user: User) -> RosterMonth:
                            submit_refusal=ONLY_THE_MANAGER if approving else none or None,
                            approve_refusal=review.why_not_decide(roster) if approving else ONLY_APPROVERS,
                            reject_refusal=review.why_not_decide(roster) if approving else ONLY_APPROVERS)
-    changes = changes_since(roster.solve.input, unit, month, since=roster.solve.requested_at)
-    checked = _checked(roster, changes)
+    # The month as it stands, read once: what changed since the solve and since the submit, the check and the editor all ask it,
+    # and on a large unit each reading takes a while (every nurse's carry-over among it).
+    assembled = assemble(unit, month)
+    changes = changes_since(roster.solve.input, unit, month, since=roster.solve.requested_at, assembled=assembled)
+    checked = _checked(roster, changes, assembled.input)
     return RosterMonth(
-        month=label, state=roster.state, submitted=_waiting(roster), last_rejection=_rejection(roster),
+        month=label, state=roster.state, submitted=_waiting(roster, assembled), last_rejection=_rejection(roster),
         approved=_approval(roster), active_solve=None if approving else _active(solves),
-        last_solve=None if approving else _last(solves, roster), draft=_draft(roster, changes, checked, user),
+        last_solve=None if approving else _last(solves, roster), draft=_draft(roster, changes, checked, user, assembled.input),
         submit_refusal=ONLY_THE_MANAGER if approving else review.why_not_submit(roster, checked),
         approve_refusal=review.why_not_approve(roster, checked) if approving else ONLY_APPROVERS,
         reject_refusal=review.why_not_decide(roster) if approving else ONLY_APPROVERS)
