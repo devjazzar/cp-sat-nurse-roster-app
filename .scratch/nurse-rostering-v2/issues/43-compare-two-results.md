@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** ready-for-agent
 
 - [x] A manager-only endpoint answers the comparison of two results of her unit and month in any order, naming the older and the newer; 400 for the same solve twice, different months or a result without a roster; 404 for another unit's solve as for a result; every other role refused; nothing audited
 - [x] The inputs' differences: hospital rules and weights and unit rules field by field in the audit log's flattened words, the time limit, Ramadan days and public holidays; per nurse the kinds only, with no dates, pin values or figures; shifts under today's codes so a rename is no change; a re-plan's starting roster and date not diffed, its facts carrying the date and version
@@ -92,7 +92,7 @@ own needs, which its comment states.
 - **ARCHITECTURE:** section 5's solve-history bullet gains one clause, and section 8's "What a solve shows afterwards"
   gains the sentences.
 - **Tests at the agreed seams:**
-  - `backend/solves/tests/test_compare.py` (29) covers every point of the spec's Testing Decisions, and a version 1 input
+  - `backend/solves/tests/test_compare.py` (28) covers every point of the spec's Testing Decisions, and a version 1 input
     against a version 2 one.
   - `src/app.test.tsx`, "comparing two results (ticket 43)" (14) covers:
     - the section only with a month;
