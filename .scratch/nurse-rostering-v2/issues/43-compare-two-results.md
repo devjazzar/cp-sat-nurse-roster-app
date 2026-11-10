@@ -213,3 +213,9 @@ The stack is down and its volumes gone. My PostgreSQL container is stopped.
 - `lib/solve-words.ts` now has `ruleName` and `signed`.
 - `hospital.rules.flattened` is the audit log's field-by-field reading of the hospital rules.
 - `solves.comparison.soft_rules(solve)` gives every soft rule of a stored result on its own input, costing or not.
+
+**Reviewed by the user (2026-11-10):** all four points kept as recommended.
+- The nurse kinds `preferences` and `skills` are kept, and added to the spec's list.
+- A version 1 input shows its skill fields as changed.
+- "Holding a roster" is `has_a_roster_to_keep`.
+- The pickers read the page's rows.
