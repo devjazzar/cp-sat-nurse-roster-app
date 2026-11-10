@@ -61,7 +61,9 @@ function Pushes({ push }: { push: InstallationHealth["push"] }) {
         <dl className="flex flex-col gap-2">
           <Row name="Sent, last 24 hours">{push.sent}</Row>
           <Row name="Failed, last 24 hours">{push.failed}</Row>
-          <Row name="Last failure">{last ? <Badge variant="destructive">{last.word}</Badge> : "None"}</Row>
+          <Row name="Last failure">
+            {last ? <Badge variant={push.last_failure === "gone" ? "secondary" : "destructive"}>{last.word}</Badge> : "None"}
+          </Row>
         </dl>
         {last && <p className="text-sm">{last.why}</p>}
         <p className="text-sm text-muted-foreground">
