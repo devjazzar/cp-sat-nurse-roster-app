@@ -46,5 +46,9 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`.
   unsaved roster still asks; with none open it opens one. Still no `fetch` listener.
 - **A failure count** goes up once a push that did not get there (a refusal at once, an unreachable service after its last
   try), so the health page's failed attempts can be up to four a push while a subscription's count moves by one.
+- **Look for Chrome's own notice.** In ticket 41's drive, a hand-started Chrome with its own profile showed "This site has
+  been updated in the background" beside each push whenever the app was not the focused tab, and a click on it opened the
+  app's home. That Chrome also reported no notifications straight after showing one, so it is probably that Chrome and not
+  the worker. On a real host name, in an ordinary Chrome, check that one push shows one notification.
 - **Driving one:** a Playwright-launched Chrome receives no push (`--disable-background-networking`, and a permission granted
   over CDP lapses with the connection); start Chrome by hand with notifications allowed in its profile.

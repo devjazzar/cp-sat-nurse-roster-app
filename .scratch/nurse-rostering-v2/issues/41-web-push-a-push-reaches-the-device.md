@@ -13,12 +13,12 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`. Reasons: `d
 - [x] `notifications.sending.notify` defers one push job per call, inside the same transaction, only when the event and step have a kind: swap step `proposed` → `swap_to_answer`, `awaiting` → `swap_to_decide`, window opened → `requests_open`, window closed (the manager's) → `requests_to_decide`, roster submitted → `roster_to_approve`, roster rejected → `roster_sent_back`; every other event and step defers none
 - [x] The job runs under its own lock `push`; before each send it checks the reader still has a page for the notification (the Notifications page's own rule) and the thing still waits by kind (swap still pending or awaiting the manager; window still open, or closed with requests still pending; roster still submitted; a rejected roster still a draft not resubmitted); otherwise it sends nothing, counts no failure and retries nothing
 - [x] The payload is the kind code alone; headers: time to live 24 hours, urgency normal, topic the kind
-- [ ] Per subscription: success resets the failures and sets the last success; 404 or 410 ends the subscription at once; any other failure adds one, and the tenth ends it; these ends write no audit entry
+- [x] Per subscription: success resets the failures and sets the last success; 404 or 410 ends the subscription at once; any other failure adds one, and the tenth ends it; these ends write no audit entry
 - [x] A transient failure is tried again three times over about ten minutes for the failed subscriptions only; those reached, ended or skipped are not sent to again; each attempt is recorded once per subscription in an append-only attempts table (bigint key: when, outcome, nothing of the user or device)
 - [x] The service worker's `push` listener shows a notification with title "Nurse roster", the kind's words, the kind as tag; always shown, app open or not; an unknown kind shows the title alone
 - [x] The `notificationclick` listener closes the notification, focuses an open window of the app and sends it to the kind's page with no month, or opens a new window on it
 - [x] Tests at the agreed seams: the backend suite with the scripted sender and the real queue (each of the six events makes one job for its recipients and nobody else, every other makes none, a rolled-back change makes none; payload and headers; the still-waits and still-has-a-page checks for each kind; 404/410, the count to ten and the reset; the partial retry and once-per-subscription attempts; a manager with a nurse profile gets both roles' kinds, the System Admin none); the service worker's test (the six kinds' words and tags, the unknown kind, the tap with and without an open window, no `fetch`)
-- [ ] Driven on a scratch compose project: with the worker's way out, a real browser subscribed on the implementer's own device or desktop browser receives a push for a proposed swap and the tap opens Swaps; say in the comment what was and was not driven
+- [x] Driven on a scratch compose project: with the worker's way out, a real browser subscribed on the implementer's own device or desktop browser receives a push for a proposed swap and the tap opens Swaps; say in the comment what was and was not driven
 - [x] `makemigrations --check` clean; the dev stack's rebuild and `up -d` named in the comment
 
 **From ticket 40 (2026-11-10):** the subscriptions and the key pair are in; nothing is sent. What this ticket builds on:
@@ -99,8 +99,8 @@ GitHub ran both workflows green on `5b04fae`, the image built with pywebpush on 
 - **What is sent:** `{"kind": "<code>"}` and nothing else; TTL 86400, `Urgency: normal`, `Topic: <code>`.
 - **Per subscription:** a success sets `failures_in_a_row` to 0 and `last_success_at`; 404 or 410 deletes the row at once; a
   push that does not reach it adds one, and the tenth deletes it; none of these writes an audit entry. The moves live in
-  `notifications.subscriptions` (`reached`, `not_reached`, `end`), beside its other ends. **Not ticked**, because of how a
-  retried push counts: see "Worth your review".
+  `notifications.subscriptions` (`reached`, `not_reached`, `end`), beside its other ends. A retried push counts once: see
+  "Worth your review".
 - **Trying again:** an `unreachable` send is tried again after 1, 3 and 6 minutes (`RETRY_IN`), for the failed
   subscriptions alone: the job defers itself with the remaining pairs of notification and subscription. Each try reads the
   checks again and sends only to a subscription still the reader's, so an address moved to another user in between is not
@@ -154,12 +154,24 @@ GitHub ran both workflows green on `5b04fae`, the image built with pywebpush on 
   to answer", tagged `swap_to_answer`, with Badr's window open on `/`. The attempts table held `sent` rows and nothing else.
 - **A dead address, live:** a subscription Chrome had dropped got 404 or 410 from Google; the job ended it at once (one
   `gone` attempt, the row gone).
-- **The tap:** you clicked the macOS notification twice; neither click reached that Chrome (most likely macOS handed it to
-  your own Chrome, which was open). So I ran the worker's own `notificationclick` listener inside that Chrome, on the real
-  notification, by dispatching the event in the worker. The notification closed and Badr's open window went to `/swaps` and
-  showed Swaps, through the app's router. **That is not a real click**, and the criterion stays unticked.
-- **The tap with no window:** the same dispatch with no app window open opened none. Chrome lets a worker open a window only
-  in a real click's activation, which a dispatched event lacks, so that case rests on `sw.test.ts`.
+- **The tap, a real click, with a window open:** in a second session of the same stack and profile (Amal subscribed, Dana
+  proposing), you clicked the macOS notification yourself. Traced inside the worker and the page at 03:24 and again at
+  03:28: one `notificationclick` carrying `{"kind": "swap_to_answer"}`, one `open-page` message with `/swaps`, and Amal's
+  open window went from `/` to `/swaps` through the app's router.
+- **The tap, a real click, with no app window open:** a window opened and landed on `/swaps`. It was not a clean run of
+  `openWindow("/swaps")`, though: Chrome's own notice (next point) was clicked first and opened the window on `/`, and the
+  click on ours then moved it. So a real click opening a window from the worker was seen, with `/` as its page, and
+  `/swaps` in a new window rests on `sw.test.ts`.
+- **Chrome's own notice beside ours, in this Chrome only as far as I know:** whenever the app was not the focused tab,
+  Chrome added "This site has been updated in the background" to our notification, and a click on it reached the worker
+  with no kind, so it opened the app's home. Chrome adds that notice when it believes a push showed nothing. In this
+  hand-started Chrome `registration.getNotifications()` came back empty straight after `showNotification()` resolved, for
+  a bare notification of my own as well as for a push, so the browser's bookkeeping was wrong, not the worker's order of
+  work. The same fault explains the clicks that did nothing earlier: Chrome had dropped its record of the notification, so
+  the click only brought Chrome forward. I could not tell whether an ordinary Chrome does this; see "What was NOT checked".
+- **Before that,** when no real click got through, I ran the worker's own listener by dispatching the event on the real
+  notification: the window went to `/swaps`. With no window open that dispatch opened none, as Chrome lets a worker open a
+  window only in a real click's activation.
 - **The allow-list:** as Amal, turn-ons of `https://collector.example/push`, `https://fcm.googleapis.com.collector.example/x`
   and `https://solver:8080/solve` each answered 422 with the field error on `endpoint`, and no row was kept.
 - **The ways out:** from the containers, the worker reached `fcm.googleapis.com:443` and the solver could not resolve it.
@@ -178,7 +190,11 @@ with `grantPermissions` lapses when that connection closes, after which Chrome d
 and allow notifications in its profile.
 
 **What was NOT checked.**
-- **A real click on the notification**, with a window open or none (above).
+- **An ordinary Chrome, started the usual way with a trusted certificate.** The one driven was started with its own profile,
+  `--ignore-certificate-errors` and remote debugging, and it lost track of the notifications it showed (above). Whether a
+  nurse's Chrome adds its own notice beside ours is not known. It is the first thing to look at when ticket 42 is seen
+  working on a real host name.
+- **A new window opening straight on `/swaps`** from a real click (above).
 - **An iPhone, an iPad, Safari, Firefox or Edge:** only Chrome on macOS through Google's service. Apple's, Mozilla's and
   Microsoft's services, their status codes and their reading of the VAPID `sub`, are untested beyond the scripted stand-in.
 - **A real retry against a push service that was down,** a 429 or a 5xx from a real service: the scripted ones only.
@@ -203,10 +219,10 @@ and allow notifications in its profile.
   others, is not pushed to her (user story 11).
 
 **Worth your review.**
-- **How a retried push counts toward the ten.** The spec says any failure other than gone adds one. I count one per push that
-  does not get there: a refusal at once, an unreachable service after its last retry. Counting every try would end every
-  subscription after a ten-minute outage spanning three pushes, a hospital whose firewall is shut included. Recommendation:
-  keep. That is why criterion 6 is not ticked.
+- **How a retried push counts toward the ten: decided by you on 10 November 2026, one per push.** The spec says any failure
+  other than gone adds one. A refusal counts at once; an unreachable service counts once, after its last retry. Counting
+  every try would end every subscription after a ten-minute outage spanning three pushes. Criterion 6 is ticked on that
+  reading.
 - **The bare `push.services.mozilla.com`** is allowed beside the names under it: Mozilla's own example uses it. Your list
   named `updates.push.services.mozilla.com` and `*.push.services.mozilla.com`. Recommendation: keep.
 - **"A manager with a nurse profile gets both roles' kinds"** cannot happen today: a manager's cells are never swapped and a
