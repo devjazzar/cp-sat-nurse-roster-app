@@ -66,8 +66,12 @@ brought in by a fast-forward before the first commit. The commits:
 - then this comment;
 - then `origin/main` at `c27ef45` (ticket 43, compare two results) merged in, with no conflict. Both tickets changed
   `frontend/openapi.json`, the client and `docs/ARCHITECTURE.md`; after the merge the export and the regenerated client
-  match what is committed, the typecheck is clean and the health page's tests pass. The full suites were not run again
-  locally on the merge; GitHub ran them on it.
+  match what is committed and the typecheck is clean. On the merge, `f0133bb`, the suites ran again locally under the
+  lock: the backend 3065 passed, `makemigrations --check` clean, the frontend 762 passed and built.
+- **GitHub:** both workflows ran green on `ab5005f`, the last head before the merge. On `f0133bb` neither ran a job, on
+  the pull request or when I dispatched both by hand: GitHub's own note on each job says the account's payments failed or
+  its spending limit is reached. So the browser checks, `operations.sh` on GitHub and the six parallel frontend runs have
+  not run on the merge.
 
 The suites ran locally, one at a time under the heavy-run lock, the backend on a throwaway PostgreSQL 18 container of my own:
 - the backend, on `b02e4ad`: 3031 passed. After `2096af0`, the files it touched again (the health, metrics, retention and
