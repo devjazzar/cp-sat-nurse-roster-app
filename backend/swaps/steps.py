@@ -36,6 +36,10 @@ from units.models import Unit
 from units.scope import unit_in_scope
 
 MONTH_OVER = "This month is over, so its roster in force cannot change."
+# How many swaps a nurse may have withdrawn on one roster in the last day and still propose another there. A withdrawal frees its
+# cells, so without it one nurse's rounds would tell a colleague, or the manager, without end.
+WITHDRAWALS_A_DAY = 5
+A_DAY = dt.timedelta(days=1)
 NO_OWN_CELL = "A swap changes at least one of your own cells. Add one of yours."
 STATE_WORDS = {SwapState.PENDING: "waiting for its colleagues", SwapState.AWAITING_MANAGER: "waiting for the manager",
                SwapState.APPROVED: "approved", SwapState.REJECTED: "rejected", SwapState.WITHDRAWN: "withdrawn",
@@ -77,6 +81,9 @@ def propose(user: User, month: dt.date, changes: list[Change], note: str, reques
     roster = _approved_roster(unit, month)
     if roster is None:
         raise HttpError(409, no_approved_roster(unit, month))
+    too_many = _too_many_withdrawn(user, roster)
+    if too_many:
+        raise HttpError(409, too_many)
     expire_passed(Swap.objects.filter(roster=roster))
     if not any(change.hospital_id == user.username for change in changes):
         refuse((("cells",), NO_OWN_CELL))
@@ -103,6 +110,17 @@ def propose(user: User, month: dt.date, changes: list[Change], note: str, reques
         swap.save(update_fields=["state"])
         sending.swap_step(swap, SwapStep.AWAITING, user)
     return swap
+
+
+def _too_many_withdrawn(user: User, roster: Roster) -> str | None:
+    """Counted under her own row's lock, which every proposal of hers takes first, so two at once cannot both pass."""
+    ended = list(Swap.objects.filter(roster=roster, proposer__user=user, state=SwapState.WITHDRAWN, ended_by=user,
+                                     ended_at__gt=timezone.now() - A_DAY).order_by("ended_at").values_list("ended_at", flat=True))
+    if len(ended) < WITHDRAWALS_A_DAY:
+        return None
+    free = timezone.localtime(ended[-WITHDRAWALS_A_DAY] + A_DAY)
+    return (f"You have withdrawn {WITHDRAWALS_A_DAY} swaps on this roster in the last day, so you can propose another here from "
+            f"{free:%H:%M} on {long_date(free.date())}.")
 
 
 def _locked_swap(condition: Q, missing: str) -> Swap:

@@ -453,7 +453,10 @@ backup time and retention, close time.
    anything My roster shows (a cell's shift, a date passed, a headcount). The manager reads every reason in full
    (`swaps.judging`).
 3. Every colleague whose cells change must accept; one rejection ends the proposal (kept,
-   with who rejected). The proposer may withdraw while it waits for its colleagues or the manager.
+   with who rejected). The proposer may withdraw while it waits for its colleagues or the manager. A withdrawal frees its
+   cells, so a nurse who has withdrawn five of hers on one roster in the last day (`swaps.steps.WITHDRAWALS_A_DAY`) proposes no
+   more on it until the first of those is a day old, refused with the time she may again: her rounds cannot tell a colleague
+   or the manager without end.
 4. When all have accepted, the unit manager sees before and after, the re-run validation and
    the cost change, and approves or rejects, a reason required to reject, which everyone in it reads. He cannot edit a
    proposal; to change it he edits the roster directly. Approval is refused, with the reasons in full, when the month moved
@@ -466,7 +469,8 @@ backup time and retention, close time.
    runs makes the re-plan end `outdated`. Everyone involved is notified at each step: its colleagues when proposed, the
    proposer at each acceptance, the manager when all have accepted, and the proposer and every colleague at a rejection, a
    withdrawal, an expiry and an approval (the manager too for a withdrawal or an expiry of one awaiting him), never whoever took
-   the step, and never why one expired.
+   the step, and never why one expired. A withdrawal is told in place of a person's notice of the swap still unread, that it was
+   proposed or awaits him, so a round leaves each one notice of it; one already read stays, and the withdrawal is a new one.
 
 ### Covers
 

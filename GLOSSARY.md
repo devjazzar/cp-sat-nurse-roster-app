@@ -152,7 +152,7 @@ The days, from an open date to a close date on the hospital's clock, that a unit
 _Avoid_: request period, submission window
 
 **Swap**:
-A nurse's proposal to change a set of cells on her unit's approved roster: her own and those of any colleagues needed to make the change work. It needs every involved colleague's acceptance, then the unit manager's; approved, it becomes pinned cells in a new roster version. It expires when one of its dates passes or a new version changes one of its cells. A refusal tells the proposer nothing of a colleague that My roster would not show. Rejected, withdrawn or expired, it stays on record.
+A nurse's proposal to change a set of cells on her unit's approved roster: her own and those of any colleagues needed to make the change work. It needs every involved colleague's acceptance, then the unit manager's; approved, it becomes pinned cells in a new roster version. It expires when one of its dates passes or a new version changes one of its cells. Its proposer may withdraw it while it waits; five withdrawn on one roster in a day stop her proposing there until the first is a day old. A refusal tells the proposer nothing of a colleague that My roster would not show. Rejected, withdrawn or expired, it stays on record.
 _Avoid_: exchange, trade, shift change
 
 **Cover**:

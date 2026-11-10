@@ -451,9 +451,80 @@ class TestTheColleaguesAnswers:
         answer = acted(nurse("Badr"), swap["id"], "withdraw")
 
         assert answer["state"] == "withdrawn" and answer["ended_by"] == "Badr"
-        assert steps_told("Emad")[-1] == "withdrawn" and steps_told("mona") == ["awaiting", "withdrawn"]
+        assert steps_told("Emad")[-1] == "withdrawn" and steps_told("mona") == ["withdrawn"], "each unread notice became it"
         assert steps_told("Badr") == ["accepted"]
         assert refusals(act(nurse("Badr"), swap["id"], "withdraw"), 409) == ["This swap is withdrawn, so it cannot be withdrawn."]
+
+
+class TestRoundsOfProposingAndWithdrawing:
+    """One nurse's rounds of proposing and withdrawing cannot decide what another reads: each person holds one notice a swap,
+    which a withdrawal turns into its own while still unread, and a nurse who has withdrawn `WITHDRAWALS_A_DAY` swaps on a
+    roster in the last day proposes no more there until the first of them is a day old."""
+
+    def test_a_colleagues_earlier_notice_stays_in_her_list_and_the_round_after_the_cap_is_refused(self, in_force, nurse):
+        from notifications import sending
+        from notifications.api import SHOWN
+        from swaps.steps import WITHDRAWALS_A_DAY
+        emad = User.objects.get(username="Emad")
+        [earlier] = Notification.objects.filter(user=emad)              # the roster's approval, unread
+        for _ in range(SHOWN - WITHDRAWALS_A_DAY - 1):                  # her list full but for the rounds' room
+            sending.notify([emad], Event.ROSTER_CHANGED, unit_id=str(in_force.pk), month=MONTH)
+        badr = nurse("Badr")
+
+        for _ in range(WITHDRAWALS_A_DAY):
+            acted(badr, proposed(badr, *SOUND_SWAP)["id"], "withdraw")
+
+        listed = told(nurse("Emad"))
+        assert str(earlier.pk) in {item["id"] for item in listed} and len(listed) == SHOWN
+        assert steps_told("Emad") == ["withdrawn"] * WITHDRAWALS_A_DAY
+        assert all(note.read_at is None for note in swap_notes("Emad"))
+        assert [item["text"] for item in told(nurse("Emad"), "swap_step")] == [
+            "Badr withdrew the swap they proposed on the ER roster for June 2026."] * WITHDRAWALS_A_DAY
+        assert refusals(propose(badr, *SOUND_SWAP), 409) == [
+            f"You have withdrawn {WITHDRAWALS_A_DAY} swaps on this roster in the last day, so you can propose another here from "
+            f"{first_free_at()}."]
+        assert Swap.objects.count() == WITHDRAWALS_A_DAY
+
+    def test_the_cap_counts_only_the_last_day(self, in_force, nurse):
+        from django.utils import timezone
+
+        from swaps.steps import WITHDRAWALS_A_DAY
+        badr = nurse("Badr")
+        for _ in range(WITHDRAWALS_A_DAY):
+            acted(badr, proposed(badr, *SOUND_SWAP)["id"], "withdraw")
+        Swap.objects.filter(pk=Swap.objects.order_by("ended_at").first().pk).update(
+            ended_at=timezone.now() - dt.timedelta(days=1, seconds=1))
+
+        assert propose(badr, *SOUND_SWAP).status_code == 201
+
+    def test_a_notice_already_read_stays_and_the_withdrawal_is_a_new_one(self, in_force, nurse):
+        badr, emad = nurse("Badr"), nurse("Emad")
+        swap = proposed(badr, *SOUND_SWAP)
+        assert post(emad, "/api/notifications/read-all", {}).status_code == 204
+
+        acted(badr, swap["id"], "withdraw")
+
+        assert steps_told("Emad") == ["proposed", "withdrawn"]
+
+    def test_the_managers_notice_of_one_awaiting_him_becomes_the_withdrawal(self, in_force, nurse, mona):
+        badr = nurse("Badr")
+        swap = proposed(badr, cell("Badr", 19))
+        assert steps_told("mona") == ["awaiting"]
+
+        acted(badr, swap["id"], "withdraw")
+
+        assert steps_told("mona") == ["withdrawn"]
+        assert [item["text"] for item in told(mona, "swap_step")] == [
+            "Badr withdrew the swap they proposed on the ER roster for June 2026."]
+
+
+def first_free_at() -> str:
+    """When the oldest withdrawal of the day is a day old, on the hospital's clock, as the refusal says it."""
+    from django.utils import timezone
+
+    from rosters.pins import long_date
+    oldest = timezone.localtime(Swap.objects.order_by("ended_at").first().ended_at + dt.timedelta(days=1))
+    return f"{oldest:%H:%M} on {long_date(oldest.date())}"
 
 
 def awaiting(nurse, cells=SOUND_SWAP, proposer="Badr") -> dict:

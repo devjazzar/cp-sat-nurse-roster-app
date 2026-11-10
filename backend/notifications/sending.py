@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from django.db.models import QuerySet, TextChoices
+from django.utils import timezone
 
 from accounts.models import Role, User
 from notifications.kinds import kind_of
@@ -147,8 +148,26 @@ def swap_step(swap: "Swap", step: SwapStep, by: User | None, *, awaiting: bool =
         case _:
             users = [proposer, *colleagues, *([swap.unit.manager] if awaiting else [])]
     users = [user for user in users if user is not None and (by is None or user.pk != by.pk)]
-    notify(users, Event.SWAP_STEP, **_about(swap.unit, swap.roster.month), swap_id=str(swap.pk), step=str(step),
-           **({"by": str(by.pk)} if by is not None else {}))
+    payload = _about(swap.unit, swap.roster.month) | {"swap_id": str(swap.pk), "step": str(step),
+                                                       **({"by": str(by.pk)} if by is not None else {})}
+    if step == SwapStep.WITHDRAWN:
+        users = _instead_of_unread(swap, users, payload)
+    notify(users, Event.SWAP_STEP, **payload)
+
+
+def _instead_of_unread(swap: "Swap", users: list[User], payload: dict) -> list[User]:
+    """A withdrawal is told in place of the notice still unread that the swap was proposed to them or awaits them, so a round of
+    proposing and withdrawing leaves each person one notice of it, and one nurse's rounds cannot push another's out of the list
+    (`notifications.api.SHOWN`). Whoever read that notice is told anew. Those still to be told."""
+    unread = Notification.objects.filter(user__in=users, event=Event.SWAP_STEP, read_at__isnull=True,
+                                         payload__swap_id=str(swap.pk),
+                                         payload__step__in=[SwapStep.PROPOSED, SwapStep.AWAITING])
+    told = set()
+    for note in unread.select_for_update(of=("self",)):
+        note.payload, note.created_at = payload, timezone.now()
+        note.save(update_fields=["payload", "created_at"])
+        told.add(note.user_id)
+    return [user for user in users if user.pk not in told]
 
 
 class CoverStep(TextChoices):
