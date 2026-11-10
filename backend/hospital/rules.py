@@ -52,12 +52,14 @@ def general_block(settings, *, shift_hours: dict[str, int]) -> dict:
     return settings.rules | {"shift_hours": shift_hours, "required_skills": required_skills()}
 
 
+def flattened(rules: dict) -> dict:
+    """The rules field by field, each weight as `weights.<name>`: the words the audit log records a change in."""
+    return {key: value for key, value in rules.items() if key != "weights"} | {
+        f"weights.{key}": value for key, value in rules.get("weights", {}).items()}
+
+
 def changes(before: dict, after: dict) -> tuple[dict, dict]:
     """Only what differs, with each weight as `weights.<name>`, so the audit log reads field by field."""
-    def flat(rules: dict) -> dict:
-        return {key: value for key, value in rules.items() if key != "weights"} | {
-            f"weights.{key}": value for key, value in rules["weights"].items()}
-
-    old, new = flat(before), flat(after)
+    old, new = flattened(before), flattened(after)
     differing = [key for key in old if old[key] != new[key]]
     return {key: old[key] for key in differing}, {key: new[key] for key in differing}

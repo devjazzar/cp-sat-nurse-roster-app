@@ -5,7 +5,7 @@ and every explanation can name a nurse and a date, as they come from the solver'
 from __future__ import annotations
 
 import datetime as dt
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from django.db import transaction
@@ -26,6 +26,7 @@ from rosters.grids import GridView, by_name, full_names, grid_view
 from rosters.models import Roster, RosterVersion, VersionOrigin
 from rosters.versions import differences
 from rosters.review import SEEN_BY_APPROVERS
+from solves import comparison
 from solves.api import chosen_month, manager
 from solver_service.grid import validate_grid
 from solves.input import in_current_skill_names
@@ -336,6 +337,162 @@ def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
         grid=grid_view(drafts.in_current_codes(roster), solve) if roster else None,
         restore_refusal=ONLY_THE_MANAGER_RESTORES if user.role in HOSPITAL_WIDE else drafts.why_not_restore(solve),
         replan=_replan_of(solve))
+
+
+class ComparedSolve(UnitSolveRow):
+    unit_cost: int | None = Field(description="What it costs apart from any one nurse.")
+    replan_of: int | None = Field(description="Set on a re-plan: the version in force when it started.")
+    statistics: SolverStatistics | None
+
+
+class InputChange(Schema):
+    group: Literal["hospital_rules", "unit_rules", "time_limit", "calendar"]
+    field: str = Field(description="As the audit log names it: a hospital rule's weight is `weights.<name>`.")
+    older: Any = Field(description="Null when the older's input has no such field, as one stored before the field existed.")
+    newer: Any = Field(description="The same for the newer.")
+
+
+class NurseInputChange(Schema):
+    hospital_id: str
+    full_name: str
+    kinds: list[Literal["joined", "left", "attributes", "leave", "pins", "carry_over", "preferences", "skills"]] = Field(
+        description="Only the kinds: no date, pin, figure or skill of hers.")
+
+
+class InputDifferences(Schema):
+    changes: list[InputChange] = Field(description="Hospital rules, unit rules, the time limit, then the calendar.")
+    nurses: list[NurseInputChange] = Field(description="Each nurse whose block differs, by hospital ID.")
+
+
+class RuleSide(Schema):
+    amount: int | None = Field(description="How much of the rule its roster breaks. Null, as the weight is, when its side "
+                                           "could not be explained.")
+    weight: int | None
+    penalty: int | None = Field(description="The result's own. Null, as the others are, for the `change` rule of a solve that "
+                                            "was no re-plan: it has no roster in force to stay close to.")
+
+
+class ComparedRule(Schema):
+    rule: str = Field(description="The soft rule's name: the same as its weight's.")
+    older: RuleSide
+    newer: RuleSide
+    weight_differs: bool = Field(description="The two were priced differently: the amounts compare, the penalties do not.")
+
+
+class ComparedCell(Schema):
+    hospital_id: str
+    full_name: str
+    date: dt.date
+    older: str = Field(description="Under today's code. Empty for a day not worked.")
+    newer: str
+
+
+class ComparedHours(Schema):
+    hospital_id: str
+    full_name: str
+    older: NurseAccounting | None = Field(description="Null when she is not in the older.")
+    newer: NurseAccounting | None
+
+
+class ViolationGroups(Schema):
+    both: list[Violation] = Field(description="The older's entry, where rule, nurse and date agree with one of the newer's.")
+    only_older: list[Violation]
+    only_newer: list[Violation]
+
+
+class ResultComparison(Schema):
+    """Two results of one month, each on its own input. The older is the one asked for first."""
+    month: str
+    older: ComparedSolve
+    newer: ComparedSolve
+    inputs: InputDifferences
+    rules: list[ComparedRule] = Field(description="Each soft rule that costs something in either, the largest difference of "
+                                                  "penalty first.")
+    cells: list[ComparedCell] = Field(description="For the nurses in both, by name then date.")
+    nurses: list[ComparedHours] = Field(description="Every nurse of either, by name.")
+    violations: ViolationGroups = Field(description="Hard rules its roster breaks.")
+    facts: ViolationGroups = Field(description="Recorded facts that broke hard rules.")
+    explained_older: bool = Field(description="False when the solver's code could not explain the older's stored roster.")
+    explained_newer: bool
+
+
+class ComparedPair(Schema):
+    a: UUID
+    b: UUID = Field(description="The other. Either order: the answer says which is the older.")
+
+
+SAME_SOLVE = "Choose two different results to compare."
+TWO_MONTHS = "Only two results of the same month compare."
+NO_ROSTER = "Only results that hold a roster compare."
+
+
+def _compared_solve(solve: Solve, in_draft: set[UUID]) -> ComparedSolve:
+    result = solve.result or {}
+    return ComparedSolve(**_unit_row(solve, in_draft).model_dump(), unit_cost=result.get("department_cost"), replan_of=solve.replan_of,
+                         statistics=SolverStatistics(**statistics_of(result)))
+
+
+def _groups(older: list[dict], newer: list[dict], names: dict[str, str], month: dt.date) -> ViolationGroups:
+    both, only_older, only_newer = comparison.grouped(older, newer)
+    return ViolationGroups(both=_with_names(both, names, month), only_older=_with_names(only_older, names, month),
+                           only_newer=_with_names(only_newer, names, month))
+
+
+def _comparison_of(older: Solve, newer: Solve, unit: Unit) -> ResultComparison:
+    changes, nurse_changes = comparison.input_changes(older, newer)
+    soft_older, soft_newer = comparison.soft_rules(older), comparison.soft_rules(newer)
+    cells = comparison.differing_cells(older, newer)
+    hours = [solve.result.get("nurses") or {} for solve in (older, newer)]
+    broken = [row for solve in (older, newer) for kind in ("violations", "elapsed_violations")
+              for row in solve.result.get(kind) or []]
+    names = full_names({*hours[0], *hours[1], *older.result["roster"], *newer.result["roster"],
+                        *(change.hospital_id for change in nurse_changes), *(row["nurse"] for row in broken if row["nurse"])})
+    in_draft = _solves_in_drafts(unit)
+
+    def side(rule: comparison.Side) -> RuleSide:
+        return RuleSide(amount=rule.amount, weight=rule.weight, penalty=rule.penalty)
+
+    def accounting(row: dict | None, hospital_id: str) -> NurseAccounting | None:
+        return _accounting(row, hospital_id, names.get(hospital_id, "")) if row else None
+
+    by_cell = {(cell.hospital_id, cell.date): cell for cell in cells}
+    in_order = sorted(by_cell, key=lambda key: (names.get(key[0], "").lower(), key[0], key[1]))
+    return ResultComparison(
+        month=older.month.strftime("%Y-%m"), older=_compared_solve(older, in_draft), newer=_compared_solve(newer, in_draft),
+        inputs=InputDifferences(
+            changes=[InputChange(group=change.group, field=change.field, older=change.older, newer=change.newer)
+                     for change in changes],
+            nurses=[NurseInputChange(hospital_id=change.hospital_id, full_name=names.get(change.hospital_id, ""),
+                                     kinds=change.kinds) for change in nurse_changes]),
+        rules=[ComparedRule(rule=row.rule, older=side(row.older), newer=side(row.newer), weight_differs=row.weight_differs)
+               for row in comparison.rule_rows(older, newer, soft_older, soft_newer)],
+        cells=[ComparedCell(hospital_id=key[0], full_name=names.get(key[0], ""), date=key[1], older=by_cell[key].before,
+                            newer=by_cell[key].after) for key in in_order],
+        nurses=[ComparedHours(hospital_id=hospital_id, full_name=names.get(hospital_id, ""),
+                              older=accounting(hours[0].get(hospital_id), hospital_id),
+                              newer=accounting(hours[1].get(hospital_id), hospital_id))
+                for hospital_id in by_name({*hours[0], *hours[1]}, names)],
+        violations=_groups(older.result.get("violations") or [], newer.result.get("violations") or [], names, older.month),
+        facts=_groups(older.result.get("elapsed_violations") or [], newer.result.get("elapsed_violations") or [], names,
+                      older.month),
+        explained_older=soft_older is not None, explained_newer=soft_newer is not None)
+
+
+@router.get("/{unit_id}/solve-history/compare", response=ResultComparison, auth=manager, operation_id="compareSolveResults")
+def compare_results(request: HttpRequest, unit_id: UUID, pair: Query[ComparedPair]) -> ResultComparison:
+    """The manager's alone, and a read: nothing is written or audited. A solve of another unit is the same 404 as one that
+    does not exist, as a result's is."""
+    unit = unit_in_scope(request.user, unit_id)
+    solves = Solve.objects.filter(unit=unit).select_related("requested_by", "unit")
+    one, other = get_object_or_404(solves, pk=pair.a), get_object_or_404(solves, pk=pair.b)
+    if one.pk == other.pk:
+        raise HttpError(400, SAME_SOLVE)
+    if one.month != other.month:
+        raise HttpError(400, TWO_MONTHS)
+    if not (has_a_roster_to_keep(one.result) and has_a_roster_to_keep(other.result)):
+        raise HttpError(400, NO_ROSTER)
+    older, newer = sorted((one, other), key=lambda solve: (solve.requested_at, solve.pk))
+    return _comparison_of(older, newer, unit)
 
 
 @router.get("/{unit_id}/solve-history/{solve_id}", response=SolveResult, auth=reader, operation_id="getSolveResult")

@@ -36,6 +36,7 @@ import type {
   ChangePasswordRefusal,
   CloseBody,
   CompareRosterVersionsParams,
+  CompareSolveResultsParams,
   ConfirmNurseImportBody,
   ConfirmSkillsImportBody,
   CorrectedNurse,
@@ -136,6 +137,7 @@ import type {
   RequestDecided,
   RequestReasonBody,
   RequestWindowBody,
+  ResultComparison,
   RosterMonth,
   RosterSheet,
   SavedLeave,
@@ -6696,6 +6698,124 @@ export function useListUnitSolveHistory<TData = Awaited<ReturnType<typeof listUn
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListUnitSolveHistoryQueryOptions(unitId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCompareSolveResultsUrl = (unitId: string,
+    params: CompareSolveResultsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/solve-history/compare?${stringifiedParams}` : `/api/units/${unitId}/solve-history/compare`
+}
+
+/**
+ * The manager's alone, and a read: nothing is written or audited. A solve of another unit is the same 404 as one that
+ * does not exist, as a result's is.
+ * @summary Compare Results
+ */
+export const compareSolveResults = async (unitId: string,
+    params: CompareSolveResultsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ResultComparison> => {
+
+  return apiFetch<ResultComparison>(getCompareSolveResultsUrl(unitId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompareSolveResultsQueryKey = (unitId: string,
+    params?: CompareSolveResultsParams,) => {
+    return [
+    `/api/units/${unitId}/solve-history/compare`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCompareSolveResultsQueryOptions = <TData = Awaited<ReturnType<typeof compareSolveResults>>, TError = unknown>(unitId: string,
+    params: CompareSolveResultsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareSolveResults>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCompareSolveResultsQueryKey(unitId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof compareSolveResults>>> = ({ signal }) => compareSolveResults(unitId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof compareSolveResults>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CompareSolveResultsQueryResult = NonNullable<Awaited<ReturnType<typeof compareSolveResults>>>
+export type CompareSolveResultsQueryError = unknown
+
+
+export function useCompareSolveResults<TData = Awaited<ReturnType<typeof compareSolveResults>>, TError = unknown>(
+ unitId: string,
+    params: CompareSolveResultsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareSolveResults>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof compareSolveResults>>,
+          TError,
+          Awaited<ReturnType<typeof compareSolveResults>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompareSolveResults<TData = Awaited<ReturnType<typeof compareSolveResults>>, TError = unknown>(
+ unitId: string,
+    params: CompareSolveResultsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareSolveResults>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof compareSolveResults>>,
+          TError,
+          Awaited<ReturnType<typeof compareSolveResults>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompareSolveResults<TData = Awaited<ReturnType<typeof compareSolveResults>>, TError = unknown>(
+ unitId: string,
+    params: CompareSolveResultsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareSolveResults>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Compare Results
+ */
+
+export function useCompareSolveResults<TData = Awaited<ReturnType<typeof compareSolveResults>>, TError = unknown>(
+ unitId: string,
+    params: CompareSolveResultsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareSolveResults>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCompareSolveResultsQueryOptions(unitId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

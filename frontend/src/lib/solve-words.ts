@@ -1,6 +1,7 @@
 import type { UnitSolveRow } from "@/api/generated/model"
 
 import { longDay } from "@/lib/utils"
+import { WEIGHTS } from "@/lib/weights"
 
 /** What the unit's history and the System Admin's both say of a solve. The System Admin's row has nothing of a re-plan. */
 export type SolveRow = Omit<UnitSolveRow, "in_draft" | "replan_from" | "replan_outcome">
@@ -58,3 +59,12 @@ const STOPPED_BY: Record<string, string> = {
 }
 /** What ended a search. An unknown word from a later solver is still readable. */
 export const stoppedBy = (word: string | null) => (word ? STOPPED_BY[word] ?? word : "Unknown")
+
+/** A soft rule's name is its weight's, but for the skill need, whose weight is the price of a nurse short. */
+const RULE_LABELS = new Map<string, string>([...WEIGHTS.map((weight) => [weight.name as string, weight.label] as const),
+  ["skill_need", WEIGHTS.find((weight) => weight.name === "skill_shortfall")!.label]])
+/** A soft rule as the hospital rules page names its weight. A rule from a later solver is still readable. */
+export const ruleName = (rule: string) => RULE_LABELS.get(rule) ?? rule
+
+/** A difference with its sign, a true minus for a fall. */
+export const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "0")

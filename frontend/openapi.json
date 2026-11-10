@@ -3135,6 +3135,67 @@
         ]
       }
     },
+    "/api/units/{unit_id}/solve-history/compare": {
+      "get": {
+        "operationId": "compareSolveResults",
+        "summary": "Compare Results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "a",
+            "schema": {
+              "format": "uuid",
+              "title": "A",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "b",
+            "schema": {
+              "description": "The other. Either order: the answer says which is the older.",
+              "format": "uuid",
+              "title": "B",
+              "type": "string"
+            },
+            "required": true,
+            "description": "The other. Either order: the answer says which is the older."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultComparison"
+                }
+              }
+            }
+          }
+        },
+        "description": "The manager's alone, and a read: nothing is written or audited. A solve of another unit is the same 404 as one that\ndoes not exist, as a result's is.",
+        "tags": [
+          "solve history"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units/{unit_id}/solve-history/{solve_id}": {
       "get": {
         "operationId": "getSolveResult",
@@ -11751,36 +11812,377 @@
         "title": "UnitSolveRow",
         "type": "object"
       },
-      "GridView": {
+      "ComparedPair": {
         "properties": {
-          "days": {
+          "a": {
+            "format": "uuid",
+            "title": "A",
+            "type": "string"
+          },
+          "b": {
+            "description": "The other. Either order: the answer says which is the older.",
+            "format": "uuid",
+            "title": "B",
+            "type": "string"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ],
+        "title": "ComparedPair",
+        "type": "object"
+      },
+      "ComparedCell": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "older": {
+            "description": "Under today's code. Empty for a day not worked.",
+            "title": "Older",
+            "type": "string"
+          },
+          "newer": {
+            "title": "Newer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "date",
+          "older",
+          "newer"
+        ],
+        "title": "ComparedCell",
+        "type": "object"
+      },
+      "ComparedHours": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "older": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NurseAccounting"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when she is not in the older."
+          },
+          "newer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NurseAccounting"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "older",
+          "newer"
+        ],
+        "title": "ComparedHours",
+        "type": "object"
+      },
+      "ComparedRule": {
+        "properties": {
+          "rule": {
+            "description": "The soft rule's name: the same as its weight's.",
+            "title": "Rule",
+            "type": "string"
+          },
+          "older": {
+            "$ref": "#/components/schemas/RuleSide"
+          },
+          "newer": {
+            "$ref": "#/components/schemas/RuleSide"
+          },
+          "weight_differs": {
+            "description": "The two were priced differently: the amounts compare, the penalties do not.",
+            "title": "Weight Differs",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "rule",
+          "older",
+          "newer",
+          "weight_differs"
+        ],
+        "title": "ComparedRule",
+        "type": "object"
+      },
+      "ComparedSolve": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "refused",
+                  "unreachable",
+                  "lost",
+                  "overrun",
+                  "solver_error",
+                  "stuck",
+                  "worker_lost",
+                  "unexpected",
+                  "solver"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "elapsed_seconds": {
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "time_limit_seconds": {
+            "title": "Time Limit Seconds",
+            "type": "integer"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "found_roster": {
+            "description": "Whether it ended with a roster it could keep.",
+            "title": "Found Roster",
+            "type": "boolean"
+          },
+          "in_draft": {
+            "description": "Whether its month's draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. After a re-plan put its roster in force, that roster's grid is the re-plan's.",
+            "title": "In Draft",
+            "type": "boolean"
+          },
+          "replan_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on a re-plan: the first date it planned again.",
+            "title": "Replan From"
+          },
+          "replan_outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "version",
+                  "unchanged",
+                  "outdated",
+                  "month_over"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What a re-plan's end did to the roster in force. Null for a solve, before the end, and for a re-plan that kept no roster.",
+            "title": "Replan Outcome"
+          },
+          "unit_cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What it costs apart from any one nurse.",
+            "title": "Unit Cost"
+          },
+          "replan_of": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on a re-plan: the version in force when it started.",
+            "title": "Replan Of"
+          },
+          "statistics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolverStatistics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "state",
+          "failure",
+          "requested_by",
+          "requested_at",
+          "finished_at",
+          "elapsed_seconds",
+          "time_limit_seconds",
+          "attempts",
+          "cost",
+          "found_roster",
+          "in_draft",
+          "replan_from",
+          "replan_outcome",
+          "unit_cost",
+          "replan_of",
+          "statistics"
+        ],
+        "title": "ComparedSolve",
+        "type": "object"
+      },
+      "InputChange": {
+        "properties": {
+          "group": {
+            "enum": [
+              "hospital_rules",
+              "unit_rules",
+              "time_limit",
+              "calendar"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "field": {
+            "description": "As the audit log names it: a hospital rule's weight is `weights.<name>`.",
+            "title": "Field",
+            "type": "string"
+          },
+          "older": {
+            "description": "Null when the older's input has no such field, as one stored before the field existed.",
+            "title": "Older"
+          },
+          "newer": {
+            "description": "The same for the newer.",
+            "title": "Newer"
+          }
+        },
+        "required": [
+          "group",
+          "field",
+          "older",
+          "newer"
+        ],
+        "title": "InputChange",
+        "type": "object"
+      },
+      "InputDifferences": {
+        "properties": {
+          "changes": {
+            "description": "Hospital rules, unit rules, the time limit, then the calendar.",
             "items": {
-              "$ref": "#/components/schemas/GridDay"
+              "$ref": "#/components/schemas/InputChange"
             },
-            "title": "Days",
+            "title": "Changes",
             "type": "array"
           },
-          "rows": {
+          "nurses": {
+            "description": "Each nurse whose block differs, by hospital ID.",
             "items": {
-              "$ref": "#/components/schemas/GridRow"
+              "$ref": "#/components/schemas/NurseInputChange"
             },
-            "title": "Rows",
-            "type": "array"
-          },
-          "shifts": {
-            "items": {
-              "$ref": "#/components/schemas/GridShift"
-            },
-            "title": "Shifts",
+            "title": "Nurses",
             "type": "array"
           }
         },
         "required": [
-          "days",
-          "rows",
-          "shifts"
+          "changes",
+          "nurses"
         ],
-        "title": "GridView",
+        "title": "InputDifferences",
         "type": "object"
       },
       "NurseAccounting": {
@@ -11843,6 +12245,426 @@
           "cost"
         ],
         "title": "NurseAccounting",
+        "type": "object"
+      },
+      "NurseInputChange": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "kinds": {
+            "description": "Only the kinds: no date, pin, figure or skill of hers.",
+            "items": {
+              "enum": [
+                "joined",
+                "left",
+                "attributes",
+                "leave",
+                "pins",
+                "carry_over",
+                "preferences",
+                "skills"
+              ],
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "kinds"
+        ],
+        "title": "NurseInputChange",
+        "type": "object"
+      },
+      "ResultComparison": {
+        "description": "Two results of one month, each on its own input. The older is the one asked for first.",
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "older": {
+            "$ref": "#/components/schemas/ComparedSolve"
+          },
+          "newer": {
+            "$ref": "#/components/schemas/ComparedSolve"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/InputDifferences"
+          },
+          "rules": {
+            "description": "Each soft rule that costs something in either, the largest difference of penalty first.",
+            "items": {
+              "$ref": "#/components/schemas/ComparedRule"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "cells": {
+            "description": "For the nurses in both, by name then date.",
+            "items": {
+              "$ref": "#/components/schemas/ComparedCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "nurses": {
+            "description": "Every nurse of either, by name.",
+            "items": {
+              "$ref": "#/components/schemas/ComparedHours"
+            },
+            "title": "Nurses",
+            "type": "array"
+          },
+          "violations": {
+            "$ref": "#/components/schemas/ViolationGroups",
+            "description": "Hard rules its roster breaks."
+          },
+          "facts": {
+            "$ref": "#/components/schemas/ViolationGroups",
+            "description": "Recorded facts that broke hard rules."
+          },
+          "explained_older": {
+            "description": "False when the solver's code could not explain the older's stored roster.",
+            "title": "Explained Older",
+            "type": "boolean"
+          },
+          "explained_newer": {
+            "title": "Explained Newer",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "month",
+          "older",
+          "newer",
+          "inputs",
+          "rules",
+          "cells",
+          "nurses",
+          "violations",
+          "facts",
+          "explained_older",
+          "explained_newer"
+        ],
+        "title": "ResultComparison",
+        "type": "object"
+      },
+      "RuleSide": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How much of the rule its roster breaks. Null, as the weight is, when its side could not be explained.",
+            "title": "Amount"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "penalty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The result's own. Null, as the others are, for the `change` rule of a solve that was no re-plan: it has no roster in force to stay close to.",
+            "title": "Penalty"
+          }
+        },
+        "required": [
+          "amount",
+          "weight",
+          "penalty"
+        ],
+        "title": "RuleSide",
+        "type": "object"
+      },
+      "SolverStatistics": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "stopped_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopped By"
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective"
+          },
+          "best_bound": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Bound"
+          },
+          "solve_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solve Seconds"
+          },
+          "build_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Seconds"
+          },
+          "deterministic_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deterministic Time"
+          },
+          "improvements": {
+            "title": "Improvements",
+            "type": "integer"
+          },
+          "workers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workers"
+          },
+          "time_limit_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit Seconds"
+          },
+          "variables": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variables"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraints"
+          },
+          "objective_terms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Terms"
+          }
+        },
+        "required": [
+          "status",
+          "stopped_by",
+          "objective",
+          "best_bound",
+          "solve_seconds",
+          "build_seconds",
+          "deterministic_time",
+          "improvements",
+          "workers",
+          "time_limit_seconds",
+          "variables",
+          "constraints",
+          "objective_terms"
+        ],
+        "title": "SolverStatistics",
+        "type": "object"
+      },
+      "Violation": {
+        "properties": {
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "hospital_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hospital Id"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "hospital_id",
+          "full_name",
+          "date",
+          "text"
+        ],
+        "title": "Violation",
+        "type": "object"
+      },
+      "ViolationGroups": {
+        "properties": {
+          "both": {
+            "description": "The older's entry, where rule, nurse and date agree with one of the newer's.",
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            },
+            "title": "Both",
+            "type": "array"
+          },
+          "only_older": {
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            },
+            "title": "Only Older",
+            "type": "array"
+          },
+          "only_newer": {
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            },
+            "title": "Only Newer",
+            "type": "array"
+          }
+        },
+        "required": [
+          "both",
+          "only_older",
+          "only_newer"
+        ],
+        "title": "ViolationGroups",
+        "type": "object"
+      },
+      "GridView": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/GridDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/GridRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "shifts": {
+            "items": {
+              "$ref": "#/components/schemas/GridShift"
+            },
+            "title": "Shifts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "days",
+          "rows",
+          "shifts"
+        ],
+        "title": "GridView",
         "type": "object"
       },
       "ReplanChange": {
@@ -12269,204 +13091,6 @@
           "replan"
         ],
         "title": "SolveResult",
-        "type": "object"
-      },
-      "SolverStatistics": {
-        "properties": {
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "stopped_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stopped By"
-          },
-          "objective": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Objective"
-          },
-          "best_bound": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Best Bound"
-          },
-          "solve_seconds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Solve Seconds"
-          },
-          "build_seconds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Build Seconds"
-          },
-          "deterministic_time": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deterministic Time"
-          },
-          "improvements": {
-            "title": "Improvements",
-            "type": "integer"
-          },
-          "workers": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Workers"
-          },
-          "time_limit_seconds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Time Limit Seconds"
-          },
-          "variables": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Variables"
-          },
-          "constraints": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Constraints"
-          },
-          "objective_terms": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Objective Terms"
-          }
-        },
-        "required": [
-          "status",
-          "stopped_by",
-          "objective",
-          "best_bound",
-          "solve_seconds",
-          "build_seconds",
-          "deterministic_time",
-          "improvements",
-          "workers",
-          "time_limit_seconds",
-          "variables",
-          "constraints",
-          "objective_terms"
-        ],
-        "title": "SolverStatistics",
-        "type": "object"
-      },
-      "Violation": {
-        "properties": {
-          "rule": {
-            "title": "Rule",
-            "type": "string"
-          },
-          "hospital_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hospital Id"
-          },
-          "full_name": {
-            "title": "Full Name",
-            "type": "string"
-          },
-          "date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Date"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "rule",
-          "hospital_id",
-          "full_name",
-          "date",
-          "text"
-        ],
-        "title": "Violation",
         "type": "object"
       },
       "UnitWindows": {

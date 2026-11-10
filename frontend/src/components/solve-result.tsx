@@ -2,13 +2,9 @@ import { createContext, useContext, type ReactNode } from "react"
 
 import type { GridShift, NurseAccounting, ReplanComparison, RuleMatch, RuleResult, SolveResult, SolverStatistics, Violation } from "@/api/generated/model"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { stoppedBy } from "@/lib/solve-words"
+import { ruleName, signed, stoppedBy } from "@/lib/solve-words"
 import { longDay, scrollableRegion, shortDay } from "@/lib/utils"
-import { WEIGHTS } from "@/lib/weights"
 
-/** A soft rule's name is its weight's, but for the skill need, whose weight is the price of a nurse short. */
-const labels = new Map<string, string>([...WEIGHTS.map((weight) => [weight.name as string, weight.label] as const),
-  ["skill_need", WEIGHTS.find((weight) => weight.name === "skill_shortfall")!.label]])
 /** Who a line of the solver's is about, and when if its words do not say: most of them hold the date already. */
 const whose = (row: { full_name: string; hospital_id?: string | null; date?: string | null; text: string }) =>
   `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}`
@@ -66,7 +62,7 @@ function Occurrence({ match }: { match: RuleMatch }) {
 }
 
 function Rule({ rule }: { rule: RuleResult }) {
-  const name = labels.get(rule.rule) ?? rule.rule
+  const name = ruleName(rule.rule)
   return (
     <li className="flex flex-col gap-1 border-b py-2 last:border-b-0">
       <p className="flex justify-between gap-4 font-medium"><span>{name}</span><span className="tabular-nums">{rule.penalty}</span></p>
@@ -146,7 +142,6 @@ function Statistics({ statistics }: { statistics: SolverStatistics }) {
   )
 }
 
-const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "0")
 const cellCount = (count: number) => `${count} ${count === 1 ? "cell" : "cells"}`
 
 const REPLAN_SAYS: Record<NonNullable<ReplanComparison["outcome"]>, (version: number | null) => string> = {
@@ -191,7 +186,7 @@ function Replan({ replan, shifts }: { replan: ReplanComparison; shifts: GridShif
             <TableBody>
               {replan.rules.map((rule) => (
                 <TableRow key={rule.rule}>
-                  <TableHead scope="row" className="font-normal">{labels.get(rule.rule) ?? rule.rule}</TableHead>
+                  <TableHead scope="row" className="font-normal">{ruleName(rule.rule)}</TableHead>
                   <TableCell className="text-end tabular-nums">{rule.before}</TableCell>
                   <TableCell className="text-end tabular-nums">{rule.after}</TableCell>
                   <TableCell className="text-end tabular-nums">{signed(rule.after - rule.before)}</TableCell>

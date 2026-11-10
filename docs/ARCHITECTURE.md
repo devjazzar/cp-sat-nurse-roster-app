@@ -362,7 +362,8 @@ backup time and retention, close time.
 ```
 
 - Each solve replaces the draft's grid, unless its result has no roster or `ok` is false, which
-  leaves the draft as it was; the solve history keeps every result, and any result
+  leaves the draft as it was; the solve history keeps every result, any two of a month's results holding a roster compare
+  side by side for the manager alone, with what differed between their inputs named, and any result
   with a roster can be restored as the draft, unless a solve of that month is queued or running, the month is over, or a shift
   it uses has since been retired or had its hours changed, since its cost and hours would no longer hold (it can still be
   opened, and a rename is carried). The stale-draft warning then compares with the restored solve's input. The draft grid is
@@ -727,7 +728,12 @@ that may no longer open it home. Nothing of unsaved edits is kept in the browser
 What a solve shows afterwards: every piece of information the result holds: precheck
 warnings, penalties per rule, per-nurse cost and hours accounting, the explanation of the
 largest violations per rule, solver statistics, recorded facts that broke rules, and in a
-re-plan the comparison with the roster in force. A nurse's carry-over waits for the month close.
+re-plan the comparison with the roster in force. Any two of a month's results that hold a roster also compare side by side,
+for the unit's manager only (ticket 43): what differed between their solve inputs (hospital and unit rules field by field in
+the audit log's words, the time limit, the calendar, and for each nurse only the kind of change), each soft rule's amount,
+weight and penalty with each result costed on its own input, the cells that differ, each nurse's hours, the violations and
+facts in both or in one only, and the solver's statistics. Nothing is priced on the other's input, and nothing is restored
+from it. A nurse's carry-over waits for the month close.
 A stored result holds the penalties' totals only, so the explanation is worked out when asked.
 The solver's words count days from 0, so what the pages show says dates instead. The two skill rules read as the others do: a
 skill need short, per shift and day with how many short, under the skill shortfall weight's name, "Short of a skill need", when
