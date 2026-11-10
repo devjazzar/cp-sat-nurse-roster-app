@@ -211,3 +211,5 @@ the app-level suite.
   the month's candidates from the endpoint rather than the page.
 - The `change` rule exists only on a re-plan's input, so under own-input costing its row has the plain solve's column
   empty by design.
+
+**From the review of ticket 43 (2026-11-10):** the per-nurse input change kinds also include `preferences` and `skills`, in the stale-draft warning's words.

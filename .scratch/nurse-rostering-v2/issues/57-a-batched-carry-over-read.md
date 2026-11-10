@@ -13,3 +13,5 @@
 - [ ] No change to any API answer, the OpenAPI document or the frontend
 
 ## Comments
+
+**From ticket 43 (2026-11-10):** on GitHub's runner, ICU's December roster page (64 nurses) took 2.3–3.5 s for each of the result, the versions' compare, `replans/preview` and `close`. That kept "Loading…" past the 5 s wait in `e2e/tests/desktop/roles.spec.ts:22` once. Time those calls before and after this ticket too.
