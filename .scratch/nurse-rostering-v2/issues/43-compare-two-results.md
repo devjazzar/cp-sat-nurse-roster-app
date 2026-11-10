@@ -136,7 +136,21 @@ The stack is down and its volumes gone. My PostgreSQL container is stopped.
 - The section and its first table shared a name, so a screen reader met two regions called "The two solves". The tables
   now have names of their own.
 
-**Findings for you, not fixed:** none.
+**Findings for you, not fixed.**
+- **A browser check near its margin, not caused by this ticket.** Browser checks attempt 1 on `a1b96aa` failed
+  `tests/desktop/roles.spec.ts:22`, "every page of the Unit Manager with a nurse profile opens on a desktop".
+  - **What failed:** `toHaveCount(0)` on "Loading…" (`e2e/support.ts:108`) saw one, then two, for 5 s. It counts loading
+    texts, not pages.
+  - **Where:** the trace shows ICU's roster page for December, 64 nurses. Its calls took 1.5 s (`roster`), then 2.3–3.5 s
+    each (the result, the versions' compare, `replans/preview`, `close`), so the roster page's and the month close's
+    "Loading…" outlasted the wait.
+  - **Not this ticket's:** none of those endpoints or components changed here; the roster page only imports `ruleName` and
+    `signed` from a new place. This ticket adds no header link, so the pages the test walks are the same.
+  - **Already close on `main`:** the test took 6.8–8.1 s in all on `main`'s last four runs, against 8.4 s for the failed
+    attempt. Attempt 2 on the same head passed in 8.2 s, with all 73 checks.
+  - **Not fixed here:** a longer wait is what the suites' rules forbid, and the roster page's loads are not this ticket's.
+    **Recommendation:** whoever next touches the roster page or the month close looks at why `close` and
+    `replans/preview` take over 3 s for 64 nurses on GitHub's runner.
 
 **What was NOT checked.**
 - **A re-plan side on a real stack.** It was covered only through the API with the scripted solver and with a stubbed
