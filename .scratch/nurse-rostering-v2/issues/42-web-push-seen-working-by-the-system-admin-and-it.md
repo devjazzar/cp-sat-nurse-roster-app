@@ -63,7 +63,11 @@ brought in by a fast-forward before the first commit. The commits:
 - `7fde425`: the install guide, the architecture, the test that holds the guide's hosts to the code's, and `operations.sh`;
 - `b02e4ad`: "Gone" shown as ordinary on the health page;
 - `2096af0`: the review's points;
-- then this comment.
+- then this comment;
+- then `origin/main` at `c27ef45` (ticket 43, compare two results) merged in, with no conflict. Both tickets changed
+  `frontend/openapi.json`, the client and `docs/ARCHITECTURE.md`; after the merge the export and the regenerated client
+  match what is committed, the typecheck is clean and the health page's tests pass. The full suites were not run again
+  locally on the merge; GitHub ran them on it.
 
 The suites ran locally, one at a time under the heavy-run lock, the backend on a throwaway PostgreSQL 18 container of my own:
 - the backend, on `b02e4ad`: 3031 passed. After `2096af0`, the files it touched again (the health, metrics, retention and
