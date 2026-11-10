@@ -40,6 +40,11 @@ export const GetInstallationHealthResponse = zod.object({
   "failed": zod.int().describe('Failed jobs kept: those of the last 30 days (`ops.queue.ENDED_JOBS_KEPT`).'),
   "workers": zod.int()
 }),
+  "push": zod.object({
+  "sent": zod.int().describe('Sends a push service accepted in the last 24 hours, one a push subscription a try.'),
+  "failed": zod.int().describe('Sends that came to nothing in the last 24 hours, every try again counted: attempts, not jobs or pushes.'),
+  "last_failure": zod.union([zod.enum(['unreachable', 'refused', 'gone']),zod.null()]).describe('Why the last of those failed: the push service could not be reached (or answered 429 or 5xx), refused the push, or said the subscription is gone. Null when none failed in the last 24 hours.')
+}),
   "last_backup": zod.union([zod.iso.datetime({"offset":true}),zod.null()]).describe('When the newest backup was taken. Null before the first.'),
   "backups": zod.array(zod.object({
   "name": zod.string().describe('The file\'s name, which `GET /api/ops/backups/{name}` takes and `deploy/restore.sh` restores.'),

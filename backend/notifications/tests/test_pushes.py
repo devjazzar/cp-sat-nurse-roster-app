@@ -406,6 +406,18 @@ class TestTryingAgain:
         assert subscription(amal).failures_in_a_row == 1
         assert list(PushAttempt.objects.values_list("outcome", flat=True)) == ["unreachable"] * 4
 
+    def test_the_health_page_counts_every_try_not_the_one_job(self, mona, er, push_service, signed_in):
+        """One window opened, one push job: Amal's phone is tried four times in vain and her laptop is reached once."""
+        amal = on("Amal")
+        turned_on(as_user("Amal"), Device("https://updates.push.services.mozilla.com/wpush/v2/amals-laptop"))
+        push_service.answer(amal.endpoint, 503)
+
+        opened(mona, er)
+        run_the_queue()
+
+        health = signed_in(username="sysadmin").get("/api/ops/health").json()
+        assert health["push"] == {"sent": 1, "failed": 4, "last_failure": "unreachable"}
+
     def test_a_try_again_reaches_no_subscription_turned_on_since(self, mona, er, push_service):
         amal = on("Amal")
         laptop = Device("https://updates.push.services.mozilla.com/wpush/v2/amals-laptop")

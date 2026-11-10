@@ -36,6 +36,43 @@ function Reachability({ reachable }: { reachable: boolean }) {
   return <Badge variant={reachable ? "secondary" : "destructive"}>{reachable ? "Reachable" : "Unreachable"}</Badge>
 }
 
+const LAST_FAILURE = {
+  unreachable: {
+    word: "Unreachable",
+    why: "The last one failed because the push service could not be reached. If these keep coming, the server's firewall may be blocking the push services; the install guide names the hosts to allow.",
+  },
+  refused: {
+    word: "Refused",
+    why: "The last one failed because the push service refused the push. Expect this for a while after the push key pair is replaced, until each device opens the app again.",
+  },
+  gone: {
+    word: "Gone",
+    why: "The last one failed because the device's subscription no longer exists, as when notifications are turned off in its browser. It was removed, and nothing needs doing.",
+  },
+} as const
+
+/** Pushes the worker sent in the last day, by attempt (ADR 0012): two counts and a fixed word, nothing of anyone. */
+function Pushes({ push }: { push: InstallationHealth["push"] }) {
+  const last = push.last_failure ? LAST_FAILURE[push.last_failure] : null
+  return (
+    <Card>
+      <CardHeader><CardTitle><h2>Pushes</h2></CardTitle></CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <dl className="flex flex-col gap-2">
+          <Row name="Sent, last 24 hours">{push.sent}</Row>
+          <Row name="Failed, last 24 hours">{push.failed}</Row>
+          <Row name="Last failure">{last ? <Badge variant="destructive">{last.word}</Badge> : "None"}</Row>
+        </dl>
+        {last && <p className="text-sm">{last.why}</p>}
+        <p className="text-sm text-muted-foreground">
+          Every send to one device is counted, and so is each try again, so one push can fail up to four times. A push that
+          fails is not sent later; its notification stays on the bell.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** The backups the worker keeps, which only the System Admin may take: each holds the whole database. */
 function Backups({ health }: { health: InstallationHealth }) {
   const { backups, backup_schedule: schedule } = health
@@ -134,6 +171,7 @@ function HealthPage() {
               </dl>
             </CardContent>
           </Card>
+          <Pushes push={health.data.push} />
           <Backups health={health.data} />
         </div>
       )}

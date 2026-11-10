@@ -8,8 +8,10 @@ import httpx
 import pytest
 from django.db import connection
 from django.test import Client
+from django.utils import timezone
 
 from config.settings import allowed_hosts
+from notifications.models import PushAttempt
 from ops import backups
 
 pytestmark = pytest.mark.django_db
@@ -72,6 +74,23 @@ def test_what_the_health_page_reads(settings):
     assert found["nurse_roster_disk_free_bytes"] > 0
     assert (found["nurse_roster_backups"], found["nurse_roster_backups_size_bytes"]) == (2, 500)
     assert found["nurse_roster_last_backup_timestamp_seconds"] == dt.datetime(2026, 11, 5, 23, tzinfo=dt.UTC).timestamp()
+
+
+def test_pushes_sent_and_failed_in_the_last_24_hours_by_attempt():
+    for outcome in ["sent", "sent", "sent", "unreachable", "refused"]:
+        PushAttempt.objects.create(outcome=outcome)
+    old = PushAttempt.objects.create(outcome="gone")
+    PushAttempt.objects.filter(pk=old.pk).update(at=timezone.now() - dt.timedelta(hours=25))
+
+    found = samples(scrape())
+
+    assert (found['nurse_roster_push_attempts{outcome="sent"}'], found['nurse_roster_push_attempts{outcome="failed"}']) == (3, 2)
+
+
+def test_with_no_push_yet_both_counts_are_zero():
+    found = samples(scrape())
+
+    assert (found['nurse_roster_push_attempts{outcome="sent"}'], found['nurse_roster_push_attempts{outcome="failed"}']) == (0, 0)
 
 
 def test_with_no_backup_yet_there_is_no_last_backup():

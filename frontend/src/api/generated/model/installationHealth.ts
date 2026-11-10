@@ -7,6 +7,7 @@
 import type { BackupRow } from './backupRow';
 import type { BackupSchedule } from './backupSchedule';
 import type { Disk } from './disk';
+import type { PushHealth } from './pushHealth';
 import type { Queue } from './queue';
 import type { SolverHealth } from './solverHealth';
 
@@ -16,6 +17,7 @@ export interface InstallationHealth {
   database_size_bytes: number;
   disk: Disk | null;
   queue: Queue;
+  push: PushHealth;
   /** When the newest backup was taken. Null before the first. */
   last_backup: string | null;
   /** Every backup kept, newest first. */

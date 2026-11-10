@@ -1,5 +1,5 @@
 from datetime import datetime, time
-from typing import Annotated
+from typing import Annotated, Literal
 
 from django.db import transaction
 from django.http import FileResponse, Http404, HttpRequest
@@ -11,7 +11,7 @@ from accounts.models import Role
 from audit.log import record
 from ops import backups
 from ops.models import TechnicalSettings
-from ops.status import database_reachable, database_size_bytes, disk_usage, queue_state, solver_state
+from ops.status import database_reachable, database_size_bytes, disk_usage, push_state, queue_state, solver_state
 
 router = Router()
 system_admin = SignedIn(Role.SYSTEM_ADMIN)
@@ -73,12 +73,22 @@ class BackupSchedule(Schema):
     retention_days: int
 
 
+class PushHealth(Schema):
+    sent: int = Field(description="Sends a push service accepted in the last 24 hours, one a push subscription a try.")
+    failed: int = Field(description="Sends that came to nothing in the last 24 hours, every try again counted: attempts, not "
+                                    "jobs or pushes.")
+    last_failure: Literal["unreachable", "refused", "gone"] | None = Field(
+        description="Why the last of those failed: the push service could not be reached (or answered 429 or 5xx), refused "
+                    "the push, or said the subscription is gone. Null when none failed in the last 24 hours.")
+
+
 class InstallationHealth(Schema):
     database: bool
     solver: SolverHealth
     database_size_bytes: int
     disk: Disk | None
     queue: Queue
+    push: PushHealth
     last_backup: datetime | None = Field(description="When the newest backup was taken. Null before the first.")
     backups: list[BackupRow] = Field(description="Every backup kept, newest first.")
     backup_schedule: BackupSchedule
@@ -90,7 +100,7 @@ def installation_health(request) -> InstallationHealth:
     newest = backups.newest(kept)
     technical = TechnicalSettings.load()
     return InstallationHealth(database=database_reachable(), solver=_solver(),
-                              database_size_bytes=database_size_bytes(), disk=disk_usage(), queue=queue_state(),
+                              database_size_bytes=database_size_bytes(), disk=disk_usage(), queue=queue_state(), push=push_state(),
                               last_backup=newest.taken_at if newest else None,
                               backups=[BackupRow(name=b.name, size_bytes=b.size_bytes, taken_at=b.taken_at) for b in kept],
                               backup_schedule=BackupSchedule(time=technical.backup_time.strftime("%H:%M"),

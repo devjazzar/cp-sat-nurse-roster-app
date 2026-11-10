@@ -11,6 +11,7 @@ from django.db.models import Count
 from django.utils import timezone
 from procrastinate.contrib.django.models import ProcrastinateJob, ProcrastinateWorker
 
+from notifications.models import PushAttempt, PushOutcome
 from ops.solver_client import SolverUnreachable, solver_health
 
 # Procrastinate's workers beat every 10 s and it treats one silent for 30 s as stalled.
@@ -68,3 +69,23 @@ def queue_state() -> QueueState:
     alive = ProcrastinateWorker.objects.filter(last_heartbeat__gte=timezone.now() - WORKER_SILENCE)
     return QueueState(waiting=jobs.get("todo", 0), running=jobs.get("doing", 0), failed=jobs.get("failed", 0),
                       workers=alive.count())
+
+
+PUSHES_COUNTED = timedelta(hours=24)
+
+
+@dataclass
+class PushState:
+    sent: int
+    failed: int
+    last_failure: str | None
+
+
+def push_state() -> PushState:
+    """The last 24 hours' sends, one a subscription a try, so a push tried four times at one subscription counts four: attempts,
+    never jobs (ADR 0012). The last of them that failed says why in the app's own word. Nothing here is of a user or a device,
+    since an attempt holds neither. The retention keeps attempts seven days, so it never reaches what is read here."""
+    outcomes = list(PushAttempt.objects.filter(at__gte=timezone.now() - PUSHES_COUNTED).order_by("at", "pk")
+                    .values_list("outcome", flat=True))
+    failures = [outcome for outcome in outcomes if outcome != PushOutcome.SENT]
+    return PushState(sent=len(outcomes) - len(failures), failed=len(failures), last_failure=failures[-1] if failures else None)

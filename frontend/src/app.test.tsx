@@ -20,6 +20,7 @@ const HEALTH = {
   database_size_bytes: 5 * 1024 * 1024,
   disk: { total_bytes: 100 * 1024 ** 3, free_bytes: 60 * 1024 ** 3 },
   queue: { waiting: 2, running: 1, failed: 3, workers: 1 },
+  push: { sent: 0, failed: 0, last_failure: null },
   last_backup: null,
   backups: [],
   backup_schedule: { time: "02:00", retention_days: 30 },
@@ -595,6 +596,30 @@ describe("the health page", () => {
 
     expect(await screen.findByText("Unreachable")).toBeInTheDocument()
     expect(screen.getByText("Disk").nextSibling).toHaveTextContent("Unknown")
+  })
+
+  it("says no push was sent or failed in the last 24 hours when none was", async () => {
+    start("/health", admin())
+
+    expect(await screen.findByRole("heading", { level: 2, name: "Pushes" })).toBeInTheDocument()
+    expect(screen.getByText("Sent, last 24 hours").nextSibling).toHaveTextContent("0")
+    expect(screen.getByText("Failed, last 24 hours").nextSibling).toHaveTextContent("0")
+    expect(screen.getByText("Last failure").nextSibling).toHaveTextContent("None")
+    expect(screen.getByText(/Every send to one device is counted/)).toBeInTheDocument()
+  })
+
+  it.each([
+    ["unreachable", "Unreachable", /could not be reached.*firewall.*install guide/],
+    ["refused", "Refused", /refused the push/],
+    ["gone", "Gone", /no longer exists.*turned off/],
+  ])("counts the pushes sent and failed and says why the last one failed: %s", async (last_failure, word, why) => {
+    start("/health", admin({ "GET /api/ops/health": { body: { ...HEALTH, push: { sent: 41, failed: 7, last_failure } } } }))
+
+    expect(await screen.findByText("Sent, last 24 hours")).toBeInTheDocument()
+    expect(screen.getByText("Sent, last 24 hours").nextSibling).toHaveTextContent("41")
+    expect(screen.getByText("Failed, last 24 hours").nextSibling).toHaveTextContent("7")
+    expect(screen.getByText("Last failure").nextSibling).toHaveTextContent(word)
+    expect(screen.getByText(why)).toBeInTheDocument()
   })
 
   it("does not poll; Refresh reads it again", async () => {

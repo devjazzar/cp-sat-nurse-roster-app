@@ -6645,6 +6645,9 @@
           "queue": {
             "$ref": "#/components/schemas/Queue"
           },
+          "push": {
+            "$ref": "#/components/schemas/PushHealth"
+          },
           "last_backup": {
             "anyOf": [
               {
@@ -6676,11 +6679,50 @@
           "database_size_bytes",
           "disk",
           "queue",
+          "push",
           "last_backup",
           "backups",
           "backup_schedule"
         ],
         "title": "InstallationHealth",
+        "type": "object"
+      },
+      "PushHealth": {
+        "properties": {
+          "sent": {
+            "description": "Sends a push service accepted in the last 24 hours, one a push subscription a try.",
+            "title": "Sent",
+            "type": "integer"
+          },
+          "failed": {
+            "description": "Sends that came to nothing in the last 24 hours, every try again counted: attempts, not jobs or pushes.",
+            "title": "Failed",
+            "type": "integer"
+          },
+          "last_failure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unreachable",
+                  "refused",
+                  "gone"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last of those failed: the push service could not be reached (or answered 429 or 5xx), refused the push, or said the subscription is gone. Null when none failed in the last 24 hours.",
+            "title": "Last Failure"
+          }
+        },
+        "required": [
+          "sent",
+          "failed",
+          "last_failure"
+        ],
+        "title": "PushHealth",
         "type": "object"
       },
       "Queue": {

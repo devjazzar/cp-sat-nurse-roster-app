@@ -217,6 +217,8 @@ export * from './proposeSwapBody';
 export * from './publicHolidayBody';
 export * from './publicHolidaySchema';
 export * from './publicSolverHealth';
+export * from './pushHealth';
+export * from './pushHealthLastFailure';
 export * from './pushState';
 export * from './queue';
 export * from './ramadanFix';
