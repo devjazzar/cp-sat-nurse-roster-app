@@ -258,3 +258,8 @@ other Chrome running: a click on a notification reached no Chrome started by run
 - **Ticket 42:** see the note on it.
 - **A new kind with a deadline** (a cover offered): one code in `notifications/kinds.py`, its check in `pushes._STILL_WAITS`,
   and its words and page in `frontend/public/sw.js`.
+
+**Reviewed by the user (2026-11-10):** the retried push counts once, as the user decided with the ticket's session, and the other three points are kept as recommended.
+- The bare `push.services.mozilla.com` is allowed.
+- A manager with a nurse profile gets the manager's kinds alone.
+- An unknown kind's tap opens the app's home.
