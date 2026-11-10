@@ -3227,6 +3227,203 @@ export const ListUnitSolveHistoryResponse = zod.object({
 
 
 /**
+ * The manager's alone, and a read: nothing is written or audited. A solve of another unit is the same 404 as one that
+ * does not exist, as a result's is.
+ * @summary Compare Results
+ */
+export const CompareSolveResultsParams = zod.object({
+  "unit_id": zod.uuid()
+})
+
+export const CompareSolveResultsQueryParams = zod.object({
+  "a": zod.uuid(),
+  "b": zod.uuid().describe('The other. Either order: the answer says which is the older.')
+})
+
+export const CompareSolveResultsResponse = zod.object({
+  "month": zod.string(),
+  "older": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]),
+  "requested_by": zod.string(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "elapsed_seconds": zod.number(),
+  "time_limit_seconds": zod.int(),
+  "attempts": zod.int(),
+  "cost": zod.union([zod.int(),zod.null()]),
+  "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. After a re-plan put its roster in force, that roster\'s grid is the re-plan\'s.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan: the first date it planned again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null for a solve, before the end, and for a re-plan that kept no roster.'),
+  "unit_cost": zod.union([zod.int(),zod.null()]).describe('What it costs apart from any one nurse.'),
+  "replan_of": zod.union([zod.int(),zod.null()]).describe('Set on a re-plan: the version in force when it started.'),
+  "statistics": zod.union([zod.object({
+  "status": zod.string(),
+  "stopped_by": zod.union([zod.string(),zod.null()]),
+  "objective": zod.union([zod.number(),zod.null()]),
+  "best_bound": zod.union([zod.number(),zod.null()]),
+  "solve_seconds": zod.union([zod.number(),zod.null()]),
+  "build_seconds": zod.union([zod.number(),zod.null()]),
+  "deterministic_time": zod.union([zod.number(),zod.null()]),
+  "improvements": zod.int(),
+  "workers": zod.union([zod.int(),zod.null()]),
+  "time_limit_seconds": zod.union([zod.number(),zod.null()]),
+  "variables": zod.union([zod.int(),zod.null()]),
+  "constraints": zod.union([zod.int(),zod.null()]),
+  "objective_terms": zod.union([zod.int(),zod.null()])
+}),zod.null()])
+}),
+  "newer": zod.object({
+  "id": zod.uuid(),
+  "month": zod.string(),
+  "state": zod.enum(['queued', 'running', 'succeeded', 'failed', 'cancelled']),
+  "failure": zod.union([zod.enum(['refused', 'unreachable', 'lost', 'overrun', 'solver_error', 'stuck', 'worker_lost', 'unexpected', 'solver']),zod.null()]),
+  "requested_by": zod.string(),
+  "requested_at": zod.iso.datetime({"offset":true}),
+  "finished_at": zod.union([zod.iso.datetime({"offset":true}),zod.null()]),
+  "elapsed_seconds": zod.number(),
+  "time_limit_seconds": zod.int(),
+  "attempts": zod.int(),
+  "cost": zod.union([zod.int(),zod.null()]),
+  "found_roster": zod.boolean().describe('Whether it ended with a roster it could keep.'),
+  "in_draft": zod.boolean().describe('Whether its month\'s draft came from this solve. The draft may have been edited by hand since, and then holds more than this result. After a re-plan put its roster in force, that roster\'s grid is the re-plan\'s.'),
+  "replan_from": zod.union([zod.iso.date(),zod.null()]).describe('Set on a re-plan: the first date it planned again.'),
+  "replan_outcome": zod.union([zod.enum(['version', 'unchanged', 'outdated', 'month_over']),zod.null()]).describe('What a re-plan\'s end did to the roster in force. Null for a solve, before the end, and for a re-plan that kept no roster.'),
+  "unit_cost": zod.union([zod.int(),zod.null()]).describe('What it costs apart from any one nurse.'),
+  "replan_of": zod.union([zod.int(),zod.null()]).describe('Set on a re-plan: the version in force when it started.'),
+  "statistics": zod.union([zod.object({
+  "status": zod.string(),
+  "stopped_by": zod.union([zod.string(),zod.null()]),
+  "objective": zod.union([zod.number(),zod.null()]),
+  "best_bound": zod.union([zod.number(),zod.null()]),
+  "solve_seconds": zod.union([zod.number(),zod.null()]),
+  "build_seconds": zod.union([zod.number(),zod.null()]),
+  "deterministic_time": zod.union([zod.number(),zod.null()]),
+  "improvements": zod.int(),
+  "workers": zod.union([zod.int(),zod.null()]),
+  "time_limit_seconds": zod.union([zod.number(),zod.null()]),
+  "variables": zod.union([zod.int(),zod.null()]),
+  "constraints": zod.union([zod.int(),zod.null()]),
+  "objective_terms": zod.union([zod.int(),zod.null()])
+}),zod.null()])
+}),
+  "inputs": zod.object({
+  "changes": zod.array(zod.object({
+  "group": zod.enum(['hospital_rules', 'unit_rules', 'time_limit', 'calendar']),
+  "field": zod.string().describe('As the audit log names it: a hospital rule\'s weight is `weights.<name>`.'),
+  "older": zod.unknown().describe('Null when the older\'s input has no such field, as one stored before the field existed.'),
+  "newer": zod.unknown().describe('The same for the newer.')
+})).describe('Hospital rules, unit rules, the time limit, then the calendar.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "kinds": zod.array(zod.enum(['joined', 'left', 'attributes', 'leave', 'pins', 'carry_over', 'preferences', 'skills'])).describe('Only the kinds: no date, pin, figure or skill of hers.')
+})).describe('Each nurse whose block differs, by hospital ID.')
+}),
+  "rules": zod.array(zod.object({
+  "rule": zod.string().describe('The soft rule\'s name: the same as its weight\'s.'),
+  "older": zod.object({
+  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule its roster breaks. Null, as the weight is, when its side could not be explained.'),
+  "weight": zod.union([zod.int(),zod.null()]),
+  "penalty": zod.union([zod.int(),zod.null()]).describe('The result\'s own. Null, as the others are, for the `change` rule of a solve that was no re-plan: it has no roster in force to stay close to.')
+}),
+  "newer": zod.object({
+  "amount": zod.union([zod.int(),zod.null()]).describe('How much of the rule its roster breaks. Null, as the weight is, when its side could not be explained.'),
+  "weight": zod.union([zod.int(),zod.null()]),
+  "penalty": zod.union([zod.int(),zod.null()]).describe('The result\'s own. Null, as the others are, for the `change` rule of a solve that was no re-plan: it has no roster in force to stay close to.')
+}),
+  "weight_differs": zod.boolean().describe('The two were priced differently: the amounts compare, the penalties do not.')
+})).describe('Each soft rule that costs something in either, the largest difference of penalty first.'),
+  "cells": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "date": zod.iso.date(),
+  "older": zod.string().describe('Under today\'s code. Empty for a day not worked.'),
+  "newer": zod.string()
+})).describe('For the nurses in both, by name then date.'),
+  "nurses": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "older": zod.union([zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "contract": zod.int(),
+  "leave_credit": zod.int(),
+  "required": zod.int(),
+  "hours_worked": zod.int(),
+  "overtime": zod.int(),
+  "shortfall": zod.int(),
+  "shifts": zod.record(zod.string(), zod.int()).describe('How many of each, under the code each shift has now.'),
+  "cost": zod.int()
+}),zod.null()]).describe('Null when she is not in the older.'),
+  "newer": zod.union([zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "contract": zod.int(),
+  "leave_credit": zod.int(),
+  "required": zod.int(),
+  "hours_worked": zod.int(),
+  "overtime": zod.int(),
+  "shortfall": zod.int(),
+  "shifts": zod.record(zod.string(), zod.int()).describe('How many of each, under the code each shift has now.'),
+  "cost": zod.int()
+}),zod.null()])
+})).describe('Every nurse of either, by name.'),
+  "violations": zod.object({
+  "both": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('The older\'s entry, where rule, nurse and date agree with one of the newer\'s.'),
+  "only_older": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})),
+  "only_newer": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+}))
+}).describe('Hard rules its roster breaks.'),
+  "facts": zod.object({
+  "both": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})).describe('The older\'s entry, where rule, nurse and date agree with one of the newer\'s.'),
+  "only_older": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+})),
+  "only_newer": zod.array(zod.object({
+  "rule": zod.string(),
+  "hospital_id": zod.union([zod.string(),zod.null()]),
+  "full_name": zod.string(),
+  "date": zod.union([zod.iso.date(),zod.null()]),
+  "text": zod.string()
+}))
+}).describe('Recorded facts that broke hard rules.'),
+  "explained_older": zod.boolean().describe('False when the solver\'s code could not explain the older\'s stored roster.'),
+  "explained_newer": zod.boolean()
+}).describe('Two results of one month, each on its own input. The older is the one asked for first.')
+
+
+/**
  * A solve of a month the CNO or the Deputy CNO may not see is the same 404 as one that does not exist.
  * @summary Solve Result
  */
