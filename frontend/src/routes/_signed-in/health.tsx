@@ -39,19 +39,22 @@ function Reachability({ reachable }: { reachable: boolean }) {
 const LAST_FAILURE = {
   unreachable: {
     word: "Unreachable",
-    why: "The last one failed because the push service could not be reached. If these keep coming, the server's firewall may be blocking the push services; the install guide names the hosts to allow.",
+    variant: "destructive",
+    why: "The last one failed because the push service could not be reached, or answered that it was overloaded. If these keep coming with nothing sent, the server's firewall may be blocking the push services; the install guide names the hosts to allow.",
   },
   refused: {
     word: "Refused",
+    variant: "destructive",
     why: "The last one failed because the push service refused the push. Expect this for a while after the push key pair is replaced, until each device opens the app again.",
   },
   gone: {
     word: "Gone",
+    variant: "secondary",
     why: "The last one failed because the device's subscription no longer exists, as when notifications are turned off in its browser. It was removed, and nothing needs doing.",
   },
 } as const
 
-/** Pushes the worker sent in the last day, by attempt (ADR 0012): two counts and a fixed word, nothing of anyone. */
+/** Pushes the worker sent in the last day, by attempt: two counts and a fixed word, nothing of anyone (ADR 0012). */
 function Pushes({ push }: { push: InstallationHealth["push"] }) {
   const last = push.last_failure ? LAST_FAILURE[push.last_failure] : null
   return (
@@ -62,7 +65,7 @@ function Pushes({ push }: { push: InstallationHealth["push"] }) {
           <Row name="Sent, last 24 hours">{push.sent}</Row>
           <Row name="Failed, last 24 hours">{push.failed}</Row>
           <Row name="Last failure">
-            {last ? <Badge variant={push.last_failure === "gone" ? "secondary" : "destructive"}>{last.word}</Badge> : "None"}
+            {last ? <Badge variant={last.variant}>{last.word}</Badge> : "None"}
           </Row>
         </dl>
         {last && <p className="text-sm">{last.why}</p>}

@@ -609,7 +609,7 @@ describe("the health page", () => {
   })
 
   it.each([
-    ["unreachable", "Unreachable", /could not be reached.*firewall.*install guide/],
+    ["unreachable", "Unreachable", /could not be reached, or answered that it was overloaded.*firewall.*install guide/],
     ["refused", "Refused", /refused the push/],
     ["gone", "Gone", /no longer exists.*turned off/],
   ])("counts the pushes sent and failed and says why the last one failed: %s", async (last_failure, word, why) => {

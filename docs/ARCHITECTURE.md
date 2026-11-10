@@ -35,9 +35,10 @@ One application image per release. `docker compose` starts five services:
 The `solver` network is reachable by `web` and `worker` only. The solver container holds no
 database credential and no secret other than the shared solver token. See ADR 0001.
 
-`egress` is the only network of an application service that is not internal: the worker's alone, its way out to the browsers'
-push services and nowhere else (ADR 0012; the hosts it may send to are `notifications.subscriptions`'s, named for the hospital's
-firewall in `deploy/INSTALL.md`). `web`, `db` and the solver are on internal networks only and reach nothing outside; only
+`egress` is the only network of an application service that is not internal: the worker's alone, its way out, which it uses
+for the browsers' push services and nothing else (ADR 0012). The network itself is open; what keeps the worker to those hosts
+is `notifications.subscriptions`'s list, checked at turn-on and before each send, and the hospital's firewall, for which
+`deploy/INSTALL.md` names them. `web`, `db` and the solver are on internal networks only and reach nothing outside; only
 Caddy is on `public`. A hospital that lets nothing out loses pushes and nothing else.
 
 Volumes: `pgdata` (PostgreSQL), `backups` (the nightly backups, mounted by `worker` and, read-only, by `web`, and by no other
@@ -63,7 +64,8 @@ self-signed certificate via `tls internal`), `SECRET_KEY`, `POSTGRES_PASSWORD`,
   the account's sessions and lifts a lock from wrong passwords; audited with no actor, "from the server".
 - `manage.py rotate_push_keys`: replaces the push key pair after a compromise, audited the same way (`push.keys_rotated`). It
   deletes no push subscription: sends to a device still bound to the old key are refused until it opens the app again, when
-  it subscribes with the new key without being asked. There is no scheduled rotation.
+  it subscribes with the new key without being asked. Each refusal counts toward the ten that end a subscription, so a
+  device not opened in that time is turned off and its user turns it on again. There is no scheduled rotation.
 - `deploy/restore.sh <backup name or file>`: stops `web` and `worker`, backs up the database as it stands, restores into a new
   database and only then puts it in the old one's place (the old renamed aside, the new renamed in, the old dropped last), starts them again (`web` migrates an older backup forward).
   Restore is deliberately a script, not a button.
@@ -688,8 +690,8 @@ Six of them, those with a deadline, are also pushed to the devices their reader 
 swap to answer, a swap awaiting the manager, a request window opened, a window closed with requests waiting, a roster
 submitted and a roster rejected. Everything else stays on the bell alone. A push carries its kind code and nothing more; the
 service worker holds each kind's words and page, always shows a notification titled "Nurse roster" tagged by its kind
-(`push`), and on a tap (`notificationclick`) focuses an open window and has the app's own router go to the kind's page, with
-no month, so a roster with unsaved changes still asks first, or opens a window there when none is open. Its third listener,
+(`push`; an unknown kind shows the title alone), and on a tap (`notificationclick`) focuses an open window and has the app's own router go to the kind's page, with
+no month, so a roster with unsaved changes still asks first, or opens a window there when none is open. A third listener for pushes,
 `pushsubscriptionchange`, subscribes again when the browser renews an address and tells the server which one it replaces.
 A device opts in on the Notifications page, in "On this device": Turn on asks the browser's permission inside the tap and
 subscribes with the installation's public key (on an iPhone or iPad only from the app on the Home Screen, which the page
@@ -819,8 +821,8 @@ solves there are in each state. The health page
 shows solver reachability and version, disk and database size, the backups with the last one's time, queue state, and pushes:
 how many were sent and how many failed in the last 24 hours, counted by attempt (each send to one subscription, each try
 again included, never by job) and why the last of those failed, in one of three fixed words (`unreachable`, `refused`,
-`gone`). That block and its two gauges on `/metrics` hold nothing of a user or a device; a run of `unreachable` with nothing
-sent is how a firewall that blocks the push services shows. The
+`gone`; `unreachable` is also a push service answering 429 or 5xx). That block and its two gauges on `/metrics` hold nothing
+of a user or a device; a run of `unreachable` with nothing sent is how a firewall that blocks the push services shows. The
 public `/api/health` says only whether the database and the solver answer. Nothing else is bundled.
 
 ## 9. Defaults

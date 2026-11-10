@@ -84,13 +84,13 @@ def test_pushes_sent_and_failed_in_the_last_24_hours_by_attempt():
 
     found = samples(scrape())
 
-    assert (found['nurse_roster_push_attempts{outcome="sent"}'], found['nurse_roster_push_attempts{outcome="failed"}']) == (3, 2)
+    assert (found['nurse_roster_push_attempts{result="sent"}'], found['nurse_roster_push_attempts{result="failed"}']) == (3, 2)
 
 
 def test_with_no_push_yet_both_counts_are_zero():
     found = samples(scrape())
 
-    assert (found['nurse_roster_push_attempts{outcome="sent"}'], found['nurse_roster_push_attempts{outcome="failed"}']) == (0, 0)
+    assert (found['nurse_roster_push_attempts{result="sent"}'], found['nurse_roster_push_attempts{result="failed"}']) == (0, 0)
 
 
 def test_with_no_backup_yet_there_is_no_last_backup():

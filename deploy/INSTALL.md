@@ -171,7 +171,7 @@ services:
 with `prometheus.yml` scraping `web:8000`. What it reads is what the health page shows: whether the database and the solver
 answer, the queue's jobs and workers, solves by state, the database's size, the disk's free space, and the backups kept with
 the time of the last one (`nurse_roster_last_backup_timestamp_seconds`, worth an alert when it is more than a day old), and
-the pushes sent and failed in the last 24 hours (`nurse_roster_push_attempts{outcome="sent"}` and `{outcome="failed"}`; a
+the pushes sent and failed in the last 24 hours (`nurse_roster_push_attempts{result="sent"}` and `{result="failed"}`; a
 failed count that keeps climbing while sent stays at zero says the push services cannot be reached).
 
 ## Pushes
@@ -200,7 +200,8 @@ times over about ten minutes, then dropped.
 **The check is the health page's Pushes card:** pushes sent and failed in the last 24 hours, and why the last one failed.
 Each send to one device counts, and so does each try again, so one push to a blocked service counts four failures.
 
-- `Unreachable`, with failures climbing and nothing sent: the worker cannot reach the push services. Look at the firewall, and
+- `Unreachable`: the push service could not be reached, or answered that it was overloaded or failing; a few are ordinary.
+  With failures climbing and nothing sent, the worker cannot reach the push services at all. Look at the firewall, and
   at `docker compose exec worker python -c "import urllib.request as u; u.urlopen('https://fcm.googleapis.com', timeout=10)"`,
   which must not end in a timeout or a refused connection (an HTTP error such as 404 is an answer, and is fine).
 - `Refused`: the push service answered and would not take the push. Expect it for a while after the key pair is replaced
@@ -216,8 +217,9 @@ with the devices bound to it. If the database or a backup may have been read by 
 docker compose exec web python manage.py rotate_push_keys
 ```
 
-No one has to turn pushes on again: each device takes the new key the next time its user opens the application, and gets no
-push until then. The audit log records the replacement as done from the server.
+Each device takes the new key, unasked, the next time its user opens the application, and gets no push until then. A device
+not opened before ten pushes to it were refused is turned off, and its user turns it on again on the Notifications page. The
+audit log records the replacement as done from the server.
 
 ## What the queue keeps
 

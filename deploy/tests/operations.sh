@@ -218,11 +218,11 @@ block=$(push_block) || fail "the health answer carries no push block"
 [[ $block == '{"failed": 0, "last_failure": null, "sent": 0}' ]] && pass "the health answer carries the push block, empty before any push: $block" \
   || fail "the push block before any push: $block"
 sql "INSERT INTO notifications_pushattempt (at, outcome) VALUES (now() - interval '2 hours', 'sent'), (now() - interval '1 hour', 'gone'), (now(), 'unreachable'), (now() - interval '25 hours', 'refused')" >/dev/null
-block=$(push_block)
+block=$(push_block) || fail "the health answer lost its push block"
 [[ $block == '{"failed": 2, "last_failure": "unreachable", "sent": 1}' ]] && pass "and counts the last 24 hours' attempts with the last failure's reason: $block" \
   || fail "the push block after three sends in the day: $block"
-gauges=$(compose exec -T caddy wget -qO- http://web:8000/metrics | grep '^nurse_roster_push_attempts{' | tr '\n' ' ')
-[[ $gauges == 'nurse_roster_push_attempts{outcome="sent"} 1 nurse_roster_push_attempts{outcome="failed"} 2 ' ]] \
+gauges=$(compose exec -T caddy wget -qO- http://web:8000/metrics | { grep '^nurse_roster_push_attempts{' || true; } | tr '\n' ' ')
+[[ $gauges == 'nurse_roster_push_attempts{result="sent"} 1 nurse_roster_push_attempts{result="failed"} 2 ' ]] \
   && pass "/metrics carries the same two counts" || fail "/metrics on pushes: $gauges"
 
 echo "# All checks passed."

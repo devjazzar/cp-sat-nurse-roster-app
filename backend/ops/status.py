@@ -83,9 +83,10 @@ class PushState:
 
 def push_state() -> PushState:
     """The last 24 hours' sends, one a subscription a try, so a push tried four times at one subscription counts four: attempts,
-    never jobs (ADR 0012). The last of them that failed says why in the app's own word. Nothing here is of a user or a device,
-    since an attempt holds neither. The retention keeps attempts seven days, so it never reaches what is read here."""
-    outcomes = list(PushAttempt.objects.filter(at__gte=timezone.now() - PUSHES_COUNTED).order_by("at", "pk")
-                    .values_list("outcome", flat=True))
-    failures = [outcome for outcome in outcomes if outcome != PushOutcome.SENT]
-    return PushState(sent=len(outcomes) - len(failures), failed=len(failures), last_failure=failures[-1] if failures else None)
+    never jobs (ticket 42). The last of them that failed says why in the app's own word. Nothing here is of a user or a device,
+    since an attempt holds neither (ADR 0012). The retention keeps attempts seven days, so it never reaches what is read here."""
+    counted = PushAttempt.objects.filter(at__gte=timezone.now() - PUSHES_COUNTED)
+    by_outcome = dict(counted.order_by().values_list("outcome").annotate(Count("id")))
+    sent = by_outcome.pop(PushOutcome.SENT, 0)
+    last = counted.exclude(outcome=PushOutcome.SENT).order_by("-at", "-pk").values_list("outcome", flat=True).first()
+    return PushState(sent=sent, failed=sum(by_outcome.values()), last_failure=last)

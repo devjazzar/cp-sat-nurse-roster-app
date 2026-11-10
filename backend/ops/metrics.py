@@ -38,7 +38,7 @@ def _exposition() -> str:
     out.gauge("queue_workers", "Queue workers that beat within the last 30 seconds.", queue.workers)
     push = push_state()
     out.gauge("push_attempts", "Sends to a push subscription in the last 24 hours, every try again counted: accepted by the "
-              "push service, and failed.", {'{outcome="sent"}': push.sent, '{outcome="failed"}': push.failed})
+              "push service, and failed.", {'{result="sent"}': push.sent, '{result="failed"}': push.failed})
     solves = dict(Solve.objects.order_by().values_list("state").annotate(Count("id")))
     out.gauge("solves", "Solves kept, by state.", {f'{{state="{state}"}}': solves.get(state, 0) for state in SolveState.values})
     out.gauge("database_size_bytes", "The size of the application's database.", database_size_bytes())
