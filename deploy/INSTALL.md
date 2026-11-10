@@ -89,7 +89,8 @@ A backup is the whole database in `pg_dump`'s custom format, named for when it w
 mount, and only the System Admin sees them: listed on the health page with sizes and dates and the time of the last one, and
 downloaded from there. Each download is in the audit log.
 
-**A backup holds everything:** every account's password hash and every nurse's leave. Keep any copy as safe as the server.
+**A backup holds everything:** every account's password hash, the installation's push key and every nurse's leave. Keep any
+copy as safe as the server. Only who is signed in is left out, so a restore signs everyone out.
 
 **Copies off the server are the hospital's job.** A disk that fails takes the backups with it. Copy them somewhere else every
 day, for instance:

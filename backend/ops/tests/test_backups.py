@@ -15,6 +15,8 @@ from ops.models import TechnicalSettings
 
 pytestmark = pytest.mark.django_db
 
+# The real one, before the suite's `no_real_backups` puts a stand-in in its place for every test.
+REAL_DUMP_DATABASE = backups.dump_database
 RIYADH = ZoneInfo("Asia/Riyadh")
 NON_ADMINS = [Role.CNO, Role.DEPUTY_CNO, Role.UNIT_MANAGER, Role.STAFF_NURSE]
 
@@ -236,6 +238,23 @@ class TestDownload:
         (backups_dir.parent / "secret.dump").write_bytes(b"outside")  # what "..%2Fsecret.dump" would reach
 
         assert signed_in().get(self.url(name)).status_code == 404
+
+
+def test_a_backup_carries_no_session_that_works(monkeypatch):
+    """A session is a working login, no part of the record: the table goes in empty, so a key read from a backup signs nobody
+    in, and a restore signs everyone out. `pg_dump` itself is not run here (the module's docstring says why): its argv is."""
+    import subprocess
+    ran = []
+    monkeypatch.setattr(backups.subprocess, "run",
+                        lambda command, **_: ran.append(command) or subprocess.CompletedProcess(command, 0, b"", b""))
+
+    with open(os.devnull, "wb") as out:
+        REAL_DUMP_DATABASE(out)
+
+    [command] = ran
+    assert command[0] == "pg_dump"
+    assert "--exclude-table-data=django_session" in command
+    assert not any(part.startswith(("--exclude-table=", "-T")) for part in command)  # the table itself stays, empty
 
 
 def test_the_job_runs_under_a_lock_of_its_own():

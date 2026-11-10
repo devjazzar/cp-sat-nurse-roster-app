@@ -310,8 +310,8 @@ _Avoid_: fasting days
 ### Operations
 
 **Backup**:
-A copy of the whole database, taken by the worker every night at the System Admin's backup time and kept for their number of
-days. Only the System Admin sees and downloads one, since it holds every account and every nurse's leave.
+A copy of the whole database but who is signed in, taken by the worker every night at the System Admin's backup time and kept
+for their number of days. Only the System Admin sees and downloads one, since it holds every account and every nurse's leave.
 _Avoid_: dump, snapshot, export
 
 **Restore**:

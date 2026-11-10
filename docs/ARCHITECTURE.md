@@ -71,7 +71,8 @@ self-signed certificate via `tls internal`), `SECRET_KEY`, `POSTGRES_PASSWORD`,
   Restore is deliberately a script, not a button.
 - Nightly backup (02:00 hospital time, kept 30 days, both the System Admin's to change) is a worker job; backups are listed
   and downloadable on the System Admin's health page, each download audited. The files are the record (`ops.backups`): a
-  `pg_dump` in its custom format named by its UTC time, readable by the app user only, the newest always kept. Off-site copies
+  `pg_dump` in its custom format named by its UTC time, readable by the app user only, the newest always kept. The sessions'
+  table goes in empty, since a session's key is a working login: a restore signs everyone out. Off-site copies
   are the hospital's job and are documented in the install guide, `deploy/INSTALL.md`.
 
 ### Image build

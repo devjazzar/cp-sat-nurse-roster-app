@@ -3,7 +3,8 @@
 
 The files are the record: what is listed, what is the last backup and what is kept are read from the directory, never from a
 table, so a restored database cannot disagree with the disk. A backup holds everything, password hashes and every nurse's
-leave included, so it reaches nobody but the System Admin (`ops.api`), and only `web` and `worker` mount the volume."""
+leave included, so it reaches nobody but the System Admin (`ops.api`), and only `web` and `worker` mount the volume. Everything
+but the sessions: their table goes in empty, since a session's key works as a login as it stands."""
 from __future__ import annotations
 
 import datetime as dt
@@ -99,9 +100,13 @@ def is_due(now: dt.datetime) -> bool:
 
 
 def dump_database(out: BinaryIO) -> None:
-    """The whole database, in `pg_dump`'s custom format. The worker's image carries the client of the server's version."""
+    """The whole database, in `pg_dump`'s custom format, but the sessions' rows. The worker's image carries the client of the
+    server's version."""
     database = settings.DATABASES["default"]
-    command = ["pg_dump", "--format=custom", "--no-password", "--host", database["HOST"], "--port", str(database["PORT"]),
+    # A session is a working login, no part of the record: its key read from a backup would sign its holder in as that user.
+    # The table goes in empty, so a restore signs everyone out.
+    command = ["pg_dump", "--format=custom", "--no-password", "--exclude-table-data=django_session",
+               "--host", database["HOST"], "--port", str(database["PORT"]),
                "--username", database["USER"], "--dbname", database["NAME"]]
     finished = subprocess.run(command, stdout=out, stderr=subprocess.PIPE, env={**os.environ, "PGPASSWORD": database["PASSWORD"]},
                               check=False)
