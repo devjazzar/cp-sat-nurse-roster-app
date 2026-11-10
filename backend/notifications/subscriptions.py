@@ -3,13 +3,34 @@ turned pushes on or off and when, and nothing of the device: not its address, it
 from __future__ import annotations
 
 from collections.abc import Iterable
+from urllib.parse import urlsplit
 
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from accounts.models import User
 from audit.log import record
 from notifications.models import PushSubscription
+
+# The browsers' push services, the only hosts the worker sends to (the user's decision at ticket 40's review), so a signed-in user
+# cannot make the worker post to an address of their choosing. From each service's own documentation (ticket 41's comment):
+# Google's FCM, Mozilla's autopush, Apple's and Microsoft's WNS: these hosts themselves, and any name under these, on a dot.
+PUSH_SERVICE_HOSTS = frozenset({"fcm.googleapis.com", "push.services.mozilla.com"})
+PUSH_SERVICE_DOMAINS = frozenset({"push.services.mozilla.com", "push.apple.com", "notify.windows.com"})
+
+
+def allowed(endpoint: str) -> bool:
+    """An `https://` address on a push service's host, on the default port, with no user name or password in it."""
+    try:
+        parts = urlsplit(endpoint)
+        port = parts.port
+    except ValueError:
+        return False
+    host = parts.hostname or ""
+    if parts.scheme != "https" or port not in (None, 443) or "@" in parts.netloc or not host or host.endswith("."):
+        return False
+    return host in PUSH_SERVICE_HOSTS or any(host.endswith("." + domain) for domain in PUSH_SERVICE_DOMAINS)
 
 
 def devices(user: User) -> int:
@@ -75,6 +96,25 @@ def turn_off_everywhere(user: User) -> None:
         deleted, _ = PushSubscription.objects.filter(user=user).delete()
         if deleted:
             _audit("push.turned_off", user)
+
+
+FAILURES_THAT_END = 10
+
+
+def reached(subscription_id) -> None:
+    """A push got there: its failures start again from none."""
+    PushSubscription.objects.filter(pk=subscription_id).update(failures_in_a_row=0, last_success_at=timezone.now())
+
+
+def not_reached(subscription_id) -> None:
+    """A push that did not get there counts one failure; the tenth in a row ends the subscription, with no entry."""
+    PushSubscription.objects.filter(pk=subscription_id).update(failures_in_a_row=F("failures_in_a_row") + 1)
+    PushSubscription.objects.filter(pk=subscription_id, failures_in_a_row__gte=FAILURES_THAT_END).delete()
+
+
+def end(subscription_id) -> None:
+    """The push service says it is gone, or its host is not one allowed: nobody's act, so no entry."""
+    PushSubscription.objects.filter(pk=subscription_id).delete()
 
 
 def end_for(user_ids: Iterable) -> None:

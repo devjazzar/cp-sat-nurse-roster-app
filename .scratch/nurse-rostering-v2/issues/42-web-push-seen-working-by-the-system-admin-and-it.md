@@ -27,3 +27,30 @@ Spec: `.scratch/nurse-rostering-v2/specs/web-push-for-deadlines.md`.
   and no IP.
 - **Backups and restores need nothing new.** `ops.backups` takes a whole-database `pg_dump`, so the key pair and the
   subscriptions come back with a restore.
+
+**From ticket 41 (2026-11-10):** pushes are sent. What this ticket builds on:
+- **The attempts:** `notifications.models.PushAttempt`, one row a send to one subscription (`at`, indexed, and `outcome`:
+  `sent`, `gone`, `refused` or `unreachable`). A retry's every try is a row, so the 24 hours' counts are attempts, as the spec
+  says. The last failure's reason is the latest row that is not `sent`. Nothing writes to it but `notifications.pushes`, and
+  nothing removes it yet: the seven days' retention is yours.
+- **The hosts** in `notifications.subscriptions` (`PUSH_SERVICE_HOSTS`, `PUSH_SERVICE_DOMAINS`) are what the install guide
+  should name: `fcm.googleapis.com`; `push.services.mozilla.com` and any name under it (the bare host is allowed too, as
+  Mozilla's own examples use it); any name under `push.apple.com`; any name under `notify.windows.com`. Ticket 41's comment
+  cites each service's page. Only HTTPS on 443.
+- **The networks:** the worker is on `backend`, `solver` and `egress`; only `egress` is not internal. Check it on the
+  operations stack (`deploy/compose.yaml` with `deploy/tests/compose.test.yaml`), where `web` stays internal. Under
+  `e2e/compose.e2e.yaml` `web` is also on `public`, for the browser checks' HTTP port.
+- **For section 7:** the job `notifications.tasks.push`, under the lock `push`, deferred by `notify` in the change's
+  transaction; retries at 1, 3 and 6 minutes at priority −1, so a waiting retry holds back no new push.
+- **For section 8:** a tap focuses an open window and moves it through the app's router (a message, `open-page`), so an
+  unsaved roster still asks; with none open it opens one. Still no `fetch` listener.
+- **A failure count** goes up once a push that did not get there (a refusal at once, an unreachable service after its last
+  try), so the health page's failed attempts can be up to four a push while a subscription's count moves by one.
+- **Look for Chrome's own notice.** In ticket 41's drive, a hand-started Chrome with its own profile showed "This site has
+  been updated in the background" beside the push in the three runs with the app not the focused tab, and a click on it opened the
+  app's home. That Chrome also reported no notifications straight after showing one, so it is probably that Chrome and not
+  the worker. On a real host name, in an ordinary Chrome, check that one push shows one notification.
+- **Driving one:** a Playwright-launched Chrome receives no push (`--disable-background-networking`, and a permission granted
+  over CDP lapses with the connection). Allow notifications in a profile of its own and start the installed Chrome with
+  `open -na "Google Chrome" --args --user-data-dir=… --remote-debugging-port=…`, with no other Chrome running; a click on a
+  notification reached no Chrome started by running its binary.

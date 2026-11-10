@@ -1,5 +1,6 @@
-// The service worker, there so the app installs to a phone's home screen (ticket 23) and so a device keeps its pushes when
-// the browser renews its subscription (ticket 40). It keeps nothing offline. It has no `fetch` listener on purpose: every
+// The service worker, there so the app installs to a phone's home screen (ticket 23), so a device keeps its pushes when the
+// browser renews its subscription (ticket 40), and to show a push and open its page when it is tapped (ticket 41). It keeps
+// nothing offline. It has no `fetch` listener on purpose: every
 // request, the page itself, the API, a roster export, a print sheet, a backup, goes to the network exactly as it would
 // without a worker, under the server's own Cache-Control (`no-store` on the files, `no-cache` on the page). Never add one
 // without reading ticket 23's comment: what must never be cached is listed there.
@@ -18,6 +19,59 @@ self.addEventListener("activate", (event) => {
       .then(() => self.clients.claim()),
   )
 })
+
+// What each kind of push says and the page a tap opens, at the page's own default month (ADR 0012). A push carries its kind
+// alone, so these words are the same for everyone and tell nothing on a lock screen. A feature with a new deadline adds its
+// kind here and in backend/notifications/kinds.py, and nothing else.
+const TITLE = "Nurse roster"
+const KINDS = {
+  swap_to_answer: { body: "You have a swap to answer", page: "/swaps" },
+  swap_to_decide: { body: "A swap waits for your decision", page: "/unit-swaps" },
+  requests_open: { body: "Requests are open for a coming month", page: "/my-month" },
+  requests_to_decide: { body: "Requests wait for your decision", page: "/requests" },
+  roster_to_approve: { body: "A roster waits for your approval", page: "/rosters" },
+  roster_sent_back: { body: "A roster was sent back to you", page: "/roster" },
+}
+// What the app's window listens for, to go to a page through its own router (src/lib/service-worker.ts).
+const OPEN_PAGE = "open-page"
+
+const known = (kind) => typeof kind === "string" && Object.hasOwn(KINDS, kind)
+
+function kindOf(data) {
+  try {
+    const kind = data?.json()?.kind
+    return known(kind) ? kind : null
+  } catch {
+    return null
+  }
+}
+
+// Every push is shown, whether or not the app is open and focused here: a browser shows a generic notice for one that is not,
+// and Safari takes the permission away. A second of the same kind replaces the first, by its tag. One of a kind this worker
+// does not know (a server newer than it) shows the title alone.
+self.addEventListener("push", (event) => {
+  const kind = kindOf(event.data)
+  const options = kind ? { body: KINDS[kind].body, tag: kind, data: { kind } } : { data: { kind: null } }
+  event.waitUntil(self.registration.showNotification(TITLE, options))
+})
+
+// A tap opens the kind's page: in a window of the app already open, focused and sent there by its own router, so a page with
+// unsaved changes still asks first; else in a new window. A push of an unknown kind opens the app's home.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close()
+  const kind = event.notification.data?.kind
+  const page = known(kind) ? KINDS[kind].page : "/"
+  event.waitUntil(openPage(page))
+})
+
+async function openPage(page) {
+  const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true })
+  const app = open.find((client) => "focus" in client)
+  if (!app) return self.clients.openWindow(page)
+  // A browser may refuse the focus (no tap behind it); the window still goes to the page.
+  await app.focus().catch(() => undefined)
+  app.postMessage({ type: OPEN_PAGE, path: page })
+}
 
 // The browser renewed this device's subscription behind the scenes (ticket 40). If the server held the old address for the
 // signed-in user, the device subscribes again with the server's current public key and tells it which address the new one

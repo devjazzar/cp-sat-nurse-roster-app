@@ -77,3 +77,20 @@ class PushSubscription(models.Model):
     turned_on_at = models.DateTimeField(auto_now_add=True)
     failures_in_a_row = models.PositiveIntegerField(default=0)
     last_success_at = models.DateTimeField(null=True, blank=True)
+
+
+class PushOutcome(models.TextChoices):
+    """What a push service answered one send, in the app's words (`notifications.pushing`)."""
+    SENT = "sent"
+    GONE = "gone", "The push service says the subscription is gone (404 or 410)."
+    REFUSED = "refused", "The push service refused the push (another 4xx, or a redirect)."
+    UNREACHABLE = "unreachable", "The push service could not be reached, timed out, or answered 429 or 5xx."
+
+
+class PushAttempt(models.Model):
+    """One send to one subscription, for the health page's counts (ADR 0012): when, and what came of it. Nothing of the user or
+    the device. Append-only, so a bigint key (ADR 0007)."""
+
+    id = models.BigAutoField(primary_key=True)
+    at = models.DateTimeField(auto_now_add=True, db_index=True)
+    outcome = models.CharField(max_length=11, choices=PushOutcome)

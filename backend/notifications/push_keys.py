@@ -43,6 +43,12 @@ def public_key() -> str:
     return found
 
 
+def private_key() -> str:
+    """The PEM the sender signs with, for the worker alone."""
+    public_key()  # makes the pair when there is none
+    return PushKeyPair.objects.values_list("private_key", flat=True).get()
+
+
 def rotate() -> None:
     """A new pair in place of the old, from the server, so no actor. No subscription is deleted: a device bound to the old key
     re-subscribes at its next start of the app."""

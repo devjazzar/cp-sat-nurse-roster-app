@@ -8263,6 +8263,24 @@ describe("swaps", () => {
     "GET /api/hospital/shifts": { body: [DAY, NIGHT] }, ...extra,
   })
 
+  it("a push tapped while the app is open brings this window to Swaps through the app's own router", async () => {
+    // The service worker focuses the window and posts it the page (public/sw.js); sw.test.ts covers that side.
+    const worker = Object.assign(new EventTarget(), { getRegistration: async () => undefined })
+    Object.defineProperty(navigator, "serviceWorker", { value: worker, configurable: true })
+    try {
+      start("/notifications", nurse({ body: [THEIRS] }, { "GET /api/notifications": { body: { unread: 0, items: [] } } }))
+      expect(await screen.findByRole("heading", { name: "Notifications", level: 1 })).toBeInTheDocument()
+
+      worker.dispatchEvent(new MessageEvent("message", { data: { type: "something else", path: "/swaps" } }))
+      worker.dispatchEvent(new MessageEvent("message", { data: { type: "open-page", path: "//elsewhere.example/swaps" } }))
+      worker.dispatchEvent(new MessageEvent("message", { data: { type: "open-page", path: "/swaps" } }))
+
+      expect(await screen.findByRole("heading", { name: "Swaps", level: 1 })).toBeInTheDocument()
+    } finally {
+      delete (navigator as unknown as Record<string, unknown>).serviceWorker
+    }
+  })
+
   it("a nurse proposes a swap of her cell and a colleague's, and is told who is asked", async () => {
     let sent: unknown = null
     const { user } = start("/swaps?month=2026-12", nurse({ body: [] }, {
