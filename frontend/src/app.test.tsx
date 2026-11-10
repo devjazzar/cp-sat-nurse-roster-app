@@ -6129,7 +6129,7 @@ describe("the roster page", () => {
         expect(screen.getByLabelText("The other")).toHaveValue(MIDDLE.id)
         expect(options("One result")).toEqual([NEWEST.id, OLDEST.id])
         expect(options("The other")).toEqual([MIDDLE.id, OLDEST.id])
-        expect(within(screen.getByLabelText("One result")).getByRole("option", { name: "Asked for at 2026-05-17 09:00:00, cost 20" })).toBeInTheDocument()
+        expect(within(screen.getByLabelText("One result")).getByRole("option", { name: "2026-05-17 09:00:00, cost 20" })).toBeInTheDocument()
         await screen.findByRole("heading", { level: 3, name: "The two solves" })
         expect(calls.map((call) => call.url)).toContain(compareUrl(NEWEST.id, MIDDLE.id))
       })
@@ -6238,7 +6238,7 @@ describe("the roster page", () => {
       it("is linked from a result's page, with that result as one side", async () => {
         start(`/solve-history/${SOLVE_ID}`, manager())
 
-        expect(await screen.findByRole("link", { name: "Compare with another result" })).toHaveAttribute("href", `/solve-history?month=2026-06&a=${SOLVE_ID}#compare`)
+        expect(await screen.findByRole("link", { name: "Compare with another result" })).toHaveAttribute("href", `/solve-history?month=2026-06&a=${SOLVE_ID}`)
       })
 
       it("is not linked from a result with no roster", async () => {

@@ -109,7 +109,7 @@ function Result({ unit, solveId }: { unit: { id: string; name: string }; solveId
       <h1 className="text-xl font-medium">Result for {month}</h1>
       <p className="flex flex-wrap gap-x-4 gap-y-1">
         <Link to="/solve-history" search={{ month: solve.month }} className={LINK}>Solve history of {month}</Link>
-        {solve.found_roster && <Link to="/solve-history" search={{ month: solve.month, a: solve.id }} hash="compare" className={LINK}>Compare with another result</Link>}
+        {solve.found_roster && <Link to="/solve-history" search={{ month: solve.month, a: solve.id }} className={LINK}>Compare with another result</Link>}
       </p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm tabular-nums">
         <dt className="text-muted-foreground">Status</dt>

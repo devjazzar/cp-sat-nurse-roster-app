@@ -12,7 +12,7 @@ import { HOSPITAL_RULE_LABELS, WEEKDAYS } from "@/lib/hospital-rules-words"
 import { plainRefusal } from "@/lib/server-errors"
 import { replanStatus, solveDuration, solveStatus, stoppedBy } from "@/lib/solve-words"
 import { SCORE_MODES, UNIT_RULE_LABELS } from "@/lib/unit-rules-words"
-import { hospitalTime, longDay, monthName, scrollableRegion, shortDay } from "@/lib/utils"
+import { hospitalTime, longDay, monthName, scrollableRegion, shortDay, WRAP_ON_PHONE } from "@/lib/utils"
 import { WEIGHTS } from "@/lib/weights"
 
 /** Two results of one month side by side (ticket 43), for the unit's manager: the older on the left, the newer on the right,
@@ -119,7 +119,7 @@ function Facts({ older, newer }: { older: ComparedSolve; newer: ComparedSolve })
   ]
   return (
     <Part id="compare-facts" title="The two solves">
-      <Table container={scrollableRegion("What each solve was")}>
+      <Table container={scrollableRegion("What each solve was")} className={WRAP_ON_PHONE}>
         <TableHeader><Sides older={older} newer={newer} /></TableHeader>
         <TableBody>
           {rows.map(([name, value]) => (
@@ -362,7 +362,7 @@ function Statistics({ older, newer }: { older: ComparedSolve; newer: ComparedSol
   ]
   return (
     <Part id="compare-statistics" title="Solver statistics">
-      <Table container={scrollableRegion("Solver statistics of both")}>
+      <Table container={scrollableRegion("Solver statistics of both")} className={WRAP_ON_PHONE}>
         <TableHeader><Sides older={older} newer={newer} /></TableHeader>
         <TableBody>
           {rows.map(([name, value]) => (
@@ -405,7 +405,8 @@ function Comparison({ unitId, a, b }: { unitId: string; a: string; b: string }) 
   )
 }
 
-const optionName = (row: Pick<UnitSolveRow, "requested_at" | "cost">) => `Asked for at ${hospitalTime(row.requested_at)}, cost ${row.cost ?? "none"}`
+/** When it was asked for, which heads its column below, and its cost: short enough for a phone's picker. */
+const optionName = (row: Pick<UnitSolveRow, "requested_at" | "cost">) => `${hospitalTime(row.requested_at)}, cost ${row.cost ?? "none"}`
 
 function Picker({ id, label, value, rows, onChange }: { id: string; label: string; value: string; rows: UnitSolveRow[]; onChange: (id: string) => void }) {
   return (
