@@ -1,6 +1,6 @@
 /** The unit rules page's words for each rule, which the comparison of two results reads its fields by too. */
+import type { Explained } from "@/lib/weights"
 
-export type Explained<Name extends string> = { name: Name; label: string; description: string }
 export type NumberRule = "score_target" | "score_target_weekend" | "score_band_hi" | "score_band_hi_weekend" | "night_rest_days" | "fair_tolerance" | "carry_cap" | "max_consecutive_shifts" | "max_full_runs" | "double_cycle_rest" | "max_weekends" | "max_switches"
 export type SwitchRule = "headcount_enabled" | "require_team_leader" | "require_both_genders" | "score_balance" | "night_rest_hard" | "fair_weekends" | "carry_fairness" | "no_mixed_blocks" | "switches_hard" | "skill_needs_hard"
 

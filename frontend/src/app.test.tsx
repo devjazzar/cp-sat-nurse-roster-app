@@ -6195,6 +6195,7 @@ describe("the roster page", () => {
         const cells = within(screen.getByRole("region", { name: "Cells that differ" }))
         expect(cells.getByText("1 cell differs.")).toBeInTheDocument()
         expect(within(cells.getByRole("row", { name: /Amal Saleh/ })).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["15 June", "Off", "D"])
+        expect(cells.getByRole("rowheader", { name: "Amal Saleh1 cell" })).toBeInTheDocument()
 
         const hours = within(screen.getByRole("region", { name: "Hours and cost per nurse" }))
         const amal = within(hours.getByRole("row", { name: /Amal Saleh/ })).getAllByRole("cell").map((cell) => cell.textContent)
@@ -6250,11 +6251,11 @@ describe("the roster page", () => {
 
       it.each([["the CNO", CNO_ME], ["the Deputy CNO", DEPUTY]])("keeps %s out", async (_, who) => {
         const { router } = start(`/solve-history?month=2026-06&a=${NEWEST.id}&b=${MIDDLE.id}`, {
-          ...session(who), "GET /api/rosters/submitted": { body: [] }, "GET /api/nurses/expiries": { body: NO_EXPIRIES }, "GET /api/units": { body: [] },
+          ...session(who), "GET /api/rosters/submitted": { body: [] }, "GET /api/nurses/expiries": { body: NO_EXPIRIES }, "GET /api/units": { body: [{ ...ER, manager: MONA }] },
         })
 
-        await waitFor(() => expect(router.state.location.pathname).toBe("/"))
-        expect(screen.queryByRole("heading", { name: "Compare two results" })).not.toBeInTheDocument()
+        await screen.findByRole("heading", { level: 1, name: who.full_name })
+        expect(router.state.location.pathname).toBe("/")
       })
     })
 

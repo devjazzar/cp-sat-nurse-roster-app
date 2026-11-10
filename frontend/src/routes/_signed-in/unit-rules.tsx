@@ -27,7 +27,6 @@ import { NativeSelectOption } from "@/components/ui/native-select"
 import { UnitPicker, useChosenUnit } from "@/components/unit-picker"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import {
-  type Explained,
   type NumberRule,
   type SwitchRule,
   SHIFTS_DESCRIPTION,
@@ -63,6 +62,7 @@ import {
   COUNT_FIELDS,
   UNIT_RULE_LABELS,
 } from "@/lib/unit-rules-words"
+import type { Explained } from "@/lib/weights"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ unit: z.string().optional().catch(undefined) })

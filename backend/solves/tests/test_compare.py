@@ -3,7 +3,6 @@ Each result is costed on its own input by the solver's own code, worked out here
 import datetime as dt
 
 import pytest
-from solver_service.grid import validate_grid
 
 from accounts.models import Role, User
 from audit.models import AuditEntry
@@ -12,7 +11,7 @@ from nurses.models import NurseProfile
 from nurses.tests.conftest import make_unit
 from rosters.models import PinnedCell
 from solves.models import Solve
-from solves.tests.conftest import DATES, MONTH, NURSES, job, nurse_in, result_of, roster_of
+from solves.tests.conftest import DATES, MONTH, NURSES, SAMPLE, job, nurse_in, result_of, roster_of
 from solves.tests.test_history import accounting, finished, sick_day, solved, url
 
 pytestmark = pytest.mark.django_db
@@ -250,6 +249,10 @@ class TestTheInputs:
         assert [row["full_name"] for row in joined["nurses"]] == ["Amal", "Badr", "Dana", "Emad", "Faris Haddad"]
 
     def test_a_rename_between_the_two_is_no_change_in_the_cells_or_the_rules(self, mona, er, solver, client_of):
+        from hospital.models import Skill
+        Skill.objects.create(name="ICU", expires=False, required_to_work=False)
+        er.rules |= {"skill_needs": [{"shift": "D", "skill": "ICU", "weekday_min": 0, "weekend_min": 0}]}
+        er.save()
         first = solved(mona, er, solver)
         cno = client_of("carla", Role.CNO)
         shift = Shift.objects.get(code="D")
@@ -260,7 +263,7 @@ class TestTheInputs:
                            content_type="application/json")
         assert response.status_code == 200, response.content
         er.refresh_from_db()
-        assert "DD" in er.rules["shifts"]
+        assert "DD" in er.rules["shifts"] and er.rules["skill_needs"][0]["shift"] == "DD"
         second = solved(mona, er, solver, answer_for(NURSES, "DD"))
 
         answer = compared(mona, er, first, second)
@@ -293,17 +296,17 @@ class TestTheRules:
         first = solved(mona, er, solver, answer_for(NURSES, penalties={"fair_day": 5, "night_rest": 2, "fair_night": 0}))
         set_weight("fair_day", 3)
         second = solved(mona, er, solver, answer_for(NURSES, penalties={"fair_day": 15, "night_rest": 2, "fair_night": 1}))
-        older, newer = (validate_grid(Solve.objects.get(pk=solve).input, roster_of(NURSES)) for solve in (first, second))
-        soft = [{rule["id"]: rule for rule in side["rules"]} for side in (older, newer)]
+        weights = SAMPLE["general"]["weights"]  # The hospital rules the older was solved on, as the sample has them.
 
         rules = compared(mona, er, second, first)["rules"]
 
         assert [row["rule"] for row in rules] == ["fair_day", "fair_night", "night_rest"]
         fair = rules[0]
-        assert fair["older"] == {"amount": soft[0]["fair_day"]["raw"], "weight": soft[0]["fair_day"]["weight"], "penalty": 5}
-        assert fair["newer"] == {"amount": soft[1]["fair_day"]["raw"], "weight": 3, "penalty": 15}
+        assert (fair["older"]["weight"], fair["older"]["penalty"]) == (weights["fair_day"], 5)
+        assert (fair["newer"]["weight"], fair["newer"]["penalty"]) == (3, 15)
+        assert fair["older"]["amount"] == fair["newer"]["amount"] > 0, "the same roster on the same unit rules breaks it as much"
         assert fair["weight_differs"] is True and rules[1]["weight_differs"] is False
-        assert rules[1]["older"]["penalty"] == 0 and rules[1]["older"]["weight"] == soft[0]["fair_night"]["weight"]
+        assert rules[1]["older"]["penalty"] == 0 and rules[1]["older"]["weight"] == weights["fair_night"]
         assert "change" not in [row["rule"] for row in rules], "nothing costs it in either"
 
     def test_one_side_the_solvers_code_cannot_explain_keeps_its_stored_penalties(self, mona, er, solver):
@@ -394,7 +397,7 @@ class TestARePlanOnOneSide:
         assert answer["older"]["replan_from"] is None
         change = next(row for row in answer["rules"] if row["rule"] == "change")
         assert change["older"] == {"amount": None, "weight": None, "penalty": None}
-        assert change["newer"]["penalty"] == 6 and change["newer"]["weight"] == replan.input["general"]["weights"]["change"]
+        assert change["newer"]["penalty"] == 6 and change["newer"]["weight"] == SAMPLE["general"]["weights"]["change"]
         assert all(row["group"] != "replan" and "published" not in row["field"] for row in answer["inputs"]["changes"])
         assert [(row["hospital_id"], row["date"]) for row in answer["cells"]] == [("Amal", "2026-06-15"), ("Emad", "2026-06-15")]
         assert DATES[0] not in str(answer["inputs"])

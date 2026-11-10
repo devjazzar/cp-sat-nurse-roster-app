@@ -3,26 +3,21 @@ import type { ReactNode } from "react"
 
 import { useCompareSolveResults } from "@/api/generated/endpoints"
 import type {
-  ComparedHours, ComparedRule, ComparedSolve, InputChange, NurseAccounting, NurseInputChangeKindsItem, ResultComparison, RuleSide,
-  UnitSolveRow, Violation, ViolationGroups,
+  ComparedCell, ComparedHours, ComparedRule, ComparedSolve, HeadcountRule, InputChange, NurseAccounting, NurseInputChangeKindsItem, ResultComparison, RuleSide,
+  SkillNeedRule, UnitSolveRow, Violation, ViolationGroups,
 } from "@/api/generated/model"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { HOSPITAL_RULE_LABELS, WEEKDAYS } from "@/lib/hospital-rules-words"
 import { plainRefusal } from "@/lib/server-errors"
-import { replanStatus, solveDuration, solveStatus, stoppedBy } from "@/lib/solve-words"
+import { replanStatus, ruleName, signed, solveDuration, solveStatus, stoppedBy } from "@/lib/solve-words"
 import { SCORE_MODES, UNIT_RULE_LABELS } from "@/lib/unit-rules-words"
 import { hospitalTime, longDay, monthName, scrollableRegion, shortDay, WRAP_ON_PHONE } from "@/lib/utils"
-import { WEIGHTS } from "@/lib/weights"
 
 /** Two results of one month side by side (ticket 43), for the unit's manager: the older on the left, the newer on the right,
  *  every difference newer minus older. Read-only: a result is restored as the draft from its own page. */
 
 const NUM = "text-end tabular-nums"
-const ruleLabels = new Map<string, string>([...WEIGHTS.map((weight) => [weight.name as string, weight.label] as const),
-  ["skill_need", WEIGHTS.find((weight) => weight.name === "skill_shortfall")!.label]])
-const ruleName = (rule: string) => ruleLabels.get(rule) ?? rule
-const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "0")
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
 const shiftShown = (code: string) => code || "Off"
 const NOT_IN_INPUT = "Not in its input"
@@ -70,12 +65,12 @@ function valueShown({ group, field }: InputChange, value: unknown): string {
   }
   if (field === "shift_hours") return Object.entries(value as Record<string, number>).map(([code, hours]) => `${code} ${hours} h`).join(", ")
   if (field === "headcounts") {
-    return (value as { shift: string; weekday_min: number; weekday_max: number; weekend_min: number; weekend_max: number; also_counts: string[] }[])
+    return (value as HeadcountRule[])
       .map((row) => `${row.shift}: weekday ${row.weekday_min}–${row.weekday_max}, weekend day ${row.weekend_min}–${row.weekend_max}`
         + (row.also_counts.length ? `, ${row.also_counts.join(" and ")} also counting` : "")).join("; ") || "None"
   }
   if (field === "skill_needs") {
-    return (value as { shift: string; skill: string; weekday_min: number; weekend_min: number }[])
+    return (value as SkillNeedRule[])
       .map((need) => `${need.shift} needs ${need.skill}: weekday ${need.weekday_min}, weekend day ${need.weekend_min}`).join("; ") || "None"
   }
   if (field === "score_balance_mode") return SCORE_MODES[value as keyof typeof SCORE_MODES] ?? String(value)
@@ -251,6 +246,17 @@ function Rules({ answer }: { answer: ResultComparison }) {
   )
 }
 
+/** The cells, in the answer's order of name then date, a group for each nurse. */
+function byNurse(cells: ComparedCell[]): ComparedCell[][] {
+  const groups: ComparedCell[][] = []
+  for (const cell of cells) {
+    const last = groups.at(-1)
+    if (last && last[0].hospital_id === cell.hospital_id) last.push(cell)
+    else groups.push([cell])
+  }
+  return groups
+}
+
 function Cells({ answer }: { answer: ResultComparison }) {
   const { cells, older, newer } = answer
   const onlyOne = answer.inputs.nurses.some((nurse) => nurse.kinds.includes("joined") || nurse.kinds.includes("left"))
@@ -268,16 +274,22 @@ function Cells({ answer }: { answer: ResultComparison }) {
               <TableHead>{sideName("Newer", newer)}</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {cells.map((cell) => (
-              <TableRow key={cell.hospital_id + cell.date}>
-                <TableHead scope="row" className="font-normal">{cell.full_name || cell.hospital_id}</TableHead>
-                <TableCell className="tabular-nums">{longDay(cell.date)}</TableCell>
-                <TableCell>{shiftShown(cell.older)}</TableCell>
-                <TableCell>{shiftShown(cell.newer)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
+          {byNurse(cells).map((rows) => (
+            <TableBody key={rows[0].hospital_id} className="border-b last:border-b-0">
+              {rows.map((cell, index) => (
+                <TableRow key={cell.date} className="border-b-0">
+                  {index === 0 && (
+                    <TableHead scope="rowgroup" rowSpan={rows.length} className="align-top font-normal">
+                      {cell.full_name || cell.hospital_id}<span className="block text-xs text-muted-foreground">{plural(rows.length, "cell")}</span>
+                    </TableHead>
+                  )}
+                  <TableCell className="tabular-nums">{longDay(cell.date)}</TableCell>
+                  <TableCell>{shiftShown(cell.older)}</TableCell>
+                  <TableCell>{shiftShown(cell.newer)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          ))}
         </Table>
       )}
     </Part>

@@ -67,6 +67,7 @@ def _codes_named(solve_input: dict) -> set[str]:
     codes |= set(department.get("shifts", [])) | set(department.get("fair_shifts", []))
     codes |= {department.get("night_shift", ""), department.get("day_shift", "")}
     codes |= {code for row in department.get("headcounts", []) for code in (row["shift"], *row.get("also_counts", []))}
+    codes |= {need["shift"] for need in department.get("skill_needs", [])}
     for row in solve_input.get("nurses", []):
         codes |= set(row.get("allowed_shifts") or []) | set(row.get("previous") or []) | set(row.get("pinned", {}).values())
     return codes - {""}
