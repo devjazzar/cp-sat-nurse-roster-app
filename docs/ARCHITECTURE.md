@@ -14,8 +14,9 @@ single `docker compose` stack on one VPS. There is no multi-tenancy, no shared s
 hospitals, and no internet access for the solver.
 
 Out of scope for v1 (designed so they can be added, not built): Arabic or any second language,
-LDAP or SSO, email or SMS, push notifications, server-side PDF, native mobile apps, the solver's
-reproducible mode in the UI. Soft preferences, once out of scope, are in since ticket 29 (ADR 0013).
+LDAP or SSO, email or SMS, server-side PDF, native mobile apps, the solver's
+reproducible mode in the UI. Soft preferences, once out of scope, are in since ticket 29 (ADR 0013), and so is Web Push, for
+the six notifications with a deadline and nothing else, since tickets 40 to 42 (ADR 0012).
 
 ## 2. Deployment
 
@@ -27,12 +28,17 @@ One application image per release. `docker compose` starts five services:
 |----------|------------------|---------------------|------------------------|------------------|
 | `caddy`  | `caddy:2.11`     | stock               | public, frontend       | 80, 443 published |
 | `web`    | application      | API + SPA server    | frontend, backend, solver | none published |
-| `worker` | application      | Procrastinate worker| backend, solver        | none             |
+| `worker` | application      | Procrastinate worker| backend, solver, egress | none            |
 | `solver` | application      | solver HTTP service | solver                 | none             |
 | `db`     | `postgres:18`    | stock               | backend                | none             |
 
 The `solver` network is reachable by `web` and `worker` only. The solver container holds no
 database credential and no secret other than the shared solver token. See ADR 0001.
+
+`egress` is the only network of an application service that is not internal: the worker's alone, its way out to the browsers'
+push services and nowhere else (ADR 0012; the hosts it may send to are `notifications.subscriptions`'s, named for the hospital's
+firewall in `deploy/INSTALL.md`). `web`, `db` and the solver are on internal networks only and reach nothing outside; only
+Caddy is on `public`. A hospital that lets nothing out loses pushes and nothing else.
 
 Volumes: `pgdata` (PostgreSQL), `backups` (the nightly backups, mounted by `worker` and, read-only, by `web`, and by no other
 service), `caddy_data` (certificates).
@@ -48,10 +54,16 @@ self-signed certificate via `tls internal`), `SECRET_KEY`, `POSTGRES_PASSWORD`,
 
 - First start: `web` runs migrations, seeds the default hospital and unit rule sets (section
   9), and creates the System Admin account from `INITIAL_ADMIN_PASSWORD` with a forced
-  password change at first login (`manage.py prepare`, which logs both). The variable is ignored afterwards.
+  password change at first login (`manage.py prepare`, which logs both). The variable is ignored afterwards. It also makes
+  the installation's push key pair, once, and logs that it did: the pair names the installation to the push services, every
+  push subscription is bound to its public key, and it lives in the database so that a backup brings it back with them
+  (ADR 0012). There is no variable for it and no step of the hospital's.
 - Upgrade: `docker compose pull && docker compose up -d`; migrations run at `web` start.
 - `deploy/reset-admin-password.sh`: resets the System Admin password from the VPS, printed once with a forced change, ends
   the account's sessions and lifts a lock from wrong passwords; audited with no actor, "from the server".
+- `manage.py rotate_push_keys`: replaces the push key pair after a compromise, audited the same way (`push.keys_rotated`). It
+  deletes no push subscription: sends to a device still bound to the old key are refused until it opens the app again, when
+  it subscribes with the new key without being asked. There is no scheduled rotation.
 - `deploy/restore.sh <backup name or file>`: stops `web` and `worker`, backs up the database as it stands, restores into a new
   database and only then puts it in the old one's place (the old renamed aside, the new renamed in, the old dropped last), starts them again (`web` migrates an older backup forward).
   Restore is deliberately a script, not a button.
@@ -619,7 +631,8 @@ minute takes a lock of its own. Jobs:
 - Retention, daily at a fixed UTC time, a day missed caught up by the next: `remove_ended_jobs` (queue rows and their events of
   jobs that ended well or were stopped more than seven days ago, and of failed jobs more than thirty days ago, so the health
   page counts the last month's failures),
-  `remove_old_notifications` (older than a year, read or not), `clear_expired_sessions` (Django's `clearsessions`).
+  `remove_old_notifications` (older than a year, read or not), `remove_old_push_attempts` (older than seven days, whatever
+  came of them; the health page reads the last 24 hours), `clear_expired_sessions` (Django's `clearsessions`).
 - `expire_swaps` (hourly, minute 15): expires each waiting swap one of whose dates has passed, telling its people. Every page reads
   the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
 - `expire_covers` (hourly, minute 20): stores each waiting cover whose date has passed as expired and tells the nurses offered
@@ -629,6 +642,16 @@ minute takes a lock of its own. Jobs:
   delays only the notifications.
 - `close_ended_nurses` (hourly): deactivates staff nurses whose last day is over. An end date of
   today or earlier deactivates at once. A manager's account stays the System Admin's.
+- `push(notification_ids)` (ADR 0012): deferred by `notifications.sending.notify` in the transaction that writes the
+  notifications, one job a call however many it tells, and only when their event has one of the six kinds with a deadline.
+  Under its own lock, `push`, so pushes go one job at a time. For each notification, to each push subscription of its reader,
+  it first reads that the thing still waits and that the reader still has a page for it, then sends the kind code alone
+  (`notifications.pushing`, the one module that knows the protocol and its library). Every send is one row of
+  `PushAttempt`: when, and `sent`, `gone`, `refused` or `unreachable`, nothing of the user or the device. A success resets
+  the subscription's failures; `gone` (404 or 410) ends it at once; a refusal counts one failure; an unreachable service is
+  tried again after 1, 3 and 6 minutes, for the subscriptions that failed alone, and counts one failure after the last; ten
+  failures in a row end a subscription. A try again is deferred at priority −1, so one waiting for its time holds back no
+  new push.
 
 The queue code is one module of ours (enqueue, progress, cancel, schedule) so the library can
 be replaced without touching the API, the solver client or the solver.
@@ -651,16 +674,31 @@ stay plain tables) and Virtual (the roster grid), React Hook Form + Zod, Zustand
 web app, installable as a PWA; the grid scrolls horizontally on phones. The nurse's pages are made for a phone first (320 px
 at the narrowest): below 640 px the header is the name, the bell and a Menu button, and on a touch screen every control is
 44 px tall; the managers' and the System Admin's pages only keep within the width. The PWA is a web app manifest, icons and a
-service worker that handles no request (`frontend/public/sw.js`, no `fetch` listener): nothing is kept offline, no push, so
+service worker that handles no request (`frontend/public/sw.js`, no `fetch` listener): nothing is kept offline, so
 the API, a roster's files and print sheets, backups and `/metrics` reach the network as they would without it. Every file
 with a fixed name (the page, the worker, the manifest, the icons) answers `no-cache`, so a deploy is what loads next; only
 the build's hashed assets are cached for good. They come from `frontend/public` at the site's root: WhiteNoise in `web`
 sets the headers (`config.settings`) and Caddy passes them through unchanged; in development Vite serves the same files
 with the same headers. The worker's scope is `/`. A tab opened before a deploy that asks for a page's code by its old name
-loads again once (`lib/stale-build.ts`). In-app notifications
-only: every role's header has a bell with the unread count, which polls and does not count as activity, and leads to the
+loads again once (`lib/stale-build.ts`). Every notification is in the app: every role's header has a bell with the unread count, which polls and does not count as activity, and leads to the
 Notifications page. Who is told of what is in one place, `notifications.sending`, called inside the transaction of the
 change. A notification links to the reader's own page for it, by what they hold when they read it. Visual design is decided later; the architecture does not depend on it.
+
+Six of them, those with a deadline, are also pushed to the devices their reader turned on (ADR 0012; GLOSSARY, **Push**): a
+swap to answer, a swap awaiting the manager, a request window opened, a window closed with requests waiting, a roster
+submitted and a roster rejected. Everything else stays on the bell alone. A push carries its kind code and nothing more; the
+service worker holds each kind's words and page, always shows a notification titled "Nurse roster" tagged by its kind
+(`push`), and on a tap (`notificationclick`) focuses an open window and has the app's own router go to the kind's page, with
+no month, so a roster with unsaved changes still asks first, or opens a window there when none is open. Its third listener,
+`pushsubscriptionchange`, subscribes again when the browser renews an address and tells the server which one it replaces.
+A device opts in on the Notifications page, in "On this device": Turn on asks the browser's permission inside the tap and
+subscribes with the installation's public key (on an iPhone or iPad only from the app on the Home Screen, which the page
+says); Turn off ends this device's push subscription, Turn off on every device all of the user's. Pressing Log out turns
+this device off first; a session that expires on its own does not, since reaching someone who is not using the app is the
+point. A deactivation ends every subscription of the account, beside its sessions. So does the push service saying an
+address is gone, and ten failed sends in a row. At each start the app replaces, unasked, a subscription bound to a key the
+server no longer uses. An address is accepted only on a push service's own host, at turn-on and again at each send, so the
+worker posts nowhere else.
 
 Screens per role, in outline: System Admin (accounts, technical settings, audit log, solve
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types, skills,
@@ -723,7 +761,10 @@ hospital ID as target, never its date or kind; no notification is sent for one. 
 entry: it is nobody's act, and one beside the version that caused it could date a colleague's leave. A cover is logged as who moved it how:
 `cover.offered` and `cover.withdrawn` (the manager, the unit as target) and `cover.accepted` and `cover.declined` (the nurse, her
 hospital ID as target), never its date, shift or note; an acceptance also writes `roster.changed`. Its opening, by leave or by
-hand, its filling and its expiry have no entry, since one beside the leave's would date it.
+hand, its filling and its expiry have no entry, since one beside the leave's would date it. Turning pushes on and off is logged
+as `push.turned_on` and `push.turned_off`, the user as actor and target: nothing of the device, not its address, its keys or
+even the IP it called from. A subscription ended by Log out is the user's own turn-off; one ended by a deactivation, by the
+push service or by ten failures has no entry, and a push sent has none. `push.keys_rotated` has no actor, "from the server".
 
 ### Nurse import and the staff list
 
@@ -775,7 +816,11 @@ five files. The worker's can name a nurse and a date, so the install guide treat
 endpoint on `web`, with no sign-in, reachable on the internal network only: Caddy refuses the path and `web` refuses anything
 Caddy passed on (`X-Forwarded-For`); its gauges are worked out at each scrape from what the health page reads, plus how many
 solves there are in each state. The health page
-shows solver reachability and version, disk and database size, the backups with the last one's time, and queue state; the
+shows solver reachability and version, disk and database size, the backups with the last one's time, queue state, and pushes:
+how many were sent and how many failed in the last 24 hours, counted by attempt (each send to one subscription, each try
+again included, never by job) and why the last of those failed, in one of three fixed words (`unreachable`, `refused`,
+`gone`). That block and its two gauges on `/metrics` hold nothing of a user or a device; a run of `unreachable` with nothing
+sent is how a firewall that blocks the push services shows. The
 public `/api/health` says only whether the database and the solver answer. Nothing else is bundled.
 
 ## 9. Defaults
@@ -798,7 +843,7 @@ public `/api/health` says only whether the database and the solver answer. Nothi
   deactivated, requests and swaps keep their final state, leave corrected or removed stays as
   an ended row, every roster version and solve is kept. The exceptions are a public holiday and a month's fixed Ramadan dates, which have no
   history of their own: what a solve used is stored with it and the audit log keeps the rest. Housekeeping removes only what is
-  no one's record (section 7): a notification after a year, an expired session, and the queue's rows of jobs that ended;
+  no one's record (section 7): a notification after a year, a push attempt after seven days, an expired session, and the queue's rows of jobs that ended;
   backups go after the days the System Admin keeps them.
 
 ## 10. Repository, build and tests
@@ -844,5 +889,5 @@ Virtual 3, Pacer 0.24, React Hook Form 7, Zustand 5, Recharts 3, orval 8, Playwr
 ## 12. Revisit later
 
 The amount of solve information shown (now: everything), TanStack Charts and TanStack Form 2
-once mature, Arabic and RTL, LDAP/SSO, email, push notifications, PDF
+once mature, Arabic and RTL, LDAP/SSO, email, PDF
 generation, the Deputy CNO's further responsibilities, the unit manager's further permissions.

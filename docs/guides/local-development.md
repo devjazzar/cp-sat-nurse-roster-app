@@ -264,7 +264,7 @@ tickets are in; the ticket sessions stay in the sidebar and can be archived.
 | **backend** `cd backend && uv run --no-sync pytest -q` | real PostgreSQL 18, real queue, the solver scripted or real in-process | `POSTGRES_HOST/PORT/PASSWORD` pointing at a database (the dev stack's by default) | 8 min |
 | **solver** `cd solver && uv run --no-sync pytest -q` | the vendored suite, and contract tests against the real service over HTTP | nothing | 2–3 min |
 | **frontend** `cd frontend && npm test` | Vitest over the real routes and the generated client, `fetch` stubbed per test | `npm ci` | 1 min; 2 min for six at once |
-| **operations** `deploy/tests/operations.sh <project>` | a production-composed stack of its own: health, `/metrics`, JSON logs, the clock off, backup, retention, restore, the password reset | Docker | 5 min |
+| **operations** `deploy/tests/operations.sh <project>` | a production-composed stack of its own: health, `/metrics`, JSON logs, the push key pair, the worker alone with a way out, the clock off, backup, retention, restore, the password reset, the push counts | Docker | 5 min |
 | **browser** `e2e/` (Playwright) | a seeded stack and an empty one, built from the checkout, their own ports | Docker, `npx playwright install chromium` | 7 min for all 68 |
 | **everything the browser-checks workflow runs** `e2e/ci.sh` | the image, both stacks, every Playwright project, then `operations.sh`, everything removed | fixed ports 18180–18183 and 18543–18545; on GitHub for every pull request, locally only when GitHub is not an option | 11–12 min here, about 15 on GitHub |
 

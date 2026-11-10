@@ -5,8 +5,10 @@
 #   deploy/tests/operations.sh <project> [--keep]
 #
 # It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; JSON lines
-# from web, worker and solver; the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by deploy/restore.sh, which
-# takes back what was written after the backup; deploy/reset-admin-password.sh lifting a lock from wrong passwords. Then it
+# from web, worker and solver, and the push key pair made at the first start; the worker alone on a network with a way out
+# (ticket 42); the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by deploy/restore.sh, which
+# takes back what was written after the backup; deploy/reset-admin-password.sh lifting a lock from wrong passwords; the System
+# Admin's health answer and /metrics counting pushes sent and failed. Then it
 # removes everything it made, unless --keep (the stack stays up, and the line to remove it is printed).
 # TEST_HTTPS_PORT (default 18443) is where Caddy answers on 127.0.0.1. Needs docker, curl, openssl and python3.
 set -euo pipefail
@@ -80,6 +82,33 @@ print(len(lines))') || fail "$service logged a line that is not JSON"
   [[ $lines -gt 0 ]] && pass "$service: $lines lines, each one JSON" || fail "$service logged nothing"
 done
 
+made=$(compose logs --no-log-prefix --no-color web | python3 -c '
+import json, sys
+print(sum(1 for line in sys.stdin if line.strip() and (json.loads(line).get("logger"), json.loads(line).get("message"))
+          == ("ops.prepare", "Made the installation\u0027s push key pair.")))')
+[[ $made == 1 ]] && pass "prepare logged the push key pair it made at the first start, once" || fail "web logged the push key pair $made times"
+[[ $(sql "SELECT count(*) FROM notifications_pushkeypair") == 1 ]] && pass "and the database holds one pair" || fail "no one push key pair"
+
+# ---- only the worker has a way out -------------------------------------------------------------------------------------------
+# What the compose file promises of this running stack (ADR 0012): the worker is on a network that is not internal, for the
+# push services, and web, the database and the solver are on none. Whether the hospital's firewall lets the worker out is the
+# install checklist's. Read from the containers themselves and from Docker's own word on each network.
+ways_out() {
+  local container network found=""
+  container=$(compose ps -q "$1")
+  [[ -n $container ]] || { echo "no container"; return; }
+  for network in $(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}' "$container"); do
+    [[ $(docker network inspect -f '{{.Internal}}' "$network") == false ]] && found="$found$network "
+  done
+  echo "${found% }"
+}
+out=$(ways_out worker)
+[[ $out == "${project}_egress" ]] && pass "the worker is on one network that is not internal: $out" || fail "the worker's ways out: '$out'"
+for service in web db solver; do
+  out=$(ways_out "$service")
+  [[ -z $out ]] && pass "$service is on no network with a way out" || fail "$service is on a network that is not internal: $out"
+done
+
 # ---- the browser checks' clock is off --------------------------------------------------------------------------------------
 # e2e/compose.e2e.yaml alone passes E2E_CLOCK_FILE, which moves the hospital's date (nurses.membership.today, ticket 24). No
 # service of an installation's compose file is given it, so no .env can switch it on; and it has no URL of its own, so there is
@@ -114,11 +143,14 @@ compose exec -T worker cat "/backups/$backup" | compose exec -T db pg_restore --
   && pass "pg_restore reads it" || fail "pg_restore cannot read $backup"
 
 # ---- the retention jobs ------------------------------------------------------------------------------------------------------
-for task in ops.tasks.remove_ended_jobs notifications.tasks.remove_old_notifications accounts.tasks.clear_expired_sessions; do
+sql "INSERT INTO notifications_pushattempt (at, outcome) VALUES (now() - interval '8 days', 'unreachable'), (now() - interval '6 days', 'sent')" >/dev/null
+for task in ops.tasks.remove_ended_jobs notifications.tasks.remove_old_notifications notifications.tasks.remove_old_push_attempts accounts.tasks.clear_expired_sessions; do
   compose exec -T worker python manage.py queue defer --ignore-already-enqueued "$task" '{"timestamp": 0}' >/dev/null
   done_ok() { [[ $(sql "SELECT count(*) FROM procrastinate_jobs WHERE task_name = '$task' AND status = 'succeeded'") -ge 1 ]]; }
   wait_for 60 done_ok && pass "$task succeeded" || fail "$task did not succeed: $(sql "SELECT status FROM procrastinate_jobs WHERE task_name = '$task'")"
 done
+[[ $(sql "SELECT string_agg(outcome, ' ') FROM notifications_pushattempt") == sent ]] \
+  && pass "a push attempt eight days old is gone and one six days old is kept" || fail "push attempts kept: $(sql "SELECT at, outcome FROM notifications_pushattempt")"
 
 # ---- a restore ---------------------------------------------------------------------------------------------------------------
 sql "CREATE TABLE written_after_the_backup (id int)" >/dev/null
@@ -171,5 +203,26 @@ new_password=$(sed -n 's/^New password for admin: //p' <<<"$printed")
 [[ -n $new_password ]] || fail "the reset printed no password: $printed"
 [[ $(log_in "$new_password") == 200 ]] && pass "the reset script lifted the lock and its password logs in" || fail "still refused"
 [[ $(log_in "$admin_password") == 401 ]] && pass "the old password no longer does" || fail "the old password still works"
+
+# ---- the health answer and /metrics count pushes ----------------------------------------------------------------------------
+# The System Admin's health answer is closed until a forced password is changed, so the reset's is changed first. Then three
+# sends are scripted as rows, as the worker writes one a send: the stack's worker may reach no push service on purpose.
+[[ $(log_in "$new_password") == 200 ]] || fail "the System Admin cannot log in to read the health answer"
+token=$(awk '$6 == "csrftoken" {print $7}' "$jar")
+code=$(curl -sk -o /dev/null -w '%{http_code}' -c "$jar" -b "$jar" -H "X-CSRFToken: $token" -H "Origin: $base" \
+  -H 'Content-Type: application/json' -d "{\"current_password\": \"$new_password\", \"new_password\": \"$(openssl rand -hex 12)\"}" \
+  "$base/api/auth/change-password")
+[[ $code == 200 ]] || fail "the forced password change answered $code"
+push_block() { curl -sk -b "$jar" "$base/api/ops/health" | python3 -c 'import json, sys; print(json.dumps(json.load(sys.stdin)["push"], sort_keys=True))'; }
+block=$(push_block) || fail "the health answer carries no push block"
+[[ $block == '{"failed": 0, "last_failure": null, "sent": 0}' ]] && pass "the health answer carries the push block, empty before any push: $block" \
+  || fail "the push block before any push: $block"
+sql "INSERT INTO notifications_pushattempt (at, outcome) VALUES (now() - interval '2 hours', 'sent'), (now() - interval '1 hour', 'gone'), (now(), 'unreachable'), (now() - interval '25 hours', 'refused')" >/dev/null
+block=$(push_block)
+[[ $block == '{"failed": 2, "last_failure": "unreachable", "sent": 1}' ]] && pass "and counts the last 24 hours' attempts with the last failure's reason: $block" \
+  || fail "the push block after three sends in the day: $block"
+gauges=$(compose exec -T caddy wget -qO- http://web:8000/metrics | grep '^nurse_roster_push_attempts{' | tr '\n' ' ')
+[[ $gauges == 'nurse_roster_push_attempts{outcome="sent"} 1 nurse_roster_push_attempts{outcome="failed"} 2 ' ]] \
+  && pass "/metrics carries the same two counts" || fail "/metrics on pushes: $gauges"
 
 echo "# All checks passed."

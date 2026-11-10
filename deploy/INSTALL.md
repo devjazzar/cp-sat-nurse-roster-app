@@ -7,7 +7,8 @@ in this `deploy/` directory on the server.
 ## Install
 
 You need Docker with Compose v2.24 or later, ports 80 and 443 open to the people who use it, and, for a real certificate, a
-name whose DNS points at the server.
+name whose DNS points at the server. For pushes, the server must also reach the browsers' push services over HTTPS; a
+server that cannot loses pushes and nothing else ([Pushes](#pushes)).
 
 ```bash
 cp .env.example .env
@@ -62,6 +63,11 @@ These cannot be proven anywhere but on the hospital's own server.
 - [ ] Time the audit log filtered by user on the real database.
 - [ ] The 500-row import, timed as above.
 - [ ] A backup restored with `./restore.sh` on the real server, and the application checked afterwards.
+- [ ] Pushes, at the hospital's own address ([Pushes](#pushes)): turn them on in an ordinary Chrome on a computer and on a
+      phone (an iPhone after adding the app to the Home Screen), then have a colleague propose a swap to that nurse. One push
+      shows one notification, with no second one from the browser saying the site "has been updated in the background"; a tap
+      opens Swaps; and the health page's Pushes card counts it as sent, with no failure. This has never been seen on a real
+      host name: while building, only a Chrome started by hand against a self-signed certificate received one.
 
 ## Upgrade
 
@@ -164,11 +170,59 @@ services:
 
 with `prometheus.yml` scraping `web:8000`. What it reads is what the health page shows: whether the database and the solver
 answer, the queue's jobs and workers, solves by state, the database's size, the disk's free space, and the backups kept with
-the time of the last one (`nurse_roster_last_backup_timestamp_seconds`, worth an alert when it is more than a day old).
+the time of the last one (`nurse_roster_last_backup_timestamp_seconds`, worth an alert when it is more than a day old), and
+the pushes sent and failed in the last 24 hours (`nurse_roster_push_attempts{outcome="sent"}` and `{outcome="failed"}`; a
+failed count that keeps climbing while sent stays at zero says the push services cannot be reached).
+
+## Pushes
+
+A user may turn pushes on for a phone or a computer, on the Notifications page. The application then tells that device when
+something with a deadline waits for them (a swap to answer, requests open, a roster to approve), through the push service of
+the device's own browser: Google's, Mozilla's, Apple's or Microsoft's. A push says only which kind of thing waits, never a
+name, a date or a unit, and nothing is sent to any other third party.
+
+**Only the worker sends them,** over HTTPS (port 443), through the stack's `egress` network, the one network of an application
+service that is not internal. `web`, the database and the solver stay on internal networks and reach nothing outside. If the
+server's outbound connections are filtered, allow HTTPS from the server to these names, and nothing else is needed:
+
+- `fcm.googleapis.com`: Google's, for Chrome and most browsers on Android;
+- `push.services.mozilla.com` and `*.push.services.mozilla.com`: Mozilla's, for Firefox;
+- `*.push.apple.com`: Apple's, for Safari and every browser on an iPhone or iPad;
+- `*.notify.windows.com`: Microsoft's, for Edge on Windows.
+
+The application sends to these hosts and refuses any other (`backend/notifications/subscriptions.py`); a test of the
+application fails when this list and that one differ.
+
+**A firewall that blocks them loses pushes and nothing else.** Every page works as before and every notification is still on
+the bell; a nurse is only not told on her phone. Nothing is queued for later: a push that cannot be sent is tried again three
+times over about ten minutes, then dropped.
+
+**The check is the health page's Pushes card:** pushes sent and failed in the last 24 hours, and why the last one failed.
+Each send to one device counts, and so does each try again, so one push to a blocked service counts four failures.
+
+- `Unreachable`, with failures climbing and nothing sent: the worker cannot reach the push services. Look at the firewall, and
+  at `docker compose exec worker python -c "import urllib.request as u; u.urlopen('https://fcm.googleapis.com', timeout=10)"`,
+  which must not end in a timeout or a refused connection (an HTTP error such as 404 is an answer, and is fine).
+- `Refused`: the push service answered and would not take the push. Expect it for a while after the key pair is replaced
+  (below), until each device has opened the application again.
+- `Gone`: a device's subscription had ended, as when notifications are turned off in its browser. It is removed at once, and
+  nothing needs doing.
+
+**The installation's push key pair** names it to the push services. It is made at the first start with no step of yours
+(`web` logs "Made the installation's push key pair." once), lives in the database, and so comes back from a backup together
+with the devices bound to it. If the database or a backup may have been read by someone who should not have, replace it:
+
+```bash
+docker compose exec web python manage.py rotate_push_keys
+```
+
+No one has to turn pushes on again: each device takes the new key the next time its user opens the application, and gets no
+push until then. The audit log records the replacement as done from the server.
 
 ## What the queue keeps
 
 The worker removes, every day: queue rows of jobs that ended well or were stopped more than seven days ago, and of failed jobs
 more than thirty days ago (so the health page's failed jobs are the last month's); notifications older than a year; sessions
-past their twelve idle hours. A backup that cannot be taken is tried again every five minutes, each try a failed job, until it
+past their twelve idle hours; and the record of each push sent or failed, which holds a time and an outcome and nothing of a
+user or a device, after seven days. A backup that cannot be taken is tried again every five minutes, each try a failed job, until it
 works: a failed count that climbs by twelve an hour says so, and `docker compose logs worker` says why.
