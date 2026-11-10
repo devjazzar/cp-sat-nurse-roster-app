@@ -57,33 +57,38 @@ def test_the_start_logs_its_migrations_as_json(monkeypatch):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_gunicorn_logs_its_own_lines_and_each_request_as_json():
+def test_gunicorn_logs_its_own_lines_and_each_request_as_json(tmp_path):
+    """One request, sent once the worker says it is ready (`config/gunicorn.py`'s `post_worker_init`). gunicorn listens before
+    its worker has loaded the application, which takes seconds: a request sent then waits in the socket's queue, and one resent
+    after its own timeout would be served too, making two lines."""
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    server = subprocess.Popen([sys.executable, "-m", "gunicorn", "config.wsgi", "-c", "config/gunicorn.py", "--bind",
-                               f"127.0.0.1:{port}", "--workers", "1"],
-                              cwd=BACKEND, env=environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    out, err = tmp_path / "stdout", tmp_path / "stderr"
+    with out.open("w") as stdout, err.open("w") as stderr:
+        server = subprocess.Popen([sys.executable, "-m", "gunicorn", "config.wsgi", "-c", "config/gunicorn.py", "--bind",
+                                   f"127.0.0.1:{port}", "--workers", "1"], cwd=BACKEND, env=environment(), stdout=stdout,
+                                  stderr=stderr, text=True)
     try:
-        for _ in range(100):
-            try:
-                answer = httpx.get(f"http://127.0.0.1:{port}/api/health?from=test", timeout=5,
-                                   headers={"X-Forwarded-For": "203.0.113.9"})
-                break
-            except httpx.TransportError:
-                assert server.poll() is None, "gunicorn exited during start-up"
-                time.sleep(0.1)
+        started = time.monotonic()
+        while not any(entry["logger"] == "gunicorn.error" and entry["message"].startswith("Worker ready")
+                      for entry in json_lines(out.read_text().rpartition("\n")[0])):  # a line may be half written
+            assert server.poll() is None, "gunicorn exited during start-up"
+            assert time.monotonic() - started < 60, "gunicorn's worker did not load the application in a minute"
+            time.sleep(0.1)
+        answer = httpx.get(f"http://127.0.0.1:{port}/api/health?from=test", timeout=5,
+                           headers={"X-Forwarded-For": "203.0.113.9"})
         assert answer.status_code == 200
     finally:
         server.terminate()
-        stdout, stderr = server.communicate(timeout=10)
+        server.wait(timeout=10)
 
-    entries = json_lines(stdout)
+    entries = json_lines(out.read_text())
     assert any(entry["logger"] == "gunicorn.error" and "Booting worker" in entry["message"] for entry in entries)
     access = [entry for entry in entries if entry["logger"] == "gunicorn.access"]
     assert [(e["method"], e["path"], e["query"], e["status"], e["remote"]) for e in access] == [
         ("GET", "/api/health", "from=test", 200, "203.0.113.9")]
-    assert stderr == ""
+    assert err.read_text() == ""
 
 
 @pytest.mark.django_db(transaction=True)

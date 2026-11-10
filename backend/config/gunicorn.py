@@ -14,3 +14,9 @@ logconfig_dict = {
     "loggers": {"gunicorn.error": {"handlers": ["stdout"], "level": "INFO", "propagate": False},
                 "gunicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False}},
 }
+
+
+def post_worker_init(worker):
+    """gunicorn listens before a worker has loaded the application, which takes seconds (the solver's model and its imports):
+    a request sent meanwhile waits in the socket's queue. This line says the worker now answers."""
+    worker.log.info("Worker ready (pid: %s)", worker.pid)
