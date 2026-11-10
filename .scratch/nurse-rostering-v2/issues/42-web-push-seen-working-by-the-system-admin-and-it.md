@@ -277,3 +277,11 @@ The stack is down and its volumes gone; the PostgreSQL container is stopped; the
   `test_install_guide.py` fails.
 - **`operations.sh` now ends signed in as the System Admin with a password only it knows;** a check added after it can
   read any System Admin page's data with `curl -b "$jar"`.
+
+**Reviewed by the user (2026-11-10):** all four points kept as recommended.
+- The last failure is the last of the 24 hours.
+- Each reason has one fixed sentence.
+- "Unreachable" also covers a 429 or a 5xx, and the page says so.
+- "Device" stays on the health page and in the guide.
+
+Merged as devjazzar/cp-sat-nurse-roster-app#2 after the repository's move.
