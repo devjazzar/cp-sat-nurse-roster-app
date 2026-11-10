@@ -155,20 +155,24 @@ GitHub ran both workflows green on `5b04fae`, the image built with pywebpush on 
 - **A dead address, live:** a subscription Chrome had dropped got 404 or 410 from Google; the job ended it at once (one
   `gone` attempt, the row gone).
 - **The tap, a real click, with a window open:** in a second session of the same stack and profile (Amal subscribed, Dana
-  proposing), you clicked the macOS notification yourself. Traced inside the worker and the page at 03:24 and again at
-  03:28: one `notificationclick` carrying `{"kind": "swap_to_answer"}`, one `open-page` message with `/swaps`, and Amal's
-  open window went from `/` to `/swaps` through the app's router.
+  proposing), you clicked the macOS notification yourself. Chrome was started with `open -na "Google Chrome" --args …`,
+  with no other Chrome running; started by running its binary, no click reached it. Traced inside the worker and the page
+  at 03:28: one `notificationclick` carrying `{"kind": "swap_to_answer"}`, one `open-page` message with `/swaps`, and
+  Amal's open window went from `/` to `/swaps` through the app's router. At 03:19 and 03:24 the window ended on `/swaps`
+  too, but went to the app's home a second before (next points).
 - **The tap, a real click, with no app window open:** a window opened and landed on `/swaps`. It was not a clean run of
-  `openWindow("/swaps")`, though: Chrome's own notice (next point) was clicked first and opened the window on `/`, and the
-  click on ours then moved it. So a real click opening a window from the worker was seen, with `/` as its page, and
+  `openWindow("/swaps")`, though: the window opened on `/` and moved a second later, which I read, without a trace inside
+  the worker for that run, as Chrome's own notice (next point) clicked first and ours after. So a real click opening a window from the worker was seen, with `/` as its page, and
   `/swaps` in a new window rests on `sw.test.ts`.
-- **Chrome's own notice beside ours, in this Chrome only as far as I know:** whenever the app was not the focused tab,
-  Chrome added "This site has been updated in the background" to our notification, and a click on it reached the worker
-  with no kind, so it opened the app's home. Chrome adds that notice when it believes a push showed nothing. In this
-  hand-started Chrome `registration.getNotifications()` came back empty straight after `showNotification()` resolved, for
-  a bare notification of my own as well as for a push, so the browser's bookkeeping was wrong, not the worker's order of
-  work. The same fault explains the clicks that did nothing earlier: Chrome had dropped its record of the notification, so
-  the click only brought Chrome forward. I could not tell whether an ordinary Chrome does this; see "What was NOT checked".
+- **Chrome's own notice beside ours, in this Chrome only as far as I know:** in the three runs with the app not the focused
+  tab, the window went home before Swaps; in the two with it focused, it did not. The 03:24 trace shows why: Chrome had
+  added "This site has been updated in the background" 5 ms after our notification, and a click on it reached the worker
+  with `data: null`, so it opened the app's home. Chrome adds that notice when it believes a push showed nothing. From
+  about 03:21 on, `registration.getNotifications()` in this Chrome came back empty straight after `showNotification()`
+  resolved, for a bare notification of my own as well as for a push; at 03:18 it had listed ours, and the hop home
+  followed all the same. So my reading, not proven, is that this Chrome's bookkeeping was at fault and not the worker's
+  order of work, and that the clicks that did nothing (one at 03:21, and on my bare notification) met a notification
+  Chrome had dropped its record of. I could not tell whether an ordinary Chrome does this; see "What was NOT checked".
 - **Before that,** when no real click got through, I ran the worker's own listener by dispatching the event on the real
   notification: the window went to `/swaps`. With no window open that dispatch opened none, as Chrome lets a worker open a
   window only in a real click's activation.
@@ -186,8 +190,9 @@ The stack is down and its volumes gone; the browser profile is deleted.
 
 **Findings for you, not fixed:** none in the app. One for whoever drives pushes next: a browser launched by Playwright
 receives none. Its default `--disable-background-networking` cuts Chrome off from its push service, and a permission granted
-with `grantPermissions` lapses when that connection closes, after which Chrome drops the subscription. Start Chrome by hand
-and allow notifications in its profile.
+with `grantPermissions` lapses when that connection closes, after which Chrome drops the subscription. Allow notifications in
+the profile, and start Chrome with `open -na "Google Chrome" --args --user-data-dir=… --remote-debugging-port=…` with no
+other Chrome running: a click on a notification reached no Chrome started by running its binary.
 
 **What was NOT checked.**
 - **An ordinary Chrome, started the usual way with a trusted certificate.** The one driven was started with its own profile,
@@ -229,7 +234,9 @@ and allow notifications in its profile.
   manager makes no requests (section 3), so no nurse kind reaches a manager on the bell, and the push follows the bell. The
   test asserts that: a manager with a nurse profile gets the manager's kinds alone. Recommendation: keep; widening it would
   be your decision.
-- **An unknown kind's tap opens the app's home.** The spec said nothing of it.
+- **An unknown kind's tap opens the app's home.** The spec said nothing of it. Seen while driving: a click on Chrome's own
+  "updated in the background" notice reaches the worker the same way, with `data: null`, and sends an open window home.
+  Having such a click do nothing instead is your decision; I changed nothing.
 
 **Review.** `code-review` against `0c4393f` ran its two axes in parallel.
 - **Spec.** Nothing asked for is missing. Fixed: the migration's live import of the host check. Kept: the count of a retried
