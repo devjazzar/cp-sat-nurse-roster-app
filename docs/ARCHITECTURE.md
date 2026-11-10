@@ -478,7 +478,8 @@ backup time and retention, close time.
    broken further, as for a swap. Ranked furthest below owed hours first, then least overtime this year (`covers.judging`).
 3. The manager ticks any of them and offers it, with a note: it becomes `offered` and each nurse ticked is told. An add on an
    offered cover asks only those not yet in it; a nurse who declined is in it and is not asked again. A nurse not in the list
-   as judged then is refused by name.
+   as judged then is refused by name, if she is on the cover's roster; any other ID is said back as sent, the same for a nurse
+   of another unit as for no such nurse.
 4. A nurse offered it reads its date, shift, hours and note on Covers, never why it opened or who else was asked, and accepts or
    declines. A decline takes the cover's lock only and tells the manager; a cover everyone declined stays offered.
 5. The first acceptance takes it, under the locks an approval takes (the catalogue's, hers, the unit's, the roster's, the

@@ -92,12 +92,16 @@ def offer(by: User, unit: Unit, cover_id: UUID, hospital_ids: list[str], note: s
     if judged.reason or judged.full:
         raise HttpError(409, judged.reason or judged.full)
     could = {nurse.hospital_id for nurse in judged.nurses}
-    nurses = {nurse.user.username: nurse
-              for nurse in NurseProfile.objects.select_related("user").filter(user__username__in=added)}
     refused = [hospital_id for hospital_id in added if hospital_id not in could]
     if refused:
-        refuse(*[(("nurses",), f"{name_of(nurses[hospital_id].user) if hospital_id in nurses else hospital_id} cannot take this cover "
-                               "now, so it cannot be offered to them.") for hospital_id in refused])
+        # Only someone on this cover's roster, whose people the manager reads, is named. Any other ID is said back as it was
+        # sent, the same for a nurse of another unit as for no such nurse, as a swap's check and a pin edit say it.
+        on_roster = {nurse.user.username: nurse.user for nurse in NurseProfile.objects.select_related("user").filter(
+            user__username__in=[hospital_id for hospital_id in refused if hospital_id in cover.roster.grid])}
+        refuse(*[(("nurses",), f"{name_of(on_roster[hospital_id]) if hospital_id in on_roster else hospital_id} cannot take "
+                               "this cover now, so it cannot be offered to them.") for hospital_id in refused])
+    nurses = {nurse.user.username: nurse
+              for nurse in NurseProfile.objects.select_related("user").filter(user__username__in=added)}
     CoverOffer.objects.bulk_create([CoverOffer(cover=cover, nurse=nurses[hospital_id]) for hospital_id in added])
     if cover.state == CoverState.OPEN:
         cover.state, cover.note = CoverState.OFFERED, note

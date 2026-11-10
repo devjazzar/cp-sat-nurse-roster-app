@@ -6,15 +6,17 @@ import datetime as dt
 
 import pytest
 
+from accounts.models import Role
 from audit.models import AuditEntry
 from covers.models import Cover, CoverState
 from covers.tasks import expire_covers
 from covers.tests.conftest import (MONTH, answer, answered, badrs_day, cover_page, my_covers, offer, offered, ok, opened,
                                    record_leave, refusals, the_25th, wider_day, withdraw)
 from notifications.models import Event, Notification
+from nurses.models import NurseProfile, Placement
 from notifications.tests.test_events import as_user, told
 from rosters.models import PinnedCell, PinOrigin, Roster, VersionOrigin
-from rosters.tests.test_pins import off, pin
+from rosters.tests.test_pins import icu, off, pin
 from rosters.tests.test_versions import change, changed
 
 pytestmark = pytest.mark.django_db
@@ -92,6 +94,21 @@ class TestOffering:
         assert said == ["Amal cannot take this cover now, so it cannot be offered to them."]
         assert cover_page(mona, in_force, cover_id)["cover"]["state"] == "open"
         assert cover_told("Emad") == [] and entries() == []
+
+    def test_a_nurse_of_another_unit_is_said_back_by_her_id_the_same_as_no_such_nurse(self, in_force, mona, make_user):
+        """Only someone on the cover's own roster is named: the manager reads nothing of another unit's nurses, not even
+        whether one holds an ID (docs/ARCHITECTURE.md section 3)."""
+        cover_id = badrs_day(mona, in_force)
+        zeta = make_user("icu-0001", Role.STAFF_NURSE, full_name="Zeta Otherunit")
+        theirs = NurseProfile.objects.create(user=zeta, gender="F", start_date=dt.date(2026, 1, 1))
+        Placement.objects.create(nurse=theirs, unit=icu(make_user("omar", Role.UNIT_MANAGER)), from_month=dt.date(2026, 1, 1))
+
+        response = offer(mona, in_force, cover_id, "icu-0001", "nobody-9999")
+
+        assert refusals(response) == ["icu-0001 cannot take this cover now, so it cannot be offered to them.",
+                                      "nobody-9999 cannot take this cover now, so it cannot be offered to them."]
+        assert "Zeta" not in response.content.decode() and "Otherunit" not in response.content.decode()
+        assert cover_page(mona, in_force, cover_id)["cover"]["state"] == "open" and entries() == []
 
     def test_an_offer_names_at_least_one_nurse_and_an_add_one_not_yet_in_it(self, in_force, mona):
         cover_id = badrs_day(mona, in_force)
