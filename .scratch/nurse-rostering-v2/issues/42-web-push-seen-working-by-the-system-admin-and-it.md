@@ -151,12 +151,23 @@ The suites ran locally, one at a time under the heavy-run lock, the backend on a
 
 The stack is down and its volumes gone; the PostgreSQL container is stopped; the lock is released.
 
+**The health page held against the three skills, by hand,** after loading each: nothing to change.
+- `better-writing`: the labels follow the Queue card's ("Sent, last 24 hours" beside "Jobs failed, last 30 days"), in
+  sentence case; each reason's sentence says what happened and what to do, or that nothing needs doing; the words are the
+  Notifications page's (push, device, the bell). "The install guide" is not a link, since the guide is a file with the
+  installation and not a page of the app.
+- `better-accessibility`: no new control. A heading, a description list whose three terms name their values, and two
+  paragraphs; the reason is a word, never colour alone (1.4.1); Refresh already announces "Checked.". The badge and the
+  muted paragraph are the components and colours the cards beside it use; I measured no contrast.
+- `better-interface`: the card fills the empty place beside Storage in the two-column grid, so nothing moved; red is
+  kept for the two reasons that may need someone, grey for "Gone", as the Services card does for Unreachable.
+
 **What was found, and fixed.** Nothing in code that was there before.
 
 **Findings for you, not fixed.**
 - **`ops/tests/test_logs.py::test_gunicorn_logs_its_own_lines_and_each_request_as_json` failed on this machine when run
   by itself:** three times on this branch and once on a checkout of `1e2667e`, each time with two access lines where it
-  expects one. It passed in the full suite, and on GitHub. I did not find the cause; my guess is a first request slower
+  expects one. It passed in the full local suite, and in GitHub's on `b02e4ad`. I did not find the cause; my guess is a first request slower
   than the test's five-second timeout, which it then repeats. Not this ticket's code.
 
 **What was NOT checked.**
@@ -172,8 +183,13 @@ The stack is down and its volumes gone; the PostgreSQL container is stopped; the
   blocked port, where each try takes the sender's ten-second timeout.
 - **A real 429 or 5xx, a real refusal,** and Apple's, Mozilla's and Microsoft's services: the scripted ones only.
 - **A Prometheus scraping the gauges;** `wget` from Caddy's container only.
-- **The one-line check in the install guide** (`urlopen` of `https://fcm.googleapis.com` from the worker): written from
-  how `urllib` behaves, not run on a stack.
+- **The one-line check in the install guide** from a stack's worker. I ran the same line in the image's base,
+  `python:3.14-slim-trixie`, by itself: it ended in "HTTP Error 404: Not Found", the answer the guide calls fine, with no
+  certificate error.
+- **Which browser uses which push service,** the note beside each host in the guide: from what I know, not looked up
+  again. The hosts themselves are ticket 41's, with its sources.
+- **The card at 320 px.** Seen at 375 px and at the desktop width; GitHub's layout check opens the health page at its own
+  widths.
 - **A screen reader** on the card, beyond its markup: a heading, a description list and two paragraphs, as the cards
   beside it.
 - **The six parallel frontend runs and the browser checks, locally:** GitHub runs them on the pull request.
