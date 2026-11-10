@@ -63,6 +63,11 @@ def _names(nurses: list[NurseProfile]) -> list[str]:
 
 
 def _what_stops_it(unit: Unit, month: dt.date, assembled: Assembled) -> str | None:
+    return _what_stops_the_month(unit, month) or _what_the_nurses_stop(assembled)
+
+
+def _what_stops_the_month(unit: Unit, month: dt.date) -> str | None:
+    """What needs no assembly, so a start can be refused before it assembles the month under the hospital settings' lock."""
     if month < membership.this_month():
         return "This month is over, so it cannot be solved."
     frozen = frozen_month(unit, month)
@@ -70,7 +75,7 @@ def _what_stops_it(unit: Unit, month: dt.date, assembled: Assembled) -> str | No
         return frozen
     if Solve.objects.filter(unit=unit, month=month, state__in=ACTIVE_STATES).exists():
         return "A solve of this month is already queued or running."
-    return _what_the_nurses_stop(assembled)
+    return None
 
 
 def _what_the_nurses_stop(assembled: Assembled) -> str | None:
@@ -190,8 +195,11 @@ def start_solve(request: HttpRequest, unit_id: UUID, body: StartSolveBody) -> St
         _, cap = _time_limits(unit)
         if body.time_limit_seconds > cap:
             refuse((("time_limit_seconds",), f"The System Admin's cap is {cap} seconds."))
+        stopped_by = _what_stops_the_month(unit, month)
+        if stopped_by:
+            raise HttpError(409, stopped_by)
         assembled = assemble(unit, month, time_limit=body.time_limit_seconds)
-        stopped_by = _what_stops_it(unit, month, assembled)
+        stopped_by = _what_the_nurses_stop(assembled)
         if stopped_by:
             raise HttpError(409, stopped_by)
         refusal = solver_refusal(assembled.input)

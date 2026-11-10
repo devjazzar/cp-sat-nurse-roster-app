@@ -8,6 +8,7 @@ The nurse's unit is the one each month falls under for her (`membership.placemen
 her into the new unit from the month the transfer takes effect."""
 from __future__ import annotations
 
+import bisect
 import datetime as dt
 import logging
 from dataclasses import dataclass
@@ -100,6 +101,7 @@ class Chain:
         self.project = project
         self._out: dict[tuple, dict[str, dict]] = {}
         self._rosters: dict[tuple, Roster | None] = {}
+        self._months: list[dt.date] | None = None
 
     def carry_in(self, nurse: NurseProfile, month: dt.date) -> Carried:
         """What `month` starts from for her. Without a closed month, from her opening values at the first approved roster that
@@ -111,9 +113,26 @@ class Chain:
         else:
             carried, step = Carried(opening(nurse), CarrySource.OPENING, None, _added(nurse).year), self._first_roster(nurse, month)
         while step is not None and step < month:
-            carried = self._through(nurse, step, carried)
-            step = next_month(step)
+            ahead = self._next_roster_month(step, month)
+            # A month with no approved roster of any unit hands on what came into it, with no shift history (`_through`), so a
+            # run of them is one step, however long: the work does not grow with how far ahead `month` is.
+            last = month_before(ahead or month)
+            if step <= last:
+                carried = Carried(carried.into(last) | NO_HISTORY, carried.source, last, last.year)
+            if ahead is None:
+                return carried
+            carried = self._through(nurse, ahead, carried)
+            step = next_month(ahead)
         return carried
+
+    def _next_roster_month(self, step: dt.date, month: dt.date) -> dt.date | None:
+        """The first month from `step`, and before `month`, with an approved roster of any unit. The months are read once for
+        the chain; a close's chain (`project=False`) projects through none, so reads none."""
+        if self._months is None:
+            self._months = (sorted(set(Roster.objects.filter(state=RosterState.APPROVED).values_list("month", flat=True)))
+                            if self.project else [])
+        found = self._months[bisect.bisect_left(self._months, step):]
+        return found[0] if found and found[0] < month else None
 
     def _first_roster(self, nurse: NurseProfile, month: dt.date) -> dt.date | None:
         if not self.project:

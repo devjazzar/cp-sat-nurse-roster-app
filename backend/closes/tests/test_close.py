@@ -8,13 +8,15 @@ import copy
 import datetime as dt
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from solver_service.grid import month_facts, nurses_of
 
 from accounts.models import Role
 from audit.models import AuditEntry
 from closes import making
-from closes.chain import CARRIED, Chain
+from closes.chain import CARRIED, NEW_YEAR, NO_HISTORY, Chain
 from closes.models import CarryOver, CarrySource, MonthClose
 from conftest import post
 from hospital.models import Shift
@@ -25,7 +27,8 @@ from ops import solver_client
 from requesting.models import PreferenceKind
 from rosters.models import PinnedCell, Roster
 from rosters.tests.test_pins import change_shift
-from rosters.tests.test_review import SOUND, approve, carla, ok, record_leave, refused, solved, submit, url  # noqa: F401
+from rosters.tests.test_review import (SOUND, approve, carla, nurses_of_er, ok, record_leave, refused, solved,  # noqa: F401
+                                      submit, url)
 from solves.input import assemble
 from solves.tests.conftest import MONTH
 from solves.tests.test_input import full_runs_capped, preference
@@ -410,6 +413,101 @@ class TestTheChain:
         from nurse_roster.request import load_request
         loaded = load_request(july)
         assert all("N" not in nurse.previous for nurse in loaded.problem.nurses)
+
+
+class TestAFarMonth:
+    """A month far ahead starts from what the last approved roster handed on, carried through months with no roster, and the
+    work of asking for it does not grow with how far ahead it is: once no approved roster lies before the month asked, each month
+    only hands on what came in, so the chain does not step through them one by one."""
+
+    def test_it_starts_from_the_last_projection_with_no_history_and_the_january_reset(self, june, er):
+        amal = NurseProfile.objects.get(user__username="Amal")
+        projected = Chain().carry_out(Roster.objects.get(unit=er))["Amal"]
+
+        far = Chain().carry_in(amal, dt.date(2076, 12, 1))
+        near = Chain().carry_in(amal, AUGUST)
+
+        assert (far.source, far.out_of, far.year) == (CarrySource.PROJECTED, dt.date(2076, 11, 1), 2076)
+        assert far.into(dt.date(2076, 12, 1)) == {key: projected[key] for key in CARRIED} | NO_HISTORY | NEW_YEAR
+        assert (near.source, near.out_of) == (CarrySource.PROJECTED, JULY)
+        assert near.into(AUGUST) == {key: projected[key] for key in CARRIED} | NO_HISTORY
+
+    def test_from_a_closed_month_too(self, june, er, on):
+        on(dt.date(2026, 7, 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+        amal = NurseProfile.objects.get(user__username="Amal")
+
+        far = Chain().carry_in(amal, dt.date(2076, 12, 1))
+
+        assert (far.source, far.out_of) == (CarrySource.CLOSED, dt.date(2076, 11, 1))
+        assert far.into(dt.date(2076, 12, 1)) == carried(close)["Amal"] | NO_HISTORY | NEW_YEAR
+
+    @pytest.mark.parametrize("closed_june", [False, True])
+    def test_a_nurses_and_a_managers_reads_cost_the_same_for_any_month_ahead(self, june, er, mona, on, nurses_of_er,
+                                                                             closed_june):
+        if closed_june:
+            on(dt.date(2026, 7, 1))
+            making.catch_up(at(dt.date(2026, 7, 1), 1))
+        amal = nurses_of_er("Amal")
+
+        def statements(client, path, month):
+            with CaptureQueriesContext(connection) as queries:
+                ok(client.get(path, {"month": month}))
+            return len(queries)
+
+        for client, path in ((amal, "/api/preferences/mine"), (mona, url(er, "/solves/preview")), (mona, url(er, "/close"))):
+            near = statements(client, path, "2026-12")  # first, so nothing the far one asks is already warm
+            assert statements(client, path, "2076-12") <= near, path
+
+    @pytest.mark.parametrize("scene", ["june", "june_and_august", "june_closed"])
+    @pytest.mark.parametrize("project", [True, False])
+    def test_every_month_starts_from_what_the_month_by_month_walk_gave(self, er, mona, carla, solver, on, scene, project):  # noqa: F811
+        """Against the walk as it was before, one `_through` a month, for every nurse and every month to the end of next year:
+        across a run of months with no roster, a roster after one, and the January reset."""
+        approved(mona, carla, er, solver)
+        if scene == "june_and_august":
+            approved(mona, carla, er, solver, "2026-08")
+        if scene == "june_closed":
+            on(dt.date(2026, 7, 1))
+            making.catch_up(at(dt.date(2026, 7, 1), 1))
+        nurses = list(NurseProfile.objects.filter(placements__unit=er).select_related("user"))
+        months = [dt.date(2026 + (5 + i) // 12, (5 + i) % 12 + 1, 1) for i in range(19)]  # June 2026 to December 2027
+        chain, reference = Chain(project=project), Chain(project=project)
+
+        for month in months:
+            for nurse in nurses:
+                assert chain.carry_in(nurse, month) == walked(reference, nurse, month), (nurse.user.username, month)
+
+    def test_a_refused_start_is_refused_before_the_month_is_assembled(self, june, er, mona, monkeypatch):
+        """It holds the hospital settings' lock, which every catalogue change waits on, for no longer than a refusal takes."""
+        from solves import api as solves_api
+        from solves.models import Solve
+        Solve.objects.create(unit=er, month=dt.date(2076, 12, 1), requested_by=mona_user(), time_limit_seconds=60, input={})
+        monkeypatch.setattr(solves_api, "assemble", lambda *_, **__: pytest.fail("assembled a month it then refused"))
+
+        response = post(mona, url(er, "/solves"), {"month": "2076-12", "time_limit_seconds": 60})
+
+        assert (response.status_code, response.json()["detail"]) == (409, "A solve of this month is already queued or running.")
+
+
+def walked(chain: Chain, nurse: NurseProfile, month: dt.date):
+    """`Chain.carry_in` as it was until a far month stopped stepping through every month: one `_through` a month."""
+    from closes.chain import BEFORE_PREFERENCES, Carried, _added, latest_closed, next_month, opening
+    closed = latest_closed(nurse, month)
+    if closed is not None:
+        carried = Carried(BEFORE_PREFERENCES | closed.values, CarrySource.CLOSED, closed.month, closed.month.year)
+        step = next_month(closed.month)
+    else:
+        carried, step = Carried(opening(nurse), CarrySource.OPENING, None, _added(nurse).year), chain._first_roster(nurse, month)
+    while step is not None and step < month:
+        carried = chain._through(nurse, step, carried)
+        step = next_month(step)
+    return carried
+
+
+def mona_user():
+    from accounts.models import User
+    return User.objects.get(username="mona")
 
 
 class TestTheCountOfPreferencesNotKept:
