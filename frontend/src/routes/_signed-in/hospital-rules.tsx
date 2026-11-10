@@ -24,7 +24,20 @@ import { Button } from "@/components/ui/button"
 import { FieldError as FieldErrorText, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
-import { type Explained, WEIGHTS } from "@/lib/weights"
+import {
+  DAILY_HOURS,
+  SWITCHES,
+  CAPS,
+  WEEKEND_DESCRIPTION,
+  SUCCESSIONS_TITLE,
+  SUCCESSIONS_DESCRIPTION,
+  SUCCESSIONS_SWITCH_LABEL,
+  SUCCESSIONS_SWITCH,
+  WEIGHTS_DESCRIPTION,
+  HOSPITAL_RULE_LABELS,
+  WEEKDAYS,
+} from "@/lib/hospital-rules-words"
+import { WEIGHTS } from "@/lib/weights"
 import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/hospital-rules")({
@@ -33,62 +46,6 @@ export const Route = createFileRoute("/_signed-in/hospital-rules")({
   component: HospitalRulesPage,
 })
 
-type NumberRule = "hours_per_day" | "ramadan_hours_per_day" | "breastfeeding_reduction" | "overtime_month_cap" | "overtime_year_cap" | "dept_overtime_cap"
-type SwitchRule = "hours_rule_enabled" | "overtime_caps_enabled"
-
-const DAILY_HOURS: Explained<NumberRule>[] = [
-  {
-    name: "hours_per_day",
-    label: "Hours per day",
-    description: "The regular hours a nurse owes for each working day: a day that is neither a weekend day nor a public holiday.",
-  },
-  {
-    name: "ramadan_hours_per_day",
-    label: "Ramadan hours per day",
-    description: "The same on Ramadan days, for a nurse marked Ramadan-reduced. Cannot be more than the hours per day.",
-  },
-  {
-    name: "breastfeeding_reduction",
-    label: "Breastfeeding reduction (hours)",
-    description: "Taken off each working day for a nurse marked breastfeeding. Cannot be more than the Ramadan hours per day.",
-  },
-]
-
-const SWITCHES: Explained<SwitchRule>[] = [
-  {
-    name: "hours_rule_enabled",
-    label: "Count hours",
-    description: "When off, a nurse may work any number of shifts and nobody's overtime or hours short are counted, so the caps below do nothing.",
-  },
-  {
-    name: "overtime_caps_enabled",
-    label: "Cap each nurse's overtime",
-    description: "When off, the monthly and yearly caps below do not apply.",
-  },
-]
-
-const CAPS: Explained<NumberRule>[] = [
-  {
-    name: "overtime_month_cap",
-    label: "Monthly overtime cap (hours)",
-    description: "The most overtime a nurse may work in a month. The solver returns no roster that breaks this.",
-  },
-  {
-    name: "overtime_year_cap",
-    label: "Yearly overtime cap (hours)",
-    description: "The most overtime a nurse may work in a year, counting what is already worked. The solver returns no roster that breaks this.",
-  },
-  {
-    name: "dept_overtime_cap",
-    label: "Unit overtime cap (hours)",
-    description: "The overtime a unit may use in a month before each further hour costs its weight. A roster may go over this one.",
-  },
-]
-
-// The solver's numbering, 0 is Monday, shown in the order the hospital's week runs.
-const WEEKDAYS = [
-  [6, "Sunday"], [0, "Monday"], [1, "Tuesday"], [2, "Wednesday"], [3, "Thursday"], [4, "Friday"], [5, "Saturday"],
-] as const
 
 const wholeNumber = (max: number) =>
   z.int("Enter a whole number.").min(0, `Between 0 and ${max}.`).max(max, `Between 0 and ${max}.`)
@@ -127,12 +84,6 @@ const schema = z
       seen.add(pair)
     }
   })
-
-const WEEKEND_DESCRIPTION = "The days that count as the weekend. A nurse owes no regular hours on them, and each unit's weekend rules apply to them."
-const SUCCESSIONS_TITLE = "Forbidden successions"
-const SUCCESSIONS_DESCRIPTION = "Shifts a nurse may not work on two days in a row, in that order. The solver returns no roster that breaks these."
-const SUCCESSIONS_SWITCH = "When off, the pairs below stay here but the solver ignores them."
-const WEIGHTS_DESCRIPTION = "A weight is the price of breaking a soft rule once. The solver looks for the roster with the lowest total, so only how the weights compare to each other matters, and 0 switches the rule off. Each one below says what it is the price of."
 
 function WeekendField({ control, error }: { control: Control<HospitalRules>; error?: FieldError }) {
   const { field } = useController({ control, name: "weekend_weekdays" })
@@ -257,12 +208,12 @@ function RulesForm({ state }: { state: HospitalRulesState }) {
           ))}
         </FieldGroup>
       </Section>
-      <Section title="Weekend days" description={WEEKEND_DESCRIPTION}>
+      <Section title={HOSPITAL_RULE_LABELS.weekend_weekdays} description={WEEKEND_DESCRIPTION}>
         <WeekendField control={form.control} error={errors.weekend_weekdays as FieldError | undefined} />
       </Section>
       <Section title={SUCCESSIONS_TITLE} description={SUCCESSIONS_DESCRIPTION}>
         <FieldGroup>
-          <CheckboxField label="Forbid these successions" description={SUCCESSIONS_SWITCH}
+          <CheckboxField label={SUCCESSIONS_SWITCH_LABEL} description={SUCCESSIONS_SWITCH}
             registration={form.register("forbidden_successions_enabled")} />
           <SuccessionsField control={form.control} codes={state.shift_codes}
             error={errors.forbidden_successions as FieldError | undefined} />
@@ -308,14 +259,14 @@ function RulesReadOnly({ rules }: { rules: HospitalRules }) {
       <Section title="Daily hours">
         <ReadOnlyList items={DAILY_HOURS.map(({ name, label, description }) => ({ label, description, value: rules[name] }))} />
       </Section>
-      <Section title="Weekend days" description={WEEKEND_DESCRIPTION}>
+      <Section title={HOSPITAL_RULE_LABELS.weekend_weekdays} description={WEEKEND_DESCRIPTION}>
         <ul className="flex flex-col gap-1 text-sm">
           {weekend.length ? weekend.map((name) => <li key={name}>{name}</li>) : <li>None</li>}
         </ul>
       </Section>
       <Section title={SUCCESSIONS_TITLE} description={SUCCESSIONS_DESCRIPTION}>
         <div className="flex flex-col gap-4">
-          <ReadOnlyList items={[{ label: "Forbid these successions", description: SUCCESSIONS_SWITCH, value: onOff(rules.forbidden_successions_enabled) }]} />
+          <ReadOnlyList items={[{ label: SUCCESSIONS_SWITCH_LABEL, description: SUCCESSIONS_SWITCH, value: onOff(rules.forbidden_successions_enabled) }]} />
           <ul className="flex flex-col gap-1 text-sm">
             {rules.forbidden_successions.length === 0 && <li>No successions are forbidden.</li>}
             {rules.forbidden_successions.map(([today, tomorrow]) => (

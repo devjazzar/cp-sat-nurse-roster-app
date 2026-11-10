@@ -6065,6 +6065,199 @@ describe("the roster page", () => {
       expect(router.state.location.pathname).toBe("/")
     })
 
+    describe("comparing two results (ticket 43)", () => {
+      const NEWEST = { ...ROW, id: "019a0000-0000-7000-8000-000000000003", requested_at: "2026-05-17T09:00:00+03:00", cost: 20 }
+      const MIDDLE = { ...ROW, id: "019a0000-0000-7000-8000-000000000002", requested_at: "2026-05-16T09:00:00+03:00", cost: 15, in_draft: false }
+      const OLDEST = { ...ROW, id: "019a0000-0000-7000-8000-000000000001", requested_at: "2026-05-15T09:00:00+03:00", cost: 12, in_draft: false }
+      const NO_ROSTER = { ...FAILED, id: "019a0000-0000-7000-8000-0000000000ff", month: "2026-06" }
+      const MONTH_ROWS = [NEWEST, NO_ROSTER, MIDDLE, OLDEST]
+      const ACCOUNT = { hospital_id: "h1", full_name: "Amal Saleh", contract: 192, leave_credit: 24, required: 168, hours_worked: 180, overtime: 12, shortfall: 0, shifts: { D: 15, N: 0 }, cost: 3 }
+      const side = (row: typeof ROW, extra = {}) => ({ ...row, unit_cost: 2, replan_of: null, replan_from: null, replan_outcome: null, statistics: STATISTICS, ...extra })
+      const violation = (rule: string, who: string) => ({ rule, hospital_id: "h1", full_name: who, date: "2026-06-05", text: `${rule}: ${who} on 2026-06-05` })
+      const COMPARISON = {
+        month: "2026-06",
+        older: side(OLDEST),
+        newer: side(NEWEST, { replan_from: "2026-06-12", replan_of: 1, replan_outcome: "version" }),
+        inputs: {
+          changes: [
+            { group: "hospital_rules", field: "weights.night_rest", older: 5, newer: 8 },
+            { group: "hospital_rules", field: "required_skills", older: null, newer: [] },
+            { group: "unit_rules", field: "max_consecutive_shifts", older: 5, newer: 6 },
+            { group: "time_limit", field: "time_limit_seconds", older: 60, newer: 120 },
+            { group: "calendar", field: "public_holidays", older: [], newer: ["2026-06-10"] },
+          ],
+          nurses: [
+            { hospital_id: "h3", full_name: "Faris Haddad", kinds: ["joined"] },
+            { hospital_id: "h1", full_name: "Amal Saleh", kinds: ["leave", "pins"] },
+          ],
+        },
+        rules: [
+          { rule: "night_rest", older: { amount: 2, weight: 5, penalty: 10 }, newer: { amount: 1, weight: 8, penalty: 8 }, weight_differs: true },
+          { rule: "change", older: { amount: null, weight: null, penalty: null }, newer: { amount: 2, weight: 3, penalty: 6 }, weight_differs: false },
+          { rule: "fair_day", older: { amount: 5, weight: 1, penalty: 5 }, newer: { amount: 5, weight: 1, penalty: 5 }, weight_differs: false },
+        ],
+        cells: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-15", older: "", newer: "D" }],
+        nurses: [
+          { hospital_id: "h1", full_name: "Amal Saleh", older: ACCOUNT, newer: { ...ACCOUNT, hours_worked: 168, overtime: 0 } },
+          { hospital_id: "h3", full_name: "Faris Haddad", older: null, newer: ACCOUNT },
+        ],
+        violations: { both: [], only_older: [], only_newer: [] },
+        facts: { both: [violation("rest", "Amal Saleh")], only_older: [violation("consecutive", "Badr Noor")], only_newer: [] },
+        explained_older: true,
+        explained_newer: true,
+      }
+      const compareUrl = (a: string, b: string) => `${UNIT}/solve-history/compare?a=${a}&b=${b}`
+      const comparing = (extra = {}, rows: unknown[] = MONTH_ROWS) => manager({
+        [`GET ${UNIT}/solve-history`]: { body: { solves: rows, older_than: null } },
+        [`GET ${UNIT}/solve-history/compare`]: { body: COMPARISON },
+        ...extra,
+      })
+      const options = (label: string) => within(screen.getByLabelText(label)).getAllByRole("option").map((option) => (option as HTMLOptionElement).value)
+
+      it("is absent without a month", async () => {
+        start("/solve-history", comparing())
+
+        await screen.findByRole("row", { name: /2026-05-17 09:00:00/ })
+        expect(screen.queryByRole("heading", { name: "Compare two results" })).not.toBeInTheDocument()
+      })
+
+      it("compares the two newest results with a roster, each picker leaving out the other's choice and any without a roster", async () => {
+        const { calls } = start("/solve-history?month=2026-06", comparing())
+
+        await screen.findByRole("heading", { level: 2, name: "Compare two results" })
+        expect(screen.getByLabelText("One result")).toHaveValue(NEWEST.id)
+        expect(screen.getByLabelText("The other")).toHaveValue(MIDDLE.id)
+        expect(options("One result")).toEqual([NEWEST.id, OLDEST.id])
+        expect(options("The other")).toEqual([MIDDLE.id, OLDEST.id])
+        expect(within(screen.getByLabelText("One result")).getByRole("option", { name: "Asked for at 2026-05-17 09:00:00, cost 20" })).toBeInTheDocument()
+        await screen.findByRole("heading", { level: 3, name: "The two solves" })
+        expect(calls.map((call) => call.url)).toContain(compareUrl(NEWEST.id, MIDDLE.id))
+      })
+
+      it("writes a chosen pair to the address", async () => {
+        const { calls, user, router } = start("/solve-history?month=2026-06", comparing())
+
+        await user.selectOptions(await screen.findByLabelText("The other"), OLDEST.id)
+
+        await waitFor(() => expect(router.state.location.search).toMatchObject({ month: "2026-06", a: NEWEST.id, b: OLDEST.id }))
+        await waitFor(() => expect(calls.map((call) => call.url)).toContain(compareUrl(NEWEST.id, OLDEST.id)))
+        expect(options("One result")).toEqual([NEWEST.id, MIDDLE.id])
+      })
+
+      it("takes the pair from the address, one from an older page included", async () => {
+        const PAST = "019a0000-0000-7000-8000-0000000000aa"
+        const { calls } = start(`/solve-history?month=2026-06&a=${OLDEST.id}&b=${PAST}`, comparing())
+
+        await screen.findByRole("heading", { level: 3, name: "The two solves" })
+        expect(calls.map((call) => call.url)).toContain(compareUrl(OLDEST.id, PAST))
+        expect(screen.getByLabelText("The other")).toHaveValue(PAST)
+        expect(within(screen.getByLabelText("The other")).getByRole("option", { name: "A result from an older page of the history" })).toBeInTheDocument()
+      })
+
+      it("with one result in the address, compares it with the newest other", async () => {
+        const { calls } = start(`/solve-history?month=2026-06&a=${NEWEST.id}`, comparing())
+
+        await screen.findByRole("heading", { level: 3, name: "The two solves" })
+        expect(calls.map((call) => call.url)).toContain(compareUrl(NEWEST.id, MIDDLE.id))
+      })
+
+      it("reads older left and newer right, in the spec's order, with the rules pages' labels and differences newer minus older", async () => {
+        start("/solve-history?month=2026-06", comparing())
+
+        await screen.findByRole("heading", { level: 3, name: "The two solves" })
+        const section = screen.getByRole("region", { name: "Compare two results" })
+        expect(within(section).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+          "The two solves", "What changed between their inputs", "Each rule, side by side", "Cells that differ", "Hours and cost per nurse",
+          "Hard rules each roster breaks", "Recorded facts that broke rules", "Solver statistics",
+        ])
+        const facts = within(screen.getByRole("region", { name: "The two solves" }))
+        expect(facts.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["", "Older, asked for at 2026-05-15 09:00:00", "Newer, asked for at 2026-05-17 09:00:00"])
+        expect(within(facts.getByRole("row", { name: /Re-planned from/ })).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Not a re-plan", "12 June, of version 1"])
+
+        const inputs = within(screen.getByRole("region", { name: "What changed between their inputs" }))
+        const valuesOf = (label: string) => within(inputs.getByRole("row", { name: new RegExp(`^${label}`) })).getAllByRole("cell").map((cell) => cell.textContent)
+        expect(valuesOf("Weight: Night rest")).toEqual(["5", "8"])
+        expect(valuesOf("Skills required to work")).toEqual(["Not in its input", "None"])
+        expect(valuesOf("Longest run of shifts")).toEqual(["5", "6"])
+        expect(valuesOf("Time limit")).toEqual(["60 s", "120 s"])
+        expect(valuesOf("Public holidays")).toEqual(["None", expect.stringContaining("10")])
+        expect(inputs.getByText("Faris Haddad: joined the month")).toBeInTheDocument()
+        expect(inputs.getByText("Amal Saleh: leave, pins")).toBeInTheDocument()
+
+        const rules = within(screen.getByRole("region", { name: "Each rule, side by side" }))
+        const night = within(rules.getByRole("row", { name: /Night rest/ }))
+        expect(night.getByText("Weight differs")).toBeInTheDocument()
+        expect(night.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["2", "5", "10", "1", "8", "8", "−2"])
+        expect(within(rules.getByRole("row", { name: /Changes in a re-plan/ })).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["None", "", "", "2", "3", "6", "+6"])
+        expect(rules.getByText(/compare the amounts/)).toBeInTheDocument()
+        expect(rules.getByText("Every other soft rule costs nothing in both.")).toBeInTheDocument()
+
+        const cells = within(screen.getByRole("region", { name: "Cells that differ" }))
+        expect(cells.getByText("1 cell differs.")).toBeInTheDocument()
+        expect(within(cells.getByRole("row", { name: /Amal Saleh/ })).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["15 June", "Off", "D"])
+
+        const hours = within(screen.getByRole("region", { name: "Hours and cost per nurse" }))
+        const amal = within(hours.getByRole("row", { name: /Amal Saleh/ })).getAllByRole("cell").map((cell) => cell.textContent)
+        expect(amal).toEqual(["192", "168", "180 → 168, −12", "12 → 0, −12", "0", "3"])
+        expect(within(hours.getByRole("row", { name: /Faris Haddad/ })).getAllByRole("cell")[0]).toHaveTextContent("Not in the older → 192")
+        expect(screen.queryByRole("button", { name: /Restore/ })).not.toBeInTheDocument()
+      })
+
+      it("groups the facts that broke rules in three", async () => {
+        start("/solve-history?month=2026-06", comparing())
+
+        const facts = within(await screen.findByRole("region", { name: "Recorded facts that broke rules" }))
+        expect(facts.getByText("In both").nextElementSibling).toHaveTextContent("Amal Saleh: rest: Amal Saleh on 2026-06-05")
+        expect(facts.getByText("Only in the older").nextElementSibling).toHaveTextContent("Badr Noor: consecutive")
+        expect(facts.getByText("Only in the newer").nextElementSibling).toHaveTextContent("None.")
+        expect(screen.getByRole("region", { name: "Hard rules each roster breaks" })).toHaveTextContent("Neither roster breaks a hard rule.")
+      })
+
+      it("says when one side cannot be explained", async () => {
+        const unexplained = { ...COMPARISON, explained_older: false, rules: [{ ...COMPARISON.rules[2], older: { amount: null, weight: null, penalty: 5 } }] }
+        start("/solve-history?month=2026-06", comparing({ [`GET ${UNIT}/solve-history/compare`]: { body: unexplained } }))
+
+        const rules = within(await screen.findByRole("region", { name: "Each rule, side by side" }))
+        expect(rules.getByText(/The older result's amounts and weights are not known/)).toBeInTheDocument()
+        expect(within(rules.getByRole("row", { name: /Fair share of day shifts/ })).getAllByRole("cell").map((cell) => cell.textContent).slice(0, 3)).toEqual(["Not known", "Not known", "5"])
+      })
+
+      it("says the month has nothing to compare with fewer than two results holding a roster", async () => {
+        start("/solve-history?month=2026-06", comparing({}, [NEWEST, NO_ROSTER]))
+
+        expect(await screen.findByText("Fewer than two solves of June 2026 hold a roster, so there is nothing to compare yet.")).toBeInTheDocument()
+        expect(screen.queryByLabelText("One result")).not.toBeInTheDocument()
+      })
+
+      it("says when the comparison cannot be read", async () => {
+        start("/solve-history?month=2026-06", comparing({ [`GET ${UNIT}/solve-history/compare`]: { status: 500 } }))
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("These two results could not be compared. Reload the page to try again")
+      })
+
+      it("is linked from a result's page, with that result as one side", async () => {
+        start(`/solve-history/${SOLVE_ID}`, manager())
+
+        expect(await screen.findByRole("link", { name: "Compare with another result" })).toHaveAttribute("href", `/solve-history?month=2026-06&a=${SOLVE_ID}#compare`)
+      })
+
+      it("is not linked from a result with no roster", async () => {
+        start(`/solve-history/${SOLVE_ID}`, manager({ [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, solve: { ...ROW, found_roster: false }, grid: null } } }))
+
+        await screen.findByRole("link", { name: "Solve history of June 2026" })
+        expect(screen.queryByRole("link", { name: "Compare with another result" })).not.toBeInTheDocument()
+      })
+
+      it.each([["the CNO", CNO_ME], ["the Deputy CNO", DEPUTY]])("keeps %s out", async (_, who) => {
+        const { router } = start(`/solve-history?month=2026-06&a=${NEWEST.id}&b=${MIDDLE.id}`, {
+          ...session(who), "GET /api/rosters/submitted": { body: [] }, "GET /api/nurses/expiries": { body: NO_EXPIRIES }, "GET /api/units": { body: [] },
+        })
+
+        await waitFor(() => expect(router.state.location.pathname).toBe("/"))
+        expect(screen.queryByRole("heading", { name: "Compare two results" })).not.toBeInTheDocument()
+      })
+    })
+
     describe("a result", () => {
       const NOT_DRAFT = { ...RESULT, solve: { ...ROW, in_draft: false }, restore_refusal: null }
       const result = (body: unknown) => ({ [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body } })

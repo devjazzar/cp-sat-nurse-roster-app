@@ -6,6 +6,7 @@ import { z } from "zod"
 import { useListHospitalSolveHistory, useListUnitSolveHistory } from "@/api/generated/endpoints"
 import { Role, type Me, type UnitSolveRow } from "@/api/generated/model"
 import { monthInAddress } from "@/components/month-nav"
+import { CompareTwoResults } from "@/components/result-comparison"
 import { SolveHistoryTable } from "@/components/solve-history-table"
 import { buttonVariants } from "@/components/ui/button"
 import { useChosenUnit } from "@/components/unit-picker"
@@ -16,6 +17,8 @@ import { onlyFor } from "@/session"
 const searchSchema = z.object({
   month: monthInAddress,
   older_than: z.uuid().optional().catch(undefined),
+  a: z.uuid().optional().catch(undefined),
+  b: z.uuid().optional().catch(undefined),
 })
 
 export const Route = createFileRoute("/_signed-in/solve-history")({
@@ -41,7 +44,9 @@ function Older({ older_than, month }: { older_than: string | null; month?: strin
   return <Link to="/solve-history" search={{ month, older_than }} className={cn(buttonVariants({ variant: "outline" }), "self-start")}>Older solves</Link>
 }
 
-function UnitHistory({ unit, month, older_than }: { unit: { id: string; name: string }; month: string | undefined; older_than: string | undefined }) {
+type Pair = { a?: string; b?: string }
+
+function UnitHistory({ unit, month, older_than, pair }: { unit: { id: string; name: string }; month: string | undefined; older_than: string | undefined; pair: Pair }) {
   const params = { ...(month && { month }), ...(older_than && { older_than }) }
   const history = useListUnitSolveHistory(unit.id, Object.keys(params).length ? params : undefined, { query: { placeholderData: keepPreviousData } })
   const heading = useFocusOnNewPage(older_than)
@@ -70,11 +75,12 @@ function UnitHistory({ unit, month, older_than }: { unit: { id: string; name: st
           ]} />
       )}
       {page && <Older older_than={page.older_than} month={month} />}
+      {page && month && <CompareTwoResults unitId={unit.id} month={month} rows={page.solves} a={pair.a} b={pair.b} />}
     </>
   )
 }
 
-function ManagerHistory({ user, month, older_than }: { user: Me; month: string | undefined; older_than: string | undefined }) {
+function ManagerHistory({ user, month, older_than, pair }: { user: Me; month: string | undefined; older_than: string | undefined; pair: Pair }) {
   const { units, chosen } = useChosenUnit(user, undefined)
   return (
     <>
@@ -82,7 +88,7 @@ function ManagerHistory({ user, month, older_than }: { user: Me; month: string |
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">Your unit could not be read. Reload the page to try again.</p>}
       {units.data && !chosen && <p>No unit is assigned to you yet. The CNO assigns each unit its manager.</p>}
-      {chosen && <UnitHistory key={chosen.id} unit={chosen} month={month} older_than={older_than} />}
+      {chosen && <UnitHistory key={chosen.id} unit={chosen} month={month} older_than={older_than} pair={pair} />}
     </>
   )
 }
@@ -119,12 +125,12 @@ function HospitalHistory({ older_than }: { older_than: string | undefined }) {
 
 function SolveHistoryPage() {
   const { user } = useRouteContext({ from: "/_signed-in" })
-  const { month, older_than } = Route.useSearch()
+  const { month, older_than, a, b } = Route.useSearch()
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       {user.role === Role.system_admin
         ? <HospitalHistory older_than={older_than} />
-        : <ManagerHistory user={user} month={month} older_than={older_than} />}
+        : <ManagerHistory user={user} month={month} older_than={older_than} pair={{ a, b }} />}
     </div>
   )
 }
