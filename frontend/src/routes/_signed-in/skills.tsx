@@ -85,7 +85,7 @@ function SkillForm({ skill, onDone, onCancel }: { skill: SkillSchema | null; onD
           registration={form.register("required_to_work")} error={errors.required_to_work} />
         {/* Ticket 55 checks the mark when a preceptor is assigned, and only then. */}
         <CheckboxField label="Lets a nurse precept"
-          description="A nurse holding this skill can be chosen as the preceptor of a nurse on probation while it counts. Turning this off later changes no preceptor already chosen: the skill is checked only when one is chosen."
+          description="A nurse holding this skill can be assigned as the preceptor of a nurse on probation, unless it has expired."
           registration={form.register("lets_a_nurse_precept")} error={errors.lets_a_nurse_precept} />
         <CheckboxField label="Active" description="Turn this off to retire the skill. It stays on this list, the nurses who hold it keep it, and it can be made active again."
           registration={form.register("active")} error={errors.active} />
@@ -160,7 +160,7 @@ function SkillsPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <h1 className="text-xl font-medium">Skills</h1>
       <p className="text-muted-foreground">
-        The skills a nurse may hold and a unit's skill needs may count.
+        The skills a nurse may hold and a unit's skill needs may count. A skill that lets a nurse precept is checked only when a preceptor is assigned, so turning that off later changes no preceptor already assigned.
         {!mayChange && " Only the CNO can change these."}
       </p>
       {skills.isPending && <p>Loading…</p>}

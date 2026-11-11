@@ -297,9 +297,9 @@ class SkillBody(StrictSchema):
     name: SkillName = Field(description="What nurses' records, unit rules and solve inputs call it.")
     expires: bool = Field(description="Every nurse who holds it has an expiry for it, the last day it counts.")
     required_to_work: bool = Field(description="From the day after its expiry, a nurse holding it works no shift.")
-    lets_a_nurse_precept: bool = Field(description="A nurse holding it, unexpired, may be chosen as a preceptor. Checked "
+    lets_a_nurse_precept: bool = Field(description="A nurse holding it, unexpired, may be assigned as a preceptor. Checked "
                                                    "when a preceptor is assigned only, so turning it off changes no "
-                                                   "preceptor already chosen.")
+                                                   "preceptor already assigned.")
     active: bool = Field(description="Off retires it: it stays on this list, and the nurses who hold it keep it.")
 
 

@@ -81,7 +81,7 @@ class Skill(models.Model):
     name = models.CharField(max_length=100)
     expires = models.BooleanField()  # Every nurse's record of it carries an expiry.
     required_to_work = models.BooleanField()  # From the day after its expiry, a nurse holding it works no shift.
-    # A nurse holding it, unexpired on the day of assigning, may be chosen as a preceptor (ticket 55). Checked then only.
+    # A nurse holding it, unexpired on the day of assigning, may be assigned as a preceptor (ticket 55). Checked then only.
     lets_a_nurse_precept = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
 

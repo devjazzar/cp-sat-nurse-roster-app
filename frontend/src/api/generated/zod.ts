@@ -902,7 +902,7 @@ export const CreateSkillBody = zod.object({
   "name": zod.string().min(1).max(createSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
   "expires": zod.boolean().describe('Every nurse who holds it has an expiry for it, the last day it counts.'),
   "required_to_work": zod.boolean().describe('From the day after its expiry, a nurse holding it works no shift.'),
-  "lets_a_nurse_precept": zod.boolean().describe('A nurse holding it, unexpired, may be chosen as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already chosen.'),
+  "lets_a_nurse_precept": zod.boolean().describe('A nurse holding it, unexpired, may be assigned as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already assigned.'),
   "active": zod.boolean().describe('Off retires it: it stays on this list, and the nurses who hold it keep it.')
 })
 
@@ -937,7 +937,7 @@ export const UpdateSkillBody = zod.object({
   "name": zod.string().min(1).max(updateSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
   "expires": zod.boolean().describe('Every nurse who holds it has an expiry for it, the last day it counts.'),
   "required_to_work": zod.boolean().describe('From the day after its expiry, a nurse holding it works no shift.'),
-  "lets_a_nurse_precept": zod.boolean().describe('A nurse holding it, unexpired, may be chosen as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already chosen.'),
+  "lets_a_nurse_precept": zod.boolean().describe('A nurse holding it, unexpired, may be assigned as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already assigned.'),
   "active": zod.boolean().describe('Off retires it: it stays on this list, and the nurses who hold it keep it.')
 })
 

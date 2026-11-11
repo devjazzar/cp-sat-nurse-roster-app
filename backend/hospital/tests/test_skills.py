@@ -2,6 +2,8 @@
 records and unit rules are tickets 33's and 34's; the third mark, "Lets a nurse precept", ticket 53's."""
 import pytest
 from django.core.management import call_command
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
 
 from accounts.models import Role
 from audit.models import AuditEntry
@@ -142,12 +144,17 @@ def test_an_unknown_skill_is_404(signed_in):
 
 
 # ---- "Lets a nurse precept" (ticket 53) -------------------------------------------------------------
-def test_a_skill_made_without_the_mark_has_it_off():
-    # As every skill there was before the mark: the migration leaves them all off.
-    skill = Skill.objects.create(name="ICU", expires=False, required_to_work=False)
+@pytest.mark.django_db(transaction=True)
+def test_every_skill_there_was_before_the_mark_has_it_off(signed_in):
+    executor = MigrationExecutor(connection)
+    executor.migrate([("hospital", "0005_skill_shortfall_weight")])
+    before = executor.loader.project_state([("hospital", "0005_skill_shortfall_weight")]).apps
+    before.get_model("hospital", "Skill").objects.create(name="BLS", expires=True, required_to_work=True)
 
-    skill.refresh_from_db()
-    assert skill.lets_a_nurse_precept is False
+    MigrationExecutor(connection).migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    (row,) = signed_in(Role.STAFF_NURSE).get(SKILLS).json()
+    assert (row["name"], row["lets_a_nurse_precept"]) == ("BLS", False)
 
 
 def test_the_cno_adds_a_skill_that_lets_a_nurse_precept(signed_in):

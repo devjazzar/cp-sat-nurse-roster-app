@@ -1942,6 +1942,8 @@ describe("the skills page", () => {
   const BLS = { id: "k2", name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
   const listed = { "GET /api/hospital/skills": { body: [BLS, ICU] } }
   const rowOf = async (name: string) => (await screen.findByText(name)).closest("tr") as HTMLElement
+  /** The "Lets a nurse precept" column, the fourth. */
+  const precepts = async (name: string) => within(await rowOf(name)).getAllByRole("cell")[3]
 
   it("lists the catalogue for the CNO, with both flags and a skill's former names", async () => {
     const renamed = { ...BLS, name: "Basic life support", renames: [{ old_name: "BLS", new_name: "Basic life support", at: "2026-11-05T10:00:00+03:00" }] }
@@ -2023,14 +2025,14 @@ describe("the skills page", () => {
       "PUT /api/hospital/skills/k2": ({ body }: { body: unknown }) => ({ body: { ...BLS, ...(body as object) } }),
     }))
 
-    const precepts = async (name: string) => within(await rowOf(name)).getAllByRole("cell")[3]
     expect(await precepts("ICU")).toHaveTextContent("Yes")
     expect(await precepts("BLS")).toHaveTextContent("No")
 
     await user.click(screen.getByRole("button", { name: "Edit BLS" }))
     const mark = screen.getByLabelText("Lets a nurse precept")
     expect(mark).not.toBeChecked()
-    expect(mark).toHaveAccessibleDescription("A nurse holding this skill can be chosen as the preceptor of a nurse on probation while it counts. Turning this off later changes no preceptor already chosen: the skill is checked only when one is chosen.")
+    expect(mark).toHaveAccessibleDescription("A nurse holding this skill can be assigned as the preceptor of a nurse on probation, unless it has expired.")
+    expect(screen.getByText(/checked only when a preceptor is assigned/)).toHaveTextContent("A skill that lets a nurse precept is checked only when a preceptor is assigned, so turning that off later changes no preceptor already assigned.")
     await user.click(mark)
     await user.click(screen.getByRole("button", { name: "Save skill" }))
     expect(await screen.findByText("BLS is saved.")).toBeInTheDocument()
@@ -2090,8 +2092,9 @@ describe("the skills page", () => {
 
     expect(await screen.findByText("BLS")).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Lets a nurse precept" })).toBeInTheDocument()
-    expect(within(await rowOf("BLS")).getAllByRole("cell")[3]).toHaveTextContent("Yes")
-    expect(within(await rowOf("ICU")).getAllByRole("cell")[3]).toHaveTextContent("No")
+    expect(await precepts("BLS")).toHaveTextContent("Yes")
+    expect(await precepts("ICU")).toHaveTextContent("No")
+    expect(screen.getByText(/checked only when a preceptor is assigned/)).toBeInTheDocument()
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
     expect(screen.getByText(/Only the CNO can change these/)).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Skills" })).toHaveAttribute("tabindex", "0")

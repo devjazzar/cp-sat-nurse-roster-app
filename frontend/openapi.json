@@ -8031,7 +8031,7 @@
             "type": "boolean"
           },
           "lets_a_nurse_precept": {
-            "description": "A nurse holding it, unexpired, may be chosen as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already chosen.",
+            "description": "A nurse holding it, unexpired, may be assigned as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already assigned.",
             "title": "Lets A Nurse Precept",
             "type": "boolean"
           },
