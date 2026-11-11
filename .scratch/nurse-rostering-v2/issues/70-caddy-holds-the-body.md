@@ -15,3 +15,8 @@
 - [ ] Tests at the agreed seams: `deploy/tests/operations.sh` checks the running Caddy is 2.11.8 or later, a body over 2 MB is 413, with the test stack's `web` overridden to one worker of one thread for this check (with three, one held request would never show), a login whose body is withheld does not stop `/api/health` answering through Caddy (one connection), and the adapted configuration has the minimum rate and no `read_timeout`; both workflows
 
 ## Comments
+
+**From ticket 69 (2026-11-11).** `deploy/Caddyfile` now opens with a global options block, `{ servers { trusted_proxies
+static {$TRUSTED_PROXIES}; trusted_proxies_strict; client_ip_headers X-Forwarded-For } }`: `read_body_idle` and the minimum
+body rate go in that same `servers` block. `reverse_proxy web:8000` now has a body (`header_up X-Client-IP {client_ip}`), so
+`request_buffers` goes beside it. Confirm with `caddy adapt` and `caddy validate` on `caddy:2.11` with `TRUSTED_PROXIES` empty.

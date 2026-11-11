@@ -47,7 +47,8 @@ from no one else. Without it, behind a proxy, every client is the proxy's one ad
 failed logins by anyone refuse everyone's logins, and the audit log shows the proxy for all of them.
 
 Name the proxies only, never a range the users' computers are in, nor `private_ranges`: anyone at a trusted address can claim
-any address at all. With no proxy in front, leave it empty.
+any address at all. With no proxy in front, leave it empty. A value Caddy cannot read (commas, a host name) stops it from
+starting, and `docker compose logs caddy` says "invalid IP address".
 
 On a Linux server, Docker passes each client's own address to Caddy for connections from other machines. Docker Desktop
 (Mac and Windows) does not: every connection arrives from its own gateway, so a stack run there sees one address for all.
