@@ -83,6 +83,14 @@ _Avoid_: nurse user, regular nurse
 The generated passwords of the nurses a confirmed import just added, shown once, for the CNO to print or copy.
 _Avoid_: credentials file, password list
 
+**Lockout**:
+A username refused every login for fifteen minutes after five failed logins in a row, whether or not an account has it. Even the right password is refused meanwhile.
+_Avoid_: account lock, ban, blocked account
+
+**Throttle**:
+A client address refused every login for the rest of a fifteen-minute window after too many failed logins from it, whatever username is tried. Everyone behind that address shares it.
+_Avoid_: rate limit, IP ban, block
+
 **Staff list**:
 The CSV the CNO exports of every nurse: their hospital ID, full name, gender, unit, dates, role and status, and any transfer to come.
 _Avoid_: nurse export, roster, employee list

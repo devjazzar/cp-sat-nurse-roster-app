@@ -25,3 +25,9 @@ audit log already reads it.
 - Caddy stays stock and does what its stock handlers can: a body size cap, body buffering and server timeouts.
 - A client still reaches gunicorn and the database to be refused; what it no longer gets past the limit is the hash.
 - The limit is tested in the backend suite like the lockout beside it.
+- A throttled request is refused before its password is looked at, so it is not a failed login: the audit log records the
+  throttle once, when an address reaches it, and not each request refused during it (the user's decision of 2026-11-11,
+  changing section 8's "every failed login"). Otherwise the log would grow without bound again, cheaper than before.
+- Everyone behind one address shares its budget. A proxy in front of Caddy would make the whole hospital one address, so the
+  installation names its proxies (`TRUSTED_PROXIES`) and Caddy, trusting only those, works out the client the application
+  reads.
