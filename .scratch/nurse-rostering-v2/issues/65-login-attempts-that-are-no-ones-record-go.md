@@ -29,3 +29,5 @@ with neither when no account has it. `LoginAttempts` is still keyed by the typed
 alike, so the rows this ticket removes are unchanged. Where `attempt_login` sets the time of the last failure, it is the
 same `attempts.save()` on the wrong-credentials path; a refusal while locked saves nothing today. The 423's `locked_until`
 is now sent with the hospital's offset (`timezone.localtime` in `accounts/api.py`).
+
+**From ticket 64's review (2026-11-11):** the user chose to change the login lockout's 423 message here. It now says "Too many failed logins. This account is locked for now." even for a name no account has; it becomes "Too many failed logins. Try again after {time}.", with the time on the hospital's clock as the login page already shows it (`backend/accounts/api.py`, `frontend/src/routes/login.tsx`).

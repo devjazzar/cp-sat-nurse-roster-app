@@ -141,3 +141,11 @@ without proving that case.
   `migrate` meets an inconsistent history.
 - `restore.sh`'s `list_undone` holds the four actions in its SQL. A new action that a restore undoes and someone must
   redo belongs there and in `deploy/INSTALL.md`.
+
+**Reviewed by the user (2026-11-11):** all four points kept as built.
+- The closing, "none recorded" and "could not list" lines stay as written.
+- `push.keys_rotated` shows `-` as its user.
+- Times are to the minute, without the time zone's name.
+- Only the four actions the spec names are listed; reactivations and role changes are not.
+
+Noted, left for later: the restore check "the backup job that was running comes back as running" probably never exercises that case, because the worker takes a backup at first start and the job takes one only when one is due.

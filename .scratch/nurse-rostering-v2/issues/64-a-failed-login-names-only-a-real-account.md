@@ -152,3 +152,9 @@ The stack is down, with its volumes, image and `e2e/.stack/nr-t64.*` gone. My Po
   and `LoginAttempts` is keyed as before.
 - **Ticket 69:** the new tests set the address with `REMOTE_ADDR`, as their neighbours in `TestAudit` and
   `audit/tests/test_api.py` do. A change to `audit.log.client_ip` should move them together.
+
+**Reviewed by the user (2026-11-11):** points 1–3 kept as built; point 4 goes to ticket 65.
+- Change password has no lockout, so only the login page changed.
+- A failed login at an unknown name shows an empty "On" cell in the audit log, like a throttle row.
+- The "User" filter no longer finds failed logins at names no account has.
+- The 423's "This account is locked" is to change in ticket 65 to "Too many failed logins. Try again after {time}." (the glossary avoids "account lock").

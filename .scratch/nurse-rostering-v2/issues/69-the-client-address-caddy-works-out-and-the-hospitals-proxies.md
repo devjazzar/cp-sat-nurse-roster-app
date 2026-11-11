@@ -185,3 +185,9 @@ The stack, its volumes, image and env file, and the proxy container are gone. My
   block's `servers` block.
 - **All three:** `TRUSTED_PROXIES` changes the env of `caddy`, so `up -d` recreates it. A Caddyfile-only change still needs
   `docker compose restart caddy` (ticket 62's finding).
+
+**Reviewed by the user (2026-11-11):** all four points kept as built.
+- The header is named `X-Client-IP`.
+- gunicorn's access-log line reads the same header, so the log and the audit log agree.
+- A trusted proxy's `X-Forwarded-Proto` is passed on as it is; the install guide says it must say `https`.
+- Only `X-Forwarded-For` is read from a proxy, not `X-Real-IP` or `Forwarded`.
