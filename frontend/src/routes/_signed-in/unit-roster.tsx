@@ -84,8 +84,8 @@ function Decision({ unitId, answer, onDecided }: { unitId: string; answer: Roste
       <h3 id="decision" className="font-medium">Your decision</h3>
       <div className="flex flex-col items-start gap-2">
         <p className="text-sm text-muted-foreground">Approving makes it the roster in force: the unit's nurses see it, with names and shifts only.</p>
-        {answer.approve_refusal && <p className="text-sm">{answer.approve_refusal}</p>}
-        <Button onClick={() => setAsking(true)} disabled={!!answer.approve_refusal}>Approve</Button>
+        {answer.approve_refusal && <p id="approve-refusal" className="text-sm">{answer.approve_refusal}</p>}
+        <Button onClick={() => setAsking(true)} disabled={!!answer.approve_refusal} aria-describedby={answer.approve_refusal ? "approve-refusal" : undefined}>Approve</Button>
       </div>
       <form onSubmit={send} noValidate className="flex flex-col items-start gap-2">
         <Field data-invalid={!!error || undefined}>

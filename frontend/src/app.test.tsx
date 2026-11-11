@@ -7047,6 +7047,7 @@ describe("the roster page", () => {
       const decision = await screen.findByRole("region", { name: "Your decision" })
       expect(within(decision).getByText(late)).toBeInTheDocument()
       expect(within(decision).getByRole("button", { name: "Approve" })).toHaveAttribute("aria-disabled", "true")
+      expect(within(decision).getByRole("button", { name: "Approve" })).toHaveAccessibleDescription(late)
       expect(within(decision).getByRole("button", { name: "Reject with this comment" })).toHaveAttribute("aria-disabled", "false")
     })
 
