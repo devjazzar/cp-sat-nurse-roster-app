@@ -1,3 +1,4 @@
+import math
 from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
@@ -17,7 +18,7 @@ from ninja.utils import check_csrf
 from pydantic import AfterValidator, ConfigDict, Field, StringConstraints, field_validator
 
 from accounts.authz import SignedIn
-from accounts.login import LoginRefused, attempt_login
+from accounts.login import LoginRefused, Throttled, attempt_login, check_throttle, record_address_failure
 from accounts.models import Role, User
 from accounts.provisioning import (RoleTaken, UnitArchived, UsernameTaken, correct_name, create_user, deactivate,
                                    reactivate, reset_password)
@@ -83,6 +84,20 @@ class LoginRefusal(Schema):
     locked_until: datetime | None = None
 
 
+class ThrottleRefusal(Schema):
+    detail: str
+    throttled_until: datetime = Field(description="When this address may try again, in the hospital's time zone.")
+
+
+THROTTLED = "Too many failed logins from this network."
+
+
+def _throttled(response: HttpResponse, refused: Throttled) -> Status:
+    """A 429 with the time and `Retry-After`, in whole seconds rounded up."""
+    response["Retry-After"] = str(max(1, math.ceil((refused.until - timezone.now()).total_seconds())))
+    return Status(429, ThrottleRefusal(detail=THROTTLED, throttled_until=timezone.localtime(refused.until)))
+
+
 class ChangePasswordBody(Schema):
     current_password: str
     new_password: str
@@ -100,14 +115,17 @@ def session(request: HttpRequest) -> SessionState:
     return SessionState(user=request.user if request.user.is_authenticated else None)
 
 
-@router.post("/login", response={200: Me, 401: LoginRefusal, 423: LoginRefusal}, auth=None, operation_id="login")
-def login(request: HttpRequest, body: LoginBody):
+@router.post("/login", response={200: Me, 401: LoginRefusal, 423: LoginRefusal, 429: ThrottleRefusal}, auth=None,
+             operation_id="login")
+def login(request: HttpRequest, response: HttpResponse, body: LoginBody):
     # Ninja exempts its views from Django's middleware and checks CSRF in the session auth, which
     # this one endpoint cannot have.
     if check_csrf(request):
         raise HttpError(403, "CSRF check Failed")
     try:
         return Status(200, attempt_login(request, body.username, body.password))
+    except Throttled as refused:
+        return _throttled(response, refused)
     except LoginRefused as refused:
         if refused.locked_until:
             return Status(423, LoginRefusal(detail="Too many failed logins. This account is locked for now.",
@@ -122,11 +140,17 @@ def sign_out(request: HttpRequest):
     return Status(204, None)
 
 
-@router.post("/change-password", response={200: Me, 400: ChangePasswordRefusal},
+@router.post("/change-password", response={200: Me, 400: ChangePasswordRefusal, 429: ThrottleRefusal},
              auth=SignedIn(during_forced_change=True), operation_id="changePassword")
-def change_password(request: HttpRequest, body: ChangePasswordBody):
+def change_password(request: HttpRequest, response: HttpResponse, body: ChangePasswordBody):
+    """Refused while the address is throttled, before the current password is checked; a wrong one counts a failure."""
     user: User = request.user
+    try:
+        check_throttle(request)
+    except Throttled as refused:
+        return _throttled(response, refused)
     if not user.check_password(body.current_password):
+        record_address_failure(request)
         return Status(400, ChangePasswordRefusal(current_password=["This is not your current password."]))
     if body.new_password == body.current_password:
         return Status(400, ChangePasswordRefusal(new_password=["The new password must differ from the current one."]))

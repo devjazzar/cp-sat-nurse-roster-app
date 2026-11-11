@@ -169,6 +169,7 @@ export const LogoutResponse = zod.void()
 
 
 /**
+ * Refused while the address is throttled, before the current password is checked; a wrong one counts a failure.
  * @summary Change Password
  */
 export const ChangePasswordBody = zod.object({

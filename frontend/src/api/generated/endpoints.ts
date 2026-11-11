@@ -157,6 +157,7 @@ import type {
   SwapDecision,
   TechnicalSettingsSchema,
   ThisDevice,
+  ThrottleRefusal,
   TransferBody,
   TurnOff,
   TurnOn,
@@ -840,7 +841,7 @@ return apiFetch<Me>(getLoginUrl(),
 
 export const getLoginMutationKey = () => ['login'] as const;
 
-export const getLoginMutationOptions = <TError = LoginRefusal,
+export const getLoginMutationOptions = <TError = LoginRefusal | ThrottleRefusal,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext> => {
 
@@ -869,13 +870,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
     export type LoginMutationBody = LoginBody
-    export type LoginMutationError = LoginRefusal
+    export type LoginMutationError = LoginRefusal | ThrottleRefusal
     export type LoginMutationVariables = {data: LoginBody}
 
     /**
  * @summary Login
  */
-export const useLogin = <TError = LoginRefusal,
+export const useLogin = <TError = LoginRefusal | ThrottleRefusal,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof login>>,
@@ -969,6 +970,7 @@ export const getChangePasswordUrl = () => {
 }
 
 /**
+ * Refused while the address is throttled, before the current password is checked; a wrong one counts a failure.
  * @summary Change Password
  */
 export const changePassword = async (changePasswordBody: ChangePasswordBody, options?: Parameters<typeof apiFetch>[1]): Promise<Me> => {
@@ -1002,7 +1004,7 @@ return apiFetch<Me>(getChangePasswordUrl(),
 
 export const getChangePasswordMutationKey = () => ['changePassword'] as const;
 
-export const getChangePasswordMutationOptions = <TError = ChangePasswordRefusal,
+export const getChangePasswordMutationOptions = <TError = ChangePasswordRefusal | ThrottleRefusal,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changePassword>>, TError,ChangePasswordMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof changePassword>>, TError,ChangePasswordMutationVariables, TContext> => {
 
@@ -1031,13 +1033,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ChangePasswordMutationResult = NonNullable<Awaited<ReturnType<typeof changePassword>>>
     export type ChangePasswordMutationBody = ChangePasswordBody
-    export type ChangePasswordMutationError = ChangePasswordRefusal
+    export type ChangePasswordMutationError = ChangePasswordRefusal | ThrottleRefusal
     export type ChangePasswordMutationVariables = {data: ChangePasswordBody}
 
     /**
  * @summary Change Password
  */
-export const useChangePassword = <TError = ChangePasswordRefusal,
+export const useChangePassword = <TError = ChangePasswordRefusal | ThrottleRefusal,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changePassword>>, TError,ChangePasswordMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof changePassword>>,

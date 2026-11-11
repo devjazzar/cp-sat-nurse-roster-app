@@ -200,6 +200,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThrottleRefusal"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -262,8 +272,19 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThrottleRefusal"
+                }
+              }
+            }
           }
         },
+        "description": "Refused while the address is throttled, before the current password is checked; a wrong one counts a failure.",
         "tags": [
           "auth"
         ],
@@ -6982,6 +7003,26 @@
           "detail"
         ],
         "title": "LoginRefusal",
+        "type": "object"
+      },
+      "ThrottleRefusal": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "throttled_until": {
+            "description": "When this address may try again, in the hospital's time zone.",
+            "format": "date-time",
+            "title": "Throttled Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "throttled_until"
+        ],
+        "title": "ThrottleRefusal",
         "type": "object"
       },
       "LoginBody": {

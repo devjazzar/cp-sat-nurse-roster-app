@@ -64,3 +64,13 @@ class LoginAttempts(models.Model):
     username = models.CharField(max_length=150, primary_key=True)
     failures = models.PositiveSmallIntegerField(default=0)
     locked_until = models.DateTimeField(null=True)
+
+
+class AddressFailures(models.Model):
+    """The failed logins from one client address in its current window: the throttle (accounts.login). Keyed by the
+    address's key, an IPv4 address as itself and an IPv6 address as its /64 network, since one household or one phone
+    holds a whole /64. Whatever username each failure tried."""
+
+    address = models.CharField(max_length=43, primary_key=True)
+    window_start = models.DateTimeField()
+    failures = models.PositiveIntegerField(default=0)
