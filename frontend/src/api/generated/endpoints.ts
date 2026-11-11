@@ -77,6 +77,7 @@ import type {
   ListMySwapsParams,
   ListPublicHolidaysParams,
   ListRamadanMonthsParams,
+  ListRamadansParams,
   ListRosterVersionsParams,
   ListUnitCoversParams,
   ListUnitLeaveParams,
@@ -128,6 +129,8 @@ import type {
   PublicHolidayBody,
   PublicHolidaySchema,
   PushState,
+  RamadanCard,
+  RamadanConfirm,
   RamadanFix,
   RamadanMonth,
   ReactivateRefusal,
@@ -3419,6 +3422,207 @@ export const useUnfixRamadanMonth = <TError = unknown,
         TContext
       > => {
       return useMutation(getUnfixRamadanMonthMutationOptions(options), queryClient);
+    }
+
+export const getListRamadansUrl = (params: ListRamadansParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/hospital/ramadans?${stringifiedParams}` : `/api/hospital/ramadans`
+}
+
+/**
+ * Every Ramadan with a day in the year, by the calendar's dates; one across New Year is on both years.
+ * @summary List Ramadans
+ */
+export const listRamadans = async (params: ListRamadansParams, options?: Parameters<typeof apiFetch>[1]): Promise<RamadanCard[]> => {
+
+  return apiFetch<RamadanCard[]>(getListRamadansUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRamadansQueryKey = (params?: ListRamadansParams,) => {
+    return [
+    `/api/hospital/ramadans`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListRamadansQueryOptions = <TData = Awaited<ReturnType<typeof listRamadans>>, TError = unknown>(params: ListRamadansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRamadansQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRamadans>>> = ({ signal }) => listRamadans(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRamadans>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListRamadansQueryResult = NonNullable<Awaited<ReturnType<typeof listRamadans>>>
+export type ListRamadansQueryError = unknown
+
+
+export function useListRamadans<TData = Awaited<ReturnType<typeof listRamadans>>, TError = unknown>(
+ params: ListRamadansParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadans>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRamadans>>,
+          TError,
+          Awaited<ReturnType<typeof listRamadans>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRamadans<TData = Awaited<ReturnType<typeof listRamadans>>, TError = unknown>(
+ params: ListRamadansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadans>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRamadans>>,
+          TError,
+          Awaited<ReturnType<typeof listRamadans>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRamadans<TData = Awaited<ReturnType<typeof listRamadans>>, TError = unknown>(
+ params: ListRamadansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Ramadans
+ */
+
+export function useListRamadans<TData = Awaited<ReturnType<typeof listRamadans>>, TError = unknown>(
+ params: ListRamadansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRamadans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListRamadansQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getConfirmRamadanUrl = (hijriYear: number,) => {
+
+
+
+
+  return `/api/hospital/ramadans/${hijriYear}`
+}
+
+/**
+ * Fixes every month from the first day's to the last day's to the confirmed days in it, exactly as fixing each by
+ * hand would. A month the card read days from that the range no longer touches is fixed to none, so the calendar's
+ * days, or an earlier confirmation's, do not survive beside this one.
+ * @summary Confirm Ramadan
+ */
+export const confirmRamadan = async (hijriYear: number,
+    ramadanConfirm: RamadanConfirm, options?: Parameters<typeof apiFetch>[1]): Promise<RamadanCard> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RamadanCard>(getConfirmRamadanUrl(hijriYear),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(ramadanConfirm)
+  }
+);}
+
+
+
+
+
+export const getConfirmRamadanMutationKey = () => ['confirmRamadan'] as const;
+
+export const getConfirmRamadanMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmRamadan>>, TError,ConfirmRamadanMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmRamadan>>, TError,ConfirmRamadanMutationVariables, TContext> => {
+
+const mutationKey = getConfirmRamadanMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmRamadan>>, ConfirmRamadanMutationVariables> = (props) => {
+          const {hijriYear,data} = props ?? {};
+
+          return  confirmRamadan(hijriYear,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmRamadanMutationResult = NonNullable<Awaited<ReturnType<typeof confirmRamadan>>>
+    export type ConfirmRamadanMutationBody = RamadanConfirm
+    export type ConfirmRamadanMutationError = unknown
+    export type ConfirmRamadanMutationVariables = {hijriYear: number;data: RamadanConfirm}
+
+    /**
+ * @summary Confirm Ramadan
+ */
+export const useConfirmRamadan = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmRamadan>>, TError,ConfirmRamadanMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmRamadan>>,
+        TError,
+        ConfirmRamadanMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmRamadanMutationOptions(options), queryClient);
     }
 
 export const getListUnitsUrl = () => {

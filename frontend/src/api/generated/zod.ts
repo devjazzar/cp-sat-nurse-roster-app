@@ -1095,6 +1095,57 @@ export const UnfixRamadanMonthResponse = zod.object({
 
 
 /**
+ * Every Ramadan with a day in the year, by the calendar's dates; one across New Year is on both years.
+ * @summary List Ramadans
+ */
+export const listRamadansQueryYearMin = 1925;
+export const listRamadansQueryYearMax = 2076;
+
+
+
+export const ListRamadansQueryParams = zod.object({
+  "year": zod.int().min(listRamadansQueryYearMin).max(listRamadansQueryYearMax)
+})
+
+export const ListRamadansResponseItem = zod.object({
+  "hijri_year": zod.int().describe('The Ramadan\'s name: Ramadan 1448.'),
+  "first": zod.union([zod.iso.date(),zod.null()]).describe('The first of the days in force; none when its months are fixed to none.'),
+  "last": zod.union([zod.iso.date(),zod.null()]),
+  "days": zod.int().describe('How many days are in force, which a list entered by hand may leave with gaps.'),
+  "source": zod.enum(['derived', 'fixed']).describe('Derived when every month it touches follows the calendar; fixed when the CNO fixed any of them.'),
+  "calendar_first": zod.iso.date().describe('The Umm al-Qura calendar\'s first day, whatever is in force.'),
+  "calendar_last": zod.iso.date()
+})
+export const ListRamadansResponse = zod.array(ListRamadansResponseItem)
+
+
+/**
+ * Fixes every month from the first day's to the last day's to the confirmed days in it, exactly as fixing each by
+ * hand would. A month the card read days from that the range no longer touches is fixed to none, so the calendar's
+ * days, or an earlier confirmation's, do not survive beside this one.
+ * @summary Confirm Ramadan
+ */
+export const ConfirmRamadanParams = zod.object({
+  "hijri_year": zod.int()
+})
+
+export const ConfirmRamadanBody = zod.object({
+  "first": zod.iso.date().describe('The first day of Ramadan, from the moon sighting.'),
+  "last": zod.iso.date().describe('Its last day.')
+})
+
+export const ConfirmRamadanResponse = zod.object({
+  "hijri_year": zod.int().describe('The Ramadan\'s name: Ramadan 1448.'),
+  "first": zod.union([zod.iso.date(),zod.null()]).describe('The first of the days in force; none when its months are fixed to none.'),
+  "last": zod.union([zod.iso.date(),zod.null()]),
+  "days": zod.int().describe('How many days are in force, which a list entered by hand may leave with gaps.'),
+  "source": zod.enum(['derived', 'fixed']).describe('Derived when every month it touches follows the calendar; fixed when the CNO fixed any of them.'),
+  "calendar_first": zod.iso.date().describe('The Umm al-Qura calendar\'s first day, whatever is in force.'),
+  "calendar_last": zod.iso.date()
+})
+
+
+/**
  * A manager's list is the unit he holds, or empty. Archived units too, for those who see them all.
  * @summary List Units
  */

@@ -2125,9 +2125,12 @@ describe("the holidays and Ramadan page", () => {
     const month = `2026-${String(index + 1).padStart(2, "0")}`
     return month === "2026-03" ? march : { month, source: "derived", dates: [], derived_dates: [] }
   })
-  const year2026 = (march?: unknown, holidays: unknown[] = [NATIONAL]) => ({
+  // Umm al-Qura's Ramadan 1447 runs from 18 February to 19 March 2026.
+  const CARD_1447 = { hijri_year: 1447, first: "2026-02-18", last: "2026-03-19", days: 30, source: "derived", calendar_first: "2026-02-18", calendar_last: "2026-03-19" }
+  const year2026 = (march?: unknown, holidays: unknown[] = [NATIONAL], cards: unknown[] = [CARD_1447]) => ({
     "GET /api/hospital/public-holidays": { body: holidays },
     "GET /api/hospital/ramadan": { body: months(march) },
+    "GET /api/hospital/ramadans": { body: cards },
   })
   const row = async (name: string) => (await screen.findByRole("cell", { name })).closest("tr") as HTMLElement
 
@@ -2241,14 +2244,16 @@ describe("the holidays and Ramadan page", () => {
     const button = await screen.findByRole("button", { name: "Fix the dates of March 2026" })
     await user.click(button)
     expect(screen.getByRole("heading", { name: "Fix the Ramadan dates of March 2026" })).toHaveFocus()
-    expect(screen.getByLabelText("First day")).toHaveValue("2026-03-01")
-    expect(screen.getByLabelText("Last day")).toHaveValue("2026-03-19")
+    // The Ramadan card above has fields of these names too.
+    const form = within(screen.getByRole("heading", { name: /Fix the Ramadan dates/ }).closest("[data-slot=card]") as HTMLElement)
+    expect(form.getByLabelText("First day")).toHaveValue("2026-03-01")
+    expect(form.getByLabelText("Last day")).toHaveValue("2026-03-19")
 
-    await user.clear(screen.getByLabelText("First day"))
-    await user.type(screen.getByLabelText("First day"), "2026-03-02")
-    await user.clear(screen.getByLabelText("Last day"))
-    await user.type(screen.getByLabelText("Last day"), "2026-03-20")
-    await user.click(within(screen.getByRole("heading", { name: /Fix the Ramadan dates/ }).closest("[data-slot=card]") as HTMLElement).getByRole("button", { name: "Fix dates" }))
+    await user.clear(form.getByLabelText("First day"))
+    await user.type(form.getByLabelText("First day"), "2026-03-02")
+    await user.clear(form.getByLabelText("Last day"))
+    await user.type(form.getByLabelText("Last day"), "2026-03-20")
+    await user.click(form.getByRole("button", { name: "Fix dates" }))
 
     expect(await screen.findByText("The Ramadan dates of March 2026 are fixed.")).toBeInTheDocument()
     expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ first: "2026-03-02", last: "2026-03-20" })
@@ -2259,9 +2264,9 @@ describe("the holidays and Ramadan page", () => {
     const { user, calls } = start("/holidays?year=2026", asCno(year2026()))
 
     await user.click(await screen.findByRole("button", { name: "Fix the dates of March 2026" }))
-    await user.clear(screen.getByLabelText("Last day"))
-    await user.type(screen.getByLabelText("Last day"), "2026-02-20")
     const card = screen.getByRole("heading", { name: /Fix the Ramadan dates/ }).closest("[data-slot=card]") as HTMLElement
+    await user.clear(within(card).getByLabelText("Last day"))
+    await user.type(within(card).getByLabelText("Last day"), "2026-02-20")
     await user.click(within(card).getByRole("button", { name: "Fix dates" }))
 
     expect(await screen.findByText("Enter a day in March 2026.")).toBeInTheDocument()
@@ -2326,14 +2331,139 @@ describe("the holidays and Ramadan page", () => {
     expect(screen.getByLabelText("A list of days")).toBeChecked()
   })
 
+  describe("the Ramadan cards", () => {
+    const cardOf = async (name: string) => (await screen.findByRole("heading", { name })).closest("[data-slot=card]") as HTMLElement
+    const confirmed = ({ body }: { body: unknown }) => {
+      const { first, last } = body as { first: string; last: string }
+      const days = (Date.parse(last) - Date.parse(first)) / 86_400_000 + 1
+      return { body: { ...CARD_1447, first, last, days, source: "fixed" } }
+    }
+
+    it("shows the CNO each Ramadan of the year with the calendar's days, ready to confirm", async () => {
+      const { calls } = start("/holidays?year=2026", asCno(year2026()))
+
+      const card = await cardOf("Ramadan 1447")
+      expect(card).toHaveTextContent("18 February – 19 March 2026, 30 days. The calendar's.")
+      expect(within(card).getByLabelText("First day of Ramadan 1447")).toHaveValue("2026-02-18")
+      expect(within(card).getByLabelText("Last day of Ramadan 1447")).toHaveValue("2026-03-19")
+      expect(within(card).getByRole("button", { name: "Confirm Ramadan 1447" })).toBeInTheDocument()
+      expect(calls.map((call) => call.url)).toContain("/api/hospital/ramadans?year=2026")
+    })
+
+    it("gives each of two Ramadans in a year its own card and fields", async () => {
+      const across = { ...CARD_1447, hijri_year: 1448, first: "2026-12-20", last: "2027-01-18", days: 30, calendar_first: "2026-12-20", calendar_last: "2027-01-18" }
+      start("/holidays?year=2026", asCno(year2026(undefined, [NATIONAL], [CARD_1447, across])))
+
+      expect(await cardOf("Ramadan 1448")).toHaveTextContent("20 December 2026 – 18 January 2027, 30 days. The calendar's.")
+      expect(screen.getByLabelText("First day of Ramadan 1447")).not.toBe(screen.getByLabelText("First day of Ramadan 1448"))
+    })
+
+    it("confirms the calendar's own dates as prefilled, says so, and keeps focus on the button", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadans/1447": confirmed }))
+
+      const button = within(await cardOf("Ramadan 1447")).getByRole("button", { name: "Confirm Ramadan 1447" })
+      await user.click(button)
+
+      expect(await screen.findByText("Ramadan 1447 is confirmed: 18 February – 19 March 2026.")).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ first: "2026-02-18", last: "2026-03-19" })
+      expect(button).toHaveFocus()
+      // The month table follows: both lists are read again.
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/ramadan?year=2026")).toHaveLength(2))
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/ramadans?year=2026")).toHaveLength(2))
+    })
+
+    it("closes a month form left open without taking focus from Confirm", async () => {
+      const { user } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadans/1447": confirmed }))
+
+      await user.click(await screen.findByRole("button", { name: "Fix the dates of March 2026" }))
+      const button = within(await cardOf("Ramadan 1447")).getByRole("button", { name: "Confirm Ramadan 1447" })
+      await user.click(button)
+
+      await screen.findByText("Ramadan 1447 is confirmed: 18 February – 19 March 2026.")
+      expect(screen.queryByRole("heading", { name: "Fix the Ramadan dates of March 2026" })).not.toBeInTheDocument()
+      expect(button).toHaveFocus()
+    })
+
+    it("confirms a Ramadan shifted by a day, and the card then reads the CNO's days beside the calendar's", async () => {
+      const shifted = { ...CARD_1447, first: "2026-02-19", last: "2026-03-20", source: "fixed" }
+      const answers = [[CARD_1447], [shifted]]
+      const { user, calls } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "GET /api/hospital/ramadans": () => ({ body: answers.length > 1 ? answers.shift() : answers[0] }),
+        "PUT /api/hospital/ramadans/1447": confirmed,
+      }))
+
+      const card = await cardOf("Ramadan 1447")
+      await user.clear(within(card).getByLabelText("First day of Ramadan 1447"))
+      await user.type(within(card).getByLabelText("First day of Ramadan 1447"), "2026-02-19")
+      await user.clear(within(card).getByLabelText("Last day of Ramadan 1447"))
+      await user.type(within(card).getByLabelText("Last day of Ramadan 1447"), "2026-03-20")
+      await user.click(within(card).getByRole("button", { name: "Confirm Ramadan 1447" }))
+
+      expect(await screen.findByText("Ramadan 1447 is confirmed: 19 February – 20 March 2026.")).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ first: "2026-02-19", last: "2026-03-20" })
+      await waitFor(() => expect(card).toHaveTextContent("The CNO: 19 February – 20 March 2026, 30 days. The calendar says 18 February – 19 March."))
+      expect(card).not.toHaveTextContent("The calendar's.")
+    })
+
+    it("a card whose months are fixed to none says it has no days", async () => {
+      start("/holidays?year=2026", asCno(year2026(undefined, [NATIONAL], [{ ...CARD_1447, first: null, last: null, days: 0, source: "fixed" }])))
+
+      const card = await cardOf("Ramadan 1447")
+      expect(card).toHaveTextContent("The CNO: no days. The calendar says 18 February – 19 March 2026.")
+      expect(within(card).getByLabelText("First day of Ramadan 1447")).toHaveValue("2026-02-18")
+    })
+
+    it("shows the API's refusal beside the field, with focus on it", async () => {
+      const answers = [confirmed({ body: { first: "2026-02-18", last: "2026-03-19" } }), refusal(["last"], "That makes 36 days. A Ramadan has 29 or 30, so at most 35 are taken.")]
+      const { user } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadans/1447": () => answers.shift() as Answer }))
+
+      const card = await cardOf("Ramadan 1447")
+      // A first confirmation leaves its line, which the refused one must not leave standing.
+      await user.click(within(card).getByRole("button", { name: "Confirm Ramadan 1447" }))
+      await screen.findByText(/is confirmed/)
+      const last = within(card).getByLabelText("Last day of Ramadan 1447")
+      await user.clear(last)
+      await user.type(last, "2026-03-25")
+      await user.click(within(card).getByRole("button", { name: "Confirm Ramadan 1447" }))
+
+      await waitFor(() => expect(last).toHaveAccessibleDescription("That makes 36 days. A Ramadan has 29 or 30, so at most 35 are taken."))
+      expect(last).toHaveFocus()
+      expect(screen.queryByText(/is confirmed/)).not.toBeInTheDocument()
+      expect(last).toHaveAttribute("aria-invalid", "true")
+    })
+
+    it("refuses a last day before the first on the page, before asking the API", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno(year2026()))
+
+      const card = await cardOf("Ramadan 1447")
+      const last = within(card).getByLabelText("Last day of Ramadan 1447")
+      await user.clear(last)
+      await user.type(last, "2026-02-10")
+      await user.click(within(card).getByRole("button", { name: "Confirm Ramadan 1447" }))
+
+      await waitFor(() => expect(last).toHaveAccessibleDescription("This is before the first day."))
+      expect(calls.some((call) => call.method === "PUT")).toBe(false)
+    })
+
+    it("says when the cards cannot be read, and the month table still shows", async () => {
+      start("/holidays?year=2026", asCno({ ...year2026(), "GET /api/hospital/ramadans": { status: 500, body: {} } }))
+
+      expect(await screen.findByText("The Ramadans of 2026 could not be read. Reload the page to try again.")).toBeInTheDocument()
+      expect(await screen.findByRole("cell", { name: "March 2026" })).toBeInTheDocument()
+    })
+  })
+
   it("another role reads and can change nothing", async () => {
-    start("/holidays?year=2026", { ...session(NURSE), ...year2026() })
+    const { calls } = start("/holidays?year=2026", { ...session(NURSE), ...year2026() })
 
     expect(await screen.findByText("National Day")).toBeInTheDocument()
     expect(await screen.findByRole("cell", { name: "March 2026" })).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Ramadan dates in 2026" })).toHaveAttribute("tabindex", "0")
-    expect(screen.queryByRole("button", { name: /Fix|Edit|Remove|Add/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Fix|Edit|Remove|Add|Confirm/ })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Date")).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: /Ramadan 1447/ })).not.toBeInTheDocument()
+    expect(calls.some((call) => call.url.startsWith("/api/hospital/ramadans"))).toBe(false)
   })
 })
 
