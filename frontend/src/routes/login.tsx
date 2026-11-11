@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
 import { throttledWords } from "@/lib/throttle-words"
+import { hospitalClock } from "@/lib/utils"
 import { currentUser, setCurrentUser } from "@/session"
 
 /** Only an address in this app is gone back to, so a crafted link cannot send someone elsewhere once they sign in. */
@@ -42,9 +43,8 @@ function refusalMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 429) return throttledWords(error.body as ThrottleRefusal | undefined)
   if (error instanceof ApiError && error.status === 423) {
     const until = (error.body as LoginRefusal).locked_until
-    const time = until ? new Date(until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null
-    return time
-      ? `Too many failed logins. This account is locked until ${time}. Try again then.`
+    return until
+      ? `Too many failed logins. This account is locked until ${hospitalClock(until)}. Try again then.`
       : "Too many failed logins. This account is locked. Try again later."
   }
   if (error instanceof ApiError && error.status === 401) return "Wrong username or password."
