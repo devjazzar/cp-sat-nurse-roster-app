@@ -29,8 +29,9 @@ The suites ran locally on `aa22210` (tickets 44, 65 and 70 merged in) under the 
 - `makemigrations --check --dry-run`: "No changes detected";
 - the frontend: `npm test` 782 passed, `npm run build` (with `tsc -b`) clean;
 - the OpenAPI document and the generated client regenerated after each merge, matching the export;
-- the solver untouched; no Playwright file changed; the six parallel frontend runs and the browser suite are GitHub's, green
-  on `692bd50` (both workflows).
+- the solver untouched; no Playwright file changed; the six parallel frontend runs and the browser suite are GitHub's (both
+  workflows), green on the head that reached `main` (the final report names it). The local suites ran on `aa22210`; the
+  commits after it are the migration test's comment and `.scratch/` notes.
 
 **What the dev stack needs:** a **rebuild** of `web` and `worker` (`docker compose up -d --build`) and the migration
 `hospital/0006_skill_lets_a_nurse_precept`, which the stack's start runs. No change to `deploy/compose.yaml`, the
@@ -55,7 +56,7 @@ The suites ran locally on `aa22210` (tickets 44, 65 and 70 merged in) under the 
    reads, now says: "A skill that lets a nurse precept is checked only when a preceptor is assigned, so turning that off later
    changes no preceptor already assigned." No preceptor exists before ticket 55, so the test shows a skill held by a nurse
    cleared, not a skill a nurse precepts by.
-6. **Tests.** `hospital/tests/test_skills.py` (9 new and the existing ones carrying the field: the migration, a new skill
+6. **Tests.** `hospital/tests/test_skills.py` (8 new and the existing ones carrying the field: the migration, a new skill
    off, set on two skills and cleared, cleared while held, each role reading, each other role refused with nothing written,
    both audit entries' shape, the field required and typed). `app.test.tsx` "the skills page" (2 new, 4 changed: the column
    for the CNO, set on one skill and cleared on another with the bodies sent, a new skill added marked, the description, the
@@ -76,6 +77,7 @@ table scrolls inside its card with Edit sticky. As the System Admin: the audit l
 read-only with the column and no checkbox. The stack, its volumes and image, and my PostgreSQL container are gone.
 
 **What was NOT checked:**
+- the new tests seen red: they were written before the code, but run only after it (the Vitest ones were seen red);
 - clearing the mark while a nurse actually precepts by the skill: there are no preceptors before ticket 55;
 - a screen-reader run; the page held against `better-interface`, `better-writing` and `better-accessibility` by hand only
   (the checkbox's name and description, the column header's words, the help line where every role reads it, no gendered
@@ -89,9 +91,10 @@ read-only with the column and no checkbox. The stack, its volumes and image, and
 - **The field's name is `lets_a_nurse_precept`,** the mark's words, as `required_to_work` is "Required to work".
 - **"One skill or several"** read as story 25: more than one skill may carry the mark, each set on its own form as the other
   marks are. No control for several at once.
-- **Required in the body,** as above; "by default" is met by the migration, the model and the form starting it off.
-
 **Worth your review:**
+- **The mark is required in the API's body,** as the other flags are, so "off by default for a new one" holds in the
+  migration, the model and the form, not in the API: a create without the field is refused. The other reading, a default of
+  off in `SkillBody`, would let an older client's PUT clear the mark by leaving it out.
 - **The description on the form:** "A nurse holding this skill can be assigned as the preceptor of a nurse on probation,
   unless it has expired." It follows the spec's "unexpired on the day of assigning" and the other two descriptions' voice;
   "unless it has expired" reads naturally for a skill that never expires too.
@@ -119,5 +122,6 @@ read-only with the column and no checkbox. The stack, its volumes and image, and
   day of assigning. Nothing refuses clearing the mark, and nothing should end an assignment when it is cleared. Noted on 55.
 - **58:** the form and the table now hold three marks; the kind and issuing body go beside them, and every catalogue body
   test helper lists the fields by hand (`NEW` and `update` in `hospital/tests/test_skills.py`, `catalogue` and
-  `change_skill` in the nurses and units tests). Noted on 58.
+  `change_skill` in the nurses and units tests). The migration test goes back to `hospital/0005` and forward, so `0007` must
+  reverse (a `RunPython` with its reverse, as `0004` and `0005` have). Noted on 58.
 

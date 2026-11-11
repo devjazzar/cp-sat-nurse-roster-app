@@ -146,6 +146,7 @@ def test_an_unknown_skill_is_404(signed_in):
 # ---- "Lets a nurse precept" (ticket 53) -------------------------------------------------------------
 @pytest.mark.django_db(transaction=True)
 def test_every_skill_there_was_before_the_mark_has_it_off(signed_in):
+    # Goes back to 0005 and forward again: every later migration of `hospital`, and any that depends on one, must reverse.
     executor = MigrationExecutor(connection)
     executor.migrate([("hospital", "0005_skill_shortfall_weight")])
     before = executor.loader.project_state([("hospital", "0005_skill_shortfall_weight")]).apps

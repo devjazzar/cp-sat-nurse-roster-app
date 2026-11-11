@@ -23,3 +23,5 @@
 and `update` in `hospital/tests/test_skills.py`, `catalogue` in `nurses/tests/test_skills.py` and `test_skills_import.py`,
 `icu_skill` in `test_two_at_once.py`, `change_skill` in `units/tests/test_skill_needs.py`. The Skills page's table is Name,
 Expires, Required to work, Lets a nurse precept, Status, Edit, and its opening paragraph carries the mark's help line.
+`test_every_skill_there_was_before_the_mark_has_it_off` migrates `hospital` back to `0005` and forward again, so your
+`hospital/0007` must reverse (a `RunPython` with its reverse, as `0004` and `0005` have).
