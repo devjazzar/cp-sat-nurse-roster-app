@@ -8,15 +8,18 @@ import { z } from "zod"
 import {
   getListPublicHolidaysQueryKey,
   getListRamadanMonthsQueryKey,
+  getListRamadansQueryKey,
+  useConfirmRamadan,
   useCreatePublicHoliday,
   useDeletePublicHoliday,
   useFixRamadanMonth,
   useListPublicHolidays,
   useListRamadanMonths,
+  useListRamadans,
   useUnfixRamadanMonth,
   useUpdatePublicHoliday,
 } from "@/api/generated/endpoints"
-import { Role, RamadanMonthSource, type PublicHolidayBody, type PublicHolidaySchema, type RamadanMonth } from "@/api/generated/model"
+import { Role, RamadanCardSource, RamadanMonthSource, type PublicHolidayBody, type PublicHolidaySchema, type RamadanCard, type RamadanConfirm, type RamadanMonth } from "@/api/generated/model"
 import {
   createPublicHolidayBodyNameMax as NAME_MAX,
   listRamadanMonthsQueryYearMax as LAST_YEAR,
@@ -304,6 +307,103 @@ function RamadanForm({ state, onDone, onCancel }: { state: RamadanMonth; onDone:
   )
 }
 
+// ---- a whole Ramadan: the cards -------------------------------------------------------------------
+const dayAndMonth = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
+const yearOf = (iso: string) => iso.slice(0, 4)
+
+/** "8 February – 8 March 2027", or "20 December 2030 – 18 January 2031" across New Year. `withYear: false` leaves a
+ *  one-year range's year out, for the calendar's days beside the CNO's, whose year is already said. */
+function dateRange(first: string, last: string, withYear = true): string {
+  const [from, to] = [dayAndMonth.format(asDate(first)), dayAndMonth.format(asDate(last))]
+  if (yearOf(first) !== yearOf(last)) return `${from} ${yearOf(first)} – ${to} ${yearOf(last)}`
+  return withYear ? `${from} – ${to} ${yearOf(last)}` : `${from} – ${to}`
+}
+
+const calendarDays = (card: RamadanCard) => (Date.parse(card.calendar_last) - Date.parse(card.calendar_first)) / 86_400_000 + 1
+
+const dayCount = (days: number) => `${days} ${days === 1 ? "day" : "days"}`
+
+/** What is in force, and the calendar's days beside them only when they differ: a difference is the expected case
+ *  after a sighting, so it is said in plain words, not as a warning. */
+function inForce(card: RamadanCard): string {
+  const calendar = (sameYear: boolean) => dateRange(card.calendar_first, card.calendar_last, !sameYear)
+  if (!card.first || !card.last) return `The CNO: no days. The calendar says ${calendar(false)}.`
+  const range = `${dateRange(card.first, card.last)}, ${dayCount(card.days)}`
+  if (card.source === RamadanCardSource.derived) return `${range}. The calendar's.`
+  const differs = card.first !== card.calendar_first || card.last !== card.calendar_last || card.days !== calendarDays(card)
+  const sameYear = yearOf(card.first) === yearOf(card.last) && yearOf(card.calendar_first) === yearOf(card.calendar_last)
+    && yearOf(card.first) === yearOf(card.calendar_first)
+  return `The CNO: ${range}.${differs ? ` The calendar says ${calendar(sameYear)}.` : ""}`
+}
+
+function RamadanCardForm({ card, onDone }: { card: RamadanCard; onDone: (message: string) => void }) {
+  const queryClient = useQueryClient()
+  const confirm = useConfirmRamadan()
+  const name = `Ramadan ${card.hijri_year}`
+  const prefilled = { first: card.first ?? card.calendar_first, last: card.last ?? card.calendar_last }
+  const schema = z.object({ first: z.iso.date("Enter a date."), last: z.iso.date("Enter a date.") })
+    .refine((fields) => fields.last >= fields.first, { path: ["last"], message: "This is before the first day." })
+  const form = useForm<RamadanConfirm>({ resolver: zodResolver(schema), defaultValues: prefilled })
+  const { errors } = form.formState
+
+  // The month table can change what is in force; the fields follow it, without taking focus from anywhere.
+  const { first, last } = prefilled
+  useEffect(() => form.reset({ first, last }), [form, first, last])
+
+  const submit = form.handleSubmit((data) => {
+    if (confirm.isPending) return
+    confirm.mutate({ hijriYear: card.hijri_year, data }, {
+      onSuccess: (next) => {
+        // A confirmation can write into the next or the previous year, so every year's lists are read again.
+        void queryClient.invalidateQueries({ queryKey: [getListRamadanMonthsQueryKey()[0]] })
+        void queryClient.invalidateQueries({ queryKey: [getListRamadansQueryKey()[0]] })
+        onDone(next.first && next.last ? `${name} is confirmed: ${dateRange(next.first, next.last)}.` : `${name} is confirmed.`)
+      },
+      onError: (error) => showServerErrors(form, error),
+    })
+  })
+  const unexpected = confirm.isError && serverErrors(confirm.error).length === 0
+  const id = `ramadan-${card.hijri_year}`
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle><h3>{name}</h3></CardTitle>
+        <CardDescription>{inForce(card)}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Not disabled while it is sent: the button keeps focus, and a second press is ignored instead. */}
+        <form onSubmit={submit} noValidate>
+          <FieldGroup>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField id={`${id}-first`} label="First day" aria-label={`First day of ${name}`} type="date"
+                min={`${FIRST_YEAR}-01-01`} max={`${LAST_YEAR}-12-31`} registration={form.register("first")} error={errors.first} />
+              <FormField id={`${id}-last`} label="Last day" aria-label={`Last day of ${name}`} type="date"
+                min={`${FIRST_YEAR}-01-01`} max={`${LAST_YEAR}-12-31`} registration={form.register("last")} error={errors.last} />
+            </div>
+            {unexpected && <p role="alert" className="text-sm text-destructive">{name} could not be confirmed. Check your connection and try again.</p>}
+            <div>
+              <Button type="submit" aria-label={`Confirm ${name}`}>Confirm</Button>
+            </div>
+          </FieldGroup>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** The CNO's alone. Nothing of their own is stored: each card reads the months as they stand. */
+function RamadanCards({ year, onDone }: { year: number; onDone: (message: string) => void }) {
+  const cards = useListRamadans({ year })
+  if (cards.isError) return <p role="alert">The Ramadans of {year} could not be read. Reload the page to try again.</p>
+  if (!cards.data) return null
+  return (
+    <div className="flex flex-col gap-4">
+      {cards.data.map((card) => <RamadanCardForm key={card.hijri_year} card={card} onDone={onDone} />)}
+    </div>
+  )
+}
+
 function Ramadan({ year, mayChange }: { year: number; mayChange: boolean }) {
   const queryClient = useQueryClient()
   const months = useListRamadanMonths({ year })
@@ -334,6 +434,7 @@ function Ramadan({ year, mayChange }: { year: number; mayChange: boolean }) {
       {months.isPending && <p>Loading…</p>}
       {months.isError && <p role="alert">The Ramadan dates could not be read. Reload the page to try again.</p>}
       <p role="status" className="text-sm text-muted-foreground empty:sr-only">{done}</p>
+      {mayChange && <RamadanCards year={year} onDone={(message) => { finish(); setDone(message) }} />}
       {months.data && (
         <Card>
           <CardContent>

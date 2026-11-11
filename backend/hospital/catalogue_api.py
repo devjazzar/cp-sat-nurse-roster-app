@@ -654,7 +654,7 @@ def confirm_ramadan(request, hijri_year: int, body: RamadanConfirm) -> dict:
         refuse((("last",), "must not be before the first day"))
     length = (body.last - body.first).days + 1
     if length > LONGEST_RAMADAN:
-        refuse((("last",), f"makes {length} days; a Ramadan is 29 or 30, so at most {LONGEST_RAMADAN} are taken"))
+        refuse((("last",), f"That makes {length} days. A Ramadan has 29 or 30, so at most {LONGEST_RAMADAN} are taken."))
     ramadan = _calendar_ramadan(hijri_year)
     confirmed = [body.first + dt.timedelta(days=offset) for offset in range(length)]
     with transaction.atomic():
