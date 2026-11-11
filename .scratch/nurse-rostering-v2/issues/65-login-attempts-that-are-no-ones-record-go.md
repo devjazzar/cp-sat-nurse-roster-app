@@ -15,3 +15,10 @@
 - [ ] Tests at the agreed seams: the backend suite (prior art: the retention jobs' tests of tickets 22 and 42) and the retention check in `deploy/tests/operations.sh` if it fits there; the usual full suites and both workflows
 
 ## Comments
+
+**From ticket 63 (2026-11-11).** The address rows are `accounts.models.AddressFailures`: `address` (the key, an IPv4 address
+or an IPv6 /64 such as `2001:db8:1:2::/64`), `window_start` and `failures`. A window has ended when
+`window_start + THROTTLE_WINDOW <= now`; `THROTTLE_WINDOW` and `MAX_ADDRESS_FAILURES` sit beside `MAX_FAILURES` and
+`LOCK_DURATION` in `backend/accounts/login.py`. `record_address_failure` there already starts a new window when the old one
+has ended, so a removed row loses nothing. The tests move the clock by monkeypatching `django.utils.timezone.now` (the
+`clock` fixture in `test_throttle.py`).

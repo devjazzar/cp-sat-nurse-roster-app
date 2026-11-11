@@ -15,3 +15,8 @@
 - [ ] Tests at the agreed seams: the backend API suite (the address the throttle and the audit log see); `deploy/tests/operations.sh` (a client-sent `X-Forwarded-For` does not reach the audit log); both workflows
 
 ## Comments
+
+**From ticket 63 (2026-11-11).** The throttle reads the address only through `audit.log.client_ip`, inside
+`_address_key` in `backend/accounts/login.py` (which then takes an IPv6 address's /64 and an IPv4-mapped one as IPv4), so
+changing `client_ip` changes both. `accounts/tests/test_throttle.py` sends the address as `REMOTE_ADDR` alone, through its
+`login()` helper; if the peer stops being the fallback in tests, that one helper is what changes.

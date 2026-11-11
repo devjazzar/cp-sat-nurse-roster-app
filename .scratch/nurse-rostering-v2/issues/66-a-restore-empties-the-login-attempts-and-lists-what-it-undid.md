@@ -16,3 +16,7 @@
 - [ ] Tests at the agreed seams: the restore check of `deploy/tests/operations.sh` also finds the login attempts emptied and the list printed for a deactivation, a reset, a change and a key rotation written after the backup; both workflows
 
 ## Comments
+
+**From ticket 63 (2026-11-11).** The throttle keeps a second table of login attempts, `accounts_addressfailures` (one row per
+client address and its window). A restore brings back the backup's moment of it too; whether "the login attempts" emptied
+here include it is this ticket's to say (an emptied one only gives every address a fresh budget).
