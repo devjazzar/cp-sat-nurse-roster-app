@@ -16,16 +16,16 @@ pytestmark = pytest.mark.django_db
 ADDRESS = "10.1.2.3"
 
 
-def login(username="someone", password=PASSWORD, address=ADDRESS, client=None):
+def login(username="someone", password=PASSWORD, address=ADDRESS, client=None, headers=None):
     return (client or Client()).post("/api/auth/login", {"username": username, "password": password},
-                                     content_type="application/json", REMOTE_ADDR=address)
+                                     content_type="application/json", REMOTE_ADDR=address, headers=headers)
 
 
-def fail(times, address=ADDRESS, username=None):
+def fail(times, address=ADDRESS, username=None, headers=None):
     """A different name each time unless one is given, as a client escaping the lockout would send."""
     response = None
     for n in range(times):
-        response = login(username or f"guess{n}", "wrong-password", address)
+        response = login(username or f"guess{n}", "wrong-password", address, headers=headers)
     return response
 
 
@@ -140,6 +140,25 @@ class TestTheLimit:
         fail(60, address="")
 
         assert login(address="").status_code == 200
+
+
+class TestTheAddress:
+    """Behind Caddy every peer is Caddy: the address counted is the one Caddy worked out and sent in its own header."""
+    CADDY = "172.18.0.5"
+
+    def test_each_client_behind_caddy_has_a_throttle_of_its_own(self, make_user):
+        make_user()
+        fail(50, address=self.CADDY, headers={"X-Client-IP": "203.0.113.7"})
+
+        assert login(address=self.CADDY, headers={"X-Client-IP": "203.0.113.7"}).status_code == 429
+        assert login(address=self.CADDY, headers={"X-Client-IP": "203.0.113.8"}).status_code == 200
+
+    def test_a_forwarded_for_header_does_not_move_a_client_out_of_its_throttle(self, make_user):
+        make_user()
+        fail(50, address=self.CADDY, headers={"X-Client-IP": "203.0.113.7", "X-Forwarded-For": "198.51.100.1"})
+
+        assert login(address=self.CADDY,
+                     headers={"X-Client-IP": "203.0.113.7", "X-Forwarded-For": "198.51.100.99"}).status_code == 429
 
 
 class TestIPv6:

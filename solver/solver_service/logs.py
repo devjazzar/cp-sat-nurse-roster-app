@@ -43,10 +43,11 @@ class AccessFormatter(JsonFormatter):
         atoms = record.args if isinstance(record.args, dict) else {}
         if not atoms:
             return super().fields_of(record)
-        forwarded = atoms.get("{x-forwarded-for}i", "-")
+        # The client's address as Caddy worked it out (backend/audit/log.py, `client_ip`), else the peer.
+        client_address = atoms.get("{x-client-ip}i", "-")
         return {"method": atoms.get("m"), "path": atoms.get("U"), "query": atoms.get("q") or None,
                 "status": _number(atoms.get("s")), "duration_ms": _number(atoms.get("M")), "bytes": _number(atoms.get("B")),
-                "remote": forwarded if forwarded not in ("", "-") else atoms.get("h")}
+                "remote": client_address if client_address not in ("", "-") else atoms.get("h")}
 
 
 def _number(value):

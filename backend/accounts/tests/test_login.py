@@ -220,17 +220,32 @@ class TestAudit:
         entry = AuditEntry.objects.get()
         assert (entry.action, entry.actor, entry.target, entry.ip) == ("auth.login", user, "someone", "10.1.2.3")
 
-    def test_the_ip_is_the_one_caddy_forwarded(self, make_user):
+    def test_the_ip_is_the_one_caddy_worked_out(self, make_user):
         make_user()
 
-        login(Client(), REMOTE_ADDR="172.18.0.2", headers={"X-Forwarded-For": "10.9.8.7"})
+        login(Client(), REMOTE_ADDR="172.18.0.2", headers={"X-Client-IP": "10.9.8.7"})
 
         assert AuditEntry.objects.get().ip == "10.9.8.7"
 
-    def test_a_nonsense_forwarded_header_falls_back_to_the_peer(self, make_user):
+    def test_a_forwarded_for_header_changes_nothing_behind_caddy(self, make_user):
         make_user()
 
-        login(Client(), REMOTE_ADDR="172.18.0.2", headers={"X-Forwarded-For": "not an ip"})
+        login(Client(), REMOTE_ADDR="172.18.0.2",
+              headers={"X-Client-IP": "10.9.8.7", "X-Forwarded-For": "203.0.113.9, 198.51.100.1"})
+
+        assert AuditEntry.objects.get().ip == "10.9.8.7"
+
+    def test_a_forwarded_for_header_changes_nothing_without_caddy(self, make_user):
+        make_user()
+
+        login(Client(), REMOTE_ADDR="172.18.0.2", headers={"X-Forwarded-For": "203.0.113.9, 198.51.100.1"})
+
+        assert AuditEntry.objects.get().ip == "172.18.0.2"
+
+    def test_a_nonsense_client_address_header_falls_back_to_the_peer(self, make_user):
+        make_user()
+
+        login(Client(), REMOTE_ADDR="172.18.0.2", headers={"X-Client-IP": "not an ip"})
 
         assert AuditEntry.objects.get().ip == "172.18.0.2"
 

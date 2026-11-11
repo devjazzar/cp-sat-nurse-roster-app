@@ -35,6 +35,8 @@ services:
     environment:
       CADDY_SITE: ${DOMAIN:-https://}
       CADDY_TLS_SNIPPET: self-signed${DOMAIN:+-off}
+      # The hospital's own proxies in front of Caddy (deploy/Caddyfile), for Caddy alone: web reads what Caddy worked out.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
     ports:
       - "80:80"
       - "443:443"

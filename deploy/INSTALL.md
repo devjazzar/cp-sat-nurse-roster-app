@@ -36,6 +36,27 @@ then on the variable is ignored.
 **On a server reachable from the internet, set `DOMAIN`.** Without it Caddy issues a self-signed certificate for any name a
 client sends, and each adds files to the `caddy_data` volume.
 
+### Behind the hospital's proxy
+
+The application tells clients apart by address: fifty failed logins from one address in fifteen minutes refuse every login
+from it for the rest of that time, and the audit log records each login's address. Caddy takes the address from the
+connection. **If the hospital puts a proxy or load balancer in front of this server, set `TRUSTED_PROXIES`** in `.env` to its
+addresses, as this server sees them, space separated (`10.20.0.5 10.20.0.6`, or a range such as `10.20.0.0/29`), then
+`docker compose up -d`. Caddy then takes each client's address from the `X-Forwarded-For` those proxies send, and believes it
+from no one else. Without it, behind a proxy, every client is the proxy's one address: they share one throttle, so fifty
+failed logins by anyone refuse everyone's logins, and the audit log shows the proxy for all of them.
+
+Name the proxies only, never a range the users' computers are in, nor `private_ranges`: anyone at a trusted address can claim
+any address at all. With no proxy in front, leave it empty. A value Caddy cannot read (commas, a host name) stops it from
+starting, and `docker compose logs caddy` says "invalid IP address".
+
+Caddy also believes what a trusted proxy says of the scheme (`X-Forwarded-Proto`), so the proxy must reach this server over
+HTTPS and say `https`: with `http`, the application takes every request for plain HTTP and refuses every login.
+
+On a Linux server, Docker is documented to pass each client's own address to Caddy for connections from other machines; the
+install checklist below has the check. Docker Desktop (Mac and Windows) does not: every connection arrives from its own
+gateway, so a stack run there sees one address for all.
+
 ### At the first real install
 
 These cannot be proven anywhere but on the hospital's own server.
@@ -64,6 +85,8 @@ These cannot be proven anywhere but on the hospital's own server.
 - [ ] Time the audit log filtered by user on the real database.
 - [ ] The 500-row import, timed as above.
 - [ ] A backup restored with `./restore.sh` on the real server, and the application checked afterwards.
+- [ ] A login from another computer, then the audit log: its address is that computer's (or, behind the hospital's proxy
+      with `TRUSTED_PROXIES` set, the one the proxy saw), not the proxy's and not one starting `172.`, Docker's own.
 - [ ] Pushes, at the hospital's own address ([Pushes](#pushes)): turn them on in an ordinary Chrome on a computer and on a
       phone (an iPhone after adding the app to the Home Screen), then have a colleague propose a swap to that nurse. One push
       shows one notification, with no second one from the browser saying the site "has been updated in the background"; a tap

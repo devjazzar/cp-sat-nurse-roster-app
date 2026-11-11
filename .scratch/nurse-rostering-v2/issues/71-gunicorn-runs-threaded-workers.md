@@ -15,3 +15,6 @@
 - [ ] Tests at the agreed seams: `deploy/tests/operations.sh` (gunicorn running threaded); the browser checks pass on the threaded server; both workflows
 
 ## Comments
+
+**From ticket 69 (2026-11-11).** gunicorn's access line now takes `remote` from `X-Client-IP`, the header Caddy always sets,
+else the peer (`solver/solver_service/logs.py`). `audit.log.client_ip` keeps no state, so threads change nothing there.

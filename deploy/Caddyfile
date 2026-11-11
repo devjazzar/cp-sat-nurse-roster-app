@@ -4,6 +4,18 @@
 # does for a public name: it obtains and renews a Let's Encrypt certificate.
 # Without DOMAIN, the site answers on any name or IP with a self-signed certificate from Caddy's
 # own local authority, issued on demand for whatever name the browser used.
+
+# The client's address. Caddy believes a client's X-Forwarded-For only from a peer named in TRUSTED_PROXIES (.env, empty by
+# default: no one), read strictly from the right, so the address taken is the one the nearest untrusted hop was seen at.
+# Only X-Forwarded-For is read, not X-Real-IP. The site sends what Caddy worked out to web in X-Client-IP.
+{
+	servers {
+		trusted_proxies static {$TRUSTED_PROXIES}
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
 (self-signed-off) {
 }
 
@@ -20,5 +32,8 @@
 	# The metrics answer with no sign-in, for a Prometheus on the internal network only (backend/ops/metrics.py).
 	@metrics path /metrics /metrics/*
 	respond @metrics 404
-	reverse_proxy web:8000
+	# Always set, replacing any a client sent: what audit.log.client_ip reads, the throttle's and the audit log's address.
+	reverse_proxy web:8000 {
+		header_up X-Client-IP {client_ip}
+	}
 }

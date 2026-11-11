@@ -77,7 +77,7 @@ def test_gunicorn_logs_its_own_lines_and_each_request_as_json(tmp_path):
             assert time.monotonic() - started < 60, "gunicorn's worker did not load the application in a minute"
             time.sleep(0.1)
         answer = httpx.get(f"http://127.0.0.1:{port}/api/health?from=test", timeout=5,
-                           headers={"X-Forwarded-For": "203.0.113.9"})
+                           headers={"X-Client-IP": "203.0.113.9", "X-Forwarded-For": "198.51.100.1, 203.0.113.9"})
         assert answer.status_code == 200
     finally:
         server.terminate()

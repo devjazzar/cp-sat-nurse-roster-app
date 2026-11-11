@@ -16,3 +16,7 @@
 - [ ] Tests at the agreed seams: the Playwright browser checks; `deploy/tests/operations.sh` (the policy on a page and an API answer, no HSTS without `DOMAIN`, the header in the adapted configuration's `DOMAIN` snippet); both workflows
 
 ## Comments
+
+**From ticket 69 (2026-11-11).** `deploy/Caddyfile` now has a global options block first, and the site's `reverse_proxy` has a
+body. Ticket 62's `header Content-Security-Policy` line is unchanged, above `@metrics`; the compose-level check of ticket 69
+sits right after `operations.sh`'s framing check.
