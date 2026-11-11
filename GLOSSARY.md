@@ -174,7 +174,7 @@ rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 
 **Push subscription**:
-A device's standing permission to be sent pushes for one user, held as the address the browser's push service gave it and the keys that go with it. It belongs to whoever last turned pushes on there; turning them off, pressing Log out, a deactivation, an address the push service says is gone, or ten failed sends in a row ends it.
+A device's standing permission to be sent pushes for one user, held as the address the browser's push service gave it and the keys that go with it. It belongs to whoever last turned pushes on there, and a user holds at most ten; turning them off, pressing Log out, a deactivation, an address the push service says is gone, ten failed sends in a row, or the same user turning pushes on for an eleventh device (which ends their earliest) ends it.
 _Avoid_: device token, endpoint, device
 
 **Push**:
@@ -324,5 +324,6 @@ _Avoid_: dump, snapshot, export
 
 **Restore**:
 Putting a backup in place of the database, by a script on the server, never from the application. Everything done since the
-backup is lost, so the database as it stood is backed up first.
+backup is lost, so the database as it stood is backed up first. No lockout or throttle comes back with it, and the
+deactivations, password resets and changes and push key rotations it undid are listed, to be done again by hand.
 _Avoid_: rollback, recovery

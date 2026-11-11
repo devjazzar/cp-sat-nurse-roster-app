@@ -195,9 +195,14 @@ person restoring.
 - **Gunicorn** runs `--worker-class gthread --threads 4 --workers 3`, with `--timeout` at gunicorn's default: under `gthread` it
   is only how long a worker's main loop may go silent, and no request is killed for its length. The comment above the command,
   which sized 300 s for the import, is rewritten. Web's database connections go from at most 3 to at most 12, beside the
-  worker's 9, against PostgreSQL's 100; ADR 0009's count in the architecture is updated. The application holds no mutable
-  module-level state; the nurse import's own pool of password hashes runs inside one request thread as before (the hash
+  worker's 9, against PostgreSQL's 100; ADR 0009's count in the architecture is updated. The ticket confirms the application
+  holds no mutable module-level state a thread could race on (no thorough search was made at the grilling), and names
+  anything it finds; the nurse import's own pool of password hashes runs inside one request thread as before (the hash
   releases Python's lock, so threads hash on several cores).
+- **Keep-alive.** Sync workers close every connection after one response; `gthread` keeps it open for gunicorn's
+  `--keep-alive` (2 seconds by default). Caddy keeps idle connections to `web` for longer by default, so it could reuse one
+  gunicorn has just closed and answer a POST with 502. The ticket sets the two so that Caddy's idle time to `web` is shorter
+  than gunicorn's keep-alive, and says how it checked.
 - **The install guide** drops the import's 300-second limit: the 500-row import is still timed at the first real install, with
   no limit to stay under.
 
@@ -215,7 +220,7 @@ person restoring.
   instead of failing on the database.
 - **`pushing.send` never raises**, as its docstring says: any exception the library raises that is not already sorted is a
   refusal.
-- Architecture section 7 (`push`) and the glossary's **Push subscription** gain the cap and the budget; ADR 0012's list of how
+- Architecture section 7 (`push`) gains the cap and the budget (the glossary's **Push subscription** already has the cap); ADR 0012's list of how
   a subscription ends gains the eleventh device (a consequence line, not a change of the decision).
 
 ### Headers
@@ -237,17 +242,20 @@ person restoring.
 
 ### Restore
 
-- After the restored database is renamed in and before the replaced one is dropped, `deploy/restore.sh`:
-  1. empties the login attempts and the throttle's addresses in the restored database; a table the restored backup does not
-     have yet (a backup from before this feature) is skipped, and `web` creates it empty when it migrates;
-  2. prints, from the replaced database, every `user.deactivated`, `user.password_reset`, `auth.password_changed` and
-     `push.keys_rotated` entry whose id is above the restored database's newest audit entry (ids are sequential, so this is
-     "after the backup", whatever the file's name): its action, its target account and its time on the hospital's clock, and
-     nothing else, then one line saying to do them again; or one line saying none were recorded.
+- `deploy/restore.sh`:
+  1. once the backup is restored into the new database and **before the swap**, empties the login attempts and the throttle's
+     addresses there, so a failure is the script's ordinary "the restore did not finish, the database is as it was"; a table
+     the restored backup does not have yet (a backup from before this feature) is skipped, and `web` creates it empty when it
+     migrates;
+  2. after the swap and before the replaced database is dropped, prints from the replaced database every `user.deactivated`,
+     `user.password_reset`, `auth.password_changed` and `push.keys_rotated` entry whose time is after the restored database's
+     newest audit entry (by time, not id: after restoring the "before" backup to undo a restore, the entries written in between
+     have ids below that backup's newest): its action, its target account and its time on the hospital's clock, and nothing
+     else, then one line saying to do them again; or one line saying none were recorded.
 - It does not re-apply any of them. The hourly job deactivates again any staff nurse whose end date has passed anyway.
 - If printing fails, the restore still completes: the list is advice, and the backup of the database as it stood before is
   kept and holds the same entries.
-- The install guide's restore section and the glossary's **Restore** say what a restore empties and prints.
+- The install guide's restore section says what a restore empties and prints (the glossary's **Restore** already does).
 
 ### The audit document
 
