@@ -600,16 +600,21 @@ class RamadanConfirm(StrictSchema):
 
 
 def _card_months(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> list[str]:
-    """The months the calendar's Ramadan touches, and a month either side whose fixed days continue it over the edge: a
-    sighting a day or two off. Another Ramadan is eleven months away, so they cannot be its days."""
-    core = ramadan.months
-    before, after = shift_month(core[0], -1), shift_month(core[-1], 1)
-    continued = []
-    if fixed.get(before) and month_of(max(fixed[before]) + dt.timedelta(days=1)) == core[0]:
-        continued.append(before)
-    if fixed.get(after) and min(fixed[after]).day == 1:
-        continued.append(after)
-    return sorted(core + continued)
+    """The months the calendar's Ramadan touches, and the months either side whose fixed days continue it over the edge:
+    a sighting a day or two off, or a confirmation of up to 35 days from a Ramadan inside one month, which can reach two
+    months out. Another Ramadan is eleven months away, so they cannot be its days."""
+    months = list(ramadan.months)
+    for _ in range(2):
+        before = shift_month(months[0], -1)
+        if not (fixed.get(before) and month_of(max(fixed[before]) + dt.timedelta(days=1)) == months[0]):
+            break
+        months.insert(0, before)
+    for _ in range(2):
+        after = shift_month(months[-1], 1)
+        if not (fixed.get(after) and min(fixed[after]).day == 1):
+            break
+        months.append(after)
+    return months
 
 
 def _card(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> dict:
@@ -622,8 +627,8 @@ def _card(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> dict:
 
 
 def _fixed_around(year: int) -> dict[str, list[dt.date]]:
-    """The fixed months a card of `year` can read: November before to February after."""
-    months = [shift_month(f"{year:04d}-01", step) for step in range(-2, 14)]
+    """The fixed months a card of `year` can read: October before to March after."""
+    months = [shift_month(f"{year:04d}-01", step) for step in range(-3, 15)]
     return dict(FixedRamadanMonth.objects.filter(month__in=months).values_list("month", "dates"))
 
 

@@ -2319,6 +2319,18 @@ describe("the holidays and Ramadan page", () => {
       await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/ramadans?year=2026")).toHaveLength(2))
     })
 
+    it("closes a month form left open without taking focus from Confirm", async () => {
+      const { user } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadans/1447": confirmed }))
+
+      await user.click(await screen.findByRole("button", { name: "Fix the dates of March 2026" }))
+      const button = within(await cardOf("Ramadan 1447")).getByRole("button", { name: "Confirm Ramadan 1447" })
+      await user.click(button)
+
+      await screen.findByText("Ramadan 1447 is confirmed: 18 February – 19 March 2026.")
+      expect(screen.queryByRole("heading", { name: "Fix the Ramadan dates of March 2026" })).not.toBeInTheDocument()
+      expect(button).toHaveFocus()
+    })
+
     it("confirms a Ramadan shifted by a day, and the card then reads the CNO's days beside the calendar's", async () => {
       const shifted = { ...CARD_1447, first: "2026-02-19", last: "2026-03-20", source: "fixed" }
       const answers = [[CARD_1447], [shifted]]
@@ -2350,12 +2362,13 @@ describe("the holidays and Ramadan page", () => {
     })
 
     it("shows the API's refusal beside the field, with focus on it", async () => {
-      const { user } = start("/holidays?year=2026", asCno({
-        ...year2026(),
-        "PUT /api/hospital/ramadans/1447": refusal(["last"], "That makes 36 days. A Ramadan has 29 or 30, so at most 35 are taken."),
-      }))
+      const answers = [confirmed({ body: { first: "2026-02-18", last: "2026-03-19" } }), refusal(["last"], "That makes 36 days. A Ramadan has 29 or 30, so at most 35 are taken.")]
+      const { user } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadans/1447": () => answers.shift() as Answer }))
 
       const card = await cardOf("Ramadan 1447")
+      // A first confirmation leaves its line, which the refused one must not leave standing.
+      await user.click(within(card).getByRole("button", { name: "Confirm Ramadan 1447" }))
+      await screen.findByText(/is confirmed/)
       const last = within(card).getByLabelText("Last day of Ramadan 1447")
       await user.clear(last)
       await user.type(last, "2026-03-25")
@@ -2363,6 +2376,7 @@ describe("the holidays and Ramadan page", () => {
 
       await waitFor(() => expect(last).toHaveAccessibleDescription("That makes 36 days. A Ramadan has 29 or 30, so at most 35 are taken."))
       expect(last).toHaveFocus()
+      expect(screen.queryByText(/is confirmed/)).not.toBeInTheDocument()
       expect(last).toHaveAttribute("aria-invalid", "true")
     })
 

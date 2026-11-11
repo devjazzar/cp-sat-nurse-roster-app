@@ -21,7 +21,8 @@
 ## Comments
 
 **Implemented on 2026-11-11,** on branch `claude/ticket-44-ramadan-cards-2706dd` (`8e13a21` the API, `df3bf2f` the page,
-`aea6dd2` the review's points, then the refusal's words and this comment), from `main` at `e8b1308`. Draft pull request
+`aea6dd2` the review's points, `9ef606f` the refusal's words and this comment, then the advisor's points), from `main`
+at `e8b1308`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#15](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/15).
 
 The full suites ran locally on `aea6dd2`, under the heavy-run lock:
@@ -31,9 +32,11 @@ The full suites ran locally on `aea6dd2`, under the heavy-run lock:
 - `makemigrations --check`: "No changes detected". There is no migration;
 - `frontend/openapi.json` matches the backend's export, and regenerating the client changed nothing.
 
-The refusal's words changed after that run. `test_ramadan_cards.py` and `test_ramadan.py` ran again on the change: 84
-passed. GitHub's two workflows were green on `df3bf2f` (backend, frontend with its six runs, image, solver, browser
-checks).
+After that run, the refusal's words, the outward walk and the page's focus and status line changed.
+- `test_ramadan_cards.py` and `test_ramadan.py` ran again: 85 passed.
+- The frontend's "holidays and Ramadan page" block ran again: 25 passed.
+- GitHub's two workflows were green on `aea6dd2`: backend, frontend with its six runs, image, solver and browser checks.
+- `main` was fast-forwarded only to a head on which both were green again.
 
 **What the dev stack needs:** `docker compose up -d --build`, for the `web` code and the client. There is no migration
 and no change to `deploy/compose.yaml` or the `Dockerfile`. `uv.lock` changes only in the `hijridate` specifiers, so
@@ -53,7 +56,8 @@ and no change to `deploy/compose.yaml` or the `Dockerfile`. `uv.lock` changes on
   - `calendar_first` and `calendar_last`.
   - The months read are the calendar's Ramadan months, plus a neighbouring month whose fixed days continue the Ramadan
     over the edge. For the month before, that means its last fixed day is that month's last day; for the month after,
-    its first fixed day is the 1st.
+    its first fixed day is the 1st. The walk goes out up to two months each way. A 35-day confirmation of a Ramadan
+    inside one month, such as 1446 (1 to 29 March 2025), can begin in January.
   - A card whose months are all fixed to none has `first` and `last` null and 0 days. A hand-entered list with a gap
     counts its days.
 - **Confirming:** `PUT /api/hospital/ramadans/{hijri_year}` with `{first, last}`, for the CNO only.
@@ -98,8 +102,8 @@ and no change to `deploy/compose.yaml` or the `Dockerfile`. `uv.lock` changes on
   - At 375 px the fields stack and nothing scrolls sideways.
   - The month table and "Use the calendar" are unchanged.
 - **Tests at the seams:**
-  - `backend/hospital/tests/test_ramadan_cards.py`: 44 tests;
-  - eight new tests in the frontend's "holidays and Ramadan page" block, and the reader's test extended;
+  - `backend/hospital/tests/test_ramadan_cards.py`: 46 tests;
+  - nine new tests in the frontend's "holidays and Ramadan page" block, and the reader's test extended;
   - two of the month form's tests now look for "First day" and "Last day" inside their own card, since the cards have
     fields of those names.
 
@@ -131,13 +135,23 @@ The stack, its volumes and its image are gone, and the lock is released.
 - **The wrong-year refusal named ISO dates,** which wrapped mid-date at 375 px. It now says "These days do not touch
   Ramadan 1448, which the calendar puts at 8 February – 8 March 2027."
 
+- **Advisor: focus with a month form open.** The cards closed an open month form with `finish()`, which hands focus back
+  to that row's "Fix dates" button, taking it from Confirm. They now use `drop()`. A test opens March's form, confirms
+  the card, and finds the form closed and focus on Confirm.
+- **Advisor: a Ramadan inside one month.** Confirming 1446 from 26 January to 1 March read only February, and confirming
+  again left January's days behind. The card now walks out up to two months, with a test.
+- **Advisor: a stale status line.** A refused confirmation left the earlier "is confirmed" above it. Submitting now
+  clears the line, with a test.
+
 **What was NOT checked.**
 - The 1925 and 2076 ends were tested through the API's sweep but not driven on the page. Neither was a Ramadan across
   New Year, which the API and frontend tests cover.
 - Two CNOs confirming at once: the locks are the per-month fix's, taken in month order, but no concurrent test was run.
 - The card in a screen reader: names, descriptions and the status line were read through the accessibility tree and
   tests only.
-- GitHub's run on the last two commits: `aea6dd2` and the refusal's words. The merge waits for both to be green.
+- The last fixes, driven: the focus with a month form open, the outward walk and the cleared status line are covered
+  by tests only. The scratch stack drove `aea6dd2`.
+- The full local suites after `aea6dd2`: the changed test files ran, and GitHub ran everything.
 
 **Decisions taken here.**
 - **Endpoints:** `/api/hospital/ramadans` (the cards) and `/api/hospital/ramadans/{hijri_year}` (confirm, a `PUT`, as

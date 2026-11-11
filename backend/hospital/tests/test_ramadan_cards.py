@@ -261,6 +261,19 @@ def test_the_refusal_names_both_years_of_a_ramadan_across_new_year(signed_in):
     assert response.json()["detail"][0]["msg"].endswith("at 26 December 2030 – 23 January 2031.")
 
 
+def test_a_ramadan_inside_one_month_confirmed_two_months_back_is_read_and_overwritten_whole(signed_in):
+    # Umm al-Qura's Ramadan 1446 is 1 to 29 March 2025, inside one month: 35 days that touch it can begin in January.
+    client = signed_in(Role.CNO)
+
+    response = confirm(client, 1446, "2025-01-26", "2025-03-01")
+
+    assert (response.json()["first"], response.json()["last"], response.json()["days"]) == ("2025-01-26", "2025-03-01", 35)
+    assert card(client, 2025, 1446) == response.json()
+    again = confirm(client, 1446, "2025-03-01", "2025-03-29").json()
+    assert (again["first"], again["days"]) == ("2025-03-01", 29)
+    assert months(client, 2025)["2025-01"]["dates"] == [] and months(client, 2025)["2025-02"]["dates"] == []
+
+
 def test_one_day_of_overlap_is_enough(signed_in):
     response = confirm(signed_in(Role.CNO), 1448, "2027-03-08", "2027-04-05")
 

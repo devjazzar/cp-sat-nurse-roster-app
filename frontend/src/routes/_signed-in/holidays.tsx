@@ -336,7 +336,7 @@ function inForce(card: RamadanCard): string {
   return `The CNO: ${range}.${differs ? ` The calendar says ${calendar(sameYear)}.` : ""}`
 }
 
-function RamadanCardForm({ card, onDone }: { card: RamadanCard; onDone: (message: string) => void }) {
+function RamadanCardForm({ card, onStart, onDone }: { card: RamadanCard; onStart: () => void; onDone: (message: string) => void }) {
   const queryClient = useQueryClient()
   const confirm = useConfirmRamadan()
   const name = `Ramadan ${card.hijri_year}`
@@ -352,6 +352,7 @@ function RamadanCardForm({ card, onDone }: { card: RamadanCard; onDone: (message
 
   const submit = form.handleSubmit((data) => {
     if (confirm.isPending) return
+    onStart() // A line saying an earlier confirmation went through would sit above this one's refusal.
     confirm.mutate({ hijriYear: card.hijri_year, data }, {
       onSuccess: (next) => {
         // A confirmation can write into the next or the previous year, so every year's lists are read again.
@@ -393,13 +394,13 @@ function RamadanCardForm({ card, onDone }: { card: RamadanCard; onDone: (message
 }
 
 /** The CNO's alone. Nothing of their own is stored: each card reads the months as they stand. */
-function RamadanCards({ year, onDone }: { year: number; onDone: (message: string) => void }) {
+function RamadanCards({ year, onStart, onDone }: { year: number; onStart: () => void; onDone: (message: string) => void }) {
   const cards = useListRamadans({ year })
   if (cards.isError) return <p role="alert">The Ramadans of {year} could not be read. Reload the page to try again.</p>
   if (!cards.data) return null
   return (
     <div className="flex flex-col gap-4">
-      {cards.data.map((card) => <RamadanCardForm key={card.hijri_year} card={card} onDone={onDone} />)}
+      {cards.data.map((card) => <RamadanCardForm key={card.hijri_year} card={card} onStart={onStart} onDone={onDone} />)}
     </div>
   )
 }
@@ -434,7 +435,8 @@ function Ramadan({ year, mayChange }: { year: number; mayChange: boolean }) {
       {months.isPending && <p>Loading…</p>}
       {months.isError && <p role="alert">The Ramadan dates could not be read. Reload the page to try again.</p>}
       <p role="status" className="text-sm text-muted-foreground empty:sr-only">{done}</p>
-      {mayChange && <RamadanCards year={year} onDone={(message) => { finish(); setDone(message) }} />}
+      {/* A month form left open is closed without taking focus back to its row: focus stays on Confirm. */}
+      {mayChange && <RamadanCards year={year} onStart={() => setDone("")} onDone={(message) => { drop(); setDone(message) }} />}
       {months.data && (
         <Card>
           <CardContent>
