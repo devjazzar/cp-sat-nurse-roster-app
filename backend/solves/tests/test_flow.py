@@ -20,7 +20,7 @@ from ops.solver_client import SolverRefused, SolverUnreachable
 from rosters.models import Roster
 from solves import running
 from solves.models import Solve
-from solves.tests.conftest import MONTH, NURSES, job, nurse_in, result_of, roster_of, started, start_solve
+from solves.tests.conftest import MONTH, NURSES, job, make_sample_unit, nurse_in, result_of, roster_of, started, start_solve
 
 pytestmark = pytest.mark.django_db
 
@@ -541,9 +541,12 @@ class TestAWorkerThatDied:
 
         assert Solve.objects.get(pk=solve["id"]).failure == "stuck"
 
-    def test_a_row_whose_job_is_gone_does_not_stay_active_for_good(self, mona, er):
+    def test_a_row_whose_job_is_gone_does_not_stay_active_for_good(self, mona, er, client_of, make_user):
+        """Another unit's solve stays queued: a unit has one active at a time (ticket 62)."""
+        omar = client_of("omar", Role.UNIT_MANAGER)
+        icu = make_sample_unit("ICU", User.objects.get(username="omar"), make_user, prefix="i")
         solve = started(mona, er)
-        kept = started(mona, er, "2026-07")
+        kept = started(omar, icu)
         Solve.objects.filter(pk=solve["id"]).update(job_id=999999999)
 
         running.end_what_the_queue_lost()

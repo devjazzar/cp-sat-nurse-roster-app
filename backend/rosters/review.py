@@ -64,7 +64,7 @@ def why_not_decide(roster: Roster | None) -> str | None:
     return None
 
 
-def why_not_approve_at_all(roster: Roster | None) -> str | None:
+def why_not_approve_before_checking(roster: Roster | None) -> str | None:
     """What refuses an approval before the grid is checked. A month that is over is refused as submitting refuses it (ticket 62):
     approved late, after the month after it closed, it would be an approved month the close can never reach, and every later
     close of the unit would wait on it for good. Rejecting it stays allowed, so it no longer waits."""
@@ -78,7 +78,7 @@ def why_not_approve_at_all(roster: Roster | None) -> str | None:
 
 
 def why_not_approve(roster: Roster | None, checked: Checked | None) -> str | None:
-    refusal = why_not_approve_at_all(roster)
+    refusal = why_not_approve_before_checking(roster)
     if refusal:
         return refusal
     broken = unsound(checked)

@@ -619,6 +619,17 @@ class TestFromAnotherSite:
         assert "Content-Disposition" not in response
         assert not AuditEntry.objects.filter(action="nurses.exported").exists()
 
+    def test_it_does_not_keep_the_session_alive(self, cno):
+        """A visit to the other page is not the CNO's activity here: the 12 hours of the idle limit do not start again."""
+        from django.contrib.sessions.models import Session
+        from django.utils import timezone
+        import datetime as dt
+        earlier = timezone.now() + dt.timedelta(hours=1)
+        Session.objects.filter(pk=cno.cookies["sessionid"].value).update(expire_date=earlier)
+
+        assert cno.get(EXPORT, **from_site("cross-site")).status_code == 403
+        assert Session.objects.get(pk=cno.cookies["sessionid"].value).expire_date == earlier
+
     @pytest.mark.parametrize("path", FILES)
     def test_whoever_asks_gets_the_same_answer(self, client_of, path):
         for client in (Client(), client_of("nurse", Role.STAFF_NURSE)):

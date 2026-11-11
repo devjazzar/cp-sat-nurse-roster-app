@@ -10,6 +10,8 @@ from django.http import HttpRequest
 from ninja.errors import HttpError
 from ninja.security import SessionAuth
 
+from accounts.sessions import not_activity
+
 
 class SignedIn(SessionAuth):
     """401 when not signed in, 403 for the wrong role, and CSRF on every unsafe method."""
@@ -36,12 +38,13 @@ CROSS_SITE = "This file opens only from the app's own pages, not from a link on 
 class SignedInForAFile(SignedIn):
     """A route that answers with a file: a plain GET, which a page on another site can make a signed-in user's browser take,
     since the session cookie is `SameSite=Lax` (ticket 62, audit lead 7). Refused with 403 when the browser says the request was
-    started by another site (`Sec-Fetch-Site: cross-site`), before the session is read, so that the answer is the same whoever is
-    signed in: it says nothing of the visitor's role, and nothing is logged. The app's own links are `same-origin`; a request
+    started by another site (`Sec-Fetch-Site: cross-site`), before the session's user and role are read, so that the answer is the
+    same whoever is signed in: it says nothing of the visitor's role, nothing is logged, and the idle limit does not move. The app's own links are `same-origin`; a request
     with no such header, from an older browser or a script, is served as before."""
 
     def authenticate(self, request: HttpRequest, key: str | None):
         if request.headers.get("Sec-Fetch-Site") == "cross-site":
+            not_activity(request)  # Nor does it keep the session alive: the user did not ask for it.
             raise HttpError(403, CROSS_SITE)
         return super().authenticate(request, key)
 

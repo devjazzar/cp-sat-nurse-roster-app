@@ -790,8 +790,9 @@ No answer may be framed (ticket 62): `web` sends `X-Frame-Options: DENY` on ever
 adds `Content-Security-Policy: frame-ancestors 'none'` to everything it serves; nothing in the app frames itself. The routes
 that answer with a file, the staff list, both import templates, a roster version's file and the System Admin's backup, are
 plain GETs that the `SameSite=Lax` session cookie reaches from a link on another site, so they refuse with 403 a request whose
-browser says another site started it (`Sec-Fetch-Site: cross-site`, `accounts.authz.for_a_file`), before the session is read:
-the answer is the same for everyone, nothing is logged, and it says nothing of who is signed in or which backups exist. The
+browser says another site started it (`Sec-Fetch-Site: cross-site`, `accounts.authz.for_a_file`), before the user and the role are
+read: the answer is the same for everyone, nothing is logged, the idle limit does not move, and it says nothing of who is signed
+in or which backups exist. The
 app's own links are `same-origin`; a request with no such header, from an older browser or a script, is served.
 
 ### Nurse import and the staff list
