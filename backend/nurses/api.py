@@ -23,7 +23,7 @@ from closes import making
 from hospital.api import differing, refuse
 from hospital.catalogue_api import MONTH_PATTERN, IsoDate, iso_date
 from hospital.models import HospitalSettings
-from nurses import membership
+from nurses import membership, probation
 from nurses.models import Gender, NurseProfile
 from nurses.skills import NurseSkillRow, current_skills, skills_of
 from units.models import Unit
@@ -44,6 +44,7 @@ class ProfileFields(Body):
     gender: GenderChoice
     unit_id: UUID
     start_date: IsoDate
+    on_probation: bool = Field(False, description="A staff nurse's only: refused for a unit manager's nurse profile.")
 
 
 class NewNurseBody(ProfileFields):
@@ -78,6 +79,24 @@ class CorrectionBody(Body):
     full_name: FullName | None = None
     gender: GenderChoice
     start_date: IsoDate
+    on_probation: bool | None = Field(None, description="Leaving it out leaves it as it is. Unticking removes the probation from "
+                                                        "the first month whose roster is not approved; ticking is refused once "
+                                                        "six months from her start date have passed.")
+
+
+class Probation(Schema):
+    """A probation not over yet: under way, or to begin on her start date."""
+    last_day: dt.date = Field(description="Derived from her start date, the length and an early end, never entered.")
+    months: int = Field(description="Whole calendar months from her start date, a month she joins after the 1st not counted.")
+    ticked: bool = Field(description="The CNO's tick. False for one unticked whose months up to `last_day` had approved rosters.")
+    ended_early: bool = Field(description="Her unit manager pressed End, so it can no longer be extended.")
+
+
+def probation_of(nurse: NurseProfile) -> Probation | None:
+    if not probation.running(nurse):
+        return None
+    return Probation(last_day=probation.last_day(nurse), months=nurse.probation_months, ticked=nurse.on_probation,
+                     ended_early=probation.ended_early(nurse))
 
 
 class UnitName(Schema):
@@ -104,6 +123,8 @@ class NurseRow(Schema):
                                               "join a manager's unit is on their list before they arrive.")
     transfers: list[ComingTransfer] = Field(description="The transfers still to come, soonest first.")
     skills: list[NurseSkillRow] = Field(description="Their current skills, the CNO's to set, in the order of their names.")
+    on_probation: bool = Field(description="The CNO's tick as it stands, also once her probation is over, for the correction form.")
+    probation: Probation | None = Field(description="Empty when she is not on probation, or it is over.")
 
 
 class NurseWithPassword(Schema):
@@ -147,7 +168,8 @@ def _row(nurse: NurseProfile, only_unit: UUID | None = None) -> NurseRow:
                     unit=named(current.unit),
                     transfers=[ComingTransfer(from_month=_month(placement.from_month), unit=named(placement.unit))
                                for placement in coming],
-                    skills=skills_of(nurse))
+                    skills=skills_of(nurse), on_probation=nurse.on_probation,
+                    probation=probation_of(nurse))
 
 
 def with_units(nurses):
@@ -176,12 +198,19 @@ def _keep_in_held_unit(user: User, unit: Unit) -> None:
                               f"Give {held.name} another manager, or none, first."))
 
 
-def new_profile(request: HttpRequest, user: User, unit: Unit, gender: str, start_date: dt.date) -> NurseProfile:
-    nurse = NurseProfile.objects.create(user=user, gender=gender, start_date=start_date)
+def new_profile(request: HttpRequest, user: User, unit: Unit, gender: str, start_date: dt.date, *,
+                on_probation: bool = False) -> NurseProfile:
+    nurse = NurseProfile.objects.create(user=user, gender=gender, start_date=start_date, on_probation=on_probation)
     membership.place_new_nurse(nurse, unit)
     record("nurse.added", actor=request.user, target=user.username, request=request,
            after={"unit": unit.name, "start_date": start_date.isoformat()})
+    if on_probation:
+        record("nurse.probation_ticked", actor=request.user, target=user.username, request=request,
+               after=probation.describe(nurse))
     return nurse
+
+
+ONLY_STAFF_NURSES = "Only a staff nurse can be on probation, not a unit manager with a nurse profile."
 
 
 def _locked_nurse(nurse_id: UUID) -> NurseProfile:
@@ -210,7 +239,8 @@ def add_nurse(request: HttpRequest, response: HttpResponse, body: NewNurseBody) 
                                          role=Role.STAFF_NURSE)
         except UsernameTaken:
             refuse((("hospital_id",), f"{body.hospital_id} is already in use."))
-        nurse = new_profile(request, user, _unit_to_join(body.unit_id), body.gender, body.start_date)
+        nurse = new_profile(request, user, _unit_to_join(body.unit_id), body.gender, body.start_date,
+                            on_probation=body.on_probation)
     response["Cache-Control"] = "no-store"
     return Status(201, NurseWithPassword(nurse=_row_as_saved(nurse.pk), generated_password=password))
 
@@ -237,6 +267,8 @@ def managers_to_place(request: HttpRequest) -> list[ManagerToPlace]:
 @router.post("/managers", response={201: NurseRow}, auth=cno, operation_id="giveManagerNurseProfile")
 def give_manager_a_profile(request: HttpRequest, body: ManagerProfileBody) -> Status:
     """The role and the account stay as they are, so no password here. Their hospital ID is the username they have."""
+    if body.on_probation:
+        refuse((("on_probation",), ONLY_STAFF_NURSES))
     with transaction.atomic():
         manager = User.objects.select_for_update(no_key=True).filter(pk=body.user_id, role=Role.UNIT_MANAGER, is_active=True).first()
         if manager is None:
@@ -342,6 +374,7 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
         name_changes = full_name != user.full_name
         start_changes = body.start_date != nurse.start_date
         gender_changes = body.gender != nurse.gender
+        ticking = body.on_probation is not None and body.on_probation != nurse.on_probation
         refusals = []
         if name_changes and user.role != Role.STAFF_NURSE:
             refusals.append((("full_name",), f"{user.username}'s name is on their unit manager account. "
@@ -353,6 +386,8 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
             fixed = _closed_for_good(nurse, nurse.start_date, body.start_date, end=False)
             if fixed:
                 refusals.append((("start_date",), fixed))
+        if ticking:
+            refusals += _probation_refusals(nurse, body.on_probation, body.start_date)
         if refusals:
             refuse(*refusals)
 
@@ -377,7 +412,35 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
         if after:
             record("nurse.details_corrected", actor=request.user, target=user.username, request=request,
                    before=before, after=after)
+        if ticking:
+            was = probation.describe(nurse)
+            if body.on_probation:
+                probation.tick(nurse)
+            else:
+                probation.untick(nurse)
+            nurse.save(update_fields=["on_probation", "probation_months", "probation_ended_in", "probation_notified_for"])
+            record("nurse.probation_ticked" if body.on_probation else "nurse.probation_unticked", actor=request.user,
+                   target=user.username, request=request, before=was, after=probation.describe(nurse))
     return CorrectedNurse(nurse=_row_as_saved(nurse_id), first_placement_extended=extended)
+
+
+def _probation_refusals(nurse: NurseProfile, ticked: bool, start_date: dt.date) -> list:
+    """Unticking is always allowed: a correction. Ticking is refused for a manager's profile, once six months from her start
+    date (as corrected in the same save) have passed, and while her allowed shifts are a night shift alone."""
+    user = nurse.user
+    if user.role != Role.STAFF_NURSE:
+        return [(("on_probation",), ONLY_STAFF_NURSES)]
+    if not ticked:
+        return []
+    if membership.today() > probation.last_day_after(start_date, probation.TICK_WITHIN):
+        return [(("on_probation",), f"{user.full_name} started on {start_date:%-d %B %Y}, more than six months ago, so she can "
+                                    "no longer be put on probation.")]
+    nights = probation.night_alone(membership.from_now_on(nurse))
+    if nights:
+        unit = nights[0].unit
+        return [(("on_probation",), f"{user.full_name} may work only {unit.rules['night_shift']} in {unit.name}, its night shift, "
+                                    "which a nurse on probation does not work. Her unit manager changes her allowed shifts first.")]
+    return []
 
 
 @router.post("/{nurse_id}/reset-password", response=NurseWithPassword, auth=SignedIn(Role.CNO, Role.UNIT_MANAGER),

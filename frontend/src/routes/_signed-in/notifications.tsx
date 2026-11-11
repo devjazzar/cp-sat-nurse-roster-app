@@ -41,6 +41,8 @@ function Open({ link, onOpen }: { link: NotificationLink; onOpen: () => void }) 
       return <Link to="/covers" search={{ month: link.month }} onClick={onOpen} className={LINK}>Open Covers</Link>
     case "unit_covers":
       return <Link to="/unit-covers" search={{ month: link.month, cover: link.cover_id ?? undefined }} onClick={onOpen} className={LINK}>Open the cover</Link>
+    case "rostering_attributes":
+      return <Link to="/rostering-attributes" onClick={onOpen} className={LINK}>Open Rostering attributes</Link>
   }
 }
 

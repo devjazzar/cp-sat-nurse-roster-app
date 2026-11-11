@@ -15,7 +15,8 @@ class NurseProfile(models.Model):
     """A user's roster identity. The hospital ID is the user's username, so there is one place for it and
     usernames already keep it unique in any case. The unit is not here: see `Placement`. Nor are the allowed shifts,
     which only mean something in a unit. The rest of the rostering attributes and the opening values keep the solver's
-    field names and its defaults, and no value of theirs may reach `audit.log.record`: the System Admin reads the log."""
+    field names and its defaults, and no value of theirs may reach `audit.log.record`: the System Admin reads the log. Her
+    probation is the exception: its entries carry their values, as the user decided on 2026-11-11."""
 
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="nurse_profile")
@@ -32,6 +33,24 @@ class NurseProfile(models.Model):
     friday_balance = models.FloatField(default=0.0, help_text="Weekend days above (+) or below (-) their fair share.")
     attributes_saved = models.BooleanField(
         default=False, help_text="A manager has saved these attributes at least once, so a score at the default was looked at.")
+    # Her probation (ticket 54), read through `nurses.probation`, which derives its last day from these and the start date.
+    # Unlike the attributes above, its values do reach the audit log: the user's decision of 2026-11-11.
+    on_probation = models.BooleanField(default=False, help_text="The CNO's tick. Only a staff nurse's.")
+    probation_months = models.PositiveSmallIntegerField(
+        default=3, help_text="Whole calendar months from her start date, a month she joins after the 1st not counted. Her unit "
+                             "manager's: 1 to 3, then extended a month at a time to 6.")
+    probation_ended_in = models.DateField(
+        null=True, blank=True, help_text="The first day of the month whose last day became her probation's: her unit manager's "
+                                         "End, or the CNO's untick, which keeps the months whose rosters were approved.")
+    probation_notified_for = models.DateField(
+        null=True, blank=True, help_text="The last month of her probation her unit manager was told of, so that it is told once.")
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(probation_months__gte=1, probation_months__lte=6),
+                                   name="nurses_probation_one_to_six_months"),
+            models.CheckConstraint(condition=models.Q(probation_ended_in__day=1), name="nurses_probation_ends_in_a_month"),
+        ]
 
 
 class Placement(models.Model):

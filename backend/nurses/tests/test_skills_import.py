@@ -117,9 +117,9 @@ def test_the_template_is_read_as_a_file_with_no_skills_and_writes_no_audit_entry
     assert file_refusal(preview(cno, template)) == "This file has no skills below its first line. Add one skill per line."
 
 
-def test_the_nurse_import_template_is_unchanged(cno):
+def test_the_nurse_import_template_names_no_skill(cno):
     assert cno.get(f"{NURSES}/import/template").content == (
-        codecs.BOM_UTF8 + b'"Hospital ID","Full name","Gender","Unit","Start date"\r\n')
+        codecs.BOM_UTF8 + b'"Hospital ID","Full name","Gender","Unit","Start date","On probation"\r\n')
 
 
 @pytest.mark.parametrize("role", [role for role in Role if role != Role.CNO])
@@ -440,8 +440,8 @@ def test_the_staff_list_holds_no_skills(cno, amal):
 
     content = cno.get(f"{NURSES}/export").content.decode("utf-8-sig")
 
-    assert content.splitlines()[0] == ('"Hospital ID","Full name","Gender","Unit","Start date","End date","Role","Status",'
-                                       '"Transfers to come"')
+    assert content.splitlines()[0] == ('"Hospital ID","Full name","Gender","Unit","Start date","On probation",'
+                                       '"Probation\'s last day","End date","Role","Status","Transfers to come"')
     assert "BLS" not in content and "2027-01-01" not in content
 
 

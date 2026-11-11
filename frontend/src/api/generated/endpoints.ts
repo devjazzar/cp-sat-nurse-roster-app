@@ -71,6 +71,7 @@ import type {
   LeaveRemovalBody,
   LeaveTypeBody,
   LeaveTypeSchema,
+  LengthBody,
   ListAuditEntriesParams,
   ListHospitalSolveHistoryParams,
   ListMyCoversParams,
@@ -4664,6 +4665,253 @@ export const useUpdateNurseAllowedShifts = <TError = unknown,
         TContext
       > => {
       return useMutation(getUpdateNurseAllowedShiftsMutationOptions(options), queryClient);
+    }
+
+export const getSetProbationLengthUrl = (unitId: string,
+    nurseId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/nurses/${nurseId}/probation/length`
+}
+
+/**
+ * Refused once extended beyond 3, and for a length that would have ended it before this month: End does that.
+ * @summary Set Probation Length
+ */
+export const setProbationLength = async (unitId: string,
+    nurseId: string,
+    lengthBody: LengthBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseAttributesRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseAttributesRow>(getSetProbationLengthUrl(unitId,nurseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(lengthBody)
+  }
+);}
+
+
+
+
+
+export const getSetProbationLengthMutationKey = () => ['setProbationLength'] as const;
+
+export const getSetProbationLengthMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setProbationLength>>, TError,SetProbationLengthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setProbationLength>>, TError,SetProbationLengthMutationVariables, TContext> => {
+
+const mutationKey = getSetProbationLengthMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setProbationLength>>, SetProbationLengthMutationVariables> = (props) => {
+          const {unitId,nurseId,data} = props ?? {};
+
+          return  setProbationLength(unitId,nurseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetProbationLengthMutationResult = NonNullable<Awaited<ReturnType<typeof setProbationLength>>>
+    export type SetProbationLengthMutationBody = LengthBody
+    export type SetProbationLengthMutationError = unknown
+    export type SetProbationLengthMutationVariables = {unitId: string;nurseId: string;data: LengthBody}
+
+    /**
+ * @summary Set Probation Length
+ */
+export const useSetProbationLength = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setProbationLength>>, TError,SetProbationLengthMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setProbationLength>>,
+        TError,
+        SetProbationLengthMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetProbationLengthMutationOptions(options), queryClient);
+    }
+
+export const getExtendProbationUrl = (unitId: string,
+    nurseId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/nurses/${nurseId}/probation/extend`
+}
+
+/**
+ * One month at a time, to 6 at most.
+ * @summary Extend Probation
+ */
+export const extendProbation = async (unitId: string,
+    nurseId: string, options?: Parameters<typeof apiFetch>[1]): Promise<NurseAttributesRow> => {
+
+  return apiFetch<NurseAttributesRow>(getExtendProbationUrl(unitId,nurseId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getExtendProbationMutationKey = () => ['extendProbation'] as const;
+
+export const getExtendProbationMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extendProbation>>, TError,ExtendProbationMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof extendProbation>>, TError,ExtendProbationMutationVariables, TContext> => {
+
+const mutationKey = getExtendProbationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof extendProbation>>, ExtendProbationMutationVariables> = (props) => {
+          const {unitId,nurseId} = props ?? {};
+
+          return  extendProbation(unitId,nurseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExtendProbationMutationResult = NonNullable<Awaited<ReturnType<typeof extendProbation>>>
+
+    export type ExtendProbationMutationError = unknown
+    export type ExtendProbationMutationVariables = {unitId: string;nurseId: string}
+
+    /**
+ * @summary Extend Probation
+ */
+export const useExtendProbation = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof extendProbation>>, TError,ExtendProbationMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof extendProbation>>,
+        TError,
+        ExtendProbationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getExtendProbationMutationOptions(options), queryClient);
+    }
+
+export const getEndProbationUrl = (unitId: string,
+    nurseId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/nurses/${nurseId}/probation/end`
+}
+
+/**
+ * Its last day becomes the last day of the month under way on the hospital's clock, so that month keeps its roster. Refused
+ * before the month she starts in, when there is no month of it under way: the CNO unticks it.
+ * @summary End Probation
+ */
+export const endProbation = async (unitId: string,
+    nurseId: string, options?: Parameters<typeof apiFetch>[1]): Promise<NurseAttributesRow> => {
+
+  return apiFetch<NurseAttributesRow>(getEndProbationUrl(unitId,nurseId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndProbationMutationKey = () => ['endProbation'] as const;
+
+export const getEndProbationMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endProbation>>, TError,EndProbationMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endProbation>>, TError,EndProbationMutationVariables, TContext> => {
+
+const mutationKey = getEndProbationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endProbation>>, EndProbationMutationVariables> = (props) => {
+          const {unitId,nurseId} = props ?? {};
+
+          return  endProbation(unitId,nurseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndProbationMutationResult = NonNullable<Awaited<ReturnType<typeof endProbation>>>
+
+    export type EndProbationMutationError = unknown
+    export type EndProbationMutationVariables = {unitId: string;nurseId: string}
+
+    /**
+ * @summary End Probation
+ */
+export const useEndProbation = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endProbation>>, TError,EndProbationMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endProbation>>,
+        TError,
+        EndProbationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEndProbationMutationOptions(options), queryClient);
     }
 
 export const getListUnitLeaveUrl = (unitId: string,

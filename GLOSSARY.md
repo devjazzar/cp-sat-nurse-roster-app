@@ -20,7 +20,7 @@ A user who appears on a unit's rosters: any user with a nurse profile. Every sta
 _Avoid_: staff, employee, staff member
 
 **Nurse profile**:
-A user's roster identity: her hospital ID, her unit, her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding) and her skills, certificates and licences. Her username is her hospital ID. The CNO sets and corrects her gender; the CNO and the Deputy CNO record her skills, certificates and licences; her unit manager sets the rest. The CNO and the Deputy CNO read them; the System Admin never does, and nor do nurses, but for two exceptions: the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts, and she reads her own skills, certificates and licences with their identifiers and expiries, since they are hers to renew; nothing else of her attributes.
+A user's roster identity: her hospital ID, her unit, her rostering attributes (gender, team leader, score, allowed shifts, Ramadan-reduced, breastfeeding), her skills, certificates and licences, and her probation (whether she is on one, the CNO's; its length and an early end, her unit manager's; its last day derived from them and her start date). Her username is her hospital ID. The CNO sets and corrects her gender; the CNO and the Deputy CNO record her skills, certificates and licences; her unit manager sets the rest. The CNO and the Deputy CNO read them; the System Admin never does, and nor do nurses, but for two exceptions: the request form offers a nurse only the shifts she may work, so she can see her own allowed shifts, and she reads her own skills, certificates and licences with their identifiers and expiries, since they are hers to renew; nothing else of her attributes.
 _Avoid_: staff record, employee record, nurse record
 
 **Start date**, **End date**:
@@ -169,7 +169,7 @@ _Avoid_: sick call, replacement, fill-in, open shift, extra shift, cover request
 
 **Notification**:
 Something a user is told in the application, about a roster's submit, approval, rejection or change, a solve's end, a
-request window opening or closing, a decision on a request, and each step of a swap and of a cover. Each user reads only their own. It says nothing of a nurse's leave, and a
+request window opening or closing, a decision on a request, each step of a swap and of a cover, and a probation's last month (to her unit manager). Each user reads only their own. It says nothing of a nurse's leave, and a
 rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 

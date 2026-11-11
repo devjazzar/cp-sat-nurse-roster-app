@@ -13,5 +13,7 @@ export interface ImportRow {
   gender: string;
   unit: string;
   start_date: string;
+  /** As the file has it, or Yes or No once the line has no problem. */
+  on_probation: string;
   problems: ImportProblem[];
 }

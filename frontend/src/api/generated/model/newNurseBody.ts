@@ -10,6 +10,8 @@ export interface NewNurseBody {
   gender: NewNurseBodyGender;
   unit_id: string;
   start_date: string;
+  /** A staff nurse's only: refused for a unit manager's nurse profile. */
+  on_probation?: boolean;
   /**
      * @minLength 1
      * @maxLength 150

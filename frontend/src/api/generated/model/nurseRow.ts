@@ -7,6 +7,7 @@
 import type { ComingTransfer } from './comingTransfer';
 import type { NurseRowGender } from './nurseRowGender';
 import type { NurseSkillRow } from './nurseSkillRow';
+import type { Probation } from './probation';
 import type { Role } from './role';
 import type { UnitName } from './unitName';
 
@@ -26,4 +27,8 @@ export interface NurseRow {
   transfers: ComingTransfer[];
   /** Their current skills, the CNO's to set, in the order of their names. */
   skills: NurseSkillRow[];
+  /** The CNO's tick as it stands, also once her probation is over, for the correction form. */
+  on_probation: boolean;
+  /** Empty when she is not on probation, or it is over. */
+  probation: Probation | null;
 }

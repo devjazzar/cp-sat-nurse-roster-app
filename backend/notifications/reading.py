@@ -1,6 +1,7 @@
 """A notification's words and where it leads, worked out as it is read from the identifiers it keeps, so they follow a rename and
 a corrected name. They say only what the reader could read on the page it leads to, and nothing about any nurse: no leave, no
-comment, no colleague. The link is the reader's own page for that month, by their role and what they hold now."""
+comment, no colleague; but for a probation ending, which names the nurse to her unit manager, who reads it on Rostering
+attributes. The link is the reader's own page for that month, by their role and what they hold now."""
 from __future__ import annotations
 
 import datetime as dt
@@ -11,6 +12,8 @@ from uuid import UUID
 from django.db.models import Count, Q
 
 from accounts.models import Role, User
+from nurses.membership import last_day_of
+from nurses.models import NurseProfile
 from closes.models import MonthClose
 from notifications.models import Event, Notification, SolveOutcome
 from covers.models import Cover
@@ -26,7 +29,8 @@ WINDOW_EVENTS = (Event.WINDOW_OPENED, Event.WINDOW_CLOSED_EARLY, Event.REQUEST_D
 
 @dataclass(frozen=True)
 class Link:
-    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps", "covers", "unit_covers"]
+    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps", "covers", "unit_covers",
+                  "rostering_attributes"]
     month: str
     unit_id: UUID | None = None
     cover_id: UUID | None = None
@@ -52,6 +56,8 @@ class Names:
         self.swaps = {str(row.pk): row for row in Swap.objects.filter(pk__in=swap_ids).select_related("proposer__user")}
         cover_ids = {note.payload.get("cover_id") for note in notes} - {None}
         self.covers = {str(row.pk): row for row in Cover.objects.filter(pk__in=cover_ids).select_related("shift")}
+        nurse_ids = {note.payload.get("nurse_id") for note in notes} - {None}
+        self.nurses = {str(row.pk): row.user.full_name for row in NurseProfile.objects.filter(pk__in=nurse_ids).select_related("user")}
 
 
 def _month_name(month: str) -> str:
@@ -223,6 +229,9 @@ def text_of(note: Notification, names: Names) -> str:
             return _swap_words(note, names, roster, by)
         case Event.COVER_STEP:
             return _cover_words(note, names, by)
+        case Event.PROBATION_ENDING:
+            last = last_day_of(dt.date.fromisoformat(f"{payload['month']}-01"))
+            return f"{names.nurses.get(payload.get('nurse_id'), 'A nurse')}'s probation ends on {last:%-d %B}. Extend it or let it end."
     return "Something has changed."
 
 
@@ -242,6 +251,8 @@ def link_of(note: Notification, reader: User, names: Names) -> Link | None:
         if unit.manager_id == reader.pk:
             return Link("unit_covers", month, cover_id=payload.get("cover_id"))
         return Link("covers", month) if reader.role == Role.STAFF_NURSE else None
+    if note.event == Event.PROBATION_ENDING:
+        return Link("rostering_attributes", month) if unit.manager_id == reader.pk else None
     if note.event == Event.WINDOW_CLOSED:
         return Link("requests", month) if unit.manager_id == reader.pk else None
     if reader.role in (Role.CNO, Role.DEPUTY_CNO):
