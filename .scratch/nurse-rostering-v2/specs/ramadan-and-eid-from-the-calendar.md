@@ -260,7 +260,8 @@ backend's and the solver's suites, the frontend's six parallel runs and `e2e/ci.
 - The Umm al-Qura data in the package covers 1925 to 2076 and does not need yearly updates; the calendar is fixed tables.
 - No ADR and no glossary change came out of the grilling: the "Ramadan days" entry ("Derived from the Umm al-Qura calendar
   unless the CNO fixes them after the moon sighting") and section 4's wording stay true. If an ADR is written after all
-  during implementation, its number is 0016: 0010 to 0015 are taken by the grilling sessions running alongside this one.
+  during implementation, it takes the next free number (0015 on 2026-11-11: 0010 to 0014 are taken). This line said 0016,
+  a typo, until 2026-11-11.
 - The main session merges the grilling branches afterwards; the line in the architecture's pinned versions and any mention
   of the cards under the page in section 8 belong to it.
 

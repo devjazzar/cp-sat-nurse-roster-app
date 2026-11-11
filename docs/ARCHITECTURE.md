@@ -100,7 +100,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read units | | yes | yes | own unit | |
 | Add nurses (form or CSV import), give a unit manager a nurse profile, correct a nurse's gender and start date and a staff nurse's name, transfer, set end dates, export staff list | | yes | | | |
 | Read nurses | | yes | | own unit | |
-| Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | | | |
+| Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | yes (from ticket 61) | | |
 | Read a nurse's skills with their expiries | | yes | yes | own unit | |
 | Read the expiries: skills expired or expiring within 90 days, and skills required to work with no record | | yes | yes | own unit | |
 | View every unit's rosters, with the per-month state overview and the Day view (one date across every unit) | | yes | yes | | |
@@ -202,7 +202,7 @@ these, which is how a score at the default is told from one somebody looked at. 
 most one current row a nurse and skill; a renewal or removal ends the row rather than rewriting it, as leave's does, because
 the audit log says only whose skills changed and by whom (`nurse.skills_changed`), never which skill or date, since a lapse
 says something about a person. The CNO records, renews and takes them off on the nurse's row of the Nurses page, a manager
-with a nurse profile's too; her unit's manager (and the manager of a unit she is due to join) reads them on the Nurses page
+with a nurse profile's too, and so does the Deputy CNO, on her row of Rostering attributes (ticket 61); her unit's manager (and the manager of a unit she is due to join) reads them on the Nurses page
 and Rostering attributes, the Deputy CNO on Rostering attributes for any unit, and she reads her own on My month. The System
 Admin reads none. On the profile, not a placement, so they follow her across a transfer and stay when she is deactivated or
 ends. A retired skill can be neither recorded nor renewed, and a record of it stays until the CNO takes it off. The
@@ -868,7 +868,7 @@ cp-sat-nurse-roster-app/
   backend/      Django project and apps, pytest-django suite
   solver/       vendored nurse_roster package and its tests, the FastAPI service
   frontend/     Vite + React SPA, Vitest suite
-  deploy/       compose.yaml, compose.dev.yaml, Caddyfile, .env.example, INSTALL.md,
+  deploy/       compose.yaml, Caddyfile, .env.example, INSTALL.md,
                 reset-admin-password.sh, restore.sh, tests/operations.sh (the compose-level test)
   docs/         this document, adr/, research/
   e2e/          Playwright suite against stacks of its own (stack.sh builds, seeds, resets and removes them; ci.sh is CI)
@@ -877,7 +877,10 @@ cp-sat-nurse-roster-app/
   GLOSSARY.md
 ```
 
-Development runs from `compose.dev.yaml` with hot reload for Django and Vite.
+Development runs the installation's own stack, `deploy/compose.yaml` alone (Caddy on 443, gunicorn, the image built from the
+checkout), with no hot reload: after a change, `docker compose up -d --build` rebuilds it, since a restart serves the image's
+old code. The hot-reload overlay `compose.dev.yaml` was removed on 2026-11-11, unused since 2026-11-07. Tests never use that
+stack's database: the backend's suite runs on a throwaway PostgreSQL 18 container.
 
 The browser checks (`e2e/`, ticket 24) run against stacks of their own built from the checkout: a seeded one for every role's
 pages and the operations, and an empty one for the journey from the System Admin's first login, emptied again before each run.

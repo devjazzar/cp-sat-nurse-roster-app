@@ -1,8 +1,8 @@
 # Developing a feature locally, with agents
 
-How a feature goes from an idea to `main` in this repository, the way tickets 01–25 went: you decide, agents build, and
+How a feature goes from an idea to `main` in this repository, as it has gone since ticket 26: you decide, agents build, and
 nothing reaches `main` that has not passed every suite on a clean copy. It is written for you at the keyboard of the
-Claude desktop app's Code tab, with Matt Pocock's engineering skills and the Codex plugin installed. Every command runs from
+Claude desktop app's Code tab, with Matt Pocock's engineering skills installed. Every command runs from
 the repository root unless it says otherwise.
 
 What is law: [docs/ARCHITECTURE.md](../ARCHITECTURE.md) (the agreed design), [GLOSSARY.md](../../GLOSSARY.md) (the words)
@@ -16,12 +16,11 @@ told so in [CLAUDE.md](../../CLAUDE.md) and [docs/agents/](../agents/); you are 
   from the root installs every Python package; `cd frontend && npm ci` and `cd e2e && npm ci && npx playwright install
   chromium` install the two Node trees.
 - **The `gh` CLI**, signed in to the GitHub account that owns the repository (`gh auth status`): the ticket sessions open
-  pull requests with it and the main session reads their checks.
+  pull requests with it, wait on their checks and fast-forward `main`.
 - **The Claude desktop app** (Code tab), with:
   - the engineering skills in `~/.claude/skills/`: `grill-with-docs`, `to-spec`, `to-tickets`, `implement`,
     `implement-spec`, `code-review`, `tdd`, and the rest `setup-matt-pocock-skills` set up. `docs/agents/` holds what that
     setup wrote for this repo: the tracker is markdown under `.scratch/`, the labels are the five defaults.
-  - the **Codex plugin** (`/codex:adversarial-review`, `/codex:review`, `/codex:rescue`), signed in.
   - the design-review skills `better-interface`, `better-writing`, `better-accessibility` and the others in
     `skills-lock.json`, which a ticket session holds its screens against by hand.
 - **`deploy/.env`**, from `deploy/.env.example`, with the four required values filled. It is git-ignored and yours; ticket
@@ -29,32 +28,33 @@ told so in [CLAUDE.md](../../CLAUDE.md) and [docs/agents/](../agents/); you are 
 
 ## 2. The dev stack, and what it is for
 
-Your development stack is compose project `nurse-roster`, from `deploy/compose.yaml` with the dev overlay:
+Your development stack is compose project `nurse-roster`, the installation itself, from `deploy/compose.yaml` alone (since
+2026-11-07; the hot-reload overlay `compose.dev.yaml` was removed on 2026-11-11):
 
 ```bash
-cd deploy && docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+cd deploy && docker compose up -d --build
 ```
 
-Open <http://localhost:5173> (Vite, hot reload, `/api` passed on to Django) or <http://127.0.0.1:8000> (Django serving
-the API). PostgreSQL is on `127.0.0.1:5432` (`DEV_POSTGRES_PORT` in `.env` moves it), which is what the backend's test suite
-expects when you run it by hand. Caddy is left out.
+Open <https://localhost> (Caddy's self-signed certificate, so the browser warns once). `web` runs gunicorn from the
+`nurse-roster-app:dev` image built from the checkout; nothing is mounted from the source and no port but Caddy's 80 and 443 is
+published, so there is no hot reload and no PostgreSQL on localhost.
 
 **The stack holds your data and your sessions.** It is where you do your own manual pass after a ticket lands. Ticket
 sessions never touch it: no restart, no migration, no login, no data, no backup or restore against it. They build and test
 on scratch compose projects of their own, and the main session (section 4.8) refreshes `nurse-roster` after a merge.
 
-What a change needs, because the dev overlay mounts only `backend/` and the solver's two packages into the containers:
+**Whatever changed, the stack needs a rebuild**, because the image bakes in the backend, the solver, the built SPA and the
+compose commands: `cd deploy && docker compose up -d --build`. It rebuilds the image from the checkout, recreates `web`,
+`worker` and `solver`, keeps the volumes, and `web` runs any new migration as it starts. A `restart` serves the image's old
+code (tickets 23 to 25 were "refreshed" that way and kept ticket 22's build). Then check:
 
-| What changed | What the stack needs |
-|---|---|
-| `backend/` Python | nothing: `web` and `solver` reload themselves. `worker` does not: `docker compose -f compose.yaml -f compose.dev.yaml restart worker` |
-| a migration | `restart web worker` (`web` migrates as it starts) |
-| `frontend/` | nothing: Vite serves it |
-| `deploy/compose.yaml`, `compose.dev.yaml`, the `Dockerfile`, a dependency in `pyproject.toml` or `uv.lock`, `solver/` packaging | a rebuild: `docker compose -f compose.yaml -f compose.dev.yaml up -d --build --no-deps web worker solver` |
-| `db`'s options in `compose.yaml` | `up -d db` (recreates the container; the data is in the volume) |
+```bash
+curl -sk https://localhost/api/health
+```
 
-A ticket session's final report says which of these its branch needs; believe the diff, not the report (ticket 21's session
-said "restart" when the close imported solver code baked into the image).
+It answers `{"status": "ok", "database": true, "solver": {"reachable": true}}`; for a ticket with a migration,
+`docker compose exec -T web python manage.py showmigrations <app>` shows it applied. A ticket session's report says what its
+branch changed; believe the diff, not the report.
 
 ## 3. The pieces a feature leaves behind
 
@@ -65,18 +65,19 @@ said "restart" when the close imported solver code baked into the image).
 | `.scratch/<release>/spec.md` | The release's index: each feature, its spec, its tickets, the order to build in |
 | `GLOSSARY.md`, `docs/adr/NNNN-*.md` | What `/grill-with-docs` adds as terms and decisions settle |
 | `docs/ARCHITECTURE.md` | Updated by the ticket whose work moved the design |
-| commits on `main` | The ticket's commits, fast-forwarded, then one commit recording your review |
+| commits on `main` | The ticket's commits, fast-forwarded by the ticket session, then one `[skip ci]` commit recording your review |
 
-`.scratch/nurse-rostering-v1/` is v1: its spec and tickets 01–25. `.scratch/nurse-rostering-v2/` is v2: seven features,
-each with a spec under `specs/`, tickets 26–46 under `issues/`, and `spec.md` as the index. A new feature joins the current
+`.scratch/nurse-rostering-v1/` is v1: its spec and tickets 01–25 (ticket 25's spec is in `.scratch/manager-own-pages-and-ended-sessions/`).
+`.scratch/nurse-rostering-v2/` is v2: eleven features, each with a spec under `specs/`, tickets 26–61 under `issues/` (57 a
+performance ticket from ticket 39's review, with no spec), and `spec.md` as the index. A new feature joins the current
 release: its spec under `specs/`, its tickets numbered on from the last. (The grilling sessions wrote to `.scratch/<feature>/`
 on their branches, and the main session moved and renumbered them at the merge; tell a `/to-spec` session the release's
 paths and the next free number, and it writes there directly.)
 
 ## 4. The workflow, step by step
 
-The shape: **grill → spec → tickets → one session per ticket in its own worktree → verify on a clean copy → fast-forward
-`main` → your review recorded**. Each step is one skill or one habit.
+The shape: **grill → spec → tickets → one session per ticket in its own worktree → CI green on its pull request → it
+fast-forwards `main` → the main session checks and refreshes → your review recorded**. Each step is one skill or one habit.
 
 ### 4.1 Grill the idea: `/grill-with-docs`
 
@@ -119,29 +120,41 @@ context window, with `**Blocked by:**` edges. It shows you the breakdown and ask
 you approve, then it writes the files and commits. A feature of one slice is still a ticket: ticket 25 was written straight
 from its grilling, with the spec linked from its comment.
 
-### 4.4 Start a ticket session: `/implement`
+### 4.4 Start a ticket session: the brief, then the prompt you paste
 
-One ticket at a time, each in a session of its own, in its own worktree, cut from `main`:
+One ticket at a time, each in a session of its own, in its own worktree, cut from `main`. In your main session:
 
 ```
-/implement Ticket NN in a new session with remote control active. Use Fable as advisor if needed.
+/implement Ticket NN. Opus 5.5 at medium.
 ```
 
-The main session (the one you are in) starts the ticket session with a **brief** (appendix A) and turns Remote Control on,
-so you can follow it from the phone. Send that request from the desktop app, not over Remote Control: the app refuses to
-start a session from a turn that came in remotely.
+(or "start ticket NN"; name the model and effort you want, Opus 5.5 at medium so far). The start is two parts, because
+`implement` and `implement-spec` are skills only you can invoke: a session cannot load them from a brief.
+
+1. **The main session starts the ticket session**, nested under it: it fast-forwards its checkout to `origin/main`, then
+   `start_session` with `use_worktree: true`, `source_branch: main`, the model and effort you named, and the **full brief**
+   of appendix A. The brief tells the session to read everything it names, answer in three lines or fewer, and write no
+   code until your command arrives.
+2. **The main session gives you a paste-ready prompt** in a fenced block (and keeps a copy in its scratchpad):
+
+   ```
+   /implement-spec Ticket: NN, .scratch/<release>/issues/NN-<slug>.md. Spec: .scratch/<release>/specs/<feature>.md. Follow the brief you were started with. Use the advisor when needed.
+   ```
+
+   You paste it into the ticket session. From there the session works alone, merges its own pull request into `main`
+   (section 4.7) and reports to the main session.
+
+Send the start from the desktop app, not over Remote Control: the app refuses to start a session from a turn that came in
+remotely. Remote Control may be turned on for the ticket session afterwards, so you can follow it from the phone.
 
 Two things the brief always carries, because they went wrong once each:
 
-- **The ticket session never touches `main` or the dev stack.** It commits on its branch, pushes it to `origin` and opens a
-  draft pull request, which is where CI runs (section 4.6); it rebases on `main` if `main` moved, and reports its pull
-  request and head. The main session does the merge.
-- **It must say plainly what the dev stack needs** (section 2's table) and what it did **not** verify.
-
-When the ticket is the whole spec, or the spec's tickets are many and small, `/implement-spec` is the alternative: one
-session runs every ticket through fresh subagents, each in a worktree, merging onto one integration branch, with one
-`code-review` at the end. Use it when you do not want to review each ticket; use `/implement` when you do. Tickets 01–25 all
-went through `/implement`, one session each.
+- **The ticket session never touches the dev stack or the main checkout.** It commits on its branch, pushes it to `origin`
+  and opens a draft pull request, which is where CI runs (section 4.6); it merges `origin/main` into its branch when `main`
+  moves, never rebases and never force-pushes; and only once both workflows are green does it fast-forward `main` on
+  `origin` to its head. The main session refreshes its checkout and the dev stack afterwards.
+- **It must say plainly what it changed that the dev stack's rebuild picks up** (a migration, the compose file, the
+  `Dockerfile`, a dependency) and what it did **not** verify.
 
 ### 4.5 Inside the ticket session
 
@@ -151,30 +164,31 @@ What the brief asks the session to do, so you know what to expect in its report:
    previous ticket's comment, which is the latest model of a write-up.
 2. **`tdd` at the agreed seams**: red → green, one slice at a time, tests through public interfaces only. Typecheck and single
    test files as it goes.
-3. **The full suites once at the end**, locally: backend `pytest` on a throwaway PostgreSQL 18 container of its own; the
-   solver's `pytest` if it touched `solver/`; frontend `npm test` and `npm run build`. `makemigrations --check` clean. If the
-   API changed, `frontend/openapi.json` and the generated client regenerated and matching the export (section 5.4). The
-   browser checks it runs locally are the single Playwright files it changed, on its scratch stack; **the whole of
-   `e2e/ci.sh`, and the six parallel frontend runs, run on GitHub** (section 4.6), not on your machine.
-4. **`/code-review` against the base commit** it was cut from: two axes, standards and spec, in parallel subagents. It fixes
-   what they find or says why not.
-5. **`/codex:adversarial-review --base <base commit>`**: a second model challenging the approach, the assumptions and the
-   design, not just the defects. Review-only: the session reads Codex's verdict, fixes what it accepts, and says in the
-   ticket comment what it kept and why.
-6. **Drive the real thing** on a scratch compose project of its own (`e2e/stack.sh up nr-tNN`, or `deploy/tests/operations.sh
+3. **The full suites once at the end**, locally, under the heavy-run lock: backend `pytest` on a throwaway PostgreSQL 18
+   container of its own; the solver's `pytest` if it touched `solver/`; frontend `npm test` and `npm run build`.
+   `makemigrations --check` clean. If the API changed, `frontend/openapi.json` and the generated client regenerated and
+   matching the export (section 5.4). The browser checks it runs locally are the single Playwright files it changed, on its
+   scratch stack; **the whole of `e2e/ci.sh`, and the six parallel frontend runs, run on GitHub** (section 4.6), not on your
+   machine.
+4. **`code-review` against the base commit** it was cut from: two axes, standards and spec, in parallel subagents. It fixes
+   what they find or says why not. No Codex review (your call, 2026-11-09).
+5. **Drive the real thing** on a scratch compose project of its own (`e2e/stack.sh up nr-tNN`, or `deploy/tests/operations.sh
    nr-tNN` for the operations scripts): every criterion that a browser or a container can show, in the built-in browser or
    through Playwright. Remove only what it created (`stack.sh down`).
-7. **Hold the screens** against `better-interface`, `better-writing` and `better-accessibility` by hand.
-8. **The ticket comment** (appendix B): what was built, what was driven and how, what was NOT checked, the decisions it took,
+6. **Hold the screens** against `better-interface`, `better-writing` and `better-accessibility` by hand.
+7. **The ticket comment** (appendix B): what was built, what was driven and how, what was NOT checked, the decisions it took,
    **Worth your review**, and what later tickets should know. It ticks only the criteria it actually met.
-9. **Commit, and report**: branch, head, whether the suites pass, what the dev stack needs, in the first 400 characters.
+8. **Commit and push; both workflows green** on the pull request's head (section 4.6).
+9. **Merge into `main`** (section 4.7), delete its branch on `origin`.
+10. **Report to the main session**: the pull request, the head that reached `main`, whether the suites passed, what the dev
+    stack's rebuild picks up, and the **Worth your review** points, in the first 400 characters.
 
 If something only you can answer blocks it, it sends one short question to the main session and stops. Answer it there.
 
-### 4.6 Verify: CI on GitHub, on the pull request
+### 4.6 Verify: CI on GitHub, on the pull request, before the merge
 
-The session's report is a report, not proof. The proof is GitHub Actions on the pull request's head, a clean checkout on a
-machine that is not yours: two workflows, both on every pull request and on `main`.
+The session's own runs are not proof. The proof is GitHub Actions on the pull request's head, a clean checkout on a machine
+that is not yours: two workflows, both on every pull request and on `main`.
 
 | Workflow | Jobs | What it proves | Time |
 |---|---|---|---|
@@ -183,50 +197,54 @@ machine that is not yours: two workflows, both on every pull request and on `mai
 
 Together they cost about 30 runner minutes a push; a private repository on GitHub's Free plan has 2,000 a month.
 
-In the main session, once the ticket session reports:
+The ticket session waits with `gh pr checks <number> --watch`. Both workflows green on its head is the gate to the merge. A
+new push to the branch cancels the run still going and starts another. `gh run view <id> --log-failed` reads a red job's
+log; the browser checks upload Playwright's traces of what failed as an artifact. A red job is fixed on the branch, in the
+code at fault: ticket 24's parallel failure was a real ordering bug in the grid, found only by six runs sharing a machine,
+and fixed in the component, not the test; that is what the six-runs step is for.
+
+**When GitHub is not an option** (down, or the minutes are spent), nothing is merged until it is, or until you say the
+local scripts will do: they run the same on a `git archive` of the head, never on the worktree or the checkout:
+`scripts/verify-backend.sh <head> /tmp/verify-tNN 55461`, `scripts/verify-frontend.sh /tmp/verify-tNN`, then
+`cd /tmp/verify-tNN && E2E_CI_PREFIX=nr-verify-tNN e2e/ci.sh`. About 12, 3 and 12 minutes, in the background, in that order,
+under the heavy-run lock; afterwards `docker ps -a | grep nr-verify-tNN` and `docker volume ls | grep nr-verify-tNN` print
+nothing.
+
+### 4.7 The merge: the ticket session fast-forwards `main`
+
+From its worktree, once both workflows are green on its head:
 
 ```bash
-gh pr checks <number> --watch
-```
-
-Both workflows green on the head the session reported is the verification. A new push to the branch cancels the run still
-going and starts another, so a report whose head moved since is checked again. `gh run view <id> --log-failed` reads a red
-job's log; the browser checks upload Playwright's traces of what failed as an artifact.
-
-Then **read the diff against the ticket and the spec** yourself (`gh pr diff <number>`, or `git diff main...refs/heads/
-<branch> -- <the files that matter>` after `git fetch`): the API change, the guard, the wording. The reviews ran in the
-session; this is the one pair of eyes outside it.
-
-When something fails, send the session **one** message naming the job, the test, the exact failure and what else passed,
-and tell it to commit the fix on its branch, push, and report the new head once the checks are green. Ticket 24's parallel
-failure was a real ordering bug in the grid, found only by six runs sharing a machine, and fixed in the component, not the
-test; that is what the six-runs step is for.
-
-**When GitHub is not an option** (down, or the minutes are spent), the local scripts do the same on a `git archive` of the
-head, never on the worktree or the checkout: `scripts/verify-backend.sh <head> /tmp/verify-tNN 55461`,
-`scripts/verify-frontend.sh /tmp/verify-tNN`, then `cd /tmp/verify-tNN && E2E_CI_PREFIX=nr-verify-tNN e2e/ci.sh`. About
-12, 3 and 12 minutes, in the background, in that order; afterwards `docker ps -a | grep nr-verify-tNN` and `docker volume ls
-| grep nr-verify-tNN` print nothing.
-
-### 4.7 Fast-forward `main`, and push it
-
-```bash
-git fetch origin && git merge --ff-only refs/remotes/origin/<branch>
+git fetch origin && git merge-base --is-ancestor origin/main HEAD && git push origin HEAD:refs/heads/main
 ```
 
 ```bash
-git push origin main
+git push origin --delete <branch>
 ```
 
-Always the full ref: a tag of the same name would win over a bare branch name. `--ff-only` refuses if `main` moved; then the
-session rebases and pushes, you verify again. Never merge with a merge commit. Pushing `main` with the pull request's head on
-it marks the pull request **merged** on GitHub by itself (no button pressed) and runs both workflows once more on `main`.
-Then delete the branch there: `git push origin --delete <branch>`.
+The push is a fast-forward or nothing: `origin` refuses it if `main` has moved since. Then the session merges `origin/main`
+into its branch (never a rebase), pushes the branch, and waits for both workflows to be green on the new head before trying
+again. One exception saves a run: when everything `main` gained since the green head is `[skip ci]` commits that touch only
+markdown (a review recorded on a ticket, a doc), the merge of them needs no new run. Never a merge commit on `main` made by
+GitHub's button, never a force-push. Pushing `main` with the pull request's head on it marks the pull request **merged** by
+itself, draft or not, and runs both workflows once more on `main`.
 
-### 4.8 Refresh the dev stack
+### 4.8 The main session: check, refresh the dev stack
 
-Section 2's table, by the diff. Then `curl -s http://127.0.0.1:8000/api/health` answers `{"status": "ok", ...}`, and your
-own manual pass of what the ticket built happens here, on your data, in your browser.
+When the ticket session reports:
+
+1. Read the full report (`list_events` on its session) and confirm the merge: `gh pr view <number> --json state` says
+   `MERGED`, and `gh run list --branch main --limit 4` shows the run on `main` going or green.
+2. **Read the diff against the ticket and the spec** yourself (`gh pr diff <number>`): the API change, the guard, the
+   wording. The reviews ran in the session; this is the one pair of eyes outside it. A fault found now is fixed forward: one
+   message to the ticket session, a new branch or commit through a pull request again, never a rewrite of `main`.
+3. Bring the main checkout level: `git fetch origin && git merge --ff-only refs/remotes/origin/main` (the full ref: a tag of
+   the same name would win over a bare branch name). The main checkout never holds a commit that is not pushed, so this
+   always fast-forwards.
+4. Refresh the dev stack (section 2): `cd deploy && docker compose up -d --build`, then `curl -sk
+   https://localhost/api/health`, and `showmigrations <app>` for a ticket with a migration. Your own manual pass of what the
+   ticket built happens here, on your data, in your browser.
+5. Tell you the ticket is on `main`.
 
 ### 4.9 Bring the review points to yourself, and record the answers
 
@@ -235,14 +253,15 @@ recommendation (keep, change, follow-up ticket). Answer by number; "keep all" is
 
 - appends to the ticket: `**Reviewed by the user (YYYY-MM-DD):** all N points marked **Worth your review** are kept as built:
   <each in a few words>` (or what changed, and which point became a ticket);
-- commits that on `main`: `Record the user's review of ticket NN: all points kept`.
+- commits that on `main` with `[skip ci]` and pushes at once: `Record the user's review of ticket NN: all points kept
+  [skip ci]`.
 
 A point you want changed is a small follow-up the main session does itself, or a new ticket when it is work of its own.
 A finding the session left for you ("not fixed, beyond small and clearly a bug") goes back to 4.1: grill it, then ticket it.
 
 ### 4.10 Clean up
 
-When a ticket's branch is on `main` and its review is recorded, the worktree and the branch have nothing left to say:
+When a ticket's branch is on `main` and its review is recorded, the worktree and the local branch have nothing left to say:
 
 ```bash
 git worktree list && git branch
@@ -261,7 +280,7 @@ tickets are in; the ticket sessions stay in the sidebar and can be archived.
 
 | Suite | Runs where | What it needs | Time |
 |---|---|---|---|
-| **backend** `cd backend && uv run --no-sync pytest -q` | real PostgreSQL 18, real queue, the solver scripted or real in-process | `POSTGRES_HOST/PORT/PASSWORD` pointing at a database (the dev stack's by default) | 8 min |
+| **backend** `cd backend && uv run --no-sync pytest -q` | real PostgreSQL 18, real queue, the solver scripted or real in-process | `POSTGRES_HOST/PORT/PASSWORD` pointing at a throwaway PostgreSQL 18 (never the dev stack's, which publishes no port) | 8 min |
 | **solver** `cd solver && uv run --no-sync pytest -q` | the vendored suite, and contract tests against the real service over HTTP | nothing | 2–3 min |
 | **frontend** `cd frontend && npm test` | Vitest over the real routes and the generated client, `fetch` stubbed per test | `npm ci` | 1 min; 2 min for six at once |
 | **operations** `deploy/tests/operations.sh <project>` | a production-composed stack of its own: health, `/metrics`, JSON logs, the push key pair, the worker alone with a way out, the clock off, backup, retention, restore, the password reset, the push counts | Docker | 5 min |
@@ -321,11 +340,13 @@ fail if the committed document does not match the export.
 
 - **zsh modifiers in refs.** `$B:e2e/...` is zsh's `:e` modifier on `$B`, not a path; write `"${B}:e2e/..."`. A compose
   command line kept in a variable word-splits; keep it in a shell function.
-- **"Restart" when it needed a rebuild.** Section 2's table. The image bakes in the solver package, the `Dockerfile` and the
-  compose commands.
+- **"Restart" when it needed a rebuild.** Section 2: the dev stack serves the image, so every change needs
+  `docker compose up -d --build`.
 - **A background command without a notification.** In a session, `run_in_background` on the Bash call, not `nohup … &`:
   the former wakes the session when it ends, the latter never does.
 - **`start_session` refused over Remote Control.** Send the `/implement` request from the desktop app.
+- **A user-only skill in a brief.** A session started with a brief cannot load `implement` or `implement-spec`; a ticket 35
+  session started that way was stopped. Hence the two-part start of section 4.4: the brief, then the prompt you paste.
 - **A session's effort applies from its next turn.** `set_session_effort` on a running session changes nothing until it
   starts a turn; check with `get_session`.
 - **Trailing greps.** A verification line that ends in `grep -c <leftovers>` exits 1 when there are none; read the lines
@@ -337,31 +358,46 @@ fail if the committed document does not match the export.
 
 ## Appendix A: the brief a ticket session gets
 
-The main session writes it; this is what it must contain. `<base>` is `main`'s head the worktree is cut from.
+The main session writes it and starts the session with it (section 4.4); this is what it must contain. `<base>` is
+`main`'s head the worktree is cut from.
 
 ```
-Use the `implement` skill on ticket NN, `.scratch/<release>/issues/NN-<slug>.md`, and state its title first.
+You are the ticket session for ticket NN, `.scratch/<release>/issues/NN-<slug>.md`: <its title>.
+
+## First, now
+Read everything under "What to read", then answer in three lines or fewer: the title, the blockers met, anything that
+stops you. Write no code. The user will paste `/implement-spec Ticket: NN, ...`, a skill only they can invoke; when it
+arrives, follow it with the house rules below. Where the skill and this brief disagree, this brief wins.
 
 ## Where to work
-- You are in your own git worktree on your own branch, cut from `main` at `<base>`. Commit there.
-- Do not commit to `main` or merge into it. Push your branch to `origin` after your first commit and open a **draft pull
-  request** against `main` (`gh pr create --draft --fill`); keep pushing as you go. GitHub Actions runs on it: the three
-  suites, the image, six frontend runs at once, and the browser checks (`e2e/ci.sh`). Do not run `e2e/ci.sh` on this
-  machine; run the Playwright files you changed on your scratch stack.
-- If `main` moves, rebase on it and push before your final report so your branch can be fast-forwarded.
-- Before your final report: `gh pr checks --watch` until both workflows are green on your head, then mark the pull request
-  ready (`gh pr ready`). The session that started you checks the diff and brings your branch into `main`.
+- You are in your own git worktree on your own branch, cut from `main` at `<base>`. This branch is the integration branch:
+  commit here, one ticket only.
+- Push your branch to `origin` after your first commit and open a **draft pull request** against `main` on
+  `devjazzar/cp-sat-nurse-roster-app` (`gh pr create --draft --fill`); keep pushing as you go. GitHub Actions runs on it:
+  the three suites, the image, six frontend runs at once, and the browser checks (`e2e/ci.sh`). Do not run `e2e/ci.sh` on
+  this machine; run the Playwright files you changed on your scratch stack.
+- If `main` moves, merge `origin/main` into your branch. Never rebase, never force-push.
+- Never touch the main checkout (`<main checkout path>`) or its `main`.
+
+## The merge, then the report
+1. Commit the ticket comment, push, and `gh pr checks <number> --watch` until both workflows are green on your head.
+2. `git fetch origin && git merge-base --is-ancestor origin/main HEAD && git push origin HEAD:refs/heads/main`: a
+   fast-forward of `main` on `origin` to your green head. If it is refused, `main` moved: merge `origin/main` in, push, wait
+   for green on the new head, and try again (no new run is needed when all `main` gained is `[skip ci]` markdown commits).
+3. `git push origin --delete <branch>`. The pull request turns merged by itself.
+4. Report (below). Do not refresh the dev stack; the main session does.
 
 ## Second opinions
-The user asked for Fable as advisor where one is needed: the `advisor` tool, or an Agent with `model: "fable"`.
-Give it the code and the question, not your conclusion.
+The `advisor` tool where one is needed. Give it the code and the question, not your conclusion.
 
 ## What to read
 1. The ticket and every comment. 2. The spec, `.scratch/<release>/specs/<feature>.md`: it is decided, build it as written.
 3. `docs/ARCHITECTURE.md`, `GLOSSARY.md`, `docs/adr/`. 4. The previous ticket's comment, the latest model of a write-up.
+5. `docs/guides/local-development.md`, appendices A and B.
 
 ## What the ticket asks, to answer one by one in your ticket comment
-<the criteria, grouped, with the decisions already taken; mark what the spec leaves open as **Worth your review**>
+<the criteria, grouped, with the decisions already taken; what earlier tickets' comments and reviews left for this one;
+mark what the spec leaves open as **Worth your review**>
 
 ## Test seams (agreed with the user)
 <the seams from the spec, by name>
@@ -373,20 +409,20 @@ Give it the code and the question, not your conclusion.
   confirm they match the export. The whole browser suite and the six parallel frontend runs are GitHub's, on your pull request.
 - Frontend tests follow ticket 11's comment: no raised timeouts, no fake timers with `start`, no wait that proves something
   did not happen. CI runs six `npm test` at once: a test that passes alone and fails there has found a real bug.
-- When done: `code-review` against `<base>`, then `/codex:adversarial-review --base <base>`. Fix what they find or say why not.
+- When done: `code-review` against `<base>`. Fix what it finds or say why not. No Codex review.
 - Hold the screens against `better-interface`, `better-writing`, `better-accessibility` by hand.
-- Drive the real thing on your own scratch compose project. Remove only what you created.
-- One heavy local run at a time across all ticket sessions (the user's rule, 2026-11-09): the full backend `pytest`, the
-  full solver suite, the full frontend `npm test`, and bringing up or driving a scratch compose stack (Playwright included)
-  need the lock; typechecks and single test files do not, and GitHub's checks are not limited. Take it in the background,
+- Drive the real thing on your own scratch compose project (`e2e/stack.sh up nr-tNN`). Remove only what you created.
+- One heavy local run at a time across all sessions (the user's rule, 2026-11-09): the full backend `pytest`, the full
+  solver suite, the full frontend `npm test`, and bringing up or driving a scratch compose stack (Playwright included) need
+  the lock; typechecks and single test files do not, and GitHub's checks are not limited. Take it in the background,
   `until mkdir "$HOME/.cache/nurse-roster-heavy.lock" 2>/dev/null; do sleep 30; done; echo "ticket-NN $(date)" > "$HOME/.cache/nurse-roster-heavy.lock/owner"`,
   and release it the moment that work ends, success or failure, with your stack down: `rm -rf "$HOME/.cache/nurse-roster-heavy.lock"`.
   Never hold it while waiting on GitHub, never remove another session's, and ask the session that started you about one
   older than two hours.
 
 ## Ticket comment
-The style of ticket NN-1's: what was driven and how; what was NOT checked; the decisions you took; **Worth your review**;
-what later tickets should know. Tick only the criteria you met.
+Appendix B, in the style of ticket NN-1's: what was driven and how; what was NOT checked; the decisions you took;
+**Worth your review**; what later tickets should know. Tick only the criteria you met.
 
 ## Scope
 Ticket NN only. Start nothing else. Where a later ticket owns something, leave a comment on it.
@@ -398,10 +434,17 @@ Ticket NN only. Start nothing else. Where a later ticket owns something, leave a
 - Never `down -v` on any project but your own scratch one.
 
 ## Final report
-Lead with the pull request's number, the branch and the head. First 400 characters: what was delivered, whether the local
-suites pass and both GitHub workflows are green on that head. Say plainly if you changed `deploy/compose.yaml`, the
-`Dockerfile`, the solver or a dependency (the dev stack then needs a rebuild). Detail in the ticket comment. If something only
-the user can answer blocks you, send ONE short question to the session that started you.
+Lead with the pull request's number and the head that reached `main`. First 400 characters: what was delivered, that both
+GitHub workflows were green on that head and it is on `main`, whether the local suites passed, what the dev stack's rebuild
+picks up (a migration, `deploy/compose.yaml`, the `Dockerfile`, the solver, a dependency), and the **Worth your review**
+points in a line each. Detail in the ticket comment. If something only the user can answer blocks you, send ONE short
+question to the session that started you.
+```
+
+The prompt the user pastes into it, which the main session hands over in a fenced block:
+
+```
+/implement-spec Ticket: NN, .scratch/<release>/issues/NN-<slug>.md. Spec: .scratch/<release>/specs/<feature>.md. Follow the brief you were started with. Use the advisor when needed.
 ```
 
 ## Appendix B: the ticket comment
@@ -423,13 +466,14 @@ Appended under `## Comments`, in this order, each a bold lead-in. Ticket 24's is
 
 For when a new main session has to pick the routine up:
 
-1. Read the ticket session's full report (`list_events` on its session).
-2. `gh pr checks <number> --watch`: both workflows green on the head it reported. Read the diff against the spec meanwhile
-   (`gh pr diff <number>`).
-3. Anything red: one message back to the session; check again on its new head.
-4. `git fetch origin && git merge --ff-only refs/remotes/origin/<branch>`, then `git push origin main` (the pull request
-   turns merged by itself) and `git push origin --delete <branch>`; refresh the dev stack by section 2's table; `curl` the
-   health answer.
-5. The **Worth your review** points to the user, numbered, each with a recommendation.
-6. Append `**Reviewed by the user (date):** …` to the ticket; commit on `main` and push.
-7. Every few tickets: remove the worktrees and local branches that are on `main`.
+1. You say `/implement Ticket NN` (with a model and effort): `git fetch origin && git merge --ff-only
+   refs/remotes/origin/main`, then `start_session` (`use_worktree: true`, `source_branch: main`, the model and effort, the
+   brief of appendix A), then the paste-ready `/implement-spec` prompt to you in a fenced block.
+2. The ticket session reports once its pull request is green and on `main`. Read the full report (`list_events`); confirm
+   `gh pr view <number> --json state` is `MERGED` and the run on `main` (`gh run list --branch main --limit 4`); read the
+   diff against the spec (`gh pr diff <number>`).
+3. `git fetch origin && git merge --ff-only refs/remotes/origin/main` in the main checkout; `cd deploy && docker compose up -d
+   --build`; `curl -sk https://localhost/api/health`.
+4. Tell you the ticket is on `main`, and bring the **Worth your review** points, numbered, each with a recommendation.
+5. Append `**Reviewed by the user (date):** …` to the ticket; commit on `main` with `[skip ci]` and push at once.
+6. Every few tickets: remove the worktrees and local branches that are on `main`.

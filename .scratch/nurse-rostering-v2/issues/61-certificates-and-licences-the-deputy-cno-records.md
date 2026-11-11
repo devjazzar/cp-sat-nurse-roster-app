@@ -14,3 +14,9 @@
 - [ ] `docs/ARCHITECTURE.md` section 3's rows for recording skills and for the skills import name the Deputy CNO, and the roles paragraph says the Deputy writes nurses' records and nothing else about a nurse; section 8's screens name the Deputy's controls and import
 
 ## Comments
+
+**From the main session (2026-11-11):** the user confirmed that the CNO and the Deputy CNO both record a nurse's skills,
+certificates and licences. `docs/ARCHITECTURE.md` section 3's row for recording skills now reads "yes (from ticket 61)" for
+the Deputy CNO, and section 4's Nurse skill entry names the Deputy's controls on Rostering attributes. This ticket still owns
+the rest of that criterion: the row for the skills import, the roles paragraph and section 8's screens, and dropping "(from
+ticket 61)" once built.

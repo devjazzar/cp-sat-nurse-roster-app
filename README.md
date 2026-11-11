@@ -6,8 +6,8 @@ hospital, as one `docker compose` stack on one server.
 
 The agreed design is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), the vocabulary is
 [GLOSSARY.md](GLOSSARY.md), the reasons are in [docs/adr](docs/adr/) and the work is cut into
-tickets under `.scratch/nurse-rostering-v1/issues/` (01–25, done) and `.scratch/nurse-rostering-v2/issues/` (26–46, the
-seven features of v2; `.scratch/nurse-rostering-v2/spec.md` is their index).
+tickets under `.scratch/nurse-rostering-v1/issues/` (01–25, done) and `.scratch/nurse-rostering-v2/issues/` (26–61, the
+eleven features of v2 and ticket 57; `.scratch/nurse-rostering-v2/spec.md` is their index and says which are built).
 
 ## Run the stack
 
@@ -48,16 +48,15 @@ variable is ignored.
 ## Develop
 
 How a feature goes from an idea to `main` here, with the agent skills, the ticket sessions in worktrees and the checks on a
-clean copy, is [docs/guides/local-development.md](docs/guides/local-development.md). The stack:
+clean copy, is [docs/guides/local-development.md](docs/guides/local-development.md). The development stack is the
+installation itself, run from the checkout exactly as above (`deploy/compose.yaml` alone, Caddy on 443, gunicorn), with no
+hot reload. After a change reaches the checkout, rebuild it:
 
 ```bash
-cd deploy
-docker compose -f compose.yaml -f compose.dev.yaml up --build
+cd deploy && docker compose up -d --build
 ```
 
-Open <http://localhost:5173>. Vite serves the SPA with hot reload and passes `/api` on to Django.
-Django and the solver service reload on a change. The worker does not: restart it after changing a
-task. Set `DEV_POSTGRES_PORT` in `.env` if something else holds port 5432.
+A `restart` serves the image's old code. Then `curl -sk https://localhost/api/health` answers as above.
 
 ## Run the tests
 
@@ -74,12 +73,16 @@ and speak to it over HTTP. Takes a few minutes.
 cd solver && uv run --no-sync pytest -q
 ```
 
-**The backend** needs PostgreSQL 18. The test settings expect the one the development stack
-publishes; `POSTGRES_HOST`, `POSTGRES_PORT` and `POSTGRES_PASSWORD` point them elsewhere. Its
-password there is `POSTGRES_PASSWORD` from `.env`.
+**The backend** needs a PostgreSQL 18 of its own, never the development stack's database (which
+publishes no port). Start a throwaway one and point `POSTGRES_HOST`, `POSTGRES_PORT` and
+`POSTGRES_PASSWORD` at it:
 
 ```bash
-cd backend && uv run --no-sync pytest -q
+docker run -d --rm --name nr-test-db -p 127.0.0.1:55432:5432 -e POSTGRES_USER=nurse_roster -e POSTGRES_DB=nurse_roster -e POSTGRES_PASSWORD=test postgres:18
+```
+
+```bash
+cd backend && POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=55432 POSTGRES_PASSWORD=test uv run --no-sync pytest -q
 ```
 
 **The deploy scripts** (`restore.sh`, `reset-admin-password.sh`, backups, JSON logs, `/metrics`) on a stack of their own,
