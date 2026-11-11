@@ -85,7 +85,7 @@ through `restore.sh --yes`, by backup name, and every printed list is shown in i
 turned out to be one the worker took at its first start, before the test wrote anything. `ops.tasks.backup` takes one only
 when one is due, so the deferred job made none. The list then rightly included the test's own first password change. The
 ticket's checks now take their own backup with `manage.py backup`, after the earlier restore checks, which are unchanged.
-The comment there no longer suggests that backup was taken by the job. **Finding for you, not fixed:** the existing check
+A comment there says why. **Finding for you, not fixed:** the existing check
 "The backup job that was running as that backup was taken comes back as running" may not hold, for the same reason. The
 job may not have been running in the first-start backup. `recover_lost_jobs` succeeds either way, so the check passes
 without proving that case.
