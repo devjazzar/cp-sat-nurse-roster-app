@@ -210,6 +210,24 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThrottleRefusal"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until this address may try again.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -279,6 +297,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThrottleRefusal"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThrottleRefusal"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until this address may try again.",
+                "schema": {
+                  "type": "integer"
                 }
               }
             }

@@ -90,6 +90,12 @@ class ThrottleRefusal(Schema):
 
 
 THROTTLED = "Too many failed logins from this network."
+# The 429 declared in full: Ninja's `openapi_extra` replaces the answer it names rather than adding the header to it.
+RETRY_AFTER = {"responses": {"429": {
+    "description": "Too Many Requests",
+    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ThrottleRefusal"}}},
+    "headers": {"Retry-After": {"description": "Seconds until this address may try again.", "schema": {"type": "integer"}}},
+}}}
 
 
 def _throttled(response: HttpResponse, refused: Throttled) -> Status:
@@ -116,7 +122,7 @@ def session(request: HttpRequest) -> SessionState:
 
 
 @router.post("/login", response={200: Me, 401: LoginRefusal, 423: LoginRefusal, 429: ThrottleRefusal}, auth=None,
-             operation_id="login")
+             operation_id="login", openapi_extra=RETRY_AFTER)
 def login(request: HttpRequest, response: HttpResponse, body: LoginBody):
     # Ninja exempts its views from Django's middleware and checks CSRF in the session auth, which
     # this one endpoint cannot have.
@@ -141,7 +147,7 @@ def sign_out(request: HttpRequest):
 
 
 @router.post("/change-password", response={200: Me, 400: ChangePasswordRefusal, 429: ThrottleRefusal},
-             auth=SignedIn(during_forced_change=True), operation_id="changePassword")
+             auth=SignedIn(during_forced_change=True), operation_id="changePassword", openapi_extra=RETRY_AFTER)
 def change_password(request: HttpRequest, response: HttpResponse, body: ChangePasswordBody):
     """Refused while the address is throttled, before the current password is checked; a wrong one counts a failure."""
     user: User = request.user

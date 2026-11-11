@@ -21,7 +21,7 @@
 ## Comments
 
 **Implemented on 2026-11-11,** on branch `claude/ticket-63-login-throttle-901d2d` (`52db6f8`, `a9dcfa6`, `0f8cbab`,
-`0cc1940`, then this comment), from `main` at `5230b55`. Draft pull request
+`0cc1940`, this comment in `7c744ba`, then `Retry-After` declared in the schema and this comment corrected), from `main` at `5230b55`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#8](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/8).
 
 The suites ran locally under the heavy-run lock:
@@ -65,7 +65,9 @@ to `deploy/Caddyfile`, compose or the `Dockerfile`, and no new dependency.
   - `throttled_until` is sent with the hospital's offset (`timezone.localtime`).
   - Change password checks the throttle before `check_password`. A wrong current password records one failure; a right
     one records nothing.
-  - The OpenAPI document and the client follow, but `Retry-After` itself is not declared in the schema (see Decisions).
+  - The OpenAPI document and the client follow. Both routes declare the 429 in full through `openapi_extra`, with its
+    `Retry-After` header (an integer, in seconds). Ninja's `openapi_extra` replaces the answer it names, so the body's
+    schema is declared there too. The generated client did not change.
 - **IPv6 and other addresses.** Two addresses in one /64 share a budget, two /64s do not, and a different address is not
   affected. The window's end lifts the throttle; the tests move the server's clock by monkeypatching `timezone.now`. A
   request with no address (`REMOTE_ADDR` empty and no forwarded header) is never throttled: 60 failures, then 200.
@@ -108,7 +110,6 @@ to `deploy/Caddyfile`, compose or the `Dockerfile`, and no new dependency.
   - The words say what happened and when to try again, in the voice of the lockout's message beside it.
   - The words avoid the glossary's "blocked" and "rate limit".
   - The refusal is a `role="alert"` paragraph in the place a wrong password's already takes, so it is read out on arrival.
-  - Focus stays in the form.
 
 The stack is down; its volumes, image and `e2e/.stack/nr-t63.*` are gone, and my PostgreSQL container is removed.
 `npx playwright install chromium` removed an unused WebKit build from the shared Playwright cache
@@ -125,8 +126,8 @@ The stack is down; its volumes, image and `e2e/.stack/nr-t63.*` are gone, and my
   a lockout's", but the lockout was never on the hospital's clock. The fix is two lines: `timezone.localtime` on the 423's
   time and `hospitalClock` in the page. The ticket says the lockout is unchanged, so I left it.
 - **Through compose on Docker Desktop, the client address the app saw was the bridge gateway (`172.27.0.1`), not my
-  machine's.** On a Linux server it is the real client's, as the audit log already records it. Ticket 69 is where the
-  address is worked out.
+  machine's.** So on a stack run on Docker Desktop, the dev stack included, every client shares one address: fifty failed
+  logins from anyone throttle everyone's logins for the rest of the window. Ticket 69 is where the address is worked out.
 
 **What was NOT checked.**
 - The whole browser suite and `operations.sh`: GitHub's, green on `0cc1940`.
@@ -136,6 +137,8 @@ The stack is down; its volumes, image and `e2e/.stack/nr-t63.*` are gone, and my
 - A burst of parallel failures past 50 against the real pool: the code writes the entry only at exactly 50, and the
   overshoot is bounded by the pool, as the spec accepts. No load was sent.
 - IPv6 through Caddy: the scratch stack is IPv4 only. The backend suite covers the /64 rule.
+- Which address the app sees on a Linux server, where Docker's networking differs from Docker Desktop's: not run.
+- Where focus goes after the 429: I read the text of the alert and did not look at focus.
 
 **Decisions taken here.**
 - **`record_address_failure` runs after the name's transaction, not inside it.** The spec says the address's row is not
@@ -146,8 +149,8 @@ The stack is down; its volumes, image and `e2e/.stack/nr-t63.*` are gone, and my
 - **An IPv4 address written as IPv6 (`::ffff:a.b.c.d`) counts as that IPv4 address.** Otherwise every such client would
   share one /64. The spec does not say; there is a test.
 - **The audit entry's `until` is to the second, with the hospital's offset,** as the audit log shows other times.
-- **`Retry-After` is not declared in the OpenAPI schema.** django-ninja 1.7.3 has no plain way to declare a response
-  header on one status. The header is sent and tested, and the frontend does not read it.
+- **The frontend does not read `Retry-After`;** it shows `throttled_until`. The header is for other clients, and it is
+  tested and declared in the schema.
 - **The frontend writes its own words** for the 429, as it does for the 401 and the 423, rather than showing `detail`.
 
 **Worth your review.**
@@ -172,9 +175,8 @@ The stack is down; its volumes, image and `e2e/.stack/nr-t63.*` are gone, and my
   - `check_throttle` and `record_address_failure` called in two places: they are apart so the address's row is never held
     across the hash.
 - Spec: nothing missing or wrong.
-  - Fixed: the 429 without a time.
-  - Kept: the undeclared `Retry-After` (Decisions), and the IPv4-mapped rule and the audit-log name (both small and
-    tested).
+  - Fixed: the 429 without a time; `Retry-After` is now declared in the schema (after the review).
+  - Kept: the IPv4-mapped rule and the audit-log name (both small and tested).
 
 **Things later tickets should know.**
 - **64:** `_record_failure` in `accounts/login.py` still writes the typed name as the target. `test_throttle.py` counts
