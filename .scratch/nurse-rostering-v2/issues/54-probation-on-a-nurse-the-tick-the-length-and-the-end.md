@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** done
+**Status:** ready-for-agent
 
 - [x] The nurse profile holds her probation: on probation (the CNO's), the length in months and whether it was ended early (her unit manager's); the last day is derived from them and her start date
 - [x] The month counting, on worked dates: a start on the 1st counts that month; a start on the 15th does not (15 December and 3 months ends 31 March); February; across a year's end; a corrected start date moves it
