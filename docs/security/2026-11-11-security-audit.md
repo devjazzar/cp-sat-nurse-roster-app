@@ -1,0 +1,130 @@
+# Security audit (2026-11-11)
+
+A record of the first security audit of this repository: what was checked, what was found and fixed, and what
+is still open. Read this before starting the next audit or picking up one of the open leads.
+
+The three files in [`2026-11-11-security-audit/`](2026-11-11-security-audit/) are the audit's own report, kept
+as written. They describe the code at `f2492e0`, **before** the fixes, so the five findings they call
+"confirmed" are fixed on `main` (see section 2).
+
+| File | What it holds |
+|---|---|
+| `REPORT.md` | Run facts, the five confirmed findings, the table of leads, hardening notes, coverage summary |
+| `FINDINGS-DETAIL.md` | Full source trace, sandbox reproduction and suggested fix for each confirmed finding |
+| `NEEDS-VALIDATION.md` | Full source trace, blockers and validation plan for each open lead |
+
+## 1. What was done
+
+- **Audited commit:** `f2492e0`, the whole tracked repository (backend, frontend, solver, deploy, scripts, CI).
+- **Tool:** Cloudflare's `security-audit` skill, installed at `.claude/skills/security-audit/`, run in its
+  `standard` profile: reconnaissance, three waves of hunters (16 in all), four coverage critics, and two
+  independent verification passes on every candidate. 55 agent runs.
+- **Evidence bar:** a finding counted as confirmed only when a fresh verifier reproduced it with dummy data in a
+  sandbox (a container with no network, the repository mounted read-only, a throwaway PostgreSQL 18). Nothing
+  was sent to the dev stack, to a deployed site or to any outside service.
+- **Result:** 16 candidates → 5 confirmed (all low severity), 7 leads that need a fact the sandbox could not
+  observe, 4 rejected.
+
+The access model held up. No path was found for an anonymous visitor to reach data, or for a nurse or unit
+manager to reach another unit's rosters, leave or attributes through the scoped routes. Every route is
+authenticated by default, unit scope is enforced in one place (`units.scope`), and no user input reaches raw SQL,
+a shell, or unescaped HTML.
+
+## 2. Fixed
+
+Merged to `main` on 2026-11-11 in [PR 4](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/4), one commit
+per finding, each with a regression test. After the merge the audit's original reproductions were run again
+against the fixed code and none reproduced.
+
+| Commit | Finding | Fix |
+|---|---|---|
+| `90a8294` | A backup carried every live session; a session key read from a dump signed its holder in as that user. | `pg_dump` runs with `--exclude-table-data=django_session`. A restore now signs everyone out. |
+| `fe608ea` | A cover offer's refusal named nurses of other units to a unit manager. | A refused hospital ID is named only if it is on the cover's own roster; any other is said back as sent. |
+| `849e3f2` | A unit manager whose nurse profile had ended kept reading the unit's approved rosters after losing the unit. | `rosters.reading_api.in_force` gives no unit for a month that begins after the profile's end date. |
+| `62cd1ca` | A far-future month made one request run a query per nurse per month in between (1,219 statements against 19), on a solve start under the hospital settings lock. | `Chain.carry_in` takes a run of months with no approved roster in one step; a solve start is refused before the month is assembled. |
+| `5fd83b7` | A staff nurse could propose and withdraw the same swap without limit, pushing a chosen colleague's earlier notices out of the newest 50. | A withdrawal overwrites the recipient's unread notice for that swap; proposing is refused after 5 withdrawals on one roster in a day. |
+
+Choices made in the fixes that have not been reviewed as product decisions:
+
+- **Swap cap.** 5 withdrawals per nurse per roster in a rolling 24 hours (`WITHDRAWALS_A_DAY` in
+  `backend/swaps/steps.py`), refused with a 409 that says when she can propose again. The cap counts
+  withdrawals, so the number of swaps one nurse has waiting at once is still bounded only by her own cells.
+- **Swap notice.** The unread notice is updated in place, not deleted, because only housekeeping deletes
+  notifications. Its time moves to the withdrawal.
+- **End date.** A staff nurse with an end date still to come can no longer read, or be offered a swap in, a
+  month that begins after it.
+- **No upper bound on the month.** The audit suggested limiting how far ahead a month may be asked. That was not
+  added, because a manager may roster any future month; the work no longer grows with the distance.
+- **Not built.** Paging past the newest 50 notifications.
+
+Not run after the fixes: the Playwright browser checks and `deploy/tests/operations.sh`. A restore with an empty
+sessions table was checked by reading `deploy/restore.sh`, not by running it. A second local browser-check run on
+one long-lived stack within a day could meet the swap cap.
+
+## 3. Open leads
+
+Seven leads have a source trace and no verdict: each waits on a fact outside the repository. They carry no
+severity. `NEEDS-VALIDATION.md` has the full plan for each; the checks named there are for the owner to make on
+their own installation or on a scratch stack, never traffic against a hospital's system.
+
+Five of the seven share one cause: **nothing in the repository limits requests per client** (no limit in
+`deploy/Caddyfile`, none in the application). A per-client limit at Caddy on `POST /api/auth/login`, a request
+body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to 3 together.
+
+| # | Lead | Where | What is not known | Next step |
+|---|---|---|---|---|
+| 1 | Each anonymous login attempt costs a full password hash (0.5 s measured) on one of three sync workers; the lockout is per username, so rotating the username escapes it. | `backend/accounts/login.py` `attempt_login` | Whether it delays other users on a real server: cores, hash time there, and any limit in front of Caddy. | Owner: time one `make_password` in the web container; check for a rate limit in front of Caddy; look for bursts of `auth.login_failed` with many targets. |
+| 2 | Refused anonymous logins leave an audit entry and a `LoginAttempts` row that nothing removes; while a name is locked they are written without a hash. | `backend/accounts/login.py`, `backend/audit/log.py` | How fast rows can be written from outside, and the disk and backup headroom. | Owner: the read-only size queries in the plan; on a scratch stack, time 1,000 locked-path logins through Caddy. |
+| 3 | A sign-in request whose body has not arrived holds a gunicorn worker (observed in the sandbox with one worker). | `deploy/compose.yaml` (gunicorn `--workers 3 --timeout 300`), `deploy/Caddyfile` | Whether Caddy passes a request upstream before its body is complete. | Scratch stack only: `caddy adapt` to confirm no buffering or read timeout, then the one-connection check in the plan. |
+| 4 | One user may hold any number of push subscriptions, and the single push job sends to each in turn under the installation-wide `push` lock. | `backend/notifications/subscriptions.py` `turn_on`, `backend/notifications/pushes.py` | What a send to a made-up address under an allowed domain costs on the real network. | Owner: count subscriptions per user; read the gaps in `notifications_pushattempt`. Fix direction: cap subscriptions per user and give a job a send budget. |
+| 5 | One unit's manager can queue a solve for every future month to December 2076 ahead of other units' solves, and no role above the unit can cancel them. | `backend/solves/api.py` `start_solve`, `backend/solves/running.py` | How long each such solve holds the queue (no solver ran in the audit), and whether first-come-first-served across units (ADR 0009) is acceptable here. | Scratch stack with the real solver: the three-solve check in the plan. Product decision: a per-unit share of the queue and a cancel for the CNO or System Admin. |
+| 6 | No response carries `X-Frame-Options` or a `frame-ancestors` policy, so a page on a same-site origin could frame the signed-in app. | `backend/config/settings.py` `MIDDLEWARE`, `deploy/Caddyfile` | Whether any same-site origin exists that someone other than the app's operators controls; browser behaviour. | Cheap to close without validating: add `XFrameOptionsMiddleware` or a CSP with `frame-ancestors 'none'`. |
+| 7 | The file download routes are plain GETs, so a page on another site may be able to make a signed-in CNO's browser take the audited staff-list export, or tell that the visitor is the CNO; the System Admin's backup download may be reachable the same way, since a backup's name is predictable. | `backend/nurses/files_api.py`, `backend/ops/api.py` | Whether current browsers attach the Lax session cookie and let the other page tell the two answers apart. | Test installation with dummy accounts: the static-page check in the plan. Fix direction: refuse these GETs when `Sec-Fetch-Site` is `cross-site`. |
+
+## 4. Rejected, and a bug found on the way
+
+Rejected candidates are listed so the next audit does not spend time on them without new evidence.
+
+- **Push host allow-list against the HTTP client's URL parser.** Compared offline; no address passes the
+  allow-list and is sent elsewhere.
+- **A staff nurse's swap proposal holding the hospital settings lock.** Measured at 50 to 125 ms for a refused
+  proposal on a unit of 4 to 24 nurses. A hardening note, not a finding.
+- **A restore brings back accounts deactivated and passwords replaced since the backup.** Reproduced, and
+  inherent to restoring a database by a trusted operator. Worth adding to `deploy/restore.sh` and
+  `deploy/INSTALL.md`: empty the login-attempt table, and print the deactivations, password resets and key
+  rotations recorded after the backup's moment before the replaced database is dropped.
+- **A roster approved after its month is over.** Not a security finding, because the CNO and Deputy CNO are
+  trusted with approval. But it is a **functional bug, reproduced and not fixed**: a roster left submitted past
+  its month can still be approved, and if the month after it has already closed, that unit's month close is then
+  refused for good. `backend/rosters/review.py`, `backend/closes/making.py`.
+
+`REPORT.md` section 5 lists the hardening notes (HSTS and a content security policy, limits in the Caddyfile,
+the audit log being append-only by convention only, the application's database role being a superuser, images
+and actions pinned by tag, and others) and the patterns that held up.
+
+## 5. Not covered
+
+- **Known vulnerabilities in dependencies.** The audit had no network, so the locked versions and base images
+  were not checked against advisories. Pinning and integrity were. Run `pip-audit`, `npm audit` or `osv-scanner`
+  separately.
+- **A staff nurse repeating request or preference make-and-withdraw rounds.** Proposed by the last coverage
+  critic and not hunted. Nobody is notified and no recipient is chosen, so it is weaker than the swap finding;
+  the open question is what the accumulated rows cost the manager's unpaged window lists
+  (`backend/requesting/api.py`, `backend/requesting/making.py`).
+- The seven leads above are, by definition, not settled.
+
+## 6. Running the next audit
+
+- **How:** ask the agent for a security audit of the codebase; the skill's `SKILL.md` describes the modes. It
+  only gives guidance unless asked for a full audit.
+- **Prior run:** the skill looks for earlier runs in `~/security-audit-skill/cp-sat-nurse-roster-app/` and
+  carries their results forward. Run 1's structured output (`findings.json`, `coverage-ledger.json`, the
+  verifiers' harnesses under `agents/*/artifacts/`) is in `run-1/` there, on the machine that ran it, and **not
+  in this repository**. Without that folder the next run starts from nothing, and this document is the only
+  record of what was rejected.
+- **Sandbox:** `run-1/tools/` holds the two wrappers the verifiers used (`sandbox-run.sh` for a no-network
+  container, `sandbox-db-run.sh` for one harness against a throwaway PostgreSQL 18). The second takes the
+  machine's heavy-work lock. Both need the `nurse-roster-app:dev` and `postgres:18` images present locally.
+- **Cost:** the full run took 55 agent runs and met the account's usage limit twice. For a follow-up, a scoped
+  run is enough: the files changed since `5fd83b7`, the two areas in section 5, and the fixed findings as
+  regression targets.
