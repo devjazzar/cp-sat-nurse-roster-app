@@ -299,18 +299,29 @@ describe("login", () => {
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it("shows the lock and its time on the hospital's clock, whatever the browser's", async () => {
+  it("shows the lockout and its time on the hospital's clock, whatever the browser's", async () => {
     // An offset no browser here is in, so the time shown can only be the one the server sent.
     const { user } = start("/login", {
       ...session(null),
-      "POST /api/auth/login": { status: 423, body: { detail: "locked", locked_until: "2026-11-05T10:15:00.123+05:45" } },
+      "POST /api/auth/login": {
+        status: 423,
+        body: { detail: "Too many failed logins.", locked_until: "2026-11-05T10:15:00.123+05:45" },
+      },
     })
 
     await fill(user)
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Too many failed logins. This account is locked until 10:15. Try again then.",
-    )
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent(/^Too many failed logins\. Try again after 10:15\.$/)
+    expect(alert).not.toHaveTextContent(/account/i)
+  })
+
+  it("shows the lockout's words without a time when a 423 carries none", async () => {
+    const { user } = start("/login", { ...session(null), "POST /api/auth/login": { status: 423, body: {} } })
+
+    await fill(user)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Too many failed logins\. Try again later\.$/)
   })
 
   it("shows the throttle and its time on the hospital's clock, whatever the browser's", async () => {

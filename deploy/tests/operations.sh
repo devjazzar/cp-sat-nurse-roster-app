@@ -252,13 +252,29 @@ compose exec -T worker cat "/backups/$backup" | compose exec -T db pg_restore --
 
 # ---- the retention jobs ------------------------------------------------------------------------------------------------------
 sql "INSERT INTO notifications_pushattempt (at, outcome) VALUES (now() - interval '8 days', 'unreachable'), (now() - interval '6 days', 'sent')" >/dev/null
-for task in ops.tasks.remove_ended_jobs notifications.tasks.remove_old_notifications notifications.tasks.remove_old_push_attempts accounts.tasks.clear_expired_sessions; do
+# Failed-login counts (ticket 65): one a day old goes, a fresh one and one locked now stay; so does a current throttle window.
+sql "INSERT INTO accounts_loginattempts (username, failures, locked_until, last_failure_at) VALUES
+  ('day-old', 2, NULL, now() - interval '25 hours'), ('fresh', 2, NULL, now() - interval '1 hour'),
+  ('locked', 5, now() + interval '2 days', now() - interval '25 hours'), ('from-before', 3, NULL, NULL);
+  INSERT INTO accounts_addressfailures (address, window_start, failures) VALUES
+  ('192.0.2.1', now() - interval '16 minutes', 3), ('192.0.2.2', now() - interval '1 minute', 3)" >/dev/null
+for task in ops.tasks.remove_ended_jobs notifications.tasks.remove_old_notifications notifications.tasks.remove_old_push_attempts accounts.tasks.clear_expired_sessions accounts.tasks.remove_old_login_failures; do
   compose exec -T worker python manage.py queue defer --ignore-already-enqueued "$task" '{"timestamp": 0}' >/dev/null
   done_ok() { [[ $(sql "SELECT count(*) FROM procrastinate_jobs WHERE task_name = '$task' AND status = 'succeeded'") -ge 1 ]]; }
   wait_for 60 done_ok && pass "$task succeeded" || fail "$task did not succeed: $(sql "SELECT status FROM procrastinate_jobs WHERE task_name = '$task'")"
 done
 [[ $(sql "SELECT string_agg(outcome, ' ') FROM notifications_pushattempt") == sent ]] \
   && pass "a push attempt eight days old is gone and one six days old is kept" || fail "push attempts kept: $(sql "SELECT at, outcome FROM notifications_pushattempt")"
+kept_names="SELECT string_agg(username, ' ' ORDER BY username) FROM accounts_loginattempts
+  WHERE username IN ('day-old', 'fresh', 'locked', 'from-before')"
+[[ $(sql "$kept_names") == "fresh locked" ]] \
+  && pass "a failed-login count a day old or of unknown age is gone, a fresh one and a locked one are kept" \
+  || fail "failed-login counts kept: $(sql "$kept_names")"
+kept_windows="SELECT string_agg(address, ' ') FROM accounts_addressfailures WHERE address LIKE '192.0.2.%'"
+[[ $(sql "$kept_windows") == 192.0.2.2 ]] \
+  && pass "an ended throttle window is gone and the current one is kept" || fail "throttle windows kept: $(sql "$kept_windows")"
+sql "DELETE FROM accounts_loginattempts WHERE username IN ('fresh', 'locked');
+  DELETE FROM accounts_addressfailures WHERE address = '192.0.2.2'" >/dev/null
 
 # ---- logging in --------------------------------------------------------------------------------------------------------------
 jar="$work/cookies"
@@ -384,9 +400,11 @@ admin=$(log_in "$admin_password")
 [[ $admin == 200 ]] && pass "and the System Admin logs in with the password changed before it" \
   || fail "the System Admin's login after restoring $taken_before: $admin"
 
-# A backup from before the throttle (ticket 63) has no table of it: one made so restores, and `web` makes the table, empty, as
-# it migrates. Nothing is done after it, so the restore says there is nothing to do again.
-sql "DROP TABLE accounts_addressfailures; DELETE FROM django_migrations WHERE app = 'accounts' AND name = '0003_address_failures'" >/dev/null
+# A backup from before the throttle (ticket 63) has no table of it, nor the time of a name's last failure (ticket 65): one made
+# so restores, and `web` makes both, empty, as it migrates. Nothing is done after it, so the restore says there is nothing to do
+# again.
+sql "DROP TABLE accounts_addressfailures; ALTER TABLE accounts_loginattempts DROP COLUMN last_failure_at;
+  DELETE FROM django_migrations WHERE app = 'accounts' AND name IN ('0003_address_failures', '0004_login_attempts_last_failure')" >/dev/null
 without_throttle=$(compose exec -T worker python manage.py backup | tail -n 1)
 printed=$(./restore.sh --yes "$without_throttle") || fail "restoring a backup without the throttle's table failed: $printed"
 echo "$printed"
