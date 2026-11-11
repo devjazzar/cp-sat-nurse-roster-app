@@ -310,6 +310,24 @@ describe("login", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/locked until/)
   })
 
+  it("shows the throttle and its time on the hospital's clock, whatever the browser's", async () => {
+    // An offset no browser here is in, so the time shown can only be the one the server sent.
+    const { user, router } = start("/login", {
+      ...session(null),
+      "POST /api/auth/login": {
+        status: 429,
+        body: { detail: "Too many failed logins from this network.", throttled_until: "2026-11-05T10:15:00.123+05:45" },
+      },
+    })
+
+    await fill(user)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many failed logins from this network. Try again at 10:15.",
+    )
+    expect(router.state.location.pathname).toBe("/login")
+  })
+
   it("asks for both fields before calling anything", async () => {
     const { user, calls } = start("/login", session(null))
 
@@ -549,6 +567,23 @@ describe("changing the password", () => {
     await fill(user, "nope", "a-brand-new-passphrase")
 
     expect(await screen.findByText("This is not your current password.")).toBeInTheDocument()
+  })
+
+  it("shows the throttle and its time on the hospital's clock", async () => {
+    const { user, router } = start("/change-password", {
+      ...session(FORCED),
+      "POST /api/auth/change-password": {
+        status: 429,
+        body: { detail: "Too many failed logins from this network.", throttled_until: "2026-11-05T10:15:00+05:45" },
+      },
+    })
+
+    await fill(user, "one-time-password", "a-brand-new-passphrase")
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many failed logins from this network. Try again at 10:15.",
+    )
+    expect(router.state.location.pathname).toBe("/change-password")
   })
 
   it("refuses a short password and a mismatch without calling anything", async () => {
@@ -1588,6 +1623,15 @@ describe("the audit log page", () => {
     expect(screen.getByText("Unknown")).toBeInTheDocument()
     expect(screen.getByText("System")).toBeInTheDocument()
     expect(document.title).toBe("Audit log · Nurse roster")
+  })
+
+  it("names a throttle, with no one to name and the window's end", async () => {
+    auditStart("/audit-log", () => ({ body: { entries: [{ ...ENTRY, actor: null, action: "auth.login_throttled", target: "", before: null, after: { until: "2026-11-06T00:45:15+03:00" } }], older_than: null } }))
+
+    const row = (await screen.findByText("Logins throttled")).closest("tr")!
+    expect(within(row).getByText("Unknown")).toBeInTheDocument()
+    expect(within(row).getByText('until: "2026-11-06T00:45:15+03:00"')).toBeInTheDocument()
+    expect(within(row).getByText("10.1.2.3")).toBeInTheDocument()
   })
 
   it("names a roster version's file taken, with who took which version and nothing from the file", async () => {

@@ -50,6 +50,7 @@ const filterSchema = z
 const ACTION_NAMES: Record<string, string> = {
   "auth.login": "Logged in",
   "auth.login_failed": "Failed login",
+  "auth.login_throttled": "Logins throttled",
   "auth.logout": "Logged out",
   "auth.password_changed": "Changed own password",
   "backup.downloaded": "Downloaded a backup",
@@ -157,7 +158,7 @@ function Filters() {
 }
 
 function who(entry: AuditEntrySchema) {
-  return entry.actor ?? (entry.action === "auth.login_failed" ? "Unknown" : "System")
+  return entry.actor ?? (entry.action === "auth.login_failed" || entry.action === "auth.login_throttled" ? "Unknown" : "System")
 }
 
 function Details({ entry }: { entry: AuditEntrySchema }) {
