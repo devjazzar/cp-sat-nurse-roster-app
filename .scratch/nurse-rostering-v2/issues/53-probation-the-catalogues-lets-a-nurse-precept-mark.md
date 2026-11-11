@@ -125,3 +125,9 @@ read-only with the column and no checkbox. The stack, its volumes and image, and
   `change_skill` in the nurses and units tests). The migration test goes back to `hospital/0005` and forward, so `0007` must
   reverse (a `RunPython` with its reverse, as `0004` and `0005` have). Noted on 58.
 
+
+**Reviewed by the user (2026-11-12):** all four points kept as built.
+- The mark is required in the API body, with no default, like the other two marks.
+- The form's description: "A nurse holding this skill can be assigned as the preceptor of a nurse on probation, unless it has expired."
+- The help line sits in the Skills page's opening paragraph, which every role reads.
+- The column sits after "Required to work"; showing the mark elsewhere waits until ticket 55 needs it.
