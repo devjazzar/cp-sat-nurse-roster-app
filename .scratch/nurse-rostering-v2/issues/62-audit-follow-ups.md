@@ -63,9 +63,10 @@ The suites ran locally under the heavy-run lock, the backend on a throwaway Post
   generated client is unchanged;
 - no Playwright file changed. `deploy/tests/operations.sh` gained a check that only GitHub's browser-checks workflow runs.
 
-**What the dev stack needs:** a **rebuild** (`docker compose up -d --build`). It picks up `backend/config/settings.py`'s new
-middleware and **`deploy/Caddyfile`'s new `header` line**, which reaches Caddy only when its container is recreated with the
-file. There is no migration, no new dependency, and no change to compose, the `Dockerfile` or the solver.
+**What the dev stack needs:** a **rebuild** (`docker compose up -d --build`) for `backend/config/settings.py`'s new middleware,
+**then `docker compose restart caddy`** for `deploy/Caddyfile`'s new `header` line. Caddy gets the file through a bind mount and
+reads it only as it starts, and `up -d --build` does not recreate `caddy`, whose image and compose entry are unchanged. There is
+no migration, no new dependency, and no change to compose, the `Dockerfile` or the solver.
 
 **What was built, criterion by criterion.**
 - **No late approval.**
@@ -99,8 +100,8 @@ file. There is no migration, no new dependency, and no change to compose, the `D
   - `XFrameOptionsMiddleware` sits second in `MIDDLEWARE`, before WhiteNoise, which answers its files itself and would
     otherwise skip it. `X_FRAME_OPTIONS = "DENY"` is set explicitly.
   - `deploy/Caddyfile`'s site block has `header Content-Security-Policy "frame-ancestors 'none'"`.
-  - Nothing in the app frames itself. A search of `frontend/src` and `index.html` for `iframe`, frames and `embed` finds
-    none, and the print page is a page of its own. The PWA's service worker has no fetch listener.
+  - Nothing in the app frames itself. A search of `frontend/src`, `frontend/public` and `index.html` for `iframe`, `<embed` and `<object`
+    finds none, and the print page is a page of its own. The PWA's service worker has no fetch listener.
   - Tests: `ops/tests/test_spa.py` checks the SPA document, a deep link, WhiteNoise's `index.html`, `sw.js` and a hashed
     asset, an API 404, and a missing-build 404. `operations.sh` checks `/`, `/unit-roster`, `/api/health` and the
     `/metrics` refusal through Caddy.
@@ -171,6 +172,11 @@ The stack is down, its volumes and `e2e/.stack/nr-t62.*` are gone, and my Postgr
   (`89c1d66`).
 
 **Findings for you, not fixed.**
+- **An installation's upgrade does not reload Caddy.** `deploy/INSTALL.md`'s "Upgrade" is `docker compose pull && docker
+  compose up -d`, which leaves `caddy` running on the Caddyfile it started with. So this ticket's `frame-ancestors` line, and
+  any later change to the file, reaches an installation only after `docker compose restart caddy`. `web` still sends
+  `X-Frame-Options: DENY` meanwhile. That step belongs in the upgrade instructions; the hardening feature changes the
+  Caddyfile too.
 - **`stack.sh clock` moves the hospital's date, not the moment `closes.making.due` compares with the close time.** A
   month's close comes due only once its close time has passed in real time. So `fire close_month` after moving the clock a
   month on closes nothing that is not already due by the real clock. The browser checks have not needed it so far.

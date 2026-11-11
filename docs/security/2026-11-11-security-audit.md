@@ -90,7 +90,7 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
   (`.scratch/nurse-rostering-v2/issues/62-audit-follow-ups.md`): one active solve a unit across its months, `X-Frame-Options:
   DENY` and `frame-ancestors 'none'`, the file routes refusing `Sec-Fetch-Site: cross-site`, and no approval once a month is
   over (option A). **Fixed on 2026-11-11** in ticket 62, pull request 5: lead 5 in `d4404f5`, lead 6 in `2b70344`, lead 7 in
-  `6cda1dd`, the late approval in `0cac2f5`. Leads 1 to 4 stay open. (`NEEDS-VALIDATION.md` numbers its sections differently:
+  `6cda1dd` and `3b2fc9e`, the late approval in `0cac2f5`. Leads 1 to 4 stay open. (`NEEDS-VALIDATION.md` numbers its sections differently:
   this table's leads 5, 6 and 7 are its sections 6, 3 and 5.)
 - **Leads 1 to 4, the hardening notes and the restore note of section 4:** one hardening feature, grilled first
   (`/grill-with-docs`), then specced and ticketed: limits per client (Caddy's timeouts and body cap, threaded gunicorn
