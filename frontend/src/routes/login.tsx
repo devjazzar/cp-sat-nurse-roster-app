@@ -39,7 +39,7 @@ const schema = z.object({
 })
 
 function refusalMessage(error: unknown): string {
-  if (error instanceof ApiError && error.status === 429) return throttledWords(error.body as ThrottleRefusal)
+  if (error instanceof ApiError && error.status === 429) return throttledWords(error.body as ThrottleRefusal | undefined)
   if (error instanceof ApiError && error.status === 423) {
     const until = (error.body as LoginRefusal).locked_until
     const time = until ? new Date(until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null

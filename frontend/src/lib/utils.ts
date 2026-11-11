@@ -6,6 +6,11 @@ export function hospitalTime(iso: string): string {
   return iso.slice(0, 19).replace("T", " ")
 }
 
+/** The hours and minutes of such a time, as the hospital's clock read them: "10:15". */
+export function hospitalClock(iso: string): string {
+  return iso.slice(11, 16)
+}
+
 /** Dates are calendar days with no time zone, so they are read and printed as UTC whatever the browser's is. */
 export const asDate = (iso: string) => new Date(`${iso}T00:00:00Z`)
 const monthAndYear = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })

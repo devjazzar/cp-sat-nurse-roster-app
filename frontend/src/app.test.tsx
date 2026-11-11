@@ -328,6 +328,14 @@ describe("login", () => {
     expect(router.state.location.pathname).toBe("/login")
   })
 
+  it("shows the throttle's words without a time when a 429 carries none", async () => {
+    const { user } = start("/login", { ...session(null), "POST /api/auth/login": { status: 429, body: {} } })
+
+    await fill(user)
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many failed logins from this network. Try again later.")
+  })
+
   it("asks for both fields before calling anything", async () => {
     const { user, calls } = start("/login", session(null))
 

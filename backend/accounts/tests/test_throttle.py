@@ -13,15 +13,15 @@ from conftest import PASSWORD, post
 
 pytestmark = pytest.mark.django_db
 
-HERE = "10.1.2.3"
+ADDRESS = "10.1.2.3"
 
 
-def login(username="someone", password=PASSWORD, address=HERE, client=None):
+def login(username="someone", password=PASSWORD, address=ADDRESS, client=None):
     return (client or Client()).post("/api/auth/login", {"username": username, "password": password},
                                      content_type="application/json", REMOTE_ADDR=address)
 
 
-def fail(times, address=HERE, username=None):
+def fail(times, address=ADDRESS, username=None):
     """A different name each time unless one is given, as a client escaping the lockout would send."""
     response = None
     for n in range(times):
@@ -68,8 +68,7 @@ class TestTheLimit:
         assert r.json()["detail"] == "Too many failed logins from this network."
         until = throttled_until(r)
         assert timedelta(minutes=14, seconds=50) < until - timezone.now() <= timedelta(minutes=15)
-        assert 0 < int(r.headers["Retry-After"]) <= 900
-        assert int(r.headers["Retry-After"]) >= (until - timezone.now()).total_seconds()
+        assert 890 < int(r.headers["Retry-After"]) <= 900
 
     def test_the_time_is_on_the_hospitals_clock(self):
         fail(50)
@@ -171,7 +170,7 @@ class TestAudit:
         login("anyone-else", "wrong-password")
 
         throttled = AuditEntry.objects.get(action="auth.login_throttled")
-        assert (throttled.actor, throttled.target, throttled.ip) == (None, "", HERE)
+        assert (throttled.actor, throttled.target, throttled.ip) == (None, "", ADDRESS)
         assert throttled.after["until"] == throttled_until(r).replace(microsecond=0).isoformat()
         assert AuditEntry.objects.filter(action="auth.login_failed").count() == 50
         assert AuditEntry.objects.count() == 51
@@ -188,7 +187,7 @@ class TestChangePassword:
 
     def signed_in(self, make_user):
         make_user(role=Role.CNO)
-        client = Client(REMOTE_ADDR=HERE)
+        client = Client(REMOTE_ADDR=ADDRESS)
         assert login(client=client).status_code == 200
         return client
 

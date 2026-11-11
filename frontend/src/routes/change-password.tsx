@@ -63,7 +63,7 @@ function ChangePasswordPage() {
               if (messages?.length) form.setError(field, { message: messages.join(" ") }, { shouldFocus: true })
             }
           } else if (error instanceof ApiError && error.status === 429) {
-            form.setError("root", { message: throttledWords(error.body as ThrottleRefusal) })
+            form.setError("root", { message: throttledWords(error.body as ThrottleRefusal | undefined) })
           } else {
             form.setError("root", { message: "The password could not be changed. Try again." })
           }
