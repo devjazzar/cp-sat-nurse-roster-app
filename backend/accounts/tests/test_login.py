@@ -188,6 +188,21 @@ class TestLockout:
     def test_an_unknown_username_locks_the_same_so_names_cannot_be_probed(self):
         assert fail(5, username="nobody").status_code == 423
 
+    def test_the_lock_is_sent_on_the_hospitals_clock(self, make_user):
+        make_user()
+
+        assert fail(5).json()["locked_until"].endswith("+03:00")
+
+    def test_a_real_name_and_an_unknown_one_get_the_same_answers(self, make_user, monkeypatch):
+        make_user()
+        now = timezone.now()
+        monkeypatch.setattr(timezone, "now", lambda: now)
+
+        def answers(username):
+            return [(r.status_code, r.json()) for r in (fail(1, username) for _ in range(6))]
+
+        assert answers("someone") == answers("nobody")
+
     def test_one_users_lock_leaves_another_alone(self, make_user):
         make_user()
         make_user("other")
@@ -229,11 +244,50 @@ class TestAudit:
         assert entry.after == {"reason": "wrong_credentials", "failures": 1}
         assert "the-wrong-guess" not in str(entry.after)
 
-    def test_a_failure_with_an_unknown_username_names_what_was_tried(self):
-        login(Client(), username="nobody")
+    def test_a_failure_with_an_unknown_username_keeps_nothing_that_was_typed(self):
+        # A password typed into the username box must not end up where the System Admin reads it.
+        login(Client(), username="my-secret-pass", REMOTE_ADDR="10.1.2.3")
 
         entry = AuditEntry.objects.get()
-        assert entry.actor is None and entry.target == "nobody"
+        assert (entry.action, entry.actor, entry.target, entry.ip) == ("auth.login_failed", None, "", "10.1.2.3")
+        assert entry.after == {"reason": "wrong_credentials", "failures": 1}
+        assert "my-secret-pass" not in str(entry.after)
+
+    def test_a_refusal_while_an_unknown_username_is_locked_names_nothing_either(self):
+        fail(5, username="nobody")
+        AuditEntry.objects.all().delete()
+
+        assert login(Client(), username="nobody", REMOTE_ADDR="10.1.2.3").status_code == 423
+
+        entry = AuditEntry.objects.get()
+        assert (entry.action, entry.actor, entry.target, entry.ip) == ("auth.login_failed", None, "", "10.1.2.3")
+        assert entry.after == {"reason": "locked"}
+
+    def test_a_refusal_while_a_real_name_is_locked_names_it(self, make_user):
+        user = make_user()
+        fail(5)
+        AuditEntry.objects.all().delete()
+
+        login(Client())
+
+        entry = AuditEntry.objects.get()
+        assert (entry.actor, entry.target) == (user, "someone")
+
+    def test_a_deactivated_account_still_has_its_name(self, make_user):
+        user = make_user(is_active=False)
+
+        login(Client())
+
+        entry = AuditEntry.objects.get()
+        assert (entry.action, entry.actor, entry.target) == ("auth.login_failed", user, "someone")
+
+    def test_a_name_differing_only_in_case_is_not_the_account(self, make_user):
+        make_user()
+
+        login(Client(), username="SomeOne", password="wrong-password")
+
+        entry = AuditEntry.objects.get()
+        assert (entry.actor, entry.target) == (None, "")
 
     def test_a_refusal_while_locked_is_audited_too(self, make_user):
         make_user()

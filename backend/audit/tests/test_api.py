@@ -53,6 +53,19 @@ class TestEntries:
 
         assert admin.get(ENTRIES).json()["entries"][0]["actor"] is None
 
+    def test_a_failed_login_at_an_unknown_name_has_no_target_and_keeps_its_address(self, admin, make_user):
+        make_user("fatimah", Role.CNO)
+        for username in ("fatimah", "not-a-name"):
+            Client().post("/api/auth/login", {"username": username, "password": "wrong-password"},
+                          content_type="application/json", REMOTE_ADDR="10.1.2.3")
+
+        unknown, real = admin.get(ENTRIES).json()["entries"]
+
+        assert {key: unknown[key] for key in ("actor", "action", "target", "after", "ip")} == {
+            "actor": None, "action": "auth.login_failed", "target": "",
+            "after": {"reason": "wrong_credentials", "failures": 1}, "ip": "10.1.2.3"}
+        assert (real["actor"], real["target"]) == ("fatimah", "fatimah")
+
     def test_the_real_actions_show_up(self, signed_in, make_user):
         client = signed_in(Role.SYSTEM_ADMIN, username="admin")
         post(client, "/api/users", {"username": "the-cno", "full_name": "The CNO", "role": "cno"})

@@ -5,7 +5,8 @@ from django.db import models
 class AuditEntry(models.Model):
     """One row per audited event, never changed or deleted. A bigint key: it is an append-only
     log (ADR 0007). The actor is empty for what the system itself did and for a failed login with
-    an unknown username; `target` then still names the username that was tried."""
+    an unknown username. A failed login's `target` is the username typed only when an account has it;
+    otherwise it is empty too, so nothing typed at an unknown name is kept."""
 
     id = models.BigAutoField(primary_key=True)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")

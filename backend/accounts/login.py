@@ -71,8 +71,10 @@ def attempt_login(request: HttpRequest, username: str, password: str) -> User:
 
 
 def _record_failure(request: HttpRequest, username: str, **details) -> None:
-    record("auth.login_failed", actor=User.objects.filter(username=username).first(), target=username,
-           after=details, request=request)
+    """Names the typed username only when an account has it, so a password typed into the username box, or a made-up
+    name of any length, is never kept where the System Admin reads it."""
+    user = User.objects.filter(username=username).first()
+    record("auth.login_failed", actor=user, target=username if user else "", after=details, request=request)
 
 
 def check_throttle(request: HttpRequest) -> None:
