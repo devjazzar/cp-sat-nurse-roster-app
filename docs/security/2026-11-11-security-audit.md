@@ -123,7 +123,11 @@ Rejected candidates are listed so the next audit does not spend time on them wit
 - **A restore brings back accounts deactivated and passwords replaced since the backup.** Reproduced, and
   inherent to restoring a database by a trusted operator. Worth adding to `deploy/restore.sh` and
   `deploy/INSTALL.md`: empty the login-attempt table, and print the deactivations, password resets and key
-  rotations recorded after the backup's moment before the replaced database is dropped.
+  rotations recorded after the backup's moment before the replaced database is dropped. **Fixed on 2026-11-11** in ticket 66
+  (`.scratch/nurse-rostering-v2/issues/66-a-restore-empties-the-login-attempts-and-lists-what-it-undid.md`), `d867d32` and
+  `a851c33`: `restore.sh` empties the login attempts and the throttle's addresses in the restored database before the swap,
+  and before it drops the replaced one prints, by time, each deactivation, password reset, password change and push key
+  rotation recorded there after the restored database's newest audit entry. It re-applies none of them.
 - **A roster approved after its month is over.** Not a security finding, because the CNO and Deputy CNO are
   trusted with approval. But it was a **functional bug, reproduced, and fixed in ticket 62 (`0cac2f5`)**: approving now refuses
   a month that is over, as submitting does, and the scenario below is a test in `closes/tests/test_close.py`. As found: a roster left submitted past

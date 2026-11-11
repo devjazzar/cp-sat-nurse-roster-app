@@ -143,33 +143,6 @@ print(settings.E2E_CLOCK_FILE, membership.today() == timezone.localdate())" 2>/d
   [[ $clock == "None True" ]] && pass "$service: the clock is off and the hospital's date is the real one" || fail "$service's clock: $clock"
 done
 
-# ---- what the backup holds for the restore to empty (ticket 66) --------------------------------------------------------------
-jar="$work/cookies"
-csrf() { awk '$6 == "csrftoken" {print $7}' "$jar"; }
-# Logs in afresh as $2 (the System Admin by default) and prints the answer's status.
-log_in() {
-  rm -f "$jar"
-  curl -sk -c "$jar" -b "$jar" "$base/api/auth/session" >/dev/null
-  curl -sk -o /dev/null -w '%{http_code}' -c "$jar" -b "$jar" -H "X-CSRFToken: $(csrf)" -H "Origin: $base" \
-    -H 'Content-Type: application/json' -d "{\"username\": \"${2:-admin}\", \"password\": \"$1\"}" "$base/api/auth/login"
-}
-# A POST of $2 to $1 as whoever logged in last; prints the answer's body, and fails unless it is a success.
-post() {
-  curl -skf -c "$jar" -b "$jar" -H "X-CSRFToken: $(csrf)" -H "Origin: $base" -H 'Content-Type: application/json' -d "$2" "$base$1"
-}
-# A unit manager, to be deactivated after the backup. Then the System Admin locked out by five wrong passwords, and this address
-# one failure short of its throttle (50 failed logins in its window, accounts.login.MAX_ADDRESS_FAILURES): the five, the
-# locked refusal that shows the lock (which counts too), and 43 at a name that is no account.
-[[ $(log_in "$admin_password") == 200 ]] || fail "the System Admin cannot log in"
-first_password=$admin_password admin_password=$(openssl rand -hex 12)  # the first start's must be changed before anything
-post /api/auth/change-password "{\"current_password\": \"$first_password\", \"new_password\": \"$admin_password\"}" >/dev/null \
-  || fail "the first password change was refused"
-manager=$(post /api/users '{"username": "manager.after", "full_name": "Manager After", "role": "unit_manager"}' \
-  | python3 -c 'import json, sys; print(json.load(sys.stdin)["user"]["id"])') || fail "the unit manager was not made"
-for _ in 1 2 3 4 5; do log_in not-the-password >/dev/null; done
-[[ $(log_in "$admin_password") == 423 ]] || fail "five wrong passwords did not lock the System Admin out"
-for _ in $(seq 43); do log_in not-the-password no.such.name >/dev/null; done
-pass "the System Admin is locked out and this address one failed login short of its throttle"
 
 # ---- a backup by the job -----------------------------------------------------------------------------------------------------
 backups() { compose exec -T worker sh -c 'ls /backups | grep -E "^nurse-roster-[0-9]{8}T[0-9]{6}Z\.dump$" || true'; }
@@ -194,11 +167,73 @@ done
 [[ $(sql "SELECT string_agg(outcome, ' ') FROM notifications_pushattempt") == sent ]] \
   && pass "a push attempt eight days old is gone and one six days old is kept" || fail "push attempts kept: $(sql "SELECT at, outcome FROM notifications_pushattempt")"
 
+# ---- logging in --------------------------------------------------------------------------------------------------------------
+jar="$work/cookies"
+csrf() { awk '$6 == "csrftoken" {print $7}' "$jar"; }
+# Logs in afresh as $2 (the System Admin by default) and prints the answer's status.
+log_in() {
+  rm -f "$jar"
+  curl -sk -c "$jar" -b "$jar" "$base/api/auth/session" >/dev/null
+  curl -sk -o /dev/null -w '%{http_code}' -c "$jar" -b "$jar" -H "X-CSRFToken: $(csrf)" -H "Origin: $base" \
+    -H 'Content-Type: application/json' -d "{\"username\": \"${2:-admin}\", \"password\": \"$1\"}" "$base/api/auth/login"
+}
+# A POST of $2 to $1 as whoever logged in last; prints the answer's body, and fails unless it is a success.
+post() {
+  curl -skf -c "$jar" -b "$jar" -H "X-CSRFToken: $(csrf)" -H "Origin: $base" -H 'Content-Type: application/json' -d "$2" "$base$1"
+}
+
 # ---- a restore ---------------------------------------------------------------------------------------------------------------
 sql "CREATE TABLE written_after_the_backup (id int)" >/dev/null
-# After the backup, one of each change a restore undoes and lists (ticket 66): the server's reset lifts the System Admin's
-# lockout, the reset's password is changed, the unit manager deactivated and the push keys rotated. The hospital's clock is
-# read around them, so the times the restore prints are checked against a clock of the test's own.
+# A file that is no backup, named relative to another directory: refused by pg_restore, so nothing changes.
+echo "not a backup" > "$work/not-a-backup.dump"
+deploy=$PWD
+if (cd "$work" && "$deploy/restore.sh" --yes not-a-backup.dump); then fail "a file that is no backup was restored"; fi
+[[ -n $(sql "SELECT to_regclass('written_after_the_backup')") ]] && pass "a failed restore leaves the database as it was" \
+  || fail "a failed restore changed the database"
+[[ $(sql "SELECT datname FROM pg_database WHERE datname LIKE 'nurse_roster%' ORDER BY 1" | tr '\n' ' ') == "nurse_roster " ]] \
+  && pass "and leaves no database behind" || fail "databases left: $(sql "SELECT datname FROM pg_database")"
+wait_for 60 curl -sfk "$base/api/health" && pass "the application answers again after the failed restore" || fail "no answer"
+
+before=$(backups | wc -l | tr -d ' ')
+./restore.sh --yes "$backup"
+[[ -z $(sql "SELECT to_regclass('written_after_the_backup')") ]] && pass "the restore took back what was written after the backup" \
+  || fail "the table written after the backup is still there"
+[[ $(sql "SELECT count(*) FROM accounts_user WHERE username = 'admin'") == 1 ]] && pass "what the backup held is there" \
+  || fail "the System Admin is missing after the restore"
+after=$(backups | wc -l | tr -d ' ')
+[[ $after -eq $((before + 1)) ]] && pass "the database as it stood was backed up first ($before backups, then $after)" \
+  || fail "no backup before the restore ($before, then $after)"
+wait_for 60 curl -sfk "$base/api/health" && pass "the application answers again after the restore" || fail "no answer after the restore"
+[[ $(sql "SELECT datname FROM pg_database WHERE datname LIKE 'nurse_roster%' ORDER BY 1" | tr '\n' ' ') == "nurse_roster " ]] \
+  && pass "no database is left over" || fail "databases left: $(sql "SELECT datname FROM pg_database")"
+# The backup job that was running as that backup was taken comes back as running, under a worker long gone.
+last=$(sql "SELECT coalesce(max(id), 0) FROM procrastinate_jobs")
+compose exec -T worker python manage.py queue defer --ignore-already-enqueued solves.tasks.recover_lost_jobs '{"timestamp": 1}' >/dev/null
+recovered() { [[ -n $(sql "SELECT 1 FROM procrastinate_jobs WHERE id > $last AND task_name = 'solves.tasks.recover_lost_jobs' AND status = 'succeeded'") ]]; }
+wait_for 60 recovered && pass "recover_lost_jobs succeeds after the restore" || fail "recover_lost_jobs after the restore: $(sql "SELECT status FROM procrastinate_jobs WHERE id > $last")"
+no_backup_stuck() { [[ -z $(sql "SELECT 1 FROM procrastinate_jobs WHERE task_name = 'ops.tasks.backup' AND status IN ('todo', 'doing')") ]]; }
+wait_for 60 no_backup_stuck && pass "no backup job is left running or waiting behind the restored one" \
+  || fail "backup jobs: $(sql "SELECT id || ' ' || status FROM procrastinate_jobs WHERE task_name = 'ops.tasks.backup'")"
+
+# ---- what a restore empties and lists (ticket 66) ----------------------------------------------------------------------------
+# The job's backup above can be one the worker took at its first start, before anything here, so this backup is taken by hand.
+# It holds a unit manager, to be deactivated after it; the System Admin locked out by five wrong passwords; and this address
+# one failure short of its throttle (50 failed logins in its window, accounts.login.MAX_ADDRESS_FAILURES): the five, the
+# locked refusal that shows the lockout (which counts too), and 43 at a name that is no account.
+[[ $(log_in "$admin_password") == 200 ]] || fail "the System Admin cannot log in"
+first_password=$admin_password admin_password=$(openssl rand -hex 12)  # the first start's must be changed before anything
+post /api/auth/change-password "{\"current_password\": \"$first_password\", \"new_password\": \"$admin_password\"}" >/dev/null \
+  || fail "the first password change was refused"
+manager=$(post /api/users '{"username": "manager.after", "full_name": "Manager After", "role": "unit_manager"}' \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["user"]["id"])') || fail "the unit manager was not made"
+for _ in 1 2 3 4 5; do log_in not-the-password >/dev/null; done
+[[ $(log_in "$admin_password") == 423 ]] || fail "five wrong passwords did not lock the System Admin out"
+for _ in $(seq 43); do log_in not-the-password no.such.name >/dev/null; done
+pass "the System Admin is locked out and this address one failed login short of its throttle"
+locked=$(compose exec -T worker python manage.py backup | tail -n 1)
+# After it, one of each change a restore undoes and lists: the server's reset lifts the System Admin's lockout, the reset's
+# password is changed, the unit manager deactivated and the push keys rotated. The hospital's clock is read around them, so
+# the times the restore prints are checked against a clock of the test's own.
 zone=$(compose exec -T web printenv TIME_ZONE)
 hospital_minute() { TZ=$zone date '+%Y-%m-%d %H:%M'; }
 from=$(hospital_minute)
@@ -225,44 +260,16 @@ lists() {
     [[ ! $at < $from && ! $at > $to ]] || return 1
   done < <(awk '{print $3, $4}' <<<"$entries")
 }
-# A file that is no backup, named relative to another directory: refused by pg_restore, so nothing changes.
-echo "not a backup" > "$work/not-a-backup.dump"
-deploy=$PWD
-if (cd "$work" && "$deploy/restore.sh" --yes not-a-backup.dump); then fail "a file that is no backup was restored"; fi
-[[ -n $(sql "SELECT to_regclass('written_after_the_backup')") ]] && pass "a failed restore leaves the database as it was" \
-  || fail "a failed restore changed the database"
-[[ $(sql "SELECT datname FROM pg_database WHERE datname LIKE 'nurse_roster%' ORDER BY 1" | tr '\n' ' ') == "nurse_roster " ]] \
-  && pass "and leaves no database behind" || fail "databases left: $(sql "SELECT datname FROM pg_database")"
-wait_for 60 curl -sfk "$base/api/health" && pass "the application answers again after the failed restore" || fail "no answer"
-
-before=$(backups | wc -l | tr -d ' ')
 newest=$(sql "SELECT max(id) FROM audit_auditentry")
-printed=$(./restore.sh --yes "$backup") || fail "the restore failed: $printed"
+printed=$(./restore.sh --yes "$locked") || fail "the restore failed: $printed"
 echo "$printed"
 lists "$printed" "user.password_reset admin" "auth.password_changed admin" "user.deactivated manager.after" "push.keys_rotated -" \
   && pass "the restore listed the reset, the change, the deactivation and the key rotation it undid, by action, user and time" \
   || fail "the restore listed: $(undone "$printed")"
-[[ -z $(sql "SELECT to_regclass('written_after_the_backup')") ]] && pass "the restore took back what was written after the backup" \
-  || fail "the table written after the backup is still there"
-[[ $(sql "SELECT count(*) FROM accounts_user WHERE username = 'admin'") == 1 ]] && pass "what the backup held is there" \
-  || fail "the System Admin is missing after the restore"
-after=$(backups | wc -l | tr -d ' ')
-[[ $after -eq $((before + 1)) ]] && pass "the database as it stood was backed up first ($before backups, then $after)" \
-  || fail "no backup before the restore ($before, then $after)"
-wait_for 60 curl -sfk "$base/api/health" && pass "the application answers again after the restore" || fail "no answer after the restore"
+wait_for 60 curl -sfk "$base/api/health" || fail "no answer after restoring $locked"
 failed=$(log_in not-the-password another.name) admin=$(log_in "$admin_password")
 [[ $failed == 401 && $admin == 200 ]] && pass "the restore brought back no lockout and no throttle: a failed login, then the System Admin's" \
   || fail "after the restore a failed login answered $failed and the System Admin's $admin (423 a lockout, 429 the throttle)"
-[[ $(sql "SELECT datname FROM pg_database WHERE datname LIKE 'nurse_roster%' ORDER BY 1" | tr '\n' ' ') == "nurse_roster " ]] \
-  && pass "no database is left over" || fail "databases left: $(sql "SELECT datname FROM pg_database")"
-# The backup job that was running as that backup was taken comes back as running, under a worker long gone.
-last=$(sql "SELECT coalesce(max(id), 0) FROM procrastinate_jobs")
-compose exec -T worker python manage.py queue defer --ignore-already-enqueued solves.tasks.recover_lost_jobs '{"timestamp": 1}' >/dev/null
-recovered() { [[ -n $(sql "SELECT 1 FROM procrastinate_jobs WHERE id > $last AND task_name = 'solves.tasks.recover_lost_jobs' AND status = 'succeeded'") ]]; }
-wait_for 60 recovered && pass "recover_lost_jobs succeeds after the restore" || fail "recover_lost_jobs after the restore: $(sql "SELECT status FROM procrastinate_jobs WHERE id > $last")"
-no_backup_stuck() { [[ -z $(sql "SELECT 1 FROM procrastinate_jobs WHERE task_name = 'ops.tasks.backup' AND status IN ('todo', 'doing')") ]]; }
-wait_for 60 no_backup_stuck && pass "no backup job is left running or waiting behind the restored one" \
-  || fail "backup jobs: $(sql "SELECT id || ' ' || status FROM procrastinate_jobs WHERE task_name = 'ops.tasks.backup'")"
 
 # Restoring the backup the restore took undoes it. What was done in between has ids below that backup's newest entry, so only
 # a list by time names it.
