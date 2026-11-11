@@ -22,3 +22,10 @@ or an IPv6 /64 such as `2001:db8:1:2::/64`), `window_start` and `failures`. A wi
 `LOCK_DURATION` in `backend/accounts/login.py`. `record_address_failure` there already starts a new window when the old one
 has ended, so a removed row loses nothing. The tests move the clock by monkeypatching `django.utils.timezone.now` (the
 `clock` fixture in `test_throttle.py`).
+
+**From ticket 64 (2026-11-11).** `_record_failure` in `backend/accounts/login.py` now looks the typed name up once
+(`User.objects.filter(username=...)`) and writes `auth.login_failed` with that account as actor and the name as target, or
+with neither when no account has it. `LoginAttempts` is still keyed by the typed name, for a real name and an unknown one
+alike, so the rows this ticket removes are unchanged. Where `attempt_login` sets the time of the last failure, it is the
+same `attempts.save()` on the wrong-credentials path; a refusal while locked saves nothing today. The 423's `locked_until`
+is now sent with the hospital's offset (`timezone.localtime` in `accounts/api.py`).

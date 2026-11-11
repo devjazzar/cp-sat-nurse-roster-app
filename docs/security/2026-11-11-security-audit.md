@@ -109,6 +109,11 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
 - **The public health note** (`REPORT.md` section 5, "`GET /api/health` is anonymous and calls the solver on every
   request"): **fixed on 2026-11-11** in ticket 68 (`7e5f7ed`, `77f79f4`). Each web process keeps the public answer five seconds; the
   System Admin's health page and `/metrics` are not kept.
+- **The typed username note** (`REPORT.md` section 5, "A failed login stores the submitted username in the audit log"):
+  **fixed on 2026-11-11** in ticket 64 (`.scratch/nurse-rostering-v2/issues/64-a-failed-login-names-only-a-real-account.md`),
+  `d2043f0`: `auth.login_failed` names the typed username only when an account has it, otherwise its target is empty, with its
+  reason and address kept; the lockout still counts by the name typed. Entries written before keep what was typed (the log is
+  append-only, ADR 0007). The same ticket put the lockout's time on the hospital's clock (`a68466e`).
 - **Known vulnerabilities in dependencies (section 5):** checked with `pip-audit` and `npm audit` on 2026-11-11; the result is
   below in section 5.
 

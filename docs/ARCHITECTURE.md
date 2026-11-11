@@ -773,7 +773,8 @@ reaches it. The cost was already theirs to read in the audit log.
 Local accounts only, designed so an LDAP or SSO backend can be added as a Django
 authentication backend. Generated passwords shown once, forced change at first login.
 Minimum length 10 with Django's common-password and similarity checks, lockout for 15
-minutes after 5 failed logins, sessions expire after 12 hours of inactivity (polling a solve's
+minutes after 5 failed logins (whether or not an account has the username, so the answer never says which names exist; the
+login page shows when it ends on the hospital's clock), sessions expire after 12 hours of inactivity (polling a solve's
 progress is not activity), no two-factor authentication in v1. Beside the lockout per username, a **throttle** per client
 address (ADR 0015, `accounts.login`): 50 failed logins from one address in a 15-minute window refuse every login from it for
 the rest of the window, whatever the username, with 429, the time it may try again on the hospital's clock and `Retry-After`.
@@ -785,7 +786,9 @@ throttled. The address is the one the audit log reads (`audit.log.client_ip`), s
 budget. The address's row is not held across the hash, so a burst of parallel tries may pass the 50 by at most what the web
 pool serves at once. Every login the server checked, failed or not, goes to the audit log, and so does each throttle, once,
 when an address reaches it (`auth.login_throttled`: no actor, no target, the address and the window's end); a request a
-throttle refused is not, since its password was never looked at. Every change to settings, accounts,
+throttle refused is not, since its password was never looked at. A failed login (`auth.login_failed`) names the username
+typed as its target only when an account has it; at any other name its target is empty, with its reason and address, so a
+password typed into the username box is never kept where the System Admin reads it. Every change to settings, accounts,
 rosters, requests, swaps and covers goes there too. So does each taking of the staff list, which holds everyone's gender:
 who took it and how many nurses it held, and nothing from the file. Its import template holds no one's data and is not
 logged. So does each taking of a roster version's CSV or Excel file (`roster.exported`): who took which unit's month, which
