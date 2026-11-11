@@ -31,6 +31,9 @@ def tell_probations_ending(timestamp: int) -> None:
             if (nurse.probation_notified_for == month or probation.ended_early(nurse) or not nurse.on_probation
                     or last.replace(day=1) != month or last < nurse.start_date):
                 continue
-            probation_ending(membership.unit_in(nurse, month), nurse.pk, month)
+            unit = membership.unit_in(nurse, month)
+            if unit.manager is None or not unit.manager.is_active:
+                continue  # Told once the unit has a manager again, later this month.
+            probation_ending(unit, nurse.pk, month)
             nurse.probation_notified_for = month
             nurse.save(update_fields=["probation_notified_for"])

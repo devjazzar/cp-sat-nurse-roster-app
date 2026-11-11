@@ -388,6 +388,18 @@ class TestTime:
             "Layan Alharbi's probation ends on 30 April. Extend it or let it end.",
             "Layan Alharbi's probation ends on 31 March. Extend it or let it end."]
 
+    def test_a_unit_with_no_manager_tells_its_next_one_that_month(self, cno, mona, er, today):
+        on_probation(cno, er, "2026-12-15")
+        er.manager = None
+        er.save(update_fields=["manager"])
+        today(2027, 3, 1)
+        tell_probations_ending(timestamp=0)
+        er.manager = User.objects.get(username="mona")
+        er.save(update_fields=["manager"])
+        today(2027, 3, 9)
+        tell_probations_ending(timestamp=0)
+        assert len(self.notes(mona)) == 1
+
     def test_nobody_is_told_of_one_ended_early_or_unticked(self, cno, mona, er, today):
         ended = on_probation(cno, er, "2026-09-01")
         unticked = on_probation(cno, er, "2026-09-01", hospital_id="h2")
