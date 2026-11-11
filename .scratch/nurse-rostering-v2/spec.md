@@ -1,4 +1,4 @@
-# Nurse rostering web application, v2: eleven features
+# Nurse rostering web application, v2: twelve features
 
 Status: ready-for-agent
 Type: enhancement
@@ -8,7 +8,7 @@ v1 (tickets 01–25, `.scratch/nurse-rostering-v1/`) is on `main`. v2 began as s
 what the app has, what the vendored solver supports but the app never fed it, and what Timefold, UKG, Allocate and QGenda
 sell. Each feature was grilled against `docs/ARCHITECTURE.md`, `GLOSSARY.md` and `docs/adr/` in a session of its own, and
 has its own spec under `specs/` and its tickets under `issues/`, numbered on from v1. Four more were grilled and added
-on 2026-11-08 and 2026-11-09 (rows 8 to 11), and ticket 57 came out of the review of ticket 39. Where a spec and those documents
+on 2026-11-08 and 2026-11-09 (rows 8 to 11), one on 2026-11-11 from the security audit (row 12), and ticket 57 came out of the review of ticket 39. Where a spec and those documents
 disagree, the documents win.
 
 | # | Feature | Spec | Tickets | Decisions recorded |
@@ -24,6 +24,7 @@ disagree, the documents win.
 | 9 | Overtime share: a unit's overtime spread fairly (added 2026-11-09) | `specs/overtime-share.md` | 49, 50, 51 | GLOSSARY: Overtime share |
 | 10 | Probation: a newly hired nurse beside a preceptor, counted toward nothing (added 2026-11-09) | `specs/probation.md` | 52–56 | GLOSSARY: Probation, Nurse on probation, Preceptor; ADR 0014 |
 | 11 | Certificates and licences: kinds of skill, with an identifier and an issue date (added 2026-11-09) | `specs/certificates-and-licences.md` | 58–61 | GLOSSARY: Skill (widened), Certificate, Licence, Identifier; the Deputy CNO records |
+| 12 | Hardening against one client's load: a throttle on failed logins, Caddy holding the body, threaded workers, ten devices a user, HSTS and a content security policy, what a restore clears and lists (the security audit's leads 1 to 4, added 2026-11-11) | `specs/hardening.md` | 63–72 | GLOSSARY: Lockout, Throttle, Push subscription and Restore widened; ADR 0015 |
 | — | A batched carry-over read, for speed (from the review of ticket 39, 2026-11-09) | none; the ticket is the spec | 57 | none |
 | — | Audit follow-ups: no late approval, one solve a unit, no framing, no cross-site downloads (the user's decisions on the security audit, 2026-11-11) | none; the ticket is the spec, with `docs/security/2026-11-11-security-audit.md` | 62 | none |
 
@@ -46,6 +47,7 @@ shows open covers if covers exist by then, and Web Push (40–42) pushes a cover
 - **A batched carry-over read:** 57, blocked by nothing.
 - **Audit follow-ups:** 62, blocked by nothing.
 - **Certificates and licences:** 53 → 58 → 59 → 60; 59 + 54 → 61 (58 after 53: both change the catalogue's API and page; 61 after 54: both put controls on the Rostering attributes row).
+- **Hardening:** 63 → 65, 66; 64, 67 and 68 beside them; 62 + 63 → 69 → 70 → 71; 62 + 70 → 72 (69, 70 and 72 after 62: all edit the Caddyfile; 69 after 63: it changes the address the throttle's tests send).
 
 ## The order to build in
 
@@ -56,8 +58,11 @@ same time in their own sessions; two tickets of one feature go in order.
 
 Tickets 57 and 62 have no blocker and no feature: each may run beside any of them.
 
+Hardening (row 12), added on 2026-11-11 from the security audit, comes before the remaining features: it closes the audit's
+open leads 1 to 4. 63, 64, 67 and 68 can start at once and side by side; the Caddy chain (69, 70, 71, 72) waits for 62.
+
 **On `main` (2026-11-11):** 26–43, 47 and 48, each with its session's comment and the user's review. **Still to build:**
-44–46, 49–61, 57 and 62. Every ticket's `Status:` line says `ready-for-agent` whether built or not; the comments say which.
+44–46, 49–61, 57, 62 and 63–72. Every ticket's `Status:` line says `ready-for-agent` whether built or not; the comments say which.
 
 ## How a ticket is built
 

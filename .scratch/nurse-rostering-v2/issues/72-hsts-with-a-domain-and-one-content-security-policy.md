@@ -1,0 +1,18 @@
+# 72: HSTS with a domain, and one content security policy
+
+**What to build:** Every response through Caddy carries one `Content-Security-Policy`, replacing any `web` sent and extending ticket 62's `frame-ancestors 'none'` line: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`, widened only where the browser checks prove the built SPA needs it. With `DOMAIN` set, every response carries `Strict-Transport-Security: max-age=31536000`, without `includeSubDomains` or `preload`; a self-signed installation never sends it. Caddy's own error pages (the 502 while a restore runs) carry neither, which is accepted. Spec: `.scratch/nurse-rostering-v2/specs/hardening.md` (Headers).
+
+**Blocked by:** 62 Audit follow-ups (its `frame-ancestors` line); 70 Caddy holds the body (the same site block)
+
+**Status:** ready-for-agent
+
+- [ ] One `Content-Security-Policy` header on a page, a static file and an API answer, set deferred so it replaces any the application sent, never two
+- [ ] The Playwright support file listens for content security policy violations on every page and fails the test that sees one; every existing journey, the push journey and the print page among them, passes with none
+- [ ] Each widening of the policy, if any, is named in the ticket comment with what needed it
+- [ ] HSTS in the Caddyfile snippet the `DOMAIN` mode imports, whose comment changes; no HSTS without `DOMAIN`
+- [ ] `deploy/INSTALL.md` says what HSTS means if the hospital later stops using its name, and the first real install's checks include it
+- [ ] `docs/ARCHITECTURE.md` section 8's Security names both headers
+- [ ] `docs/security/2026-11-11-security-audit.md`: the HSTS and CSP hardening note marked fixed, with this ticket's commits
+- [ ] Tests at the agreed seams: the Playwright browser checks; `deploy/tests/operations.sh` (the policy on a page and an API answer, no HSTS without `DOMAIN`, the header in the adapted configuration's `DOMAIN` snippet); both workflows
+
+## Comments
