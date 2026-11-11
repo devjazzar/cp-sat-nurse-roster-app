@@ -4,7 +4,7 @@
 
 **Blocked by:** 63 The throttle on failed logins from one address (both change the login's failure path and its tests)
 
-**Status:** done
+**Status:** ready-for-agent
 
 - [x] A failed login at an unknown name, wrong credentials or locked, writes `auth.login_failed` with an empty target, no actor, its reason and its address
 - [x] A failed login at a real account's name writes that name as its target and the account as its actor, as today
