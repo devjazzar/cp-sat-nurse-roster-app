@@ -44,7 +44,8 @@ against the fixed code and none reproduced.
 | `62cd1ca` | A far-future month made one request run a query per nurse per month in between (1,219 statements against 19), on a solve start under the hospital settings lock. | `Chain.carry_in` takes a run of months with no approved roster in one step; a solve start is refused before the month is assembled. |
 | `5fd83b7` | A staff nurse could propose and withdraw the same swap without limit, pushing a chosen colleague's earlier notices out of the newest 50. | A withdrawal overwrites the recipient's unread notice for that swap; proposing is refused after 5 withdrawals on one roster in a day. |
 
-Choices made in the fixes that have not been reviewed as product decisions:
+Choices made in the fixes, kept by the user as product decisions on 2026-11-11 (the swap cap, the swap notice and the end
+date):
 
 - **Swap cap.** 5 withdrawals per nurse per roster in a rolling 24 hours (`WITHDRAWALS_A_DAY` in
   `backend/swaps/steps.py`), refused with a 409 that says when she can propose again. The cap counts
@@ -57,9 +58,10 @@ Choices made in the fixes that have not been reviewed as product decisions:
   added, because a manager may roster any future month; the work no longer grows with the distance.
 - **Not built.** Paging past the newest 50 notifications.
 
-Not run after the fixes: the Playwright browser checks and `deploy/tests/operations.sh`. A restore with an empty
-sessions table was checked by reading `deploy/restore.sh`, not by running it. A second local browser-check run on
-one long-lived stack within a day could meet the swap cap.
+Both GitHub workflows, the browser checks and `deploy/tests/operations.sh` among them, passed on `5fd83b7`, on PR 4 and
+again on `main` (corrected 2026-11-11: this line first said they were not run; only a local run was skipped). A restore
+with an empty sessions table was checked by reading `deploy/restore.sh` and through `operations.sh` on GitHub. A second
+local browser-check run on one long-lived stack within a day could meet the swap cap; CI's stacks are new each run.
 
 ## 3. Open leads
 
@@ -80,6 +82,19 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
 | 5 | One unit's manager can queue a solve for every future month to December 2076 ahead of other units' solves, and no role above the unit can cancel them. | `backend/solves/api.py` `start_solve`, `backend/solves/running.py` | How long each such solve holds the queue (no solver ran in the audit), and whether first-come-first-served across units (ADR 0009) is acceptable here. | Scratch stack with the real solver: the three-solve check in the plan. Product decision: a per-unit share of the queue and a cancel for the CNO or System Admin. |
 | 6 | No response carries `X-Frame-Options` or a `frame-ancestors` policy, so a page on a same-site origin could frame the signed-in app. | `backend/config/settings.py` `MIDDLEWARE`, `deploy/Caddyfile` | Whether any same-site origin exists that someone other than the app's operators controls; browser behaviour. | Cheap to close without validating: add `XFrameOptionsMiddleware` or a CSP with `frame-ancestors 'none'`. |
 | 7 | The file download routes are plain GETs, so a page on another site may be able to make a signed-in CNO's browser take the audited staff-list export, or tell that the visitor is the CNO; the System Admin's backup download may be reachable the same way, since a backup's name is predictable. | `backend/nurses/files_api.py`, `backend/ops/api.py` | Whether current browsers attach the Lax session cookie and let the other page tell the two answers apart. | Test installation with dummy accounts: the static-page check in the plan. Fix direction: refuse these GETs when `Sec-Fetch-Site` is `cross-site`. |
+
+### What the user decided for the leads (2026-11-11)
+
+- **Leads 5, 6 and 7, and the late approval of section 4:** fixed in ticket 62
+  (`.scratch/nurse-rostering-v2/issues/62-audit-follow-ups.md`): one active solve a unit across its months, `X-Frame-Options:
+  DENY` and `frame-ancestors 'none'`, the file routes refusing `Sec-Fetch-Site: cross-site`, and no approval once a month is
+  over (option A).
+- **Leads 1 to 4, the hardening notes and the restore note of section 4:** one hardening feature, grilled first
+  (`/grill-with-docs`), then specced and ticketed: limits per client (Caddy's timeouts and body cap, threaded gunicorn
+  workers, a per-IP failed-login throttle before the hash, housekeeping of login-attempt rows), at most a few push
+  subscriptions a user, HSTS and a content security policy, and what `restore.sh` should clear and print.
+- **Known vulnerabilities in dependencies (section 5):** checked with `pip-audit` and `npm audit` on 2026-11-11; the result is
+  below in section 5.
 
 ## 4. Rejected, and a bug found on the way
 
@@ -107,6 +122,13 @@ and actions pinned by tag, and others) and the patterns that held up.
 - **Known vulnerabilities in dependencies.** The audit had no network, so the locked versions and base images
   were not checked against advisories. Pinning and integrity were. Run `pip-audit`, `npm audit` or `osv-scanner`
   separately.
+  **Checked on 2026-11-11, at `10f18f3`:** `pip-audit` over `uv export --frozen --all-packages` (180 packages, Django
+  6.1.3, cryptography 50.0.2, gunicorn 26.2.0 among them): no known vulnerabilities. `npm audit` in `e2e/`: none. In
+  `frontend/`: three low, all one advisory, `deepmerge` prototype poisoning (GHSA-gcqx-w48m-w2h4), reached only through the
+  `shadcn` CLI package; the SPA imports only that package's `tailwind.css`, so no `deepmerge` code is in the built app.
+  `npm audit fix --force` would move `shadcn` to 1.0.0, a downgrade, so it was not run: take the fix when `shadcn` ships a
+  release with a fixed `deepmerge`. The base images (`python:3.14-slim`, `node:26`, `postgres:18`, `caddy:2.11`) were not
+  scanned.
 - **A staff nurse repeating request or preference make-and-withdraw rounds.** Proposed by the last coverage
   critic and not hunted. Nobody is notified and no recipient is chosen, so it is weaker than the swap finding;
   the open question is what the accumulated rows cost the manager's unpaged window lists

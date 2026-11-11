@@ -25,6 +25,7 @@ disagree, the documents win.
 | 10 | Probation: a newly hired nurse beside a preceptor, counted toward nothing (added 2026-11-09) | `specs/probation.md` | 52–56 | GLOSSARY: Probation, Nurse on probation, Preceptor; ADR 0014 |
 | 11 | Certificates and licences: kinds of skill, with an identifier and an issue date (added 2026-11-09) | `specs/certificates-and-licences.md` | 58–61 | GLOSSARY: Skill (widened), Certificate, Licence, Identifier; the Deputy CNO records |
 | — | A batched carry-over read, for speed (from the review of ticket 39, 2026-11-09) | none; the ticket is the spec | 57 | none |
+| — | Audit follow-ups: no late approval, one solve a unit, no framing, no cross-site downloads (the user's decisions on the security audit, 2026-11-11) | none; the ticket is the spec, with `docs/security/2026-11-11-security-audit.md` | 62 | none |
 
 ## The ticket graph
 
@@ -43,6 +44,7 @@ shows open covers if covers exist by then, and Web Push (40–42) pushes a cover
 - **Overtime share:** 47 → 49 → 50 → 51 (49 after 47: both change the solver's input).
 - **Probation:** 49 → 52; 33 → 53; 54 beside them; 52 + 53 + 54 → 55 → 56 (52 after 49: both change the solver's input).
 - **A batched carry-over read:** 57, blocked by nothing.
+- **Audit follow-ups:** 62, blocked by nothing.
 - **Certificates and licences:** 53 → 58 → 59 → 60; 59 + 54 → 61 (58 after 53: both change the catalogue's API and page; 61 after 54: both put controls on the Rostering attributes row).
 
 ## The order to build in
@@ -52,10 +54,10 @@ an open shift), then preferences (the solver already prices them), then skills (
 then the Day view, Web Push, the comparison, and the calendar. Full runs, the overtime share, probation and certificates and licences, added after the seven, join the end of the queue in that order. Tickets with no blocker from different features can run at the
 same time in their own sessions; two tickets of one feature go in order.
 
-Ticket 57 has no blocker and no feature: it may run beside any of them.
+Tickets 57 and 62 have no blocker and no feature: each may run beside any of them.
 
 **On `main` (2026-11-11):** 26–43, 47 and 48, each with its session's comment and the user's review. **Still to build:**
-44–46, 49–61 and 57. Every ticket's `Status:` line says `ready-for-agent` whether built or not; the comments say which.
+44–46, 49–61, 57 and 62. Every ticket's `Status:` line says `ready-for-agent` whether built or not; the comments say which.
 
 ## How a ticket is built
 
