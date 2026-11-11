@@ -12,7 +12,7 @@
 - [x] A 1 MB import file previews and confirms through Caddy
 - [x] `docs/ARCHITECTURE.md` section 2 says what Caddy limits
 - [x] `docs/security/2026-11-11-security-audit.md`: lead 3 marked fixed at Caddy, with this ticket's commits
-- [ ] Tests at the agreed seams: `deploy/tests/operations.sh` checks the running Caddy is 2.11.8 or later, a body over 2 MB is 413, with the test stack's `web` overridden to one worker of one thread for this check (with three, one held request would never show), a login whose body is withheld does not stop `/api/health` answering through Caddy (one connection), and the adapted configuration has the minimum rate and no `read_timeout`; both workflows
+- [x] Tests at the agreed seams: `deploy/tests/operations.sh` checks the running Caddy is 2.11.8 or later, a body over 2 MB is 413, with the test stack's `web` overridden to one worker of one thread for this check (with three, one held request would never show), a login whose body is withheld does not stop `/api/health` answering through Caddy (one connection), and the adapted configuration has the minimum rate and no `read_timeout`; both workflows
 
 ## Comments
 
@@ -27,8 +27,8 @@ this comment), from `main` at `472f71f`, with `main`'s `e8b1308` ([skip ci], the
 - `deploy/tests/operations.sh nr-t70`, under the heavy-run lock, on `0ada95d`: all checks passed, the six new ones and the
   import among them.
 - No backend, frontend, solver or Playwright file changed, so their suites were not run locally; no migration, no API change.
-- GitHub's two workflows on the pull request: the last criterion below is ticked once both are green on the head that reaches
-  `main`.
+- GitHub's two workflows were green on `4e70806`: backend, frontend, image, solver and browser checks (`operations.sh` among
+  them). The head that reaches `main` is this comment's commit, green again before the merge.
 
 **What the dev stack needs:** `deploy/Caddyfile` changed and nothing else the stack runs, so `docker compose restart caddy`
 (a Caddyfile-only change does not recreate it, ticket 62's finding). `docker compose up -d --build` then changes nothing more.
