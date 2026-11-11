@@ -20,3 +20,9 @@ certificates and licences. `docs/ARCHITECTURE.md` section 3's row for recording 
 the Deputy CNO, and section 4's Nurse skill entry names the Deputy's controls on Rostering attributes. This ticket still owns
 the rest of that criterion: the row for the skills import, the roles paragraph and section 8's screens, and dropping "(from
 ticket 61)" once built.
+
+**From ticket 54 (2026-11-11).** Ticket 54 has put its controls on the Rostering attributes row.
+- **The row:** it gained an "On probation" column, the fifth cell, after Status (`frontend/src/components/probation.tsx`, `ProbationCell`). Its Length, Extend and End buttons show only when the page's `mayChange` is true (the unit manager) and the nurse is not due to join. The questions (`useProbationQuestions`) are rendered only when `mayChange`.
+- **The Deputy's view:** it must keep no probation action. When the Deputy gets skill controls, give the row a separate flag for them rather than turning `mayChange` on, or the probation buttons appear too. The Deputy CNO only reads a probation (section 3's new rows).
+- **Focus:** after a probation answer, focus goes to the row's "Set attributes" button, by its id `attributes-<nurse id>` (`editButtonId`). Keep that id if the row's buttons change.
+- **Tests:** the app-level tests "the CNO / the Deputy CNO reads it and has no action" assert that the row has no button at all for those roles. Ticket 61 will have to narrow that assertion to the probation buttons.

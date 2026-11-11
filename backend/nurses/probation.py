@@ -1,5 +1,5 @@
 """A nurse's probation (ticket 54; `GLOSSARY.md`, Probation): every question about it goes here, so the row, the Nurses list, the
-staff list, the allowed shifts' refusal, the hourly notice and a solve input (ticket 55) read one answer.
+staff list, the allowed shifts' refusal, the hourly notification and a solve input (ticket 55) read one answer.
 
 It begins on her start date and is counted in whole calendar months: the month she joins counts when she joins on the 1st,
 and not otherwise. Its last day is derived from the start date, the length (`probation_months`) and an early end
@@ -85,14 +85,17 @@ def _placement_in(placements: list[Placement], month: dt.date) -> Placement | No
 def describe(nurse: NurseProfile) -> dict:
     """Her probation's values as an audit entry keeps them."""
     end = last_day(nurse)
-    return {"on_probation": nurse.on_probation, "months": nurse.probation_months,
-            "ended_early": nurse.probation_ended_in is not None, "last_day": end.isoformat() if end else None}
+    return {"on_probation": nurse.on_probation, "months": nurse.probation_months, "ended_early": ended_early(nurse), "last_day": end.isoformat() if end else None}
+
+
+def is_night_alone(allowed: list[str] | None, unit) -> bool:
+    """Allowed shifts that are the unit's night shift alone, which a nurse on probation does not work: she would be left with
+    no shift."""
+    return allowed is not None and allowed == [unit.rules.get("night_shift")]
 
 
 def night_alone(placements: list[Placement]) -> list[Placement]:
-    """Those whose allowed shifts are their unit's night shift alone, which a nurse on probation may not work: she would be
-    left with no shift."""
-    return [p for p in placements if p.allowed_shifts and p.allowed_shifts == [p.unit.rules.get("night_shift")]]
+    return [p for p in placements if is_night_alone(p.allowed_shifts, p.unit)]
 
 
 def tick(nurse: NurseProfile) -> None:

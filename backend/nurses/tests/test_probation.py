@@ -1,6 +1,6 @@
 """A nurse's probation (ticket 54): the CNO's tick on the form, in the import and as a correction; the month counting; her unit
 manager's length, extension and end on her Rostering attributes row; the night shift alone refused; the end by itself; the
-notice at the start of her last month; a transfer; the staff list; and the audit entries. Every last day below was counted by
+notification at the start of her last month; a transfer; the staff list; and the audit entries. Every last day below was counted by
 hand on a calendar, from the glossary's rule: whole calendar months from her start date, the month she joins counting only when
 she joins on the 1st."""
 import csv
@@ -200,6 +200,18 @@ class TestTheCnosTick:
         approve(icu, "2026-12-01")
         assert correct(cno, nurse, on_probation=False).status_code == 200
         assert row(mona, er, nurse)["probation"] is None
+
+    def test_unticked_with_approved_months_kept_her_unit_manager_changes_nothing(self, cno, mona, er):
+        nurse = on_probation(cno, er, "2026-12-15")
+        approve(er, "2026-12-01")
+        assert correct(cno, nurse, on_probation=False).status_code == 200
+        probation = row(mona, er, nurse)["probation"]
+        assert (probation["lengths"], probation["if_extended"], probation["if_ended"]) == ([], None, None)
+        for action, body in (("extend", {}), ("end", {}), ("length", {"months": 1})):
+            assert refusal(act(mona, er, nurse, action, **body)) == (
+                "The CNO took Layan Alharbi off probation. It ends on 31 December 2026, with the months whose rosters were "
+                "approved, and can no longer change.")
+        assert entries("nurse.probation_extended") == entries("nurse.probation_ended") == []
 
     def test_ticked_again_it_stands_at_three_months(self, cno, mona, er):
         nurse = on_probation(cno, er, "2026-12-15")

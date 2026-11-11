@@ -16,3 +16,8 @@
 - [ ] `docs/ARCHITECTURE.md`'s exports and roles sections say so; the OpenAPI document and the generated client regenerated
 
 ## Comments
+
+**From ticket 54 (2026-11-11).** A probation's last day is `nurses.probation.last_day(nurse)`, derived and never stored. `probation.running(nurse)` says whether it is over on the hospital's clock. Whether she is on probation in a given month is `on_probation_in(nurse, month)`, which a roster read of a past month needs, since `running` is about today.
+- `NurseRow.probation` (Nurses page) and `NurseAttributesRow.probation` (Rostering attributes) are empty once a probation is over.
+- The staff list has the import's "On probation" column ("Yes", or empty) and "Probation's last day".
+- My month's last day for her should read the same function.

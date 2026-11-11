@@ -9,6 +9,7 @@ import {
 } from "@/api/generated/endpoints"
 import type { NurseAttributesRow, ProbationOnTheRow } from "@/api/generated/model"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { CHECKBOX } from "@/components/form-field"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -21,7 +22,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { serverErrors } from "@/lib/server-errors"
-import { CHECKBOX } from "@/components/form-field"
 import { shortDay } from "@/lib/utils"
 
 /** A nurse on probation's row (ticket 54): its length and last day, and her unit manager's three actions, each behind its

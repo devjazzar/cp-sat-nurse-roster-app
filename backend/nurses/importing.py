@@ -27,7 +27,7 @@ from nurses.models import Gender
 from units.models import Unit
 
 COLUMNS = ("Hospital ID", "Full name", "Gender", "Unit", "Start date", "On probation")
-OPTIONAL = 1  # How many of the last columns a file may leave out: "On probation" (ticket 54), which came after the others.
+OPTIONAL_COLUMNS = 1  # How many of the last columns a file may leave out: "On probation" (ticket 54), which came after the others.
 MAX_ROWS = 500
 MAX_BYTES = 1024 * 1024  # Far more than 500 rows need. Under FILE_UPLOAD_MAX_MEMORY_SIZE, so this message can be given.
 
@@ -48,7 +48,7 @@ class FileRefused(Exception):
 class Line:
     number: int
     cells: list[str]
-    width: int | None = None  # Set when the cells do not match the header, which named this many columns.
+    header_width: int | None = None  # Set when the cells do not match the header, which named this many columns.
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,7 @@ class Layout:
         return [self.columns[:len(self.columns) - left_out] for left_out in range(self.optional + 1)]
 
 
-NURSE_FILE = Layout(COLUMNS, "nurse", "nurses", ", by unit for example,", "a name that has a comma in it", OPTIONAL)
+NURSE_FILE = Layout(COLUMNS, "nurse", "nurses", ", by unit for example,", "a name that has a comma in it", OPTIONAL_COLUMNS)
 
 
 def _trimmed(cells: list[str], columns: tuple[str, ...]) -> list[str]:
@@ -181,9 +181,9 @@ def read_file(raw: bytes, layout: Layout = NURSE_FILE) -> list[Line]:
 
 def wrong_cell_count(line: Line, layout: Layout) -> Problem | None:
     """The cells cannot be matched to the columns, so nothing can be said about any one of them."""
-    if line.width is None and len(line.cells) == len(layout.columns):
+    if line.header_width is None and len(line.cells) == len(layout.columns):
         return None
-    return Problem(None, f"This line has {len(line.cells)} cells, not {line.width or len(layout.columns)}. "
+    return Problem(None, f"This line has {len(line.cells)} cells, not {line.header_width or len(layout.columns)}. "
                          f"Put double quotes around {layout.quote_hint}.")
 
 

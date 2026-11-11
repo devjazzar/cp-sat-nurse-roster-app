@@ -39,7 +39,7 @@ class Notification(models.Model):
     """One thing one user is told. `payload` holds identifiers only (a unit, a month, a solve, who did it): the words are
     worked out when the notification is read, from what those name then, so a rename or a correction leaves nothing stale and
     nothing about a person is kept here. Never a rejection's comment or a leave. A nurse only as her profile's identifier, for a
-probation ending, whose words are her unit manager's to read (ticket 54)."""
+    probation ending, whose words are her unit manager's to read (ticket 54)."""
 
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="notifications")

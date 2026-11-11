@@ -658,6 +658,9 @@ minute takes a lock of its own. Jobs:
   otherwise hold the lock for good, and fails a solve whose job is gone. A dead run of a periodic job whose next run already
   waits ends as failed instead, since it could not take its queueing lock back (a restore brings back the backup that was
   running as that backup was taken).
+- `tell_probations_ending` (hourly, minute 25, ticket 54): tells the unit's manager, once, in the last month of each probation
+  not ended early, from its first hour; one per last month (`probation_notified_for`), so a worker that was down still tells
+  that month, and an extension tells again in the new one. A probation needs no job to end: its last day is read.
 - `close_month` (hourly, minute 30): closes every unit's month whose close time has passed on the hospital's clock and
   is not closed, oldest month first across units, so a worker that was down catches up; and `project_carry_over` on demand,
   after every new roster version and every close, under its own lock, which stores the projected carry-over of an approved

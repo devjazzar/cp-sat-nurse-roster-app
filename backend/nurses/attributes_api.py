@@ -72,7 +72,7 @@ def _probation_on_the_row(nurse: NurseProfile) -> ProbationOnTheRow | None:
     if read is None:
         return None
     month = membership.this_month()
-    open_to_change = not read.ended_early
+    open_to_change = read.ticked and not read.ended_early
     lengths = [LengthChoice(months=months, last_day=last) for months in probation.FIRST_LENGTHS
                if (last := probation.last_day_after(nurse.start_date, months)) >= month] \
         if open_to_change and read.months <= probation.FIRST_LENGTHS[-1] else []
@@ -157,7 +157,7 @@ def _refuse_shifts_outside(unit: Unit, nurse: NurseProfile, allowed: list[str] |
                for index, code in enumerate(allowed or []) if code not in unit.rules["shifts"]]
     if refused:
         refuse(*refused)
-    if allowed == [unit.rules.get("night_shift")] and probation.running(nurse):
+    if probation.is_night_alone(allowed, unit) and probation.running(nurse):
         refuse((("allowed_shifts",), f"{nurse.user.full_name} is on probation, and a nurse on probation does not work "
                                      f"{allowed[0]}, the night shift, so it alone would leave her no shift."))
     pinned = outside_allowed(nurse, unit, allowed)
@@ -227,6 +227,9 @@ def _probation_to_change(request, unit_id: UUID, nurse_id: UUID) -> tuple[Unit, 
     name = nurse.user.full_name
     if not probation.running(nurse):
         refuse((("probation",), f"{name} is not on probation."))
+    if not nurse.on_probation:
+        refuse((("probation",), f"The CNO took {name} off probation. It ends on {probation.last_day(nurse):%-d %B %Y}, with the "
+                                "months whose rosters were approved, and can no longer change."))
     if probation.ended_early(nurse):
         refuse((("probation",), f"{name}'s probation was ended early, on {probation.last_day(nurse):%-d %B %Y}, "
                                 "so it can no longer change."))
