@@ -213,6 +213,14 @@ class TestTheCnosTick:
                 "approved, and can no longer change.")
         assert entries("nurse.probation_extended") == entries("nurse.probation_ended") == []
 
+    def test_the_tick_reads_as_stored_once_it_has_run_out_and_can_be_taken_off(self, cno, er, today):
+        nurse = on_probation(cno, er, "2026-09-01")  # September to November
+        today(2026, 12, 1)
+        listed = next(n for n in cno.get(NURSES).json() if n["id"] == nurse)
+        assert (listed["on_probation"], listed["probation"]) == (True, None)
+        assert correct(cno, nurse, on_probation=False).status_code == 200
+        assert next(n for n in cno.get(NURSES).json() if n["id"] == nurse)["on_probation"] is False
+
     def test_ticked_again_it_stands_at_three_months(self, cno, mona, er):
         nurse = on_probation(cno, er, "2026-12-15")
         ok(act(mona, er, nurse, "length", months=1))

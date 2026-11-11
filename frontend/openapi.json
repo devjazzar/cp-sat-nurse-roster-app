@@ -17321,6 +17321,11 @@
             "title": "Skills",
             "type": "array"
           },
+          "on_probation": {
+            "description": "The CNO's tick as it stands, also once her probation is over, for the correction form.",
+            "title": "On Probation",
+            "type": "boolean"
+          },
           "probation": {
             "anyOf": [
               {
@@ -17346,6 +17351,7 @@
           "unit",
           "transfers",
           "skills",
+          "on_probation",
           "probation"
         ],
         "title": "NurseRow",

@@ -2789,6 +2789,7 @@ describe("the nurses page", () => {
   const AMAL = {
     id: "n1", hospital_id: "h123", full_name: "Amal Saleh", role: "staff_nurse", gender: "F", start_date: "2026-01-10",
     end_date: null, is_active: true, must_change_password: false, unit: { id: "u1", name: "ER" }, transfers: [], skills: [],
+    on_probation: false, probation: null,
   }
   const BADR = { ...AMAL, id: "n2", hospital_id: "h124", full_name: "Badr Omar", gender: "M", unit: { id: "u2", name: "ICU" } }
   const MONA_NURSE = { ...AMAL, id: "n3", hospital_id: "mona", full_name: "Mona Ali", role: "unit_manager" }
@@ -2937,7 +2938,7 @@ describe("the nurses page", () => {
     const PROBATION = { last_day: "2027-03-31", months: 3, ticked: true, ended_early: false }
 
     it("is ticked when adding a nurse, and the list says until when", async () => {
-      const layan = { ...AMAL, full_name: "Layan Alharbi", probation: PROBATION }
+      const layan = { ...AMAL, full_name: "Layan Alharbi", on_probation: true, probation: PROBATION }
       const nurses = { body: [AMAL, BADR] as unknown[] }
       const { user, calls } = start("/nurses", asCnoHere({
         "GET /api/nurses": nurses,
@@ -2964,9 +2965,10 @@ describe("the nurses page", () => {
     })
 
     it("is corrected on a staff nurse's details, sent only when it changes", async () => {
-      const layan = { ...AMAL, probation: PROBATION }
+      // Run out by itself: the tick reads as stored, so it can still be taken off.
+      const layan = { ...AMAL, on_probation: true, probation: null }
       const { user, calls } = start("/nurses", asCnoHere({
-        "PUT /api/nurses/n1/details": { body: { nurse: { ...layan, probation: null }, first_placement_extended: null } },
+        "PUT /api/nurses/n1/details": { body: { nurse: { ...layan, on_probation: false }, first_placement_extended: null } },
       }, [layan, BADR]))
 
       await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))

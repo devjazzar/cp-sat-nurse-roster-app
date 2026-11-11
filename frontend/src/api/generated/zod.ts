@@ -5686,6 +5686,7 @@ export const ListNursesResponseItem = zod.object({
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
 })).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -5748,6 +5749,7 @@ export const CreateNurseResponse = zod.object({
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
 })).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -5828,6 +5830,7 @@ export const GiveManagerNurseProfileResponse = zod.object({
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
 })).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -5881,6 +5884,7 @@ export const TransferNurseResponse = zod.object({
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
 })).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -5933,6 +5937,7 @@ export const SetNurseEndDateResponse = zod.object({
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
 })).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -5994,6 +5999,7 @@ export const CorrectNurseDetailsResponse = zod.object({
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
 })).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -6050,6 +6056,7 @@ export const ResetNursePasswordResponse = zod.object({
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
 })).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),

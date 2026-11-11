@@ -22,7 +22,8 @@
 ## Comments
 
 **Implemented on 2026-11-11,** on branch `claude/ticket-54-probation-on-a-nurse-7c870f` (`a0dfe34`, `ba12fe8`, `0a0b175`,
-`ff29b9d`, `76c9b1c`, then the no-manager fix and this comment), from `main` at `e8b1308`. Draft pull request
+`ff29b9d`, `76c9b1c`, the no-manager fix `a053ca0`, then `origin/main` merged in with tickets 44, 65 and 70, and the stored
+tick on the Nurses row), from `main` at `e8b1308`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#17](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/17).
 
 The suites ran locally under the heavy-run lock, on `76c9b1c`:
@@ -32,7 +33,11 @@ The suites ran locally under the heavy-run lock, on `76c9b1c`:
 - `makemigrations --check`: "No changes detected";
 - `frontend/openapi.json` and the generated client were regenerated from the export and committed; CI checks that they match;
 - no Playwright file changed, and there is no new journey;
-- GitHub's two workflows (the three suites, the image, six frontend runs at once, the browser checks) were green on `76c9b1c`.
+- GitHub's two workflows (the three suites, the image, six frontend runs at once, the browser checks) were green on `76c9b1c`,
+  and again on the final head, after the merge;
+- after merging `origin/main` (no conflict; migration numbers clear: `nurses` 0006, `notifications` 0009), the OpenAPI
+  document and the client were regenerated from the merged backend, and only this ticket's field changed them.
+  `makemigrations --check` was clean, and the probation tests (48) and the Nurses and probation app-level tests (81) passed.
 
 **What the dev stack needs:** `docker compose up -d --build`. Two migrations come with it: `nurses` 0006 (the probation's
 four fields and two constraints) and `notifications` 0009 (the new event). `web` runs them at start. There is a new hourly job,
@@ -125,6 +130,9 @@ The stack, its volumes and its env file are down and removed. My PostgreSQL cont
 - From the review: her unit manager could still Extend or End a probation the CNO had unticked, which wrote an extension the
   last day ignored. It is now refused and not offered. Tested.
 - A unit with no manager in her last month would have marked the notification sent and told nobody. Tested.
+- From the advisor: once a probation had run out by itself, Correct details opened with On probation unticked, since the row's
+  `probation` is empty then. The CNO could neither take the tick off nor see it. The Nurses row now carries the stored tick
+  (`on_probation`), and the form reads it. Tested in both suites.
 
 **Findings for you, not fixed.**
 - A unit dropping a shift (`membership.narrow_allowed_shifts`) or a transfer carrying a list can still leave a nurse on
@@ -168,6 +176,9 @@ The stack, its volumes and its env file are down and removed. My PostgreSQL cont
   - "Extend the probation of … by a month?"
   - "End the probation of …?"
   - The buttons are named "Length of …'s probation", "Extend the probation of …" and "End the probation of …".
+- **A probation that has run out by itself cannot be extended.** Its last day has passed, so Extend and Length are refused
+  ("… is not on probation.") and not offered. The spec says it "ends by itself on its last day"; reviving one would be a
+  new rule.
 - **The System Admin reads a probation's values in the audit log:** your decision of 2026-11-11, now written into section 3.
 
 **Review.** `code-review` against `e8b1308`, both axes in fresh sub-agents.
