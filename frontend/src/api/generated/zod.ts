@@ -6034,7 +6034,7 @@ export const turnPushOnBodyKeysP256dhMax = 200;
 
 
 export const turnPushOnBodyKeysP256dhRegExp = new RegExp('^[A-Za-z0-9_-]+={0,2}$');
-export const turnPushOnBodyKeysAuthMax = 200;
+export const turnPushOnBodyKeysAuthMax = 100;
 
 
 export const turnPushOnBodyKeysAuthRegExp = new RegExp('^[A-Za-z0-9_-]+={0,2}$');

@@ -10,6 +10,7 @@ from pydantic import AfterValidator, StringConstraints
 
 from accounts.authz import SignedIn
 from notifications import push_keys, subscriptions
+from notifications.models import PushSubscription
 
 router = Router(tags=["push"])
 
@@ -24,7 +25,17 @@ def _a_push_service(endpoint: str) -> str:
 
 # Only a turn-on is refused: the state, a turn-off and the address a renewal replaces read an address, and send nothing to it.
 PushServiceAddress = Annotated[Address, AfterValidator(_a_push_service)]
-Key = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]+={0,2}$", min_length=1, max_length=200)]
+
+
+def _key(column: str):
+    """A key in base64url, no longer than the column that keeps it (ticket 67), so one that cannot be stored is a field error."""
+    longest = PushSubscription._meta.get_field(column).max_length
+    return Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]+={0,2}$", min_length=1, max_length=longest)]
+
+
+P256dhKey = _key("p256dh")
+AuthKey = _key("auth")
+
 # Log out is allowed during a forced password change and turns this device off first, so turning off is too.
 ALSO_DURING_A_FORCED_CHANGE = SignedIn(during_forced_change=True)
 
@@ -40,8 +51,8 @@ class PushState(Schema):
 
 
 class SubscriptionKeys(Schema):
-    p256dh: Key
-    auth: Key
+    p256dh: P256dhKey
+    auth: AuthKey
 
 
 class TurnOn(Schema):

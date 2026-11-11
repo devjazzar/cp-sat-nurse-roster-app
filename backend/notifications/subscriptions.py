@@ -72,6 +72,7 @@ def turn_on(user: User, *, endpoint: str, p256dh: str, auth: str, replaces: str 
                 old.delete()
             else:
                 _audit("push.turned_on", user)
+                _keep_the_latest(user)
             return
         if old is not None:
             PushSubscription.objects.filter(pk=old.pk).update(
@@ -79,6 +80,18 @@ def turn_on(user: User, *, endpoint: str, p256dh: str, auth: str, replaces: str 
             return
         PushSubscription.objects.create(user=user, endpoint=endpoint, **keys)
         _audit("push.turned_on", user)
+        _keep_the_latest(user)
+
+
+DEVICES_A_USER = 10
+"""So that one account cannot make the one push job at a time send to hundreds of made-up addresses (ticket 67)."""
+
+
+def _keep_the_latest(user: User) -> None:
+    """An eleventh device ends the user's earliest turned on, with no entry of its own: the new one's turning on says enough.
+    Under the user's row lock, which `turn_on` holds."""
+    earliest = PushSubscription.objects.filter(user=user).order_by("-turned_on_at", "-pk")[DEVICES_A_USER:]
+    PushSubscription.objects.filter(pk__in=list(earliest.values_list("pk", flat=True))).delete()
 
 
 def turn_off(user: User, endpoint: str) -> None:

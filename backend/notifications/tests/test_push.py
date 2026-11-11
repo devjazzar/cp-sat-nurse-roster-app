@@ -7,11 +7,12 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from django.core.management import call_command
 from django.test import Client
+from django.utils import timezone
 
 from accounts.models import Role, User
 from audit.models import AuditEntry
 from conftest import PASSWORD, post
-from notifications.models import PushKeyPair
+from notifications.models import PushKeyPair, PushSubscription
 
 pytestmark = pytest.mark.django_db
 
@@ -232,6 +233,98 @@ class TestTurningOn:
     def test_what_is_not_a_subscription_is_refused(self, amal, body):
         assert post(amal, f"{PUSH}/on", body).status_code == 422
         assert state(amal)["devices"] == 0
+
+    def test_a_key_longer_than_its_column_is_refused_and_nothing_is_kept(self, amal):
+        """Ticket 67: the API's limits are the model's, so a key that cannot be stored is a field error, not a database one."""
+        response = post(amal, f"{PUSH}/on", {"endpoint": PHONE, "keys": {"p256dh": KEYS["p256dh"], "auth": "a" * 101}})
+
+        assert response.status_code == 422, response.content
+        [error] = response.json()["detail"]
+        assert error["loc"][-1] == "auth"
+        assert state(amal)["devices"] == 0
+
+    def test_keys_as_long_as_their_columns_are_kept(self, amal):
+        assert turn_on(amal, PHONE, keys={"p256dh": "b" * 200, "auth": "a" * 100})["devices"] == 1
+
+
+def device(n: int) -> str:
+    return f"https://fcm.googleapis.com/fcm/send/device-{n}"
+
+
+def held(client) -> list[str]:
+    """Which of `device(n)` the client's user holds, by n."""
+    return [n for n in range(1, 14) if state(client, device(n))["this_device"]]
+
+
+class TestTenDevices:
+    """At most ten push subscriptions a user (ticket 67): an eleventh device ends the earliest turned on, and nothing refuses
+    the new one."""
+
+    def test_ten_are_held(self, amal):
+        for n in range(1, 11):
+            answer = turn_on(amal, device(n))
+
+        assert answer["devices"] == 10 and held(amal) == list(range(1, 11))
+
+    def test_an_eleventh_ends_the_earliest_turned_on_with_no_entry_of_its_own(self, amal):
+        for n in range(1, 12):
+            answer = turn_on(amal, device(n))
+
+        assert answer["this_device"] is True and answer["devices"] == 10
+        assert held(amal) == list(range(2, 12))
+        assert [entry.action for entry in entries()] == ["push.turned_on"] * 11
+
+    def test_the_earliest_is_by_when_it_was_turned_on_not_by_address(self, amal):
+        for n in range(1, 11):
+            turn_on(amal, device(n))
+        PushSubscription.objects.filter(endpoint=device(1)).update(turned_on_at=timezone.now())
+
+        turn_on(amal, device(11))
+
+        assert held(amal) == [1] + list(range(3, 12))
+
+    def test_more_than_ten_held_from_before_are_ended_down_to_ten(self, amal):
+        user = User.objects.get(username="amal")
+        for n in range(1, 13):
+            PushSubscription.objects.create(user=user, endpoint=device(n), **KEYS)
+
+        answer = turn_on(amal, device(13))
+
+        assert answer["devices"] == 10 and held(amal) == list(range(4, 14))
+
+    def test_a_renewal_at_ten_ends_none(self, amal):
+        for n in range(1, 11):
+            turn_on(amal, device(n))
+
+        answer = turn_on(amal, device(13), replaces=device(5))
+
+        assert answer["devices"] == 10 and held(amal) == [1, 2, 3, 4, 6, 7, 8, 9, 10, 13]
+
+    def test_turning_on_a_held_address_again_ends_none(self, amal):
+        for n in range(1, 11):
+            turn_on(amal, device(n))
+
+        answer = turn_on(amal, device(1))
+
+        assert answer["devices"] == 10 and held(amal) == list(range(1, 11))
+
+    def test_an_address_moving_from_another_user_counts(self, amal, badr):
+        """A shared device taken over is one of the taker's ten, so moving an address cannot get round the limit."""
+        for n in range(1, 11):
+            turn_on(amal, device(n))
+        turn_on(badr, device(11))
+
+        answer = turn_on(amal, device(11))
+
+        assert answer["devices"] == 10 and held(amal) == list(range(2, 12))
+        assert state(badr)["devices"] == 0
+
+    def test_each_user_has_ten_of_their_own(self, amal, badr):
+        for n in range(1, 11):
+            turn_on(amal, device(n))
+        turn_on(badr, PHONE)
+
+        assert state(amal)["devices"] == 10 and state(badr)["devices"] == 1
 
 
 class TestTurningOff:

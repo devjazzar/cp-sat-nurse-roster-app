@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from notifications import pushes
 from notifications.models import Notification, PushAttempt
-from ops.queue import daily, enqueue_later, under_its_own_lock
+from ops.queue import daily, enqueue, enqueue_later, under_its_own_lock
 
 KEPT = dt.timedelta(days=365)
 
@@ -34,8 +34,12 @@ Below the first tries' priority, it holds back no new push; a new push waiting h
 @under_its_own_lock
 def push(notification_ids: list[str], attempt: int = 0, remaining: list[list[str]] | None = None) -> None:
     """Deferred by `notifications.sending.notify` in the transaction that writes the notifications, so it exists only if they
-    do (ADR 0006); one job a call, however many it tells. Under the lock `push`, one push job at a time (ADR 0009)."""
-    retry = pushes.deliver(notification_ids, attempt=attempt, remaining=remaining)
-    if retry:
+    do (ADR 0006); one job a call, however many it tells. Under the lock `push`, one push job at a time (ADR 0009). The sends
+    its budget left unmade go to a new job at the normal priority and the same try, so first tries stay first tries, behind any
+    push already waiting (ticket 67)."""
+    delivered = pushes.deliver(notification_ids, started=pushes.clock(), attempt=attempt, remaining=remaining)
+    if delivered.handed_on:
+        enqueue(push, notification_ids=notification_ids, attempt=attempt, remaining=delivered.handed_on)
+    if delivered.retry:
         enqueue_later(push, seconds=pushes.RETRY_IN[attempt], priority=TRY_AGAIN_PRIORITY,
-                      notification_ids=notification_ids, attempt=attempt + 1, remaining=retry)
+                      notification_ids=notification_ids, attempt=attempt + 1, remaining=delivered.retry)

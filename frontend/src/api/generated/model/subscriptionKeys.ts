@@ -14,7 +14,7 @@ export interface SubscriptionKeys {
   p256dh: string;
   /**
      * @minLength 1
-     * @maxLength 200
+     * @maxLength 100
      * @pattern ^[A-Za-z0-9_-]+={0,2}$
      */
   auth: string;

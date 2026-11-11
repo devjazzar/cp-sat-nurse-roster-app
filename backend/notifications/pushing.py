@@ -66,3 +66,5 @@ def send(*, endpoint: str, p256dh: str, auth: str, kind: str, private_key: str) 
         return PushOutcome.UNREACHABLE
     except (ValueError, TypeError):  # keys the browser gave that cannot be encrypted to
         return PushOutcome.REFUSED
+    except Exception:  # noqa: BLE001 - whatever else the library raises: one device's error never stops the job (ticket 67)
+        return PushOutcome.REFUSED

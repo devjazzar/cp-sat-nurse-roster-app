@@ -6,6 +6,7 @@ import datetime as dt
 import pytest
 import requests
 from django.db import transaction
+from procrastinate.contrib.django.models import ProcrastinateJob
 
 from accounts.models import Role, User
 from conftest import post
@@ -468,6 +469,123 @@ class TestTryingAgain:
 
         assert kinds_to(push_service, manager) == ["roster_sent_back"]
         assert len(push_service.to(amal.endpoint)) == 1
+
+
+class Clock:
+    """The push job's clock, moved by hand: a send takes the time a test gives it."""
+
+    def __init__(self):
+        self.seconds = 0.0
+
+    def __call__(self) -> float:
+        return self.seconds
+
+    def taking(self, seconds: float, answer=201):
+        """A scripted answer that takes `seconds` before it comes."""
+        def slow():
+            self.seconds += seconds
+            if isinstance(answer, BaseException):
+                raise answer
+            return answer
+        return slow
+
+
+@pytest.fixture
+def clock(monkeypatch) -> Clock:
+    from notifications import pushes
+    moved = Clock()
+    monkeypatch.setattr(pushes, "clock", moved)
+    return moved
+
+
+NURSES = ("Amal", "Badr", "Dana", "Emad")
+
+
+class TestTheBudget:
+    """A push job starts no new send once it has run 30 seconds, and hands the sends it has not made to a new push job, behind
+    any push already waiting (ticket 67): no job holds the others back by more than about 30 seconds and one send."""
+
+    def test_a_job_past_its_budget_hands_on_and_the_sends_are_made_after_a_push_already_waiting(
+            self, mona, er, solver, push_service, clock):
+        solved(mona, er, solver)
+        nurses = everyone_on(*NURSES)
+        approvers = everyone_on("carla", "dina")
+        for device in nurses.values():
+            push_service.answer(device.endpoint, clock.taking(31))
+        opened(mona, er)  # one job for the four nurses
+        ok(submit(mona, er))  # then one for the approvers, waiting behind it
+
+        run_the_queue()
+
+        order = [sent.endpoint for sent in push_service.sent]
+        first = order[0]
+        assert first in {device.endpoint for device in nurses.values()}
+        assert set(order[1:3]) == {device.endpoint for device in approvers.values()}
+        assert sorted(order[3:]) == sorted(device.endpoint for device in nurses.values() if device.endpoint != first)
+        assert pushed(push_service, nurses) == {username: ["requests_open"] for username in NURSES}
+        assert list(PushAttempt.objects.values_list("outcome", flat=True)) == ["sent"] * 6
+
+    def test_a_job_within_its_budget_makes_every_send(self, mona, er, push_service, clock):
+        nurses = everyone_on(*NURSES)
+        for device in nurses.values():
+            push_service.answer(device.endpoint, clock.taking(9))
+
+        opened(mona, er)
+        run_the_queue()
+
+        assert pushed(push_service, nurses) == {username: ["requests_open"] for username in NURSES}
+        assert ProcrastinateJob.objects.filter(task_name="notifications.tasks.push").count() == 1
+
+    def test_a_send_handed_on_keeps_its_try_number(self, mona, er, push_service, clock):
+        """Both phones are down: the first try reaches neither, the second runs out of time after Amal's, and Badr's second try
+        is handed on. Each is still sent four times and counts one failure, as a phone that is down always does."""
+        amal, badr = on("Amal"), on("Badr")
+        down = requests.ConnectionError("no route")
+        for device in (amal, badr):
+            push_service.answer(device.endpoint, down, clock.taking(31, down))
+
+        opened(mona, er)
+        run_the_queue()
+
+        assert len(push_service.to(amal.endpoint)) == 4 and len(push_service.to(badr.endpoint)) == 4
+        assert subscription(amal).failures_in_a_row == 1 and subscription(badr).failures_in_a_row == 1
+        assert list(PushAttempt.objects.values_list("outcome", flat=True)) == ["unreachable"] * 8
+
+    def test_a_handed_on_send_to_a_thing_that_no_longer_waits_is_not_made(self, mona, er, push_service, clock):
+        """The next job reads again that the thing still waits, as a try again does."""
+        amal, badr = on("Amal"), on("Badr")
+        window = {}
+
+        def slow_while_the_window_is_removed():
+            clock.seconds += 31
+            from requesting.models import RequestWindow
+            RequestWindow.objects.filter(pk=window["id"]).delete()
+            return 201
+
+        for device in (amal, badr):
+            push_service.answer(device.endpoint, slow_while_the_window_is_removed)
+
+        window.update(opened(mona, er))
+        run_the_queue()
+
+        assert len(push_service.sent) == 1
+
+
+class TestAnUnforeseenError:
+    def test_a_library_exception_of_an_unforeseen_kind_is_a_refusal_and_the_job_goes_on(self, mona, er, push_service):
+        class Unforeseen(Exception):
+            pass
+
+        amal = on("Amal")
+        laptop = turned_on(as_user("Amal"), Device("https://updates.push.services.mozilla.com/wpush/v2/amals-laptop"))
+        push_service.answer(amal.endpoint, Unforeseen("the library did not see this coming"))
+
+        opened(mona, er)
+        run_the_queue()
+
+        assert len(push_service.to(amal.endpoint)) == 1 and len(push_service.to(laptop.endpoint)) == 1
+        assert subscription(amal).failures_in_a_row == 1
+        assert sorted(PushAttempt.objects.values_list("outcome", flat=True)) == ["refused", "sent"]
 
 
 class TestOnlyThePushServicesHosts:
