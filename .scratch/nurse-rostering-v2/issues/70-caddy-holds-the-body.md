@@ -138,3 +138,10 @@ a Python client:
   stay in the global `servers` block, beside `timeouts`.
 - **65:** `operations.sh` gained a section after the log checks and one at the end (the import). Neither touches the restore's
   checks.
+
+**Reviewed by the user (2026-11-11):** points 1–4 kept as built; point 5 goes to ticket 72.
+- The 10 kB/s minimum as Caddy reads it: one minute plus 0.1 ms a byte from the body's start, so a fast-then-stalled body may stall past a minute, and a body under the cap has at most 260 s.
+- The buffers are 2 MiB, above the 2 MB cap, so a body that fills them exactly is never passed on with the rest still to come.
+- The test's one-worker compose file, swapping `web`'s command for that one check.
+- The fixed 2-second wait before the check asks `/api/health`.
+- HTTP/3 was not driven: ticket 72 adds an install-checklist line to time a confirmation longer than a minute from a browser at the first install.

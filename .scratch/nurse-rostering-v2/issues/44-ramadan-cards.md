@@ -212,3 +212,12 @@ The stack, its volumes and its image are gone, and the lock is released.
 - **46** finds every Ramadan write in `_fix_month`, which the per-month fix and the confirmation share. A notification
   there covers both. A confirmation already audits once per changed month inside one transaction, so a notification per
   month fits beside it.
+
+**Reviewed by the user (2026-11-11):** all seven points kept as built.
+- Dates that do not touch the calendar's Ramadan are refused, a fourth refusal beside the spec's three.
+- After confirming, the fields are prefilled with the days in force, not the calendar's.
+- The CNO's line keeps the day count ("The CNO: 9 February – 9 March 2027, 29 days.").
+- The 35-day limit counts both ends: 35 accepted, 36 refused.
+- The refusals' words as listed in the comment.
+- Focus stays on Confirm after confirming; the status line announces it.
+- No year from 1925 to 2076 shows an empty list; the empty case stays handled.
