@@ -627,7 +627,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.162,<0.163" },
-    { name = "hijridate", specifier = ">=2.6.0" },
+    { name = "hijridate", specifier = ">=2.6.0,<3" },
     { name = "ortools", specifier = ">=9.15.6755,<9.16" },
     { name = "uvicorn", specifier = ">=0.54,<0.55" },
 ]
@@ -647,6 +647,7 @@ dependencies = [
     { name = "django" },
     { name = "django-ninja" },
     { name = "gunicorn" },
+    { name = "hijridate" },
     { name = "httpx" },
     { name = "nurse-roster" },
     { name = "procrastinate", extra = ["django"] },
@@ -669,6 +670,7 @@ requires-dist = [
     { name = "django", specifier = ">=6.1.3,<6.2" },
     { name = "django-ninja", specifier = ">=1.7.3,<1.8" },
     { name = "gunicorn", specifier = ">=26.2,<27" },
+    { name = "hijridate", specifier = ">=2.6.0,<3" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "nurse-roster", editable = "solver" },
     { name = "procrastinate", extras = ["django"], specifier = ">=3.10,<3.11" },

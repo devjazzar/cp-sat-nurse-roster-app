@@ -949,6 +949,8 @@ Python 3.14, OR-Tools 9.15, Django 6.1, Django Ninja 1.7, Procrastinate 3.10, Po
 Caddy 2.11, uv 0.13, Node 26 LTS (build only), Vite 8, Vitest 5, React 19.3, Tailwind 4.3,
 TypeScript 6 (7 once the toolchain supports it), TanStack Query 5, Router 1, Table 9,
 Virtual 3, Pacer 0.24, React Hook Form 7, Zustand 5, Recharts 3, orval 8, Playwright 1.64.
+The Umm al-Qura calendar is `hijridate` 2 (`<3` in the solver's and the backend's dependencies): fixed tables for
+1925 to 2076, read offline by the solver and, through the solver's calendar module, by the web container.
 
 ## 12. Revisit later
 
