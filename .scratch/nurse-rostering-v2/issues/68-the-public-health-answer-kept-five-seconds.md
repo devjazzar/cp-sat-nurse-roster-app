@@ -8,7 +8,7 @@
 
 - [ ] Within five seconds a second public health request does not call the solver or the database again and gives the same answer; after five seconds it does
 - [ ] The System Admin's `/api/ops/health` and `/metrics` are not cached
-- [ ] The web service's compose health check still turns healthy at start and unhealthy when the database is gone, within its retries
+- [ ] The web service's compose health check still turns healthy at start; with the database gone, the public answer says so within five seconds of its kept copy running out
 - [ ] `docs/ARCHITECTURE.md` section 8's Observability says the public answer is kept five seconds
 - [ ] `docs/security/2026-11-11-security-audit.md`: the health hardening note marked fixed, with this ticket's commits
 - [ ] Tests at the agreed seams: the backend API suite; the usual full suites and both workflows

@@ -4,7 +4,7 @@ Status: ready-for-agent
 Type: enhancement
 Published: 2026-11-11 by /to-spec
 
-Spec drawn from the grilling of 2026-11-11 (two rounds, 16 questions, every recommendation taken), which acted on the security
+Spec drawn from the grilling of 2026-11-11 (two rounds, 16 questions, every recommendation taken, and one correction, Q17, after the spec's first draft: a minimum body rate instead of a whole-body deadline), which acted on the security
 audit of that day: `docs/security/2026-11-11-security-audit.md`, its leads 1 to 4, the hardening notes of its `REPORT.md`
 section 5 and the restore note of its section 4 (full traces in `NEEDS-VALIDATION.md`). Vocabulary: `GLOSSARY.md`
 (**Lockout**, **Throttle**, **Push subscription**, **Push**, **Backup**, **Restore**). Decisions and their reasons:
@@ -292,8 +292,8 @@ internals to assert how it is done. Four seams, all of them existing.
   - the public health answer calls the solver once within five seconds and again after.
 - **`deploy/tests/operations.sh`, the compose-level test on its own stack:** the running Caddy's version is 2.11.8 or later;
   a page and an API answer carry the one content security policy; no `Strict-Transport-Security` without `DOMAIN` (and, in
-  the adapted configuration, the header in the `DOMAIN` snippet, the minimum body rate, and no `read_timeout`); a body over 2 MB is 413; a login whose body is withheld does
-  not stop `/api/health` answering through Caddy (the audit's one-connection check, kept to one connection); a client-sent
+  the adapted configuration, the header in the `DOMAIN` snippet, the minimum body rate, and no `read_timeout`); a body over 2 MB is 413; with `web` at one worker of one
+  thread for that check, a login whose body is withheld does not stop `/api/health` answering through Caddy (the audit's one-connection check, kept to one connection); a client-sent
   `X-Forwarded-For` does not reach the audit log; gunicorn runs threaded; the restore check, which already restores and finds
   later writes gone, also finds the login attempts emptied and the list printed for a deactivation, a reset, a change and a
   key rotation written after the backup. This stack has no proxy, so `TRUSTED_PROXIES` beyond empty is the backend suite's

@@ -8,10 +8,10 @@
 
 - [ ] The site has a request body cap of 2 MB and `reverse_proxy` request buffers of 2 MB
 - [ ] The server's stalled-body timeout stays at its 1-minute default and gains a minimum rate of 10 kB/s; no `read_body` (a deadline on the whole request) is set, and the Caddyfile's comment says why
-- [ ] The other timeouts stay at Caddy's defaults: no write timeout
+- [ ] The other timeouts stay at Caddy's defaults: no write timeout; the minimum rate's syntax confirmed by `caddy adapt` on the running image
 - [ ] A 1 MB import file previews and confirms through Caddy
 - [ ] `docs/ARCHITECTURE.md` section 2 says what Caddy limits
 - [ ] `docs/security/2026-11-11-security-audit.md`: lead 3 marked fixed at Caddy, with this ticket's commits
-- [ ] Tests at the agreed seams: `deploy/tests/operations.sh` checks the running Caddy is 2.11.8 or later, a body over 2 MB is 413, a login whose body is withheld does not stop `/api/health` answering through Caddy (one connection), and the adapted configuration has the minimum rate and no `read_timeout`; both workflows
+- [ ] Tests at the agreed seams: `deploy/tests/operations.sh` checks the running Caddy is 2.11.8 or later, a body over 2 MB is 413, with the test stack's `web` overridden to one worker of one thread for this check (with three, one held request would never show), a login whose body is withheld does not stop `/api/health` answering through Caddy (one connection), and the adapted configuration has the minimum rate and no `read_timeout`; both workflows
 
 ## Comments

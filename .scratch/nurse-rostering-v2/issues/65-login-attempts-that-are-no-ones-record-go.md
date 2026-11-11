@@ -2,7 +2,7 @@
 
 **What to build:** A username's count of failed logins is forgotten a day after its last failure, unless the name is locked now, and an address's throttle window is removed once it is over. A daily retention job, beside the others and caught up by the next day when one is missed, removes both. The audit entries of failed logins stay. Spec: `.scratch/nurse-rostering-v2/specs/hardening.md` (Housekeeping); ADR 0009 (every job under a lock).
 
-**Blocked by:** 63 The throttle on failed logins from one address
+**Blocked by:** 64 A failed login names only a real account (both change the login's failure path and its tests), after 63
 
 **Status:** ready-for-agent
 

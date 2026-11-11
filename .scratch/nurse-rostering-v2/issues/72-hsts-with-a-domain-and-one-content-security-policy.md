@@ -2,7 +2,7 @@
 
 **What to build:** Every response through Caddy carries one `Content-Security-Policy`, replacing any `web` sent and extending ticket 62's `frame-ancestors 'none'` line: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`, widened only where the browser checks prove the built SPA needs it. With `DOMAIN` set, every response carries `Strict-Transport-Security: max-age=31536000`, without `includeSubDomains` or `preload`; a self-signed installation never sends it. Caddy's own error pages (the 502 while a restore runs) carry neither, which is accepted. Spec: `.scratch/nurse-rostering-v2/specs/hardening.md` (Headers).
 
-**Blocked by:** 62 Audit follow-ups (its `frame-ancestors` line); 70 Caddy holds the body (the same site block)
+**Blocked by:** 62 Audit follow-ups (its `frame-ancestors` line); 71 Gunicorn runs threaded workers (the Caddyfile, `operations.sh` and the install guide), after 70
 
 **Status:** ready-for-agent
 

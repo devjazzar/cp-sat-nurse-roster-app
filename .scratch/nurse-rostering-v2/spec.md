@@ -47,7 +47,7 @@ shows open covers if covers exist by then, and Web Push (40–42) pushes a cover
 - **A batched carry-over read:** 57, blocked by nothing.
 - **Audit follow-ups:** 62, blocked by nothing.
 - **Certificates and licences:** 53 → 58 → 59 → 60; 59 + 54 → 61 (58 after 53: both change the catalogue's API and page; 61 after 54: both put controls on the Rostering attributes row).
-- **Hardening:** 63 → 65, 66; 64, 67 and 68 beside them; 62 + 63 → 69 → 70 → 71; 62 + 70 → 72 (69, 70 and 72 after 62: all edit the Caddyfile; 69 after 63: it changes the address the throttle's tests send).
+- **Hardening:** 63 → 64 → 65 (each changes the login's failure path); 63 → 66; 67 and 68 beside them; 62 + 63 → 69 → 70 → 71 → 72 (the Caddy chain: each edits the Caddyfile, `operations.sh` or the install guide; 69 and 72 after 62, which edits the Caddyfile; 69 after 63: it changes the address the throttle's tests send).
 
 ## The order to build in
 
@@ -58,8 +58,8 @@ same time in their own sessions; two tickets of one feature go in order.
 
 Tickets 57 and 62 have no blocker and no feature: each may run beside any of them.
 
-Hardening (row 12), added on 2026-11-11 from the security audit, comes before the remaining features: it closes the audit's
-open leads 1 to 4. 63, 64, 67 and 68 can start at once and side by side; the Caddy chain (69, 70, 71, 72) waits for 62.
+Hardening (row 12), added on 2026-11-11 from the security audit, joins the queue; where it goes in the order is the user's
+call. Within it, 63, 67 and 68 can start at once and side by side; the Caddy chain (69 to 72) waits for 62 and 63.
 
 **On `main` (2026-11-11):** 26–43, 47 and 48, each with its session's comment and the user's review. **Still to build:**
 44–46, 49–61, 57, 62 and 63–72. Every ticket's `Status:` line says `ready-for-agent` whether built or not; the comments say which.

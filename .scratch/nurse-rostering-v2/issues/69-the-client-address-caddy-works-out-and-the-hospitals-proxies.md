@@ -7,7 +7,7 @@
 **Status:** ready-for-agent
 
 - [ ] `.env.example` lists `TRUSTED_PROXIES`, empty, with what it is for; compose passes it to Caddy alone
-- [ ] The Caddyfile's global options trust those proxies with strict parsing; an empty value starts Caddy without error and trusts no one
+- [ ] The Caddyfile's global options trust those proxies with strict parsing; an empty value starts Caddy without error and trusts no one (the directives' syntax confirmed by `caddy adapt` on the running image, not only from the docs)
 - [ ] Caddy always sets its own client-address header to `web`; `client_ip` reads it, and a client-sent `X-Forwarded-For` or a client-sent copy of that header changes nothing
 - [ ] `/metrics` is still refused through Caddy and answered inside
 - [ ] `deploy/INSTALL.md` says when to set `TRUSTED_PROXIES`, and that without it, behind a proxy, every client shares the proxy's address and its throttle
