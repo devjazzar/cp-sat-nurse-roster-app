@@ -56,7 +56,8 @@ person restoring.
   locked; an address's once its window is over. A daily retention job removes both. Audit entries stay. A failed login names
   the typed username only when an account has it.
 - **Caddy holds a client's body, and gunicorn no longer serves one request a worker.** Caddy refuses a body over 2 MB, reads
-  the whole body before it opens the request to the application, and gives a body 60 seconds to arrive. Gunicorn runs three
+  the whole body before it opens the request to the application, and drops a body that stalls for a minute or arrives slower
+  than 10 kB/s on average. Gunicorn runs three
   workers of four threads each, so one slow request, or a hash, holds a quarter of one worker and not a third of the pool.
 - **The installation knows its own proxies.** A hospital that puts a proxy in front of Caddy names it in `.env`, so each client
   behind it keeps its own address in the throttle and the audit log.
@@ -96,8 +97,8 @@ person restoring.
 23. As hospital IT, I want Caddy to refuse a request body over 2 MB with 413, so that no client can send the application more than its largest import needs.
 24. As a CNO, I want a nurse import of up to 1 MB still accepted, so that the body cap never refuses a file the import allows.
 25. As hospital IT, I want Caddy to read a request's whole body before it passes the request on, so that no web worker waits on a client's slow body.
-26. As hospital IT, I want a body that takes more than 60 seconds to arrive refused by Caddy, so that a client trickling bytes cannot hold even Caddy's side for long.
-27. As a CNO on slow ward Wi-Fi, I want a 1 MB import to arrive well inside that minute, so that the limit never refuses a real upload.
+26. As hospital IT, I want a body that stalls for a minute, or arrives slower than 10 kB/s on average, dropped by Caddy, so that a client trickling bytes cannot hold even Caddy's side for long.
+27. As a CNO on slow ward Wi-Fi, I want a 1 MB import accepted at any rate a real connection keeps up, and its confirmation answered however long it takes once the file is in, so that the limit never refuses a real upload or cuts off a long request.
 28. As a System Admin, I want each web worker to serve several requests at once, so that one hash, one import or one slow request holds a quarter of one worker and not a third of the pool.
 29. As a CNO, I want a 500-row nurse import confirmed however long it takes on this server, so that it is never killed halfway at 300 seconds.
 30. As hospital IT, I want the install guide's note on the import to say to time it, without a limit to stay under, so that I check the server and do not shrink imports for nothing.
@@ -184,9 +185,13 @@ person restoring.
 
 ### Caddy and gunicorn
 
-- **Caddyfile.** A global options block with the server's `read_body` timeout at 60 seconds and the trusted proxies; the other
-  timeouts stay at Caddy's defaults (headers 1 minute, idle 5 minutes, a stalled body 1 minute since 2.11.5, no write timeout,
-  since a backup download may be large). In the site: a request body cap of 2 MB (413, refused from `Content-Length` before
+- **Caddyfile.** A global options block with the trusted proxies and the server's stalled-body timeout (`read_body_idle`) at
+  its default of 1 minute, given a minimum rate of 10 kB/s averaged over the body. **No `read_body`:** Caddy hands it to Go's
+  server as a deadline on the whole request from its start, and Go's background read after the body cancels the request when
+  it fires, so a confirmation or a download longer than the deadline would be cut off (read in Go 1.26's `net/http` and Caddy
+  2.11.9's idle reader, which clears its own deadline once the body has arrived; the user's correction of Q14). The other
+  timeouts stay at Caddy's defaults (headers 1 minute, idle 5 minutes, a stalled write 1 minute, no write timeout, since a
+  backup download may be large). In the site: a request body cap of 2 MB (413, refused from `Content-Length` before
   reading since Caddy 2.11.8), and `reverse_proxy` with request buffers of 2 MB, so Caddy holds the whole body before it opens
   the request to `web`. The image stays `caddy:2.11` (ADR 0001); the compose-level test checks the running Caddy is 2.11.8 or
   later.
@@ -287,7 +292,7 @@ internals to assert how it is done. Four seams, all of them existing.
   - the public health answer calls the solver once within five seconds and again after.
 - **`deploy/tests/operations.sh`, the compose-level test on its own stack:** the running Caddy's version is 2.11.8 or later;
   a page and an API answer carry the one content security policy; no `Strict-Transport-Security` without `DOMAIN` (and, in
-  the adapted configuration, the header in the `DOMAIN` snippet); a body over 2 MB is 413; a login whose body is withheld does
+  the adapted configuration, the header in the `DOMAIN` snippet, the minimum body rate, and no `read_timeout`); a body over 2 MB is 413; a login whose body is withheld does
   not stop `/api/health` answering through Caddy (the audit's one-connection check, kept to one connection); a client-sent
   `X-Forwarded-For` does not reach the audit log; gunicorn runs threaded; the restore check, which already restores and finds
   later writes gone, also finds the login attempts emptied and the list printed for a deactivation, a reset, a change and a
@@ -321,7 +326,7 @@ internals to assert how it is done. Four seams, all of them existing.
 ## Further Notes
 
 - The facts this spec rests on were read from primary sources on 2026-11-11: Caddy v2.11.9's source (body streaming unless
-  request buffers are set, no default `read_body` deadline, the 1-minute stalled-body default from 2.11.5, the 413 from
+  request buffers are set, no default `read_body` deadline and why none is set here, the 1-minute stalled-body default from 2.11.5, the 413 from
   `Content-Length` from 2.11.8, a client-sent `X-Forwarded-For` replaced unless the peer is trusted, an empty trusted-proxy
   list accepted, a deferred `header` replacing the upstream's field), gunicorn 26.2.0's `gthread` (a connection is handed to a
   thread once a byte arrives; the main loop's heartbeat keeps a long request from being killed) and CPython 3.14's
