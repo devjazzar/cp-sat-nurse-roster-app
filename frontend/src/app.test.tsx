@@ -4701,7 +4701,7 @@ describe("the rostering attributes page", () => {
       const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
       expect(row.getByText("Until 31 Mar 2027")).toBeInTheDocument()
       expect(row.getByText("3 months")).toBeInTheDocument()
-      expect(row.getByRole("button", { name: "Length the probation of Layan Alharbi" })).toBeInTheDocument()
+      expect(row.getByRole("button", { name: "Length of Layan Alharbi's probation" })).toBeInTheDocument()
       expect(row.getByRole("button", { name: "Extend the probation of Layan Alharbi" })).toBeInTheDocument()
       expect(row.queryByRole("button", { name: /End the probation/ })).not.toBeInTheDocument()
       expect(within(cellOf("Amal Saleh").getAllByRole("cell")[4]).getByText("No")).toBeInTheDocument()
@@ -4751,7 +4751,7 @@ describe("the rostering attributes page", () => {
       const shorter = { ...LAYAN, probation: { ...PROBATION, months: 2, last_day: "2027-02-28" } }
       const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [LAYAN], { "PUT /api/units/er/nurses/n1/probation/length": { body: shorter } }))
 
-      const opener = await screen.findByRole("button", { name: "Length the probation of Layan Alharbi" })
+      const opener = await screen.findByRole("button", { name: "Length of Layan Alharbi's probation" })
       await user.click(opener)
       let question = await screen.findByRole("alertdialog", { name: "How long is the probation of Layan Alharbi?" })
       await user.click(within(question).getByRole("button", { name: "Cancel" }))

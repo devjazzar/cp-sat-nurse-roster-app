@@ -40,23 +40,24 @@ export function ProbationCell({ nurse, mayChange, onAsk }: {
 }) {
   const probation = nurse.probation
   if (!probation) return <span className="text-muted-foreground">No</span>
-  const actions: [ProbationAction, string, boolean][] = [
-    ["length", "Length", probation.lengths.length > 0],
-    ["extend", "Extend", probation.if_extended !== null],
-    ["end", "End", probation.if_ended !== null],
+  // Each accessible name starts with the button's own word, so a voice command that says it finds it.
+  const actions: [ProbationAction, string, string, boolean][] = [
+    ["length", "Length", `Length of ${nurse.full_name}'s probation`, probation.lengths.length > 0],
+    ["extend", "Extend", `Extend the probation of ${nurse.full_name}`, probation.if_extended !== null],
+    ["end", "End", `End the probation of ${nurse.full_name}`, probation.if_ended !== null],
   ]
-  const shown = mayChange && !nurse.joins_from ? actions.filter(([, , available]) => available) : []
+  const shown = mayChange && !nurse.joins_from ? actions.filter(([, , , available]) => available) : []
   return (
     <div className="flex flex-col items-start gap-1">
       <span className="whitespace-nowrap">Until {shortDay(probation.last_day)}</span>
       <span className="text-muted-foreground">{months(probation.months)}</span>
       {probation.ended_early && <Badge variant="outline">Ended early</Badge>}
-      {!probation.ticked && <span className="text-muted-foreground">Unticked by the CNO, after the months already approved</span>}
+      {!probation.ticked && <span className="text-muted-foreground">Taken off by the CNO, after the months already approved</span>}
       {shown.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {shown.map(([action, label]) => (
+          {shown.map(([action, label, name]) => (
             <Button key={action} id={actionId(action, nurse)} variant="outline" size="sm"
-              aria-label={`${label} the probation of ${nurse.full_name}`} onClick={() => onAsk(action, nurse)}>
+              aria-label={name} onClick={() => onAsk(action, nurse)}>
               {label}
             </Button>
           ))}
