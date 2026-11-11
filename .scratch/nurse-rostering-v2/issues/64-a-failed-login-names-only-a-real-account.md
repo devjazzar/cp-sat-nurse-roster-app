@@ -20,3 +20,7 @@
 `backend/accounts/login.py`, with the typed name as its target. Ticket 63's tests (`accounts/tests/test_throttle.py`) count
 `auth.login_failed` entries and do not read their target, so the change here should not break them. The throttle's own
 entry, `auth.login_throttled`, already has an empty target.
+
+**From the user's review of ticket 63 (2026-11-11):** this ticket also shows the lockout's time ("locked until") on the
+hospital's clock, as the throttle's "Try again at HH:MM" is (`frontend/src/lib/utils.ts`'s `hospitalClock`), on the login
+page and Change password, instead of the browser's clock. About two lines, with the app-level test beside the throttle's.

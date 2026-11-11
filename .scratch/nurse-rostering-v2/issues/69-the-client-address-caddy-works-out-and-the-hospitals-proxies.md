@@ -20,3 +20,7 @@
 `_address_key` in `backend/accounts/login.py` (which then takes an IPv6 address's /64 and an IPv4-mapped one as IPv4), so
 changing `client_ip` changes both. `accounts/tests/test_throttle.py` sends the address as `REMOTE_ADDR` alone, through its
 `login()` helper; if the peer stops being the fallback in tests, that one helper is what changes.
+
+**From the user's review of ticket 63 (2026-11-11):** behind Docker Desktop the app sees every client as the bridge
+gateway, so on the dev stack fifty failed logins from anyone throttle everyone. Say in this ticket's comment what a Linux
+server and Docker Desktop each pass through as the client address once this ticket lands.

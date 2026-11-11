@@ -189,3 +189,14 @@ The stack is down; its volumes, image and `e2e/.stack/nr-t63.*` are gone, and my
 - **69:** the throttle reads the address only through `audit.log.client_ip`, inside `_address_key`. `test_throttle.py`
   sends the address as `REMOTE_ADDR` through one helper, `login()`.
 - From 62, still true: a file route takes `for_a_file(...)`, and tests needing two active solves need two units.
+
+**From the main session (2026-11-11):** PR 8 merged into `main` as `1acd553` by the ticket session, both workflows green on
+`d0dfda9` (only `[skip ci]` markdown after it). Dev stack rebuilt; `accounts/0003_address_failures` applied, health ok.
+
+**Reviewed by the user (2026-11-11):**
+- Kept: the words "Too many failed logins from this network. Try again at HH:MM."; the time in hours and minutes on the
+  hospital's clock, no date; the audit log's "Logins throttled", by "Unknown".
+- Changed, in ticket 64: the lockout's time is shown on the hospital's clock too, as the throttle's is (about two lines).
+- Docker Desktop showing every client as the bridge gateway (so on the dev stack fifty failures from anyone throttle
+  everyone): left to ticket 69, which works out the client address.
+- The Playwright cache's WebKit build removed by an install: ignored.
