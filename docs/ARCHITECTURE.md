@@ -41,6 +41,14 @@ is `notifications.subscriptions`'s list, checked at turn-on and before each send
 `deploy/INSTALL.md` names them. `web`, `db` and the solver are on internal networks only and reach nothing outside; only
 Caddy is on `public`. A hospital that lets nothing out loses pushes and nothing else.
 
+What Caddy limits (`deploy/Caddyfile`, stock handlers only, ADR 0015): a request body over 2 MB (2,000,000 bytes) is refused
+with 413, from its `Content-Length` before any of it is read, which is above the nurse import's 1 MiB file and its multipart.
+Caddy reads a body whole before it opens the request to `web`, so a web worker never waits on a client. A body that stalls for
+a minute, or averages under 10 kB/s from its start (each byte adding a tenth of a millisecond to the minute), is dropped by
+Caddy. Nothing bounds a whole request's time: once its body is in, a long nurse import's confirmation or a backup's download
+runs to its end. The other timeouts are Caddy's defaults (headers 1 minute, idle connections 5 minutes, a stalled write 1
+minute), with no write timeout. Caddy has no rate limit (ADR 0015); the limit on failed logins is the application's.
+
 Volumes: `pgdata` (PostgreSQL), `backups` (the nightly backups, mounted by `worker` and, read-only, by `web`, and by no other
 service), `caddy_data` (certificates).
 
