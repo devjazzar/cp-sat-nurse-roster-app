@@ -15,6 +15,8 @@
 
 {$CADDY_SITE} {
 	import {$CADDY_TLS_SNIPPET}
+	# No page of the app may be framed, by any site (ticket 62); web also answers X-Frame-Options: DENY.
+	header Content-Security-Policy "frame-ancestors 'none'"
 	# The metrics answer with no sign-in, for a Prometheus on the internal network only (backend/ops/metrics.py).
 	@metrics path /metrics /metrics/*
 	respond @metrics 404

@@ -67,3 +67,22 @@ def test_the_worker_and_the_manifest_have_their_media_types(settings, tmp_path):
 
     assert client.get("/sw.js")["Content-Type"].startswith("text/javascript")
     assert client.get("/manifest.webmanifest")["Content-Type"] == "application/manifest+json"
+
+
+# Ticket 62 (audit lead 6): no page of the app may be framed, by another site or a same-site one. Django says so on every answer it
+# makes, WhiteNoise's files included, and Caddy adds `frame-ancestors 'none'` in front of them all (deploy/Caddyfile).
+
+
+def test_nothing_it_answers_may_be_framed(settings, tmp_path):
+    client = a_build(settings, tmp_path)
+
+    for path in ("/", "/unit-roster?unit=u&month=2026-06", "/index.html", "/sw.js", "/assets/index-abc123.js", "/api/nope"):
+        assert client.get(path)["X-Frame-Options"] == "DENY", path
+
+
+def test_not_even_an_error(settings, tmp_path):
+    settings.SPA_DIR = tmp_path
+
+    response = Client().get("/")
+
+    assert response.status_code == 404 and response["X-Frame-Options"] == "DENY"

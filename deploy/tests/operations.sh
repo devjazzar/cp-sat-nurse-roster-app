@@ -4,7 +4,8 @@
 #
 #   deploy/tests/operations.sh <project> [--keep]
 #
-# It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; JSON lines
+# It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; no answer
+# through Caddy framed (ticket 62); JSON lines
 # from web, worker and solver, and the push key pair made at the first start; the worker alone on a network with a way out
 # (ticket 42); the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by deploy/restore.sh, which
 # takes back what was written after the backup; deploy/reset-admin-password.sh lifting a lock from wrong passwords; the System
@@ -71,6 +72,16 @@ code=$(curl -sk -o /dev/null -w '%{http_code}' "$base/metrics/")
 [[ $code == 404 ]] && pass "/metrics/ through Caddy: $code" || fail "/metrics/ through Caddy answered $code"
 compose exec -T caddy wget -qO- http://web:8000/metrics | grep -qx 'nurse_roster_database_up 1' \
   && pass "/metrics on the internal network, from Caddy's container straight to web:8000" || fail "/metrics inside"
+
+# Ticket 62: nothing through Caddy may be framed. Caddy says so on every answer, its own /metrics refusal included, and web
+# says it again in its own words.
+for path in / /unit-roster /api/health /metrics; do
+  headers=$(curl -sk -o /dev/null -D - "$base$path" | tr -d '\r')
+  grep -qix "content-security-policy: frame-ancestors 'none'" <<<"$headers" \
+    || fail "$path through Caddy has no frame-ancestors 'none': $headers"
+  [[ $path == /metrics ]] || grep -qix 'x-frame-options: DENY' <<<"$headers" || fail "$path through Caddy has no X-Frame-Options: DENY"
+done
+pass "/, /unit-roster, /api/health and /metrics through Caddy may not be framed"
 
 for service in web worker solver; do
   lines=$(compose logs --no-log-prefix --no-color "$service" | python3 -c '

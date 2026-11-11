@@ -61,12 +61,17 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Before WhiteNoise, which answers its files itself: no answer of the app may be framed (ticket 62). Caddy adds
+    # `frame-ancestors 'none'` in front of it (deploy/Caddyfile).
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "accounts.sessions.IdleAwareSessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
 ]
+
+X_FRAME_OPTIONS = "DENY"  # Django's default too, said here so that nothing changes it unseen.
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
