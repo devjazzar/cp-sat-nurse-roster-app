@@ -36,6 +36,22 @@ then on the variable is ignored.
 **On a server reachable from the internet, set `DOMAIN`.** Without it Caddy issues a self-signed certificate for any name a
 client sends, and each adds files to the `caddy_data` volume.
 
+### Behind the hospital's proxy
+
+The application tells clients apart by address: fifty failed logins from one address in fifteen minutes refuse every login
+from it for the rest of that time, and the audit log records each login's address. Caddy takes the address from the
+connection. **If the hospital puts a proxy or load balancer in front of this server, set `TRUSTED_PROXIES`** in `.env` to its
+addresses, as this server sees them, space separated (`10.20.0.5 10.20.0.6`, or a range such as `10.20.0.0/29`), then
+`docker compose up -d`. Caddy then takes each client's address from the `X-Forwarded-For` those proxies send, and believes it
+from no one else. Without it, behind a proxy, every client is the proxy's one address: they share one throttle, so fifty
+failed logins by anyone refuse everyone's logins, and the audit log shows the proxy for all of them.
+
+Name the proxies only, never a range the users' computers are in, nor `private_ranges`: anyone at a trusted address can claim
+any address at all. With no proxy in front, leave it empty.
+
+On a Linux server, Docker passes each client's own address to Caddy for connections from other machines. Docker Desktop
+(Mac and Windows) does not: every connection arrives from its own gateway, so a stack run there sees one address for all.
+
 ### At the first real install
 
 These cannot be proven anywhere but on the hospital's own server.

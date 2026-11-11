@@ -53,7 +53,7 @@ def test_an_exception_comes_with_its_traceback_on_the_same_line():
 
 def test_gunicorns_access_line_is_split_into_fields():
     atoms = {"m": "GET", "U": "/api/health", "q": "", "s": "200", "M": 12, "B": 81, "h": "172.18.0.5",
-             "{x-forwarded-for}i": "203.0.113.9"}
+             "{x-client-ip}i": "203.0.113.9", "{x-forwarded-for}i": "198.51.100.1, 203.0.113.9"}
     entry = json.loads(AccessFormatter().format(record("%(m)s %(U)s", atoms, name="gunicorn.access", level=logging.INFO)))
 
     assert {key: entry[key] for key in ("method", "path", "status", "duration_ms", "bytes", "remote")} == {

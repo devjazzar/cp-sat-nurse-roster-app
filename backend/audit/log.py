@@ -9,10 +9,11 @@ from audit.models import AuditEntry
 
 
 def client_ip(request: HttpRequest) -> str | None:
-    """Caddy replaces any X-Forwarded-For a client sends, and `web` publishes no port, so the
-    header can only say what Caddy saw. Without Caddy (development) the peer is the client."""
-    forwarded = request.headers.get("X-Forwarded-For", "").rsplit(",", 1)[-1].strip()
-    for candidate in (forwarded, request.META.get("REMOTE_ADDR", "")):
+    """The client's address, as Caddy worked it out: the peer, or behind a proxy named in `TRUSTED_PROXIES` the
+    address that proxy saw (deploy/Caddyfile). Caddy always sets `X-Client-IP`, replacing any a client sent, and `web`
+    publishes no port, so the header can only say what Caddy decided. `X-Forwarded-For` is not read: behind a trusted
+    proxy, Caddy passes on the chain a client began. Without Caddy (development) the peer is the client."""
+    for candidate in (request.headers.get("X-Client-IP", "").strip(), request.META.get("REMOTE_ADDR", "")):
         try:
             return str(ipaddress.ip_address(candidate))
         except ValueError:

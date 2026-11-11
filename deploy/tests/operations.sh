@@ -5,7 +5,7 @@
 #   deploy/tests/operations.sh <project> [--keep]
 #
 # It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; no answer
-# through Caddy framed (ticket 62); JSON lines
+# through Caddy framed (ticket 62); no address a client claims in the audit log (ticket 69); JSON lines
 # from web, worker and solver, and the push key pair made at the first start; the worker alone on a network with a way out
 # (ticket 42); the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by deploy/restore.sh, which
 # takes back what was written after the backup; deploy/reset-admin-password.sh lifting a lock from wrong passwords; the System
@@ -82,6 +82,20 @@ for path in / /unit-roster /api/health /metrics; do
   [[ $path == /metrics ]] || grep -qix 'x-frame-options: DENY' <<<"$headers" || fail "$path through Caddy has no X-Frame-Options: DENY"
 done
 pass "/, /unit-roster, /api/health and /metrics through Caddy may not be framed"
+
+# Ticket 69: the audit log's address is the one Caddy worked out, whatever a client claims. With TRUSTED_PROXIES empty, as
+# here, Caddy believes no X-Forwarded-For and replaces any X-Client-IP; gunicorn drops X_Client_IP, the same WSGI key.
+spoofed=(203.0.113.7 203.0.113.8 203.0.113.9)
+claims="$work/claims"
+curl -sk -c "$claims" -b "$claims" "$base/api/auth/session" >/dev/null
+code=$(curl -sk -o /dev/null -w '%{http_code}' -c "$claims" -b "$claims" -H "X-CSRFToken: $(awk '$6 == "csrftoken" {print $7}' "$claims")" \
+  -H "Origin: $base" -H 'Content-Type: application/json' -H "X-Forwarded-For: ${spoofed[0]}" -H "X-Client-IP: ${spoofed[1]}" \
+  -H "X_Client_IP: ${spoofed[2]}" -d "{\"username\": \"admin\", \"password\": \"$admin_password\"}" "$base/api/auth/login")
+[[ $code == 200 ]] || fail "the System Admin's login with claimed addresses answered $code"
+recorded=$(sql "SELECT coalesce(host(ip), 'none') FROM audit_auditentry WHERE action = 'auth.login' ORDER BY id DESC LIMIT 1")
+[[ -n $recorded && $recorded != none && " ${spoofed[*]} " != *" $recorded "* ]] \
+  && pass "a client's X-Forwarded-For, X-Client-IP and X_Client_IP do not reach the audit log, which has Caddy's peer: $recorded" \
+  || fail "the audit log recorded the login from '$recorded'"
 
 for service in web worker solver; do
   lines=$(compose logs --no-log-prefix --no-color "$service" | python3 -c '

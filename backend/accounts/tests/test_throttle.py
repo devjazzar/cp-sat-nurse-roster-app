@@ -142,6 +142,31 @@ class TestTheLimit:
         assert login(address="").status_code == 200
 
 
+class TestTheAddress:
+    """Behind Caddy every peer is Caddy: the address counted is the one Caddy worked out and sent in its own header."""
+    CADDY = "172.18.0.5"
+
+    def through_caddy(self, client_address, password="wrong-password", username="someone", **headers):
+        return Client().post("/api/auth/login", {"username": username, "password": password},
+                             content_type="application/json", REMOTE_ADDR=self.CADDY,
+                             headers={"X-Client-IP": client_address} | headers)
+
+    def test_each_client_behind_caddy_has_its_own_budget(self, make_user):
+        make_user()
+        for n in range(50):
+            self.through_caddy("203.0.113.7", username=f"guess{n}")
+
+        assert self.through_caddy("203.0.113.7", PASSWORD).status_code == 429
+        assert self.through_caddy("203.0.113.8", PASSWORD).status_code == 200
+
+    def test_a_forwarded_for_header_does_not_move_a_client_to_another_budget(self, make_user):
+        make_user()
+        for n in range(50):
+            self.through_caddy("203.0.113.7", username=f"guess{n}", **{"X-Forwarded-For": f"198.51.100.{n}"})
+
+        assert self.through_caddy("203.0.113.7", PASSWORD, **{"X-Forwarded-For": "198.51.100.99"}).status_code == 429
+
+
 class TestIPv6:
     def test_two_addresses_in_one_64_share_a_budget(self):
         fail(25, address="2001:db8:1:2::1")

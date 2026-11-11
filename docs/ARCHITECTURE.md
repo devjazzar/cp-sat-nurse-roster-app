@@ -49,7 +49,8 @@ service), `caddy_data` (certificates).
 `DOMAIN` (optional; with it Caddy obtains Let's Encrypt certificates, without it Caddy serves a
 self-signed certificate via `tls internal`), `SECRET_KEY`, `POSTGRES_PASSWORD`,
 `SOLVER_TOKEN`, `TIME_ZONE` (default `Asia/Riyadh`), `INITIAL_ADMIN_PASSWORD` (read once),
-`APP_VERSION` (the image tag the hospital pins).
+`APP_VERSION` (the image tag the hospital pins), `TRUSTED_PROXIES` (optional, empty by default; the hospital's
+own proxies in front of Caddy, given to Caddy alone, section 8).
 
 ### First start, upgrades, recovery
 
@@ -777,7 +778,11 @@ password, a refusal while the name is locked and a wrong current password on Cha
 counts nothing and clears nothing. Change password is refused the same way while its address is throttled, before the current
 password is checked. An IPv6 address counts by its /64; a request with no address (development without Caddy) is never
 throttled. The address is the one the audit log reads (`audit.log.client_ip`), so everyone behind one address shares its
-budget. The address's row is not held across the hash, so a burst of parallel tries may pass the 50 by at most what the web
+budget. Caddy works it out and always sends it to `web` in `X-Client-IP`, replacing any a client sent; `client_ip` reads that
+header, and the peer only without Caddy (development), never `X-Forwarded-For`. Caddy takes the peer as the client unless the
+peer is one of `TRUSTED_PROXIES` (empty by default: no one), whose `X-Forwarded-For` it then reads strictly from the right,
+skipping only trusted hops, so the address is the one the nearest untrusted hop was seen at. Without the variable, behind a
+hospital's proxy, every client is the proxy and shares its throttle. The address's row is not held across the hash, so a burst of parallel tries may pass the 50 by at most what the web
 pool serves at once. Every login the server checked, failed or not, goes to the audit log, and so does each throttle, once,
 when an address reaches it (`auth.login_throttled`: no actor, no target, the address and the window's end); a request a
 throttle refused is not, since its password was never looked at. Every change to settings, accounts,
