@@ -1,3 +1,4 @@
+import datetime as dt
 from typing import Literal
 
 from django.conf import settings
@@ -110,3 +111,18 @@ class Solve(models.Model):
         if self.state != SolveState.QUEUED:
             return None
         return Solve.objects.filter(state__in=ACTIVE_STATES, job_id__lt=self.job_id).count()
+
+
+def why_not_another_month(unit, month: dt.date) -> str | None:
+    """A solve or re-plan of another of the unit's months already queued or running, named, so a start of this one is refused
+    (ticket 62, audit lead 5). The queue is hospital-wide and first come first served (ADR 0009), so one active solve a unit keeps
+    one unit from holding every other unit's solve behind a month for each month to 2076. The constraint above stays one a unit's
+    month: one a unit would fail the migration on an installation with two months waiting. Both start routes hold the unit's row
+    `FOR UPDATE`, so two starts of one unit read this in turn."""
+    other = (Solve.objects.filter(unit=unit, state__in=ACTIVE_STATES).exclude(month=month)
+             .only("month", "replan_from").order_by("month").first())
+    if other is None:
+        return None
+    kind = "re-plan" if other.replan_from else "solve"
+    return (f"A {kind} of {other.month:%B %Y} is already queued or running. A unit solves one month at a time, so stop it or wait "
+            "for it first.")

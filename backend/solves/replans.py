@@ -1,4 +1,4 @@
-"""Re-planning an approved month from a date. A re-plan is a solve: the same queue, one active a unit's month, the same progress,
+"""Re-planning an approved month from a date. A re-plan is a solve: the same queue, one active a unit (ticket 62), the same progress,
 stop and retry. What differs is its input (`solves.input.assemble_replan`) and its end: its roster becomes a new version of the
 roster in force (`rosters.versions.make_version`), passing on purpose the freeze `rosters.drafts.why_frozen` puts on a solve of an
 approved month. Everything that decides whether one may start, and what its end does, is here."""
@@ -16,7 +16,7 @@ from rosters.models import Roster, RosterState, VersionOrigin
 from rosters.pins import long_date
 from rosters.versions import differences, make_version
 from solves.input import changes_since
-from solves.models import ACTIVE_STATES, ReplanOutcome, Solve, SolveState
+from solves.models import ACTIVE_STATES, ReplanOutcome, Solve, SolveState, why_not_another_month
 from solves.result import has_a_roster_to_keep
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def why_not(roster: Roster | None, month: dt.date) -> str | None:
         return FROZEN[RosterState.SUBMITTED]
     if Solve.objects.filter(unit=roster.unit, month=month, state__in=ACTIVE_STATES).exists():
         return ACTIVE
-    return None
+    return why_not_another_month(roster.unit, month)
 
 
 def why_not_from(day: dt.date, month: dt.date) -> str | None:

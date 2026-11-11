@@ -5302,6 +5302,14 @@ describe("the roster page", () => {
     expect(screen.queryByRole("button", { name: "Start solve" })).not.toBeInTheDocument()
   })
 
+  it("names the month that holds the unit's solve before Solve is offered (ticket 62)", async () => {
+    const held = "A solve of March 2027 is already queued or running. A unit solves one month at a time, so stop it or wait for it first."
+    start("/roster", manager({ [`GET ${UNIT}/solves/preview`]: { body: { ...PREVIEW, refusal: held } } }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(held)
+    expect(screen.queryByRole("button", { name: "Start solve" })).not.toBeInTheDocument()
+  })
+
   it("shows rules the solver refuses as rules to review, not as a failed solve", async () => {
     start("/roster", manager({ [`GET ${UNIT}/solves/preview`]: { body: { ...PREVIEW, precheck: null, rules_refusal: "request: department: night_shift" } } }))
 

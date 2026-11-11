@@ -24,6 +24,7 @@ from rosters.tests.test_versions import changed, in_force_agrees, latest, works_
 from rosters.tests.test_pins import change_shift, icu, pin
 from requesting.models import PreferenceKind
 from solves.tests.conftest import start_solve
+from solves.tests.conftest import started as solves_started
 from solves.tests.test_input import carried_from_may, full_runs_capped, preference
 from solves import running
 from solves.models import ReplanOutcome, Solve, SolveState
@@ -197,6 +198,20 @@ class TestStarting:
         progress = ok(mona.get(url(er, f"/solves/{first['id']}")))
         assert progress["state"] == "queued" and progress["replan_from"] == "2026-06-12"
         assert month_of(mona, er)["active_solve"]["id"] == first["id"]
+
+    def test_one_a_unit_across_its_months_with_a_solve_of_another_month(self, mona, er, in_force, solver):
+        """Ticket 62: a re-plan and a solve of the same unit share the one place it has on the queue, whichever month."""
+        from hospital.models import FixedRamadanMonth
+        FixedRamadanMonth.objects.create(month="2026-07", dates=[])
+        july = solves_started(mona, er, "2026-07")
+        assert refused(start(mona, er)) == ("A solve of July 2026 is already queued or running. A unit solves one month at a time, "
+                                            "so stop it or wait for it first.")
+        assert preview(mona, er)["refusal"] == refused(start(mona, er))
+
+        ok(post(mona, url(er, f"/solves/{july['id']}/stop"), {}))
+        started(mona, er)
+        assert refused(start_solve(mona, er, "2026-07")) == ("A re-plan of June 2026 is already queued or running. A unit solves "
+                                                             "one month at a time, so stop it or wait for it first.")
 
     def test_the_time_limit_cap_holds(self, mona, er, in_force):
         assert field_refusal(start(mona, er, seconds=100000), "time_limit_seconds").startswith("The System Admin's cap is")

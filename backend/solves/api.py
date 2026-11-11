@@ -30,7 +30,7 @@ from rosters.drafts import frozen_month
 from rosters.models import Roster, RosterState
 from solves import replans
 from solves.input import Assembled, assemble, assemble_replan, recorded_cells_differ, solver_refusal
-from solves.models import ACTIVE_STATES, ReplanOutcomeWord, Solve, SolveFailureWord, SolveState
+from solves.models import ACTIVE_STATES, ReplanOutcomeWord, Solve, SolveFailureWord, SolveState, why_not_another_month
 from solves.result import has_a_roster_to_keep, in_dates, precheck_of
 from solves.tasks import run_solve
 from units.models import Unit
@@ -75,7 +75,7 @@ def _what_stops_the_month(unit: Unit, month: dt.date) -> str | None:
         return frozen
     if Solve.objects.filter(unit=unit, month=month, state__in=ACTIVE_STATES).exists():
         return "A solve of this month is already queued or running."
-    return None
+    return why_not_another_month(unit, month)
 
 
 def _what_the_nurses_stop(assembled: Assembled) -> str | None:

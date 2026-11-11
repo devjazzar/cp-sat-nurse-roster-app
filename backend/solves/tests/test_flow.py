@@ -190,9 +190,22 @@ class TestStartRefusals:
 
         assert start_solve(mona, er).status_code == 409
 
-    def test_one_at_a_time_per_month_but_another_month_may_wait_behind(self, mona, er, solver):
-        started(mona, er)
-        assert start_solve(mona, er).status_code == 409
+    def test_one_solve_a_unit_at_a_time_across_its_months_naming_the_month_that_holds_it(self, mona, er, solver):
+        """Ticket 62 (audit lead 5): one unit could otherwise queue every month to 2076 ahead of every other unit's solve."""
+        from hospital.models import FixedRamadanMonth
+        FixedRamadanMonth.objects.create(month="2026-07", dates=[])
+        june = started(mona, er)
+        held = ("A solve of June 2026 is already queued or running. A unit solves one month at a time, so stop it or wait for it "
+                "first.")
+
+        refused = start_solve(mona, er, "2026-07")
+        assert (refused.status_code, refused.json()["detail"]) == (409, held)
+        assert preview(mona, er, "2026-07")["refusal"] == held
+        assert start_solve(mona, er).json()["detail"] == "A solve of this month is already queued or running."
+        assert Solve.objects.count() == 1 and AuditEntry.objects.filter(action="solve.started").count() == 1
+
+        assert post(mona, url(er, f"/solves/{june['id']}/stop"), {}).status_code == 200
+        assert preview(mona, er, "2026-07")["refusal"] is None
         started(mona, er, "2026-07")
 
     def test_another_units_manager_reaches_none_of_it(self, mona, er, client_of):

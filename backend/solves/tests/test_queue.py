@@ -23,17 +23,28 @@ def icu(icu_manager, make_user, catalogue):
     return make_sample_unit("ICU", User.objects.get(username="omar"), make_user, prefix="i")
 
 
+@pytest.fixture
+def ccu_manager(client_of):
+    return client_of("sara", Role.UNIT_MANAGER, full_name="Sara Hadi")
+
+
+@pytest.fixture
+def ccu(ccu_manager, make_user, catalogue):
+    return make_sample_unit("CCU", User.objects.get(username="sara"), make_user, prefix="c")
+
+
 def finished():
     return [job("finished", result=result_of(roster_of(NURSES)))]
 
 
 @pytest.mark.parametrize("concurrency", [1, 4])
-def test_first_come_first_served_across_two_units_one_at_a_time(mona, er, icu_manager, icu, solver, before_june, monkeypatch,
-                                                                concurrency):
-    """Three solves, so the middle one belongs to the other unit. The scripted solver proves none overlapped: each `start_solve`
-    finds the row before it ended. At the worker's concurrency of 4 too: the solves share one lock (ADR 0009)."""
+def test_first_come_first_served_across_units_one_at_a_time(mona, er, icu_manager, icu, ccu_manager, ccu, solver, before_june,
+                                                            monkeypatch, concurrency):
+    """Three solves of three units, since a unit has one active at a time (ticket 62), started out of their names' order. The
+    scripted solver proves none overlapped: each `start_solve` finds the row before it ended. At the worker's concurrency of 4
+    too: the solves share one lock (ADR 0009)."""
     solver.script(finished(), finished(), finished())
-    first, second, third = started(mona, er), started(icu_manager, icu), started(mona, er, "2026-07")
+    first, second, third = started(mona, er), started(icu_manager, icu), started(ccu_manager, ccu)
     assert [first["queue_ahead"], second["queue_ahead"], third["queue_ahead"]] == [0, 1, 2]
     order = []
     original = solver.start_solve
@@ -46,10 +57,19 @@ def test_first_come_first_served_across_two_units_one_at_a_time(mona, er, icu_ma
 
     run_the_queue(concurrency)
 
-    assert order == ["ER", "ICU", "ER"]
+    assert order == ["ER", "ICU", "CCU"]
     ended = [Solve.objects.get(pk=row["id"]) for row in (first, second, third)]
     assert all(row.state == "succeeded" for row in ended)
     assert ended[0].finished_at <= ended[1].started_at and ended[1].finished_at <= ended[2].started_at
+
+
+def test_another_units_solve_is_not_held_by_one_units_month(mona, er, icu_manager, icu, solver, before_june):
+    """Ticket 62's limit is a unit's: ICU starts while ER's June waits, and only ER's July is refused."""
+    started(mona, er)
+
+    assert started(icu_manager, icu)["queue_ahead"] == 1
+    refused = post(mona, url(er, "/solves"), {"month": "2026-07", "time_limit_seconds": 60})
+    assert refused.status_code == 409 and refused.json()["detail"].startswith("A solve of June 2026 is already queued")
 
 
 def test_stopping_the_one_ahead_moves_the_next_one_up(mona, er, icu_manager, icu, solver, before_june):
