@@ -856,7 +856,9 @@ how many were sent and how many failed in the last 24 hours, counted by attempt 
 again included, never by job) and why the last of those failed, in one of three fixed words (`unreachable`, `refused`,
 `gone`; `unreachable` is also a push service answering 429 or 5xx). That block and its two gauges on `/metrics` hold nothing
 of a user or a device; a run of `unreachable` with nothing sent is how a firewall that blocks the push services shows. The
-public `/api/health` says only whether the database and the solver answer. Nothing else is bundled.
+public `/api/health` says only whether the database and the solver answer, and each web process keeps that answer five
+seconds (`ops.public_health`, ticket 68), so a client polling it cannot make the application call the solver on every request;
+the health page and `/metrics` ask afresh each time. Nothing else is bundled.
 
 ## 9. Defaults
 

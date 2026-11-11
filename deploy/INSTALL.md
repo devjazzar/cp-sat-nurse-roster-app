@@ -27,7 +27,8 @@ curl -k https://localhost/api/health
 ```
 
 The answer is `{"status": "ok", "database": true, "solver": {"reachable": true}}`. The solver's version and threads are on the
-System Admin's health page, not here: anyone can read this one.
+System Admin's health page, not here: anyone can read this one. Each of `web`'s processes keeps its answer five seconds, so
+after a service stops or comes back it may take that long to change; the health page is always current.
 
 Open `https://<server>/` and log in as `admin` with `INITIAL_ADMIN_PASSWORD`. You must choose a new password at once; from
 then on the variable is ignored.

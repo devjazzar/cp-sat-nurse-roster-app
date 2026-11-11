@@ -103,6 +103,9 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
   longer key is 422; and `pushing.send` counting any exception the library raises that is not already sorted as a refusal.
   How long one send to a made-up address takes on a real network stays unmeasured; the cap and the budget bound the delay
   whatever it is.
+- **The public health note** (`REPORT.md` section 5, "`GET /api/health` is anonymous and calls the solver on every
+  request"): **fixed on 2026-11-11** in ticket 68 (`7e5f7ed`, `77f79f4`). Each web process keeps the public answer five seconds; the
+  System Admin's health page and `/metrics` are not kept.
 - **Known vulnerabilities in dependencies (section 5):** checked with `pip-audit` and `npm audit` on 2026-11-11; the result is
   below in section 5.
 

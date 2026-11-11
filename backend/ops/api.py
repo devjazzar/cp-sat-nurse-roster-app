@@ -11,6 +11,7 @@ from accounts.models import Role
 from audit.log import record
 from ops import backups
 from ops.models import TechnicalSettings
+from ops.public_health import HeldAnswer
 from ops.status import database_reachable, database_size_bytes, disk_usage, push_state, queue_state, solver_state
 
 router = Router()
@@ -43,12 +44,20 @@ def _solver() -> SolverHealth:
     return SolverHealth(reachable=True, version=health.get("version"), workers=health.get("workers"))
 
 
-@router.get("/health", response=Health, auth=None, operation_id="getHealth")
-def health(request) -> Health:
-    """Always 200 while this process is alive; the body says what it can reach."""
+def _health_now() -> Health:
     database, solver = database_reachable(), _solver()
     return Health(status="ok" if database and solver.reachable else "degraded", database=database,
                   solver=PublicSolverHealth(reachable=solver.reachable))
+
+
+# Held five seconds in this process (ticket 68); `/api/ops/health` and `/metrics` are never held.
+public_health = HeldAnswer(_health_now)
+
+
+@router.get("/health", response=Health, auth=None, operation_id="getHealth")
+def health(request) -> Health:
+    """Always 200 while this process is alive; the body says what it can reach."""
+    return public_health()
 
 
 class Disk(Schema):
