@@ -329,7 +329,9 @@ from the solves ahead on the queue, so it cannot be out of date. `succeeded` mea
 to its end, which may have found no roster; `cancelled` may still hold the best roster found, which
 becomes the draft; only `failed` means the solver gave no answer. Rules the solver refuses are
 `failed` with the failure `refused`, and read as rules to review, not as a failed solve. At most one
-solve of a unit's month is active at a time. A re-plan is a solve with the date it plans from, the version it started from, the
+solve of a unit is active at a time, whatever its month (ticket 62): a start while one of another month is queued or running is
+refused naming that month, so one unit cannot hold every other unit's solve behind a month for each month ahead. The database
+holds one a unit's month; the start routes hold the unit's row while they check the rest. A re-plan is a solve with the date it plans from, the version it started from, the
 manager's reason for the version it makes, and what its end did to the roster in force (`version`, `unchanged`, `outdated`,
 `month_over`).
 
@@ -377,7 +379,10 @@ backup time and retention, close time.
 - Submitting checks the grid again on the month as it stands with the solver's own code, always: a draft out of date or
   edited by hand goes with its warning, and is refused only if it breaks a hard rule or cannot be checked. It is refused while
   a solve of the month is queued or running. The CNO or the Deputy CNO approves it, checked again the same way since leave
-  may have been recorded while it waited, or rejects it with a comment. Approving takes the catalogue's lock, then the
+  may have been recorded while it waited, or rejects it with a comment. A month that is over can no longer be approved, as it
+  can no longer be submitted (ticket 62): approved after the month after it had closed, it would be an approved month no close
+  could reach, and every later close of the unit would wait on it for good. Rejecting it stays allowed, and the month, with no
+  approved roster, is skipped by the close. Approving takes the catalogue's lock, then the
   month's nurses' (the lock a leave write takes), then the unit's, so neither leave nor a second approver passes between the
   check and the decision. A draft is the unit management's alone: the CNO and the Deputy CNO see that one exists, and read a
   submitted or approved roster with its solve's details. The locks on nurses' and users' rows are `FOR NO KEY UPDATE`: they serialise
@@ -391,7 +396,7 @@ backup time and retention, close time.
 - A re-plan (`solves.replans`) is a solve of an approved month that has not ended, from a date that is today or later and in
   the month: the month's first day only while it is still to come, never the first day after it, which is month close. A draft
   is solved again instead, and a submitted roster waits for its decision. It goes through the same queue as a solve, one active
-  a unit's month, with the same progress, stop and retry. Its input holds the roster in force as `published` and the date as
+  a unit whatever the month, with the same progress, stop and retry. Its input holds the roster in force as `published` and the date as
   `replan_from`, and the solver makes every earlier day a fact: a pin that counts, of any origin, then leave and the days outside
   a nurse's dates, then the roster in force; a pin set aside is no fact. A nurse no longer in the month is left out, and one who
   joined since worked nothing before the date. Its end takes the locks an approval takes, and its roster becomes a version with
@@ -615,7 +620,7 @@ than one, and no job runs beside its own previous run. A new job that can run lo
 minute takes a lock of its own. Jobs:
 
 - `run_solve(solve_id)`: under a hospital-wide lock, so solves run first come first served
-  across units; submits the solve input to the solver, polls progress into the `Solve` row,
+  across units, a unit having one queued or running at a time (section 4); submits the solve input to the solver, polls progress into the `Solve` row,
   stores the result, relays a cancellation. A failed attempt (solver crash, unreachable) is
   retried once inside the same job, so it keeps its place in line; a second failure is marked
   failed with its reason, and the manager can re-run it. A worker that dies goes on watching the
@@ -780,6 +785,14 @@ hand, its filling and its expiry have no entry, since one beside the leave's wou
 as `push.turned_on` and `push.turned_off`, the user as actor and target: nothing of the device, not its address, its keys or
 even the IP it called from. A subscription ended by Log out is the user's own turn-off; one ended by a deactivation, by the
 push service or by ten failures has no entry, and a push sent has none. `push.keys_rotated` has no actor, "from the server".
+
+No answer may be framed (ticket 62): `web` sends `X-Frame-Options: DENY` on every answer, WhiteNoise's files included, and Caddy
+adds `Content-Security-Policy: frame-ancestors 'none'` to everything it serves; nothing in the app frames itself. The routes
+that answer with a file, the staff list, both import templates, a roster version's file and the System Admin's backup, are
+plain GETs that the `SameSite=Lax` session cookie reaches from a link on another site, so they refuse with 403 a request whose
+browser says another site started it (`Sec-Fetch-Site: cross-site`, `accounts.authz.for_a_file`), before the session is read:
+the answer is the same for everyone, nothing is logged, and it says nothing of who is signed in or which backups exist. The
+app's own links are `same-origin`; a request with no such header, from an older browser or a script, is served.
 
 ### Nurse import and the staff list
 

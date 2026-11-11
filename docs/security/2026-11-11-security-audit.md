@@ -65,7 +65,8 @@ local browser-check run on one long-lived stack within a day could meet the swap
 
 ## 3. Open leads
 
-Seven leads have a source trace and no verdict: each waits on a fact outside the repository. They carry no
+Seven leads had a source trace and no verdict: each waits on a fact outside the repository. Leads 5 to 7 have since been
+fixed without one (ticket 62). They carry no
 severity. `NEEDS-VALIDATION.md` has the full plan for each; the checks named there are for the owner to make on
 their own installation or on a scratch stack, never traffic against a hospital's system.
 
@@ -79,16 +80,18 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
 | 2 | Refused anonymous logins leave an audit entry and a `LoginAttempts` row that nothing removes; while a name is locked they are written without a hash. | `backend/accounts/login.py`, `backend/audit/log.py` | How fast rows can be written from outside, and the disk and backup headroom. | Owner: the read-only size queries in the plan; on a scratch stack, time 1,000 locked-path logins through Caddy. |
 | 3 | A sign-in request whose body has not arrived holds a gunicorn worker (observed in the sandbox with one worker). | `deploy/compose.yaml` (gunicorn `--workers 3 --timeout 300`), `deploy/Caddyfile` | Whether Caddy passes a request upstream before its body is complete. | Scratch stack only: `caddy adapt` to confirm no buffering or read timeout, then the one-connection check in the plan. |
 | 4 | One user may hold any number of push subscriptions, and the single push job sends to each in turn under the installation-wide `push` lock. | `backend/notifications/subscriptions.py` `turn_on`, `backend/notifications/pushes.py` | What a send to a made-up address under an allowed domain costs on the real network. | Owner: count subscriptions per user; read the gaps in `notifications_pushattempt`. Fix direction: cap subscriptions per user and give a job a send budget. |
-| 5 | One unit's manager can queue a solve for every future month to December 2076 ahead of other units' solves, and no role above the unit can cancel them. | `backend/solves/api.py` `start_solve`, `backend/solves/running.py` | How long each such solve holds the queue (no solver ran in the audit), and whether first-come-first-served across units (ADR 0009) is acceptable here. | Scratch stack with the real solver: the three-solve check in the plan. Product decision: a per-unit share of the queue and a cancel for the CNO or System Admin. |
-| 6 | No response carries `X-Frame-Options` or a `frame-ancestors` policy, so a page on a same-site origin could frame the signed-in app. | `backend/config/settings.py` `MIDDLEWARE`, `deploy/Caddyfile` | Whether any same-site origin exists that someone other than the app's operators controls; browser behaviour. | Cheap to close without validating: add `XFrameOptionsMiddleware` or a CSP with `frame-ancestors 'none'`. |
-| 7 | The file download routes are plain GETs, so a page on another site may be able to make a signed-in CNO's browser take the audited staff-list export, or tell that the visitor is the CNO; the System Admin's backup download may be reachable the same way, since a backup's name is predictable. | `backend/nurses/files_api.py`, `backend/ops/api.py` | Whether current browsers attach the Lax session cookie and let the other page tell the two answers apart. | Test installation with dummy accounts: the static-page check in the plan. Fix direction: refuse these GETs when `Sec-Fetch-Site` is `cross-site`. |
+| 5 | **Fixed in ticket 62 (`d4404f5`).** One unit's manager can queue a solve for every future month to December 2076 ahead of other units' solves, and no role above the unit can cancel them. | `backend/solves/api.py` `start_solve`, `backend/solves/running.py` | How long each such solve holds the queue (no solver ran in the audit), and whether first-come-first-served across units (ADR 0009) is acceptable here. | Scratch stack with the real solver: the three-solve check in the plan. Product decision: a per-unit share of the queue and a cancel for the CNO or System Admin. |
+| 6 | **Fixed in ticket 62 (`2b70344`).** No response carries `X-Frame-Options` or a `frame-ancestors` policy, so a page on a same-site origin could frame the signed-in app. | `backend/config/settings.py` `MIDDLEWARE`, `deploy/Caddyfile` | Whether any same-site origin exists that someone other than the app's operators controls; browser behaviour. | Cheap to close without validating: add `XFrameOptionsMiddleware` or a CSP with `frame-ancestors 'none'`. |
+| 7 | **Fixed in ticket 62 (`6cda1dd`).** The file download routes are plain GETs, so a page on another site may be able to make a signed-in CNO's browser take the audited staff-list export, or tell that the visitor is the CNO; the System Admin's backup download may be reachable the same way, since a backup's name is predictable. | `backend/nurses/files_api.py`, `backend/ops/api.py` | Whether current browsers attach the Lax session cookie and let the other page tell the two answers apart. | Test installation with dummy accounts: the static-page check in the plan. Fix direction: refuse these GETs when `Sec-Fetch-Site` is `cross-site`. |
 
 ### What the user decided for the leads (2026-11-11)
 
 - **Leads 5, 6 and 7, and the late approval of section 4:** fixed in ticket 62
   (`.scratch/nurse-rostering-v2/issues/62-audit-follow-ups.md`): one active solve a unit across its months, `X-Frame-Options:
   DENY` and `frame-ancestors 'none'`, the file routes refusing `Sec-Fetch-Site: cross-site`, and no approval once a month is
-  over (option A).
+  over (option A). **Fixed on 2026-11-11** in ticket 62, pull request 5: lead 5 in `d4404f5`, lead 6 in `2b70344`, lead 7 in
+  `6cda1dd`, the late approval in `0cac2f5`. Leads 1 to 4 stay open. (`NEEDS-VALIDATION.md` numbers its sections differently:
+  this table's leads 5, 6 and 7 are its sections 6, 3 and 5.)
 - **Leads 1 to 4, the hardening notes and the restore note of section 4:** one hardening feature, grilled first
   (`/grill-with-docs`), then specced and ticketed: limits per client (Caddy's timeouts and body cap, threaded gunicorn
   workers, a per-IP failed-login throttle before the hash, housekeeping of login-attempt rows), at most a few push
@@ -109,7 +112,8 @@ Rejected candidates are listed so the next audit does not spend time on them wit
   `deploy/INSTALL.md`: empty the login-attempt table, and print the deactivations, password resets and key
   rotations recorded after the backup's moment before the replaced database is dropped.
 - **A roster approved after its month is over.** Not a security finding, because the CNO and Deputy CNO are
-  trusted with approval. But it is a **functional bug, reproduced and not fixed**: a roster left submitted past
+  trusted with approval. But it was a **functional bug, reproduced, and fixed in ticket 62 (`0cac2f5`)**: approving now refuses
+  a month that is over, as submitting does, and the scenario below is a test in `closes/tests/test_close.py`. As found: a roster left submitted past
   its month can still be approved, and if the month after it has already closed, that unit's month close is then
   refused for good. `backend/rosters/review.py`, `backend/closes/making.py`.
 
