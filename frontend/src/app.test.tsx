@@ -299,15 +299,18 @@ describe("login", () => {
     expect(router.state.location.pathname).toBe("/login")
   })
 
-  it("shows the lock", async () => {
+  it("shows the lock and its time on the hospital's clock, whatever the browser's", async () => {
+    // An offset no browser here is in, so the time shown can only be the one the server sent.
     const { user } = start("/login", {
       ...session(null),
-      "POST /api/auth/login": { status: 423, body: { detail: "locked", locked_until: "2026-11-05T10:15:00Z" } },
+      "POST /api/auth/login": { status: 423, body: { detail: "locked", locked_until: "2026-11-05T10:15:00.123+05:45" } },
     })
 
     await fill(user)
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/locked until/)
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many failed logins. This account is locked until 10:15. Try again then.",
+    )
   })
 
   it("shows the throttle and its time on the hospital's clock, whatever the browser's", async () => {
@@ -1620,7 +1623,7 @@ describe("the audit log page", () => {
   }
 
   it("shows each entry in hospital time, with what changed", async () => {
-    auditStart("/audit-log", () => ({ body: { entries: [ENTRY, { ...ENTRY, id: 6, actor: null, action: "auth.login_failed", target: "nobody", before: null, after: null, ip: null }, { ...ENTRY, id: 5, actor: null, action: "later.action" }], older_than: null } }))
+    auditStart("/audit-log", () => ({ body: { entries: [ENTRY, { ...ENTRY, id: 6, actor: null, action: "auth.login_failed", target: "", before: null, after: { reason: "wrong_credentials", failures: 1 }, ip: null }, { ...ENTRY, id: 5, actor: null, action: "later.action" }], older_than: null } }))
 
     const row = (await screen.findAllByText("2026-11-06 00:30:15"))[0].closest("tr")!
     expect(within(row).getByText("admin")).toBeInTheDocument()
@@ -1631,6 +1634,17 @@ describe("the audit log page", () => {
     expect(screen.getByText("Unknown")).toBeInTheDocument()
     expect(screen.getByText("System")).toBeInTheDocument()
     expect(document.title).toBe("Audit log · Nurse roster")
+  })
+
+  it("shows a failed login at an unknown name with no one to name and nothing in its target", async () => {
+    auditStart("/audit-log", () => ({ body: { entries: [{ ...ENTRY, actor: null, action: "auth.login_failed", target: "", before: null, after: { reason: "locked" } }], older_than: null } }))
+
+    const row = (await screen.findByText("Failed login")).closest("tr")!
+    const cells = within(row).getAllByRole("cell")
+    expect(cells[1]).toHaveTextContent("Unknown")
+    expect(cells[3]).toBeEmptyDOMElement()
+    expect(within(row).getByText('reason: "locked"')).toBeInTheDocument()
+    expect(within(row).getByText("10.1.2.3")).toBeInTheDocument()
   })
 
   it("names a throttle, with no one to name and the window's end", async () => {
