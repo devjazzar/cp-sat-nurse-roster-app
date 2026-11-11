@@ -10,6 +10,7 @@ from django.test import Client
 
 from accounts.models import Role
 from audit.models import AuditEntry
+from conftest import CROSS_SITE, SERVED_SITES, from_site
 from ops import backups
 from ops.models import TechnicalSettings
 
@@ -209,6 +210,23 @@ class TestDownload:
 
         entry = AuditEntry.objects.get(action="backup.downloaded")
         assert (entry.actor.username, entry.target, entry.before, entry.after) == ("someone", path.name, None, None)
+
+    def test_not_from_another_site_nor_does_it_say_whether_the_name_exists(self, signed_in, backups_dir):
+        """Ticket 62: a backup's name is predictable, so a page on another site could aim a System Admin's browser at it."""
+        path = backup_from(backups_dir, at(5, 2, 0))
+        admin = signed_in()
+
+        for name in (path.name, "nurse-roster-20261104T230000Z.dump"):
+            response = admin.get(self.url(name), **from_site("cross-site"))
+            assert (response.status_code, response.json()["detail"]) == (403, CROSS_SITE), name
+        assert not AuditEntry.objects.filter(action="backup.downloaded").exists()
+
+    @pytest.mark.parametrize("site", SERVED_SITES)
+    def test_from_the_apps_own_pages_or_a_browser_that_does_not_say(self, signed_in, backups_dir, site):
+        path = backup_from(backups_dir, at(5, 2, 0))
+
+        assert signed_in().get(self.url(path.name), **from_site(site)).status_code == 200
+        assert AuditEntry.objects.filter(action="backup.downloaded").count() == 1
 
     @pytest.mark.parametrize("role", NON_ADMINS)
     def test_no_other_role_may(self, signed_in, backups_dir, role):

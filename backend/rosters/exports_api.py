@@ -15,6 +15,7 @@ from django.utils.text import slugify
 from ninja import Field, Query, Router
 from ninja.errors import HttpError
 
+from accounts.authz import for_a_file
 from accounts.models import User
 from audit.log import record
 from nurses.spreadsheets import XLSX, csv_response, xlsx_response
@@ -27,6 +28,7 @@ from units.scope import HOSPITAL_WIDE, unit_in_scope
 
 # `reader`, as for reading the roster: a nurse reads only their own unit's roster in force, on My roster and its print page.
 router = Router(tags=["rosters"])
+reader_of_a_file = for_a_file(reader)  # Not from another site (ticket 62).
 
 _A_FILE = {"responses": {200: {"description": "A CSV file or an Excel workbook, as `format` asks.", "content": {
     "text/csv": {"schema": {"type": "string"}},
@@ -64,7 +66,7 @@ def _title(sheet: Sheet) -> str:
     return f"{roster.unit.name} roster, {roster.month:%B %Y}, version {sheet.version.number}"
 
 
-@router.get("/{unit_id}/roster/export", auth=reader, operation_id="exportRosterVersion", openapi_extra=_A_FILE)
+@router.get("/{unit_id}/roster/export", auth=reader_of_a_file, operation_id="exportRosterVersion", openapi_extra=_A_FILE)
 def export_version(request: HttpRequest, unit_id: UUID, filters: Query[ExportFilter]) -> HttpResponse:
     month = chosen_month(filters.month)
     version = version_for(request.user, unit_id, month, filters.version)

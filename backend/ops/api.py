@@ -6,7 +6,7 @@ from django.http import FileResponse, Http404, HttpRequest
 from ninja import Router, Schema
 from pydantic import Field
 
-from accounts.authz import SignedIn
+from accounts.authz import SignedIn, for_a_file
 from accounts.models import Role
 from audit.log import record
 from ops import backups
@@ -15,6 +15,7 @@ from ops.status import database_reachable, database_size_bytes, disk_usage, push
 
 router = Router()
 system_admin = SignedIn(Role.SYSTEM_ADMIN)
+system_admin_of_a_file = for_a_file(system_admin)  # Not from another site (ticket 62).
 
 
 class SolverHealth(Schema):
@@ -111,7 +112,7 @@ _A_BACKUP_FILE = {"responses": {200: {"description": "The backup, in `pg_dump`'s
     "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}}}
 
 
-@router.get("/ops/backups/{name}", auth=system_admin, operation_id="downloadBackup", openapi_extra=_A_BACKUP_FILE)
+@router.get("/ops/backups/{name}", auth=system_admin_of_a_file, operation_id="downloadBackup", openapi_extra=_A_BACKUP_FILE)
 def download_backup(request: HttpRequest, name: str) -> FileResponse:
     """A backup holds everything: password hashes and every nurse's leave. So only the System Admin takes one, each taking is
     logged with its name and nothing else, and no copy is kept by a browser's cache."""

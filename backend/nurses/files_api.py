@@ -12,7 +12,7 @@ from ninja import Field, File, Form, Router, Schema, Status
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 
-from accounts.authz import SignedIn
+from accounts.authz import SignedIn, for_a_file
 from accounts.models import Role, User
 from accounts.provisioning import UsernameTaken, create_user, new_passwords
 from audit.log import record
@@ -27,6 +27,7 @@ from units.models import Unit
 
 router = Router(tags=["nurses"])
 cno = SignedIn(Role.CNO)
+cno_of_a_file = for_a_file(cno)  # Not from another site (ticket 62).
 
 STAFF_LIST_COLUMNS = (*importing.COLUMNS, "End date", "Role", "Status", "Transfers to come")
 _A_CSV_FILE = {"responses": {200: {"description": "A CSV file.", "content": {"text/csv": {"schema": {"type": "string"}}}}}}
@@ -75,7 +76,7 @@ def _lines_of(file: UploadedFile, layout: importing.Layout = importing.NURSE_FIL
         refuse((("file",), str(refusal)))
 
 
-@router.get("/import/template", auth=cno, operation_id="downloadNurseImportTemplate", openapi_extra=_A_CSV_FILE)
+@router.get("/import/template", auth=cno_of_a_file, operation_id="downloadNurseImportTemplate", openapi_extra=_A_CSV_FILE)
 def import_template(request: HttpRequest) -> HttpResponse:
     return csv_response("nurse-import-template.csv", [importing.COLUMNS])
 
@@ -154,7 +155,7 @@ class SkillImportDone(Schema):
     unchanged: int
 
 
-@router.get("/skills-import/template", auth=cno, operation_id="downloadSkillsImportTemplate", openapi_extra=_A_CSV_FILE)
+@router.get("/skills-import/template", auth=cno_of_a_file, operation_id="downloadSkillsImportTemplate", openapi_extra=_A_CSV_FILE)
 def skills_import_template(request: HttpRequest) -> HttpResponse:
     return csv_response("skills-import-template.csv", [skills_importing.COLUMNS])
 
@@ -218,7 +219,7 @@ def _staff_list_row(nurse: NurseProfile) -> list[str]:
             "; ".join(f"{placement.unit.name} from {placement.from_month:%Y-%m}" for placement in coming)]
 
 
-@router.get("/export", auth=cno, operation_id="exportStaffList", openapi_extra=_A_CSV_FILE)
+@router.get("/export", auth=cno_of_a_file, operation_id="exportStaffList", openapi_extra=_A_CSV_FILE)
 def export_staff_list(request: HttpRequest) -> HttpResponse:
     """Every nurse the CNO's list shows, deactivated ones too, by name. Its first columns are the import's."""
     rows = [_staff_list_row(nurse) for nurse in with_units(NurseProfile.objects.all())]

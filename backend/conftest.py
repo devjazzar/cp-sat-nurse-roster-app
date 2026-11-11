@@ -70,3 +70,13 @@ def migration(app: str, name: str):
     """A migration's module, whose own functions a test can run against rows written as an older release left them."""
     return importlib.import_module(f"{app}.migrations.{name}")
 
+
+
+# Ticket 62 (audit lead 7): what a browser says of who started a request. Only `cross-site` refuses a file; an older browser or a
+# script sends none, and is served as before.
+SERVED_SITES = ["same-origin", "same-site", "none", None]
+CROSS_SITE = "This file opens only from the app's own pages, not from a link on another site."
+
+
+def from_site(site: str | None) -> dict:
+    return {"headers": {"Sec-Fetch-Site": site}} if site else {}

@@ -28,3 +28,24 @@ class SignedIn(SessionAuth):
         if self.roles and user.role not in self.roles:
             raise HttpError(403, "Your role may not do this.")
         return user
+
+
+CROSS_SITE = "This file opens only from the app's own pages, not from a link on another site."
+
+
+class SignedInForAFile(SignedIn):
+    """A route that answers with a file: a plain GET, which a page on another site can make a signed-in user's browser take,
+    since the session cookie is `SameSite=Lax` (ticket 62, audit lead 7). Refused with 403 when the browser says the request was
+    started by another site (`Sec-Fetch-Site: cross-site`), before the session is read, so that the answer is the same whoever is
+    signed in: it says nothing of the visitor's role, and nothing is logged. The app's own links are `same-origin`; a request
+    with no such header, from an older browser or a script, is served as before."""
+
+    def authenticate(self, request: HttpRequest, key: str | None):
+        if request.headers.get("Sec-Fetch-Site") == "cross-site":
+            raise HttpError(403, CROSS_SITE)
+        return super().authenticate(request, key)
+
+
+def for_a_file(auth: SignedIn) -> SignedInForAFile:
+    """The same roles, for a route that answers with a file."""
+    return SignedInForAFile(*auth.roles, during_forced_change=auth.during_forced_change)

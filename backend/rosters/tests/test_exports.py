@@ -15,7 +15,7 @@ import pytest
 
 from accounts.models import Role, User
 from audit.models import AuditEntry
-from conftest import post
+from conftest import CROSS_SITE, SERVED_SITES, from_site, post
 from rosters.models import Roster, RosterState, RosterVersion
 from rosters.tests.test_pins import change_shift, pin
 from rosters.tests.test_review import approved, carla, dina, nurses_of_er, ok, refused, solved, url  # noqa: F401
@@ -357,3 +357,31 @@ class TestANursesOwnSheet:
         ok(post(carla, url(icu, "/roster/approve"), {"month": MONTH}))
 
         assert my_sheet(nurses_of_er("Amal"))["sheet"] is None
+
+
+class TestFromAnotherSite:
+    """Ticket 62: a roster version's file only from the app's own pages; a refused one writes no `roster.exported`."""
+
+    @pytest.mark.parametrize("file_format", ["csv", "xlsx"])
+    def test_it_is_refused_and_not_logged(self, mona, carla, er, solver, file_format):
+        approved(mona, carla, er, solver)
+
+        response = mona.get(url(er, "/roster/export"), {"month": MONTH, "version": 1, "format": file_format},
+                            **from_site("cross-site"))
+
+        assert (response.status_code, response.json()["detail"]) == (403, CROSS_SITE)
+        assert not AuditEntry.objects.filter(action="roster.exported").exists()
+
+    @pytest.mark.parametrize("site", SERVED_SITES)
+    def test_the_apps_own_pages_and_a_browser_that_does_not_say_are_served(self, mona, carla, er, solver, site):
+        approved(mona, carla, er, solver)
+
+        response = mona.get(url(er, "/roster/export"), {"month": MONTH, "version": 1, "format": "csv"}, **from_site(site))
+
+        assert response.status_code == 200
+        assert AuditEntry.objects.filter(action="roster.exported").count() == 1
+
+    def test_the_print_page_is_no_file_and_is_not_refused(self, mona, carla, er, solver):
+        approved(mona, carla, er, solver)
+
+        assert mona.get(url(er, "/roster/sheet"), {"month": MONTH, "version": 1}, **from_site("cross-site")).status_code == 200

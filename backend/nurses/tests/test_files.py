@@ -11,7 +11,7 @@ from django.test import Client
 from accounts import provisioning
 from accounts.models import Role, User
 from audit.models import AuditEntry
-from conftest import post
+from conftest import CROSS_SITE, SERVED_SITES, from_site, post
 from nurses import importing
 from nurses.models import NurseProfile
 from nurses.spreadsheets import safe_cell
@@ -604,3 +604,31 @@ def test_a_nurse_imported_with_a_formula_for_a_name_is_safe_in_the_staff_list(cn
     assert confirm(cno, content, previewed(cno, content)["token"]).status_code == 201
 
     assert table(cno.get(EXPORT))[1][1] == "'=1+1"
+
+
+class TestFromAnotherSite:
+    """Ticket 62: a page on another site cannot make a signed-in CNO's browser take a file, nor tell from the answer that the
+    visitor is the CNO: refused before the session is read, so signed out or in, any role, the answer is the same."""
+    FILES = [TEMPLATE, EXPORT, f"{NURSES}/skills-import/template"]
+
+    @pytest.mark.parametrize("path", FILES)
+    def test_it_is_refused_and_the_staff_list_is_not_logged(self, cno, path):
+        response = cno.get(path, **from_site("cross-site"))
+
+        assert (response.status_code, response.json()["detail"]) == (403, CROSS_SITE)
+        assert "Content-Disposition" not in response
+        assert not AuditEntry.objects.filter(action="nurses.exported").exists()
+
+    @pytest.mark.parametrize("path", FILES)
+    def test_whoever_asks_gets_the_same_answer(self, client_of, path):
+        for client in (Client(), client_of("nurse", Role.STAFF_NURSE)):
+            response = client.get(path, **from_site("cross-site"))
+            assert (response.status_code, response.json()["detail"]) == (403, CROSS_SITE)
+
+    @pytest.mark.parametrize("site", SERVED_SITES)
+    @pytest.mark.parametrize("path", FILES)
+    def test_the_apps_own_pages_and_a_browser_that_does_not_say_are_served(self, cno, path, site):
+        response = cno.get(path, **from_site(site))
+
+        assert response.status_code == 200 and response["Content-Disposition"].startswith("attachment")
+        assert AuditEntry.objects.filter(action="nurses.exported").count() == (path == EXPORT)

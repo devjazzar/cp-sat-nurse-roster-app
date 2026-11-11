@@ -81,7 +81,7 @@
         "description": "A backup holds everything: password hashes and every nurse's leave. So only the System Admin takes one, each taking is\nlogged with its name and nothing else, and no copy is kept by a browser's cache.",
         "security": [
           {
-            "SignedIn": []
+            "SignedInForAFile": []
           }
         ]
       }
@@ -2965,7 +2965,7 @@
         ],
         "security": [
           {
-            "SignedIn": []
+            "SignedInForAFile": []
           }
         ]
       }
@@ -5767,7 +5767,7 @@
         ],
         "security": [
           {
-            "SignedIn": []
+            "SignedInForAFile": []
           }
         ]
       }
@@ -5907,7 +5907,7 @@
         ],
         "security": [
           {
-            "SignedIn": []
+            "SignedInForAFile": []
           }
         ]
       }
@@ -6048,7 +6048,7 @@
         ],
         "security": [
           {
-            "SignedIn": []
+            "SignedInForAFile": []
           }
         ]
       }
@@ -17805,6 +17805,11 @@
     },
     "securitySchemes": {
       "SignedIn": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sessionid"
+      },
+      "SignedInForAFile": {
         "type": "apiKey",
         "in": "cookie",
         "name": "sessionid"
