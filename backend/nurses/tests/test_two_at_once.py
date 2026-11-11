@@ -169,7 +169,8 @@ def test_a_manager_taken_off_the_unit_at_that_moment_gets_no_password(cno, mona,
 # ---- a nurse's skill and the catalogue's "expires" ----------------------------------------------------
 @pytest.fixture
 def icu_skill(cno) -> str:
-    response = post(cno, "/api/hospital/skills", {"name": "ICU", "expires": False, "required_to_work": False, "active": True})
+    response = post(cno, "/api/hospital/skills", {"name": "ICU", "expires": False, "required_to_work": False,
+                                                  "lets_a_nurse_precept": False, "active": True})
     assert response.status_code == 201, response.content
     return response.json()["id"]
 

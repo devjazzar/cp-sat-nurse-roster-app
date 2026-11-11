@@ -16,6 +16,8 @@ export interface SkillBody {
   expires: boolean;
   /** From the day after its expiry, a nurse holding it works no shift. */
   required_to_work: boolean;
+  /** A nurse holding it, unexpired, may be chosen as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already chosen. */
+  lets_a_nurse_precept: boolean;
   /** Off retires it: it stays on this list, and the nurses who hold it keep it. */
   active: boolean;
 }

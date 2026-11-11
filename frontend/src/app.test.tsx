@@ -1938,8 +1938,8 @@ describe("the leave types page", () => {
 
 // Ticket 32. The CNO keeps the skill catalogue; every other role reads it, and the System Admin has no link to it.
 describe("the skills page", () => {
-  const ICU = { id: "k1", name: "ICU", expires: false, required_to_work: false, active: true, renames: [] }
-  const BLS = { id: "k2", name: "BLS", expires: true, required_to_work: true, active: true, renames: [] }
+  const ICU = { id: "k1", name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
+  const BLS = { id: "k2", name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
   const listed = { "GET /api/hospital/skills": { body: [BLS, ICU] } }
   const rowOf = async (name: string) => (await screen.findByText(name)).closest("tr") as HTMLElement
 
@@ -1948,11 +1948,11 @@ describe("the skills page", () => {
     start("/skills", asCno({ "GET /api/hospital/skills": { body: [renamed, { ...ICU, active: false }] } }))
 
     const table = await screen.findByRole("table")
-    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Expires", "Required to work", "Status", "Actions"])
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Expires", "Required to work", "Lets a nurse precept", "Status", "Actions"])
     const bls = await rowOf("Basic life support")
     expect(within(bls).getByText(/until 2026-11-05/)).toHaveTextContent("Was BLS until 2026-11-05")
-    expect(within(bls).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 4)).toEqual(["Yes", "Yes", "Active"])
-    expect(within(await rowOf("ICU")).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 4)).toEqual(["No", "No", "Retired"])
+    expect(within(bls).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 5)).toEqual(["Yes", "Yes", "No", "Active"])
+    expect(within(await rowOf("ICU")).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 5)).toEqual(["No", "No", "No", "Retired"])
   })
 
   it("adds a skill with both flags and empties the form", async () => {
@@ -1964,13 +1964,14 @@ describe("the skills page", () => {
     await user.type(await screen.findByLabelText("Name"), "ACLS")
     expect(screen.getByLabelText("Expires")).not.toBeChecked()
     expect(screen.getByLabelText("Required to work")).not.toBeChecked()
+    expect(screen.getByLabelText("Lets a nurse precept")).not.toBeChecked()
     expect(screen.getByLabelText("Active")).toBeChecked()
     await user.click(screen.getByLabelText("Expires"))
     await user.click(screen.getByLabelText("Required to work"))
     await user.click(screen.getByRole("button", { name: "Add skill" }))
 
     expect(await screen.findByText("ACLS is added.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "ACLS", expires: true, required_to_work: true, active: true })
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "ACLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true })
     expect(screen.getByLabelText("Name")).toHaveValue("")
     expect(screen.getByLabelText("Expires")).not.toBeChecked()
   })
@@ -2008,9 +2009,54 @@ describe("the skills page", () => {
     await user.click(screen.getByRole("button", { name: "Save skill" }))
 
     expect(await screen.findByText("Basic life support is saved.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Basic life support", expires: true, required_to_work: true, active: false })
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Basic life support", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: false })
     expect(screen.getByRole("heading", { name: "Add a skill" })).toBeInTheDocument()
     await waitFor(() => expect(edit).toHaveFocus())
+  })
+
+  // Ticket 53. The third mark: a nurse holding a marked skill may be chosen as a preceptor (ticket 55).
+  it("marks a skill as letting a nurse precept, on more than one skill, and clears it", async () => {
+    const MARKED = { ...ICU, lets_a_nurse_precept: true }
+    const { user, calls } = start("/skills", asCno({
+      "GET /api/hospital/skills": { body: [BLS, MARKED] },
+      "PUT /api/hospital/skills/k1": ({ body }: { body: unknown }) => ({ body: { ...MARKED, ...(body as object) } }),
+      "PUT /api/hospital/skills/k2": ({ body }: { body: unknown }) => ({ body: { ...BLS, ...(body as object) } }),
+    }))
+
+    const precepts = async (name: string) => within(await rowOf(name)).getAllByRole("cell")[3]
+    expect(await precepts("ICU")).toHaveTextContent("Yes")
+    expect(await precepts("BLS")).toHaveTextContent("No")
+
+    await user.click(screen.getByRole("button", { name: "Edit BLS" }))
+    const mark = screen.getByLabelText("Lets a nurse precept")
+    expect(mark).not.toBeChecked()
+    expect(mark).toHaveAccessibleDescription("A nurse holding this skill can be chosen as the preceptor of a nurse on probation while it counts. Turning this off later changes no preceptor already chosen: the skill is checked only when one is chosen.")
+    await user.click(mark)
+    await user.click(screen.getByRole("button", { name: "Save skill" }))
+    expect(await screen.findByText("BLS is saved.")).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: true, active: true })
+
+    await user.click(screen.getByRole("button", { name: "Edit ICU" }))
+    expect(screen.getByLabelText("Lets a nurse precept")).toBeChecked()
+    await user.click(screen.getByLabelText("Lets a nurse precept"))
+    await user.click(screen.getByRole("button", { name: "Save skill" }))
+    expect(await screen.findByText("ICU is saved.")).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true })
+  })
+
+  it("adds a skill that lets a nurse precept", async () => {
+    const { user, calls } = start("/skills", asCno({
+      ...listed,
+      "POST /api/hospital/skills": ({ body }: { body: unknown }) => ({ status: 201, body: { ...(body as object), id: "k3", renames: [] } }),
+    }))
+
+    await user.type(await screen.findByLabelText("Name"), "Preceptor course")
+    await user.click(screen.getByLabelText("Lets a nurse precept"))
+    await user.click(screen.getByRole("button", { name: "Add skill" }))
+
+    expect(await screen.findByText("Preceptor course is added.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Preceptor course", expires: false, required_to_work: false, lets_a_nurse_precept: true, active: true })
+    expect(screen.getByLabelText("Lets a nurse precept")).not.toBeChecked()
   })
 
   it("cancelling an edit changes nothing", async () => {
@@ -2040,9 +2086,13 @@ describe("the skills page", () => {
   })
 
   it.each(["deputy_cno", "unit_manager", "staff_nurse", "system_admin"])("%s reads the catalogue and can change nothing", async (role) => {
-    start("/skills", { ...session({ ...ME, role }), ...listed })
+    start("/skills", { ...session({ ...ME, role }), "GET /api/hospital/skills": { body: [{ ...BLS, lets_a_nurse_precept: true }, ICU] } })
 
     expect(await screen.findByText("BLS")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Lets a nurse precept" })).toBeInTheDocument()
+    expect(within(await rowOf("BLS")).getAllByRole("cell")[3]).toHaveTextContent("Yes")
+    expect(within(await rowOf("ICU")).getAllByRole("cell")[3]).toHaveTextContent("No")
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
     expect(screen.getByText(/Only the CNO can change these/)).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Skills" })).toHaveAttribute("tabindex", "0")
     expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument()
@@ -3327,9 +3377,9 @@ describe("the nurses page", () => {
 
   describe("a nurse's skills", () => {
     const CATALOGUE = [
-      { id: "s3", name: "ACLS", expires: true, required_to_work: false, active: false, renames: [] },
-      { id: "s1", name: "BLS", expires: true, required_to_work: true, active: true, renames: [] },
-      { id: "s2", name: "ICU", expires: false, required_to_work: false, active: true, renames: [] },
+      { id: "s3", name: "ACLS", expires: true, required_to_work: false, lets_a_nurse_precept: false, active: false, renames: [] },
+      { id: "s1", name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] },
+      { id: "s2", name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] },
     ]
     /** The list as the API reads it after each write, so the page is seen to take the fresh one. */
     function withSkills(first: unknown[], extra: Record<string, Handler | Answer> = {}) {

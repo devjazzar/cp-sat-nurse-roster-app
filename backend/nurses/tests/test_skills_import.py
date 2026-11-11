@@ -34,7 +34,8 @@ def today(on_day):
 def catalogue(cno):
     """BLS expires and is required to work, ICU does not expire, ACLS expires."""
     for name, expires, required in [("BLS", True, True), ("ICU", False, False), ("ACLS", True, False)]:
-        response = post(cno, SKILLS, {"name": name, "expires": expires, "required_to_work": required, "active": True})
+        response = post(cno, SKILLS, {"name": name, "expires": expires, "required_to_work": required,
+                                     "lets_a_nurse_precept": False, "active": True})
         assert response.status_code == 201, response.content
     return {skill.name: str(skill.pk) for skill in Skill.objects.all()}
 
@@ -51,7 +52,7 @@ def badr(cno, er, catalogue) -> str:
 
 def rename(client, name, new_name):
     row = next(row for row in client.get(SKILLS).json() if row["name"] == name)
-    body = {key: row[key] for key in ("expires", "required_to_work", "active")} | {"name": new_name}
+    body = {key: row[key] for key in ("expires", "required_to_work", "lets_a_nurse_precept", "active")} | {"name": new_name}
     return client.put(f"{SKILLS}/{row['id']}", body, content_type="application/json")
 
 

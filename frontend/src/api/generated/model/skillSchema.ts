@@ -11,6 +11,7 @@ export interface SkillSchema {
   name: string;
   expires: boolean;
   required_to_work: boolean;
+  lets_a_nurse_precept: boolean;
   active: boolean;
   /** Every change of this skill's name, oldest first. */
   renames: SkillRenameSchema[];

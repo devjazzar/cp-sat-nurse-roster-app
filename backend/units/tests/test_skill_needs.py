@@ -55,7 +55,7 @@ def unit(name, needs=(), **rules) -> Unit:
 def change_skill(cno, current, /, **changes):
     skill = Skill.objects.get(name=current)
     row = {"name": skill.name, "expires": skill.expires, "required_to_work": skill.required_to_work,
-           "active": skill.active} | changes
+           "lets_a_nurse_precept": skill.lets_a_nurse_precept, "active": skill.active} | changes
     return cno.put(f"{SKILLS}/{skill.pk}", row, content_type="application/json")
 
 

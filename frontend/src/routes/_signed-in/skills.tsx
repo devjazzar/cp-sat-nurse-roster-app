@@ -29,10 +29,11 @@ const schema = z.object({
   name: z.string().trim().min(1, "Enter a name.").max(NAME_MAX, `At most ${NAME_MAX} characters.`),
   expires: z.boolean(),
   required_to_work: z.boolean(),
+  lets_a_nurse_precept: z.boolean(),
   active: z.boolean(),
 })
 
-const NEW_SKILL: SkillBody = { name: "", expires: false, required_to_work: false, active: true }
+const NEW_SKILL: SkillBody = { name: "", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true }
 
 function SkillForm({ skill, onDone, onCancel }: { skill: SkillSchema | null; onDone: (message: string) => void; onCancel: () => void }) {
   const queryClient = useQueryClient()
@@ -41,7 +42,9 @@ function SkillForm({ skill, onDone, onCancel }: { skill: SkillSchema | null; onD
   const mutation = skill ? update : create
   const form = useForm<SkillBody>({
     resolver: zodResolver(schema),
-    defaultValues: skill ? { name: skill.name, expires: skill.expires, required_to_work: skill.required_to_work, active: skill.active } : NEW_SKILL,
+    defaultValues: skill
+      ? { name: skill.name, expires: skill.expires, required_to_work: skill.required_to_work, lets_a_nurse_precept: skill.lets_a_nurse_precept, active: skill.active }
+      : NEW_SKILL,
   })
   const { errors } = form.formState
 
@@ -80,6 +83,10 @@ function SkillForm({ skill, onDone, onCancel }: { skill: SkillSchema | null; onD
           registration={form.register("expires")} error={errors.expires} />
         <CheckboxField label="Required to work" description="From the day after its expiry, a nurse holding this skill works no shift."
           registration={form.register("required_to_work")} error={errors.required_to_work} />
+        {/* Ticket 55 checks the mark when a preceptor is assigned, and only then. */}
+        <CheckboxField label="Lets a nurse precept"
+          description="A nurse holding this skill can be chosen as the preceptor of a nurse on probation while it counts. Turning this off later changes no preceptor already chosen: the skill is checked only when one is chosen."
+          registration={form.register("lets_a_nurse_precept")} error={errors.lets_a_nurse_precept} />
         <CheckboxField label="Active" description="Turn this off to retire the skill. It stays on this list, the nurses who hold it keep it, and it can be made active again."
           registration={form.register("active")} error={errors.active} />
         {unexpected && <p role="alert" className="text-sm text-destructive">The skill could not be saved. Check your connection and try again.</p>}
@@ -112,6 +119,7 @@ function SkillsTable({ skills, onEdit }: { skills: SkillSchema[]; onEdit?: (skil
           <TableHead>Name</TableHead>
           <TableHead>Expires</TableHead>
           <TableHead>Required to work</TableHead>
+          <TableHead>Lets a nurse precept</TableHead>
           <TableHead>Status</TableHead>
           {onEdit && <TableHead className="sticky end-0 bg-card"><span className="sr-only">Actions</span></TableHead>}
         </TableRow>
@@ -125,6 +133,7 @@ function SkillsTable({ skills, onEdit }: { skills: SkillSchema[]; onEdit?: (skil
             </TableCell>
             <TableCell>{yesNo(skill.expires)}</TableCell>
             <TableCell>{yesNo(skill.required_to_work)}</TableCell>
+            <TableCell>{yesNo(skill.lets_a_nurse_precept)}</TableCell>
             <TableCell>
               <Badge variant={skill.active ? "secondary" : "outline"}>{skill.active ? "Active" : "Retired"}</Badge>
             </TableCell>

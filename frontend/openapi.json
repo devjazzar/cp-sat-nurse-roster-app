@@ -7981,6 +7981,10 @@
             "title": "Required To Work",
             "type": "boolean"
           },
+          "lets_a_nurse_precept": {
+            "title": "Lets A Nurse Precept",
+            "type": "boolean"
+          },
           "active": {
             "title": "Active",
             "type": "boolean"
@@ -7999,6 +8003,7 @@
           "name",
           "expires",
           "required_to_work",
+          "lets_a_nurse_precept",
           "active",
           "renames"
         ],
@@ -8025,6 +8030,11 @@
             "title": "Required To Work",
             "type": "boolean"
           },
+          "lets_a_nurse_precept": {
+            "description": "A nurse holding it, unexpired, may be chosen as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already chosen.",
+            "title": "Lets A Nurse Precept",
+            "type": "boolean"
+          },
           "active": {
             "description": "Off retires it: it stays on this list, and the nurses who hold it keep it.",
             "title": "Active",
@@ -8035,6 +8045,7 @@
           "name",
           "expires",
           "required_to_work",
+          "lets_a_nurse_precept",
           "active"
         ],
         "title": "SkillBody",

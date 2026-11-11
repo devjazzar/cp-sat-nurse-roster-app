@@ -297,6 +297,9 @@ class SkillBody(StrictSchema):
     name: SkillName = Field(description="What nurses' records, unit rules and solve inputs call it.")
     expires: bool = Field(description="Every nurse who holds it has an expiry for it, the last day it counts.")
     required_to_work: bool = Field(description="From the day after its expiry, a nurse holding it works no shift.")
+    lets_a_nurse_precept: bool = Field(description="A nurse holding it, unexpired, may be chosen as a preceptor. Checked "
+                                                   "when a preceptor is assigned only, so turning it off changes no "
+                                                   "preceptor already chosen.")
     active: bool = Field(description="Off retires it: it stays on this list, and the nurses who hold it keep it.")
 
 
@@ -315,6 +318,7 @@ class SkillSchema(Schema):
     name: str
     expires: bool
     required_to_work: bool
+    lets_a_nurse_precept: bool
     active: bool
     renames: list[SkillRenameSchema] = Field(description="Every change of this skill's name, oldest first.")
 
@@ -325,12 +329,12 @@ class SkillSchema(Schema):
 
 def _skill_fields(skill: Skill) -> dict:
     return {"name": skill.name, "expires": skill.expires, "required_to_work": skill.required_to_work,
-            "active": skill.active}
+            "lets_a_nurse_precept": skill.lets_a_nurse_precept, "active": skill.active}
 
 
 def _write_skill(skill: Skill, body: SkillBody) -> None:
-    skill.name, skill.expires, skill.required_to_work, skill.active = (
-        body.name, body.expires, body.required_to_work, body.active)
+    skill.name, skill.expires, skill.required_to_work, skill.lets_a_nurse_precept, skill.active = (
+        body.name, body.expires, body.required_to_work, body.lets_a_nurse_precept, body.active)
     # The constraint still decides should anything ever write without the catalogue's lock.
     save_unless_taken(skill, "name", f"{body.name} is already a skill")
 

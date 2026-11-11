@@ -1,15 +1,19 @@
 """The skill catalogue (ticket 32): the CNO's list of skills, which every role reads. The refusals that depend on nurses'
-records and unit rules are tickets 33's and 34's."""
+records and unit rules are tickets 33's and 34's; the third mark, "Lets a nurse precept", ticket 53's."""
 import pytest
 from django.core.management import call_command
 
 from accounts.models import Role
 from audit.models import AuditEntry
+from hospital.models import Skill
+from conftest import post
+from nurses.models import NurseSkill
+from nurses.tests.conftest import added, make_unit
 
 pytestmark = pytest.mark.django_db
 
 SKILLS = "/api/hospital/skills"
-NEW = {"name": "BLS", "expires": True, "required_to_work": True, "active": True}
+NEW = {"name": "BLS", "expires": True, "required_to_work": True, "lets_a_nurse_precept": False, "active": True}
 
 
 def create(client, **fields):
@@ -38,6 +42,10 @@ def names(client) -> list[str]:
     return [row["name"] for row in client.get(SKILLS).json()]
 
 
+def marked(client) -> list[str]:
+    return [row["name"] for row in client.get(SKILLS).json() if row["lets_a_nurse_precept"]]
+
+
 @pytest.fixture
 def cno(signed_in):
     client = signed_in(Role.CNO, username="the-cno")
@@ -63,7 +71,7 @@ def test_the_cno_adds_a_skill_with_both_flags(signed_in):
 
     assert response.status_code == 201
     assert editable(response.json()) == {"name": "Preceptor", "expires": False, "required_to_work": False,
-                                         "active": True}
+                                         "lets_a_nurse_precept": False, "active": True}
     assert response.json()["renames"] == []
     assert client.get(SKILLS).json() == [response.json()]
 
@@ -78,7 +86,8 @@ def test_the_cno_changes_both_flags(cno):
     response = update(cno, "ICU", expires=True, required_to_work=True)
 
     assert response.status_code == 200
-    assert editable(response.json()) == {"name": "ICU", "expires": True, "required_to_work": True, "active": True}
+    assert editable(response.json()) == {"name": "ICU", "expires": True, "required_to_work": True,
+                                         "lets_a_nurse_precept": False, "active": True}
     assert update(cno, "ICU", expires=False, required_to_work=False).json()["expires"] is False
 
 
@@ -108,6 +117,7 @@ def test_there_is_no_way_to_delete_a_skill(cno):
     ({"name": "IC\nU"}, "name"),
     ({"expires": "yes"}, "expires"),
     ({"required_to_work": 1}, "required_to_work"),
+    ({"lets_a_nurse_precept": "no"}, "lets_a_nurse_precept"),
     ({"active": None}, "active"),
     ({"colour": "#000000"}, "colour"),
 ])
@@ -115,7 +125,7 @@ def test_a_refusal_names_the_field(signed_in, fields, field):
     assert refused_fields(create(signed_in(Role.CNO), **fields)) == {(field,)}
 
 
-@pytest.mark.parametrize("field", ["expires", "required_to_work", "active"])
+@pytest.mark.parametrize("field", ["expires", "required_to_work", "lets_a_nurse_precept", "active"])
 def test_every_flag_must_be_given(signed_in, field):
     body = {key: value for key, value in NEW.items() if key != field}
 
@@ -129,6 +139,95 @@ def test_an_unknown_skill_is_404(signed_in):
                                        content_type="application/json")
 
     assert response.status_code == 404
+
+
+# ---- "Lets a nurse precept" (ticket 53) -------------------------------------------------------------
+def test_a_skill_made_without_the_mark_has_it_off():
+    # As every skill there was before the mark: the migration leaves them all off.
+    skill = Skill.objects.create(name="ICU", expires=False, required_to_work=False)
+
+    skill.refresh_from_db()
+    assert skill.lets_a_nurse_precept is False
+
+
+def test_the_cno_adds_a_skill_that_lets_a_nurse_precept(signed_in):
+    client = signed_in(Role.CNO)
+
+    response = create(client, name="Preceptor course", expires=True, required_to_work=False, lets_a_nurse_precept=True)
+
+    assert response.status_code == 201 and response.json()["lets_a_nurse_precept"] is True
+    assert client.get(SKILLS).json()[0]["lets_a_nurse_precept"] is True
+
+
+def test_the_cno_sets_and_clears_the_mark_on_more_than_one_skill(cno):
+    assert update(cno, "BLS", lets_a_nurse_precept=True).json()["lets_a_nurse_precept"] is True
+    assert update(cno, "ICU", lets_a_nurse_precept=True).json()["lets_a_nurse_precept"] is True
+    assert marked(cno) == ["BLS", "ICU"]
+
+    cleared = update(cno, "BLS", lets_a_nurse_precept=False)
+
+    assert cleared.status_code == 200 and cleared.json()["lets_a_nurse_precept"] is False
+    assert marked(cno) == ["ICU"]
+
+
+def test_the_mark_is_cleared_while_a_nurse_holds_the_skill(cno):
+    # Unlike turning `expires` on, nothing refuses it: the skill is checked only when a preceptor is assigned.
+    update(cno, "ICU", lets_a_nurse_precept=True)
+    nurse_id = added(cno, make_unit("ER"))["nurse"]["id"]
+    icu = Skill.objects.get(name="ICU")
+    assert post(cno, f"/api/nurses/{nurse_id}/skills", {"skill_id": str(icu.pk), "expiry": None}).status_code == 201
+    assert NurseSkill.objects.current().filter(skill=icu).exists()
+
+    response = update(cno, "ICU", lets_a_nurse_precept=False)
+
+    assert response.status_code == 200 and marked(cno) == []
+    assert NurseSkill.objects.current().filter(skill=icu).exists()
+
+
+def test_setting_and_clearing_the_mark_are_audited_with_its_value(cno):
+    AuditEntry.objects.all().delete()
+
+    update(cno, "ICU", lets_a_nurse_precept=True)
+    update(cno, "ICU", lets_a_nurse_precept=False)
+
+    first, second = AuditEntry.objects.order_by("pk")
+    assert (first.action, first.target, first.actor.username) == ("skill.changed", "ICU", "the-cno")
+    assert first.before == {"lets_a_nurse_precept": False} and first.after == {"lets_a_nurse_precept": True}
+    assert (second.action, second.target) == ("skill.changed", "ICU")
+    assert second.before == {"lets_a_nurse_precept": True} and second.after == {"lets_a_nurse_precept": False}
+
+
+def test_adding_a_marked_skill_is_audited_with_the_mark(signed_in):
+    client = signed_in(Role.CNO)
+    AuditEntry.objects.all().delete()
+
+    create(client, name="Preceptor course", expires=False, required_to_work=False, lets_a_nurse_precept=True)
+
+    entry = AuditEntry.objects.get()
+    assert entry.action == "skill.created"
+    assert entry.after == {"name": "Preceptor course", "expires": False, "required_to_work": False,
+                           "lets_a_nurse_precept": True, "active": True}
+
+
+@pytest.mark.parametrize("role", list(Role))
+def test_every_role_reads_the_mark(signed_in, cno, role):
+    update(cno, "BLS", lets_a_nurse_precept=True)
+    reader = cno if role == Role.CNO else signed_in(role, username=f"a-{role}")
+
+    assert marked(reader) == ["BLS"]
+
+
+@pytest.mark.parametrize("role", [role for role in Role if role != Role.CNO])
+def test_only_the_cno_sets_or_clears_the_mark(signed_in, cno, role):
+    update(cno, "BLS", lets_a_nurse_precept=True)
+    client = signed_in(role, username=f"a-{role}")
+    AuditEntry.objects.all().delete()
+
+    assert update(client, "ICU", lets_a_nurse_precept=True).status_code == 403
+    assert update(client, "BLS", lets_a_nurse_precept=False).status_code == 403
+    assert create(client, name="Preceptor course", lets_a_nurse_precept=True).status_code == 403
+    assert marked(cno) == ["BLS"] and names(cno) == ["ACLS", "BLS", "ICU"]
+    assert not AuditEntry.objects.exists()
 
 
 # ---- a taken name ---------------------------------------------------------------------------------
@@ -204,7 +303,8 @@ def test_adding_is_audited_with_every_value(signed_in):
     entry = AuditEntry.objects.get()
     assert entry.action == "skill.created" and entry.actor.username == "the-cno" and entry.target == "ICU"
     assert entry.before is None
-    assert entry.after == {"name": "ICU", "expires": False, "required_to_work": True, "active": True}
+    assert entry.after == {"name": "ICU", "expires": False, "required_to_work": True, "lets_a_nurse_precept": False,
+                           "active": True}
 
 
 def test_a_change_is_audited_with_only_what_changed(cno):
