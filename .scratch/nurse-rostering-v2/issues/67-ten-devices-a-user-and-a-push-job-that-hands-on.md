@@ -145,3 +145,13 @@ The stack is down, its volumes and `e2e/.stack/nr-t67.*` are gone, and my Postgr
   passes `pushes.clock()`.
 - **To make a push slow on a scratch stack:** add an allowed host name pointing at `10.255.255.1` to the worker's
   `/etc/hosts` (`docker exec -u 0`). Through Docker Desktop each send then waits for its 10-second read timeout.
+
+**From the main session (2026-11-11):** PR 9 merged into `main` as `2292114` by the ticket session, both workflows green on
+`ef40a38` (only `[skip ci]` markdown after it). Dev stack rebuilt, no migration; health ok.
+
+**Reviewed by the user (2026-11-11):** all four points kept as built.
+- The order behind a push already waiting rests on Procrastinate's priority-then-id fetch, held by a test.
+- A send handed on from a try again goes at normal priority, as the spec says.
+- "Budget" stays for the push job's 30 seconds; `GLOSSARY.md`'s Time limit entry now says the word names only that, never a
+  solve's time limit.
+- The two tests that write the database directly stay.

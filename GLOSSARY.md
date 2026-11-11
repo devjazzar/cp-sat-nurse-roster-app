@@ -223,7 +223,7 @@ _Avoid_: error, reason, cause
 
 **Time limit**:
 How long a solve may search. The unit manager chooses it, up to the time limit cap.
-_Avoid_: timeout, budget
+_Avoid_: timeout, budget ("budget" names only a push job's 30 seconds of sending, never a solve's time limit)
 
 **Time limit cap**:
 The longest time limit the System Admin allows any solve.
