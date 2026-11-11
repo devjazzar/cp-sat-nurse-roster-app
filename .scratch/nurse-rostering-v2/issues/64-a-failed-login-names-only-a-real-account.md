@@ -15,3 +15,8 @@
 - [ ] Tests at the agreed seams: the backend API suite (`accounts/tests/test_login.py` and the audit log's API); the usual full suites and both workflows
 
 ## Comments
+
+**From ticket 63 (2026-11-11).** The failed login's audit entry is still written by `_record_failure` in
+`backend/accounts/login.py`, with the typed name as its target. Ticket 63's tests (`accounts/tests/test_throttle.py`) count
+`auth.login_failed` entries and do not read their target, so the change here should not break them. The throttle's own
+entry, `auth.login_throttled`, already has an empty target.

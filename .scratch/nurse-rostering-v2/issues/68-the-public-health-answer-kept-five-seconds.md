@@ -128,3 +128,12 @@ The stack is down, its volumes and `e2e/.stack/nr-t68.*` are gone, and my Postgr
   forked from a preloading master would start with an unheld lock and nothing held. Gunicorn does not preload here today.
 - A test that reads `/api/health` twice and expects the second answer to differ must move `ops.public_health.clock` past
   five seconds. Every test starts with nothing held.
+
+**From the main session (2026-11-11):** PR 7 merged into `main` as `4f198f6` by the ticket session, both workflows green on
+that head. Dev stack rebuilt (`up -d --build`); `/api/health` answers ok.
+
+**Reviewed by the user (2026-11-11):** all four points kept as built.
+- A change in the database or the solver may show up to five seconds late in the public answer.
+- When the held answer runs out, the other threads of the process wait for the one call; a hanging database holds them.
+- Each web process holds its own copy: up to three solver calls every five seconds.
+- The sentence added to `deploy/INSTALL.md` stays.

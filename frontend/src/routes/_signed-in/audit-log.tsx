@@ -47,9 +47,13 @@ const filterSchema = z
     message: "This is before the start date.",
   })
 
+/** Actions taken by someone not signed in, who is shown as "Unknown" rather than as the system. */
+const ANONYMOUS_ACTIONS = new Set(["auth.login_failed", "auth.login_throttled"])
+
 const ACTION_NAMES: Record<string, string> = {
   "auth.login": "Logged in",
   "auth.login_failed": "Failed login",
+  "auth.login_throttled": "Logins throttled",
   "auth.logout": "Logged out",
   "auth.password_changed": "Changed own password",
   "backup.downloaded": "Downloaded a backup",
@@ -157,7 +161,7 @@ function Filters() {
 }
 
 function who(entry: AuditEntrySchema) {
-  return entry.actor ?? (entry.action === "auth.login_failed" ? "Unknown" : "System")
+  return entry.actor ?? (ANONYMOUS_ACTIONS.has(entry.action) ? "Unknown" : "System")
 }
 
 function Details({ entry }: { entry: AuditEntrySchema }) {

@@ -305,6 +305,7 @@ export * from './swapComposer';
 export * from './swapDecision';
 export * from './technicalSettingsSchema';
 export * from './thisDevice';
+export * from './throttleRefusal';
 export * from './transferBody';
 export * from './turnOff';
 export * from './turnOn';

@@ -6,11 +6,12 @@ import { z } from "zod"
 
 import { ApiError } from "@/api/fetcher"
 import { useChangePassword } from "@/api/generated/endpoints"
-import type { ChangePasswordRefusal } from "@/api/generated/model"
+import type { ChangePasswordRefusal, ThrottleRefusal } from "@/api/generated/model"
 import { FormField } from "@/components/form-field"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldGroup } from "@/components/ui/field"
+import { throttledWords } from "@/lib/throttle-words"
 import { currentUser, setCurrentUser, useSignOut } from "@/session"
 
 export const Route = createFileRoute("/change-password")({
@@ -61,6 +62,8 @@ function ChangePasswordPage() {
               const messages = refusal[field]
               if (messages?.length) form.setError(field, { message: messages.join(" ") }, { shouldFocus: true })
             }
+          } else if (error instanceof ApiError && error.status === 429) {
+            form.setError("root", { message: throttledWords(error.body as ThrottleRefusal | undefined) })
           } else {
             form.setError("root", { message: "The password could not be changed. Try again." })
           }
