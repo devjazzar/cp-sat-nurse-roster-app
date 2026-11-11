@@ -83,6 +83,14 @@ _Avoid_: nurse user, regular nurse
 The generated passwords of the nurses a confirmed import just added, shown once, for the CNO to print or copy.
 _Avoid_: credentials file, password list
 
+**Lockout**:
+A username refused every login for fifteen minutes after five failed logins in a row, whether or not an account has it. Even the right password is refused meanwhile.
+_Avoid_: account lock, ban, blocked account
+
+**Throttle**:
+A client address refused every login for the rest of a fifteen-minute window after too many failed logins from it, whatever username is tried. Everyone behind that address shares it.
+_Avoid_: rate limit, IP ban, block
+
 **Staff list**:
 The CSV the CNO exports of every nurse: their hospital ID, full name, gender, unit, dates, role and status, and any transfer to come.
 _Avoid_: nurse export, roster, employee list
@@ -166,7 +174,7 @@ rejection's comment stays on the roster.
 _Avoid_: alert, message, notice
 
 **Push subscription**:
-A device's standing permission to be sent pushes for one user, held as the address the browser's push service gave it and the keys that go with it. It belongs to whoever last turned pushes on there; turning them off, pressing Log out, a deactivation, an address the push service says is gone, or ten failed sends in a row ends it.
+A device's standing permission to be sent pushes for one user, held as the address the browser's push service gave it and the keys that go with it. It belongs to whoever last turned pushes on there, and a user holds at most ten; turning them off, pressing Log out, a deactivation, an address the push service says is gone, ten failed sends in a row, or the same user turning pushes on for an eleventh device (which ends their earliest) ends it.
 _Avoid_: device token, endpoint, device
 
 **Push**:
@@ -316,5 +324,6 @@ _Avoid_: dump, snapshot, export
 
 **Restore**:
 Putting a backup in place of the database, by a script on the server, never from the application. Everything done since the
-backup is lost, so the database as it stood is backed up first.
+backup is lost, so the database as it stood is backed up first. No lockout or throttle comes back with it, and the
+deactivations, password resets and changes and push key rotations it undid are listed, to be done again by hand.
 _Avoid_: rollback, recovery

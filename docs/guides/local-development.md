@@ -68,8 +68,8 @@ branch changed; believe the diff, not the report.
 | commits on `main` | The ticket's commits, fast-forwarded by the ticket session, then one `[skip ci]` commit recording your review |
 
 `.scratch/nurse-rostering-v1/` is v1: its spec and tickets 01–25 (ticket 25's spec is in `.scratch/manager-own-pages-and-ended-sessions/`).
-`.scratch/nurse-rostering-v2/` is v2: eleven features, each with a spec under `specs/`, tickets 26–61 under `issues/` (57 a
-performance ticket from ticket 39's review, with no spec), and `spec.md` as the index. A new feature joins the current
+`.scratch/nurse-rostering-v2/` is v2: twelve features, each with a spec under `specs/`, tickets 26–72 under `issues/` (57 a
+performance ticket from ticket 39's review and 62 the audit's follow-ups, neither with a spec), and `spec.md` as the index. A new feature joins the current
 release: its spec under `specs/`, its tickets numbered on from the last. (The grilling sessions wrote to `.scratch/<feature>/`
 on their branches, and the main session moved and renumbered them at the merge; tell a `/to-spec` session the release's
 paths and the next free number, and it writes there directly.)
