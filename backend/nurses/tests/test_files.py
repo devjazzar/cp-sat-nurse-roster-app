@@ -75,7 +75,7 @@ def test_the_template_has_the_exact_columns_and_a_byte_order_mark_for_excel(cno)
     assert response.status_code == 200
     assert response["Content-Type"].startswith("text/csv")
     assert "attachment" in response["Content-Disposition"]
-    assert response.content == codecs.BOM_UTF8 + b'"Hospital ID","Full name","Gender","Unit","Start date"\r\n'
+    assert response.content == codecs.BOM_UTF8 + b'"Hospital ID","Full name","Gender","Unit","Start date","On probation"\r\n'
 
 
 def test_the_template_itself_is_read_as_a_file_with_no_nurses(cno):
@@ -502,10 +502,11 @@ def test_the_staff_list_has_what_a_cno_may_see_of_everyone(cno, er, icu, make_us
     assert response["Cache-Control"] == "no-store"
     assert response.content.startswith(codecs.BOM_UTF8)
     assert table(response) == [
-        ["Hospital ID", "Full name", "Gender", "Unit", "Start date", "End date", "Role", "Status", "Transfers to come"],
-        ["h1", "Amal Saleh", "F", "ER", "2026-01-10", "", "Staff Nurse", "Active", "ICU from 2076-01"],
-        ["h2", "Badr Omar", "M", "ER", "2026-01-10", "2026-02-01", "Staff Nurse", "Deactivated", ""],
-        ["mona", "Mona Ali", "F", "ICU", "2026-03-01", "", "Unit Manager", "Active", ""],
+        ["Hospital ID", "Full name", "Gender", "Unit", "Start date", "On probation", "Probation's last day", "End date", "Role",
+         "Status", "Transfers to come"],
+        ["h1", "Amal Saleh", "F", "ER", "2026-01-10", "", "", "", "Staff Nurse", "Active", "ICU from 2076-01"],
+        ["h2", "Badr Omar", "M", "ER", "2026-01-10", "", "", "2026-02-01", "Staff Nurse", "Deactivated", ""],
+        ["mona", "Mona Ali", "F", "ICU", "2026-03-01", "", "", "", "Unit Manager", "Active", ""],
     ]
 
 

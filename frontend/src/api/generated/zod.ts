@@ -1500,7 +1500,13 @@ export const ListNurseAttributesResponseItem = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 export const ListNurseAttributesResponse = zod.array(ListNurseAttributesResponseItem)
 
@@ -1572,7 +1578,13 @@ export const UpdateNurseAttributesResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
 
@@ -1619,7 +1631,157 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+})
+
+
+/**
+ * Refused once extended beyond 3, and for a length that would have ended it before this month: End does that.
+ * @summary Set Probation Length
+ */
+export const SetProbationLengthParams = zod.object({
+  "unit_id": zod.uuid(),
+  "nurse_id": zod.uuid()
+})
+
+export const setProbationLengthBodyMonthsMax = 3;
+
+
+
+export const SetProbationLengthBody = zod.object({
+  "months": zod.int().min(1).max(setProbationLengthBodyMonthsMax).describe('1, 2 or 3, while it stands at 3 or less. Beyond, it is extended a month at a time.')
+})
+
+export const SetProbationLengthResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "is_active": zod.boolean(),
+  "gender": zod.enum(['F', 'M']).describe('The CNO\'s to set: it is here to read.'),
+  "joins_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit\'s to set.'),
+  "leaves_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to leave. Names no other unit.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number(),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int(),
+  "hours_balance": zod.int(),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+})
+
+
+/**
+ * One month at a time, to 6 at most.
+ * @summary Extend Probation
+ */
+export const ExtendProbationParams = zod.object({
+  "unit_id": zod.uuid(),
+  "nurse_id": zod.uuid()
+})
+
+export const ExtendProbationResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "is_active": zod.boolean(),
+  "gender": zod.enum(['F', 'M']).describe('The CNO\'s to set: it is here to read.'),
+  "joins_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit\'s to set.'),
+  "leaves_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to leave. Names no other unit.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number(),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int(),
+  "hours_balance": zod.int(),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+})
+
+
+/**
+ * Its last day becomes the last day of the month under way on the hospital's clock, so that month keeps its roster. Refused
+ * before the month she starts in, when there is no month of it under way: the CNO unticks it.
+ * @summary End Probation
+ */
+export const EndProbationParams = zod.object({
+  "unit_id": zod.uuid(),
+  "nurse_id": zod.uuid()
+})
+
+export const EndProbationResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "is_active": zod.boolean(),
+  "gender": zod.enum(['F', 'M']).describe('The CNO\'s to set: it is here to read.'),
+  "joins_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit\'s to set.'),
+  "leaves_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to leave. Names no other unit.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number(),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int(),
+  "hours_balance": zod.int(),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
 
@@ -5436,7 +5598,13 @@ export const ListNursesResponseItem = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over.')
 })
 export const ListNursesResponse = zod.array(ListNursesResponseItem)
 
@@ -5445,6 +5613,7 @@ export const ListNursesResponse = zod.array(ListNursesResponseItem)
  * One transaction: the user, the nurse profile and the placement, or none of them.
  * @summary Add Nurse
  */
+export const createNurseBodyOnProbationDefault = false;
 export const createNurseBodyHospitalIdMax = 150;
 
 
@@ -5457,6 +5626,7 @@ export const CreateNurseBody = zod.object({
   "gender": zod.enum(['F', 'M']),
   "unit_id": zod.uuid(),
   "start_date": zod.iso.date(),
+  "on_probation": zod.boolean().default(createNurseBodyOnProbationDefault).describe('A staff nurse\'s only: refused for a unit manager\'s nurse profile.'),
   "hospital_id": zod.string().min(1).max(createNurseBodyHospitalIdMax).regex(createNurseBodyHospitalIdRegExp),
   "full_name": zod.string().min(1).max(createNurseBodyFullNameMax)
 })
@@ -5490,7 +5660,13 @@ export const CreateNurseResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over.')
 }),
   "generated_password": zod.string()
 }).describe('Holds a password, so it asks not to be stored.')
@@ -5526,10 +5702,13 @@ export const ListManagersToPlaceResponse = zod.array(ListManagersToPlaceResponse
  * The role and the account stay as they are, so no password here. Their hospital ID is the username they have.
  * @summary Give Manager A Profile
  */
+export const giveManagerNurseProfileBodyOnProbationDefault = false;
+
 export const GiveManagerNurseProfileBody = zod.object({
   "gender": zod.enum(['F', 'M']),
   "unit_id": zod.uuid(),
   "start_date": zod.iso.date(),
+  "on_probation": zod.boolean().default(giveManagerNurseProfileBodyOnProbationDefault).describe('A staff nurse\'s only: refused for a unit manager\'s nurse profile.'),
   "user_id": zod.uuid()
 })
 
@@ -5561,7 +5740,13 @@ export const GiveManagerNurseProfileResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over.')
 })
 
 
@@ -5608,7 +5793,13 @@ export const TransferNurseResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over.')
 })
 
 
@@ -5654,7 +5845,13 @@ export const SetNurseEndDateResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over.')
 })
 
 
@@ -5676,7 +5873,8 @@ export const correctNurseDetailsBodyFullNameOneMax = 200;
 export const CorrectNurseDetailsBody = zod.object({
   "full_name": zod.union([zod.string().min(1).max(correctNurseDetailsBodyFullNameOneMax),zod.null()]).optional(),
   "gender": zod.enum(['F', 'M']),
-  "start_date": zod.iso.date()
+  "start_date": zod.iso.date(),
+  "on_probation": zod.union([zod.boolean(),zod.null()]).optional().describe('Leaving it out leaves it as it is. Unticking removes the probation from the first month whose roster is not approved; ticking is refused once six months from her start date have passed.')
 }).describe('The hospital ID is not here: it is the username, and usernames cannot be reused. Leaving out the name leaves it\nas it is, which is what a manager\'s form does: the System Admin may have corrected it since the form opened.')
 
 export const CorrectNurseDetailsResponse = zod.object({
@@ -5708,7 +5906,13 @@ export const CorrectNurseDetailsResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over.')
 }),
   "first_placement_extended": zod.union([zod.object({
   "unit": zod.object({
@@ -5758,7 +5962,13 @@ export const ResetNursePasswordResponse = zod.object({
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
+}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over.')
 }),
   "generated_password": zod.string()
 }).describe('Holds a password, so it asks not to be stored.')
@@ -5786,6 +5996,7 @@ export const PreviewNurseImportResponse = zod.object({
   "gender": zod.string(),
   "unit": zod.string(),
   "start_date": zod.string(),
+  "on_probation": zod.string().describe('As the file has it, or Yes or No once the line has no problem.'),
   "problems": zod.array(zod.object({
   "column": zod.union([zod.string(),zod.null()]),
   "message": zod.string()
@@ -6111,7 +6322,7 @@ export const ListNotificationsResponse = zod.object({
   "event": zod.string(),
   "text": zod.string(),
   "link": zod.union([zod.object({
-  "page": zod.enum(['roster', 'my_roster', 'unit_roster', 'my_month', 'requests', 'swaps', 'unit_swaps', 'covers', 'unit_covers']),
+  "page": zod.enum(['roster', 'my_roster', 'unit_roster', 'my_month', 'requests', 'swaps', 'unit_swaps', 'covers', 'unit_covers', 'rostering_attributes']),
   "month": zod.string(),
   "unit_id": zod.union([zod.uuid(),zod.null()]).optional(),
   "cover_id": zod.union([zod.uuid(),zod.null()]).optional().describe('The cover a manager\'s `unit_covers` link shows.')

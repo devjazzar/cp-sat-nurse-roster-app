@@ -19,7 +19,7 @@ from audit.log import record
 from hospital.api import refuse
 from hospital.models import HospitalSettings
 from nurses import importing, membership, skills_importing
-from nurses.api import new_profile, with_units
+from nurses.api import new_profile, probation_of, with_units
 from nurses.models import NurseProfile, NurseSkill
 from nurses.skills import end_record
 from nurses.spreadsheets import csv_response
@@ -29,7 +29,7 @@ router = Router(tags=["nurses"])
 cno = SignedIn(Role.CNO)
 cno_for_files = for_a_file(cno)  # Not from another site (ticket 62).
 
-STAFF_LIST_COLUMNS = (*importing.COLUMNS, "End date", "Role", "Status", "Transfers to come")
+STAFF_LIST_COLUMNS = (*importing.COLUMNS, "Probation's last day", "End date", "Role", "Status", "Transfers to come")
 _A_CSV_FILE = {"responses": {200: {"description": "A CSV file.", "content": {"text/csv": {"schema": {"type": "string"}}}}}}
 
 
@@ -45,6 +45,7 @@ class ImportRow(Schema):
     gender: str
     unit: str
     start_date: str
+    on_probation: str = Field(description="As the file has it, or Yes or No once the line has no problem.")
     problems: list[ImportProblem]
 
 
@@ -110,7 +111,8 @@ def _create(request: HttpRequest, nurses: list[importing.NewNurse]) -> list[Shee
         record("nurses.imported", actor=request.user, request=request,
                after={"count": len(nurses), "units": Counter(nurse.unit.name for nurse in nurses)})
         for nurse in nurses:
-            new_profile(request, users[nurse.hospital_id], locked[nurse.unit.pk], nurse.gender, nurse.start_date)
+            new_profile(request, users[nurse.hospital_id], locked[nurse.unit.pk], nurse.gender, nurse.start_date,
+                        on_probation=nurse.on_probation)
     return [SheetRow(hospital_id=nurse.hospital_id, full_name=nurse.full_name, unit=nurse.unit.name,
                      generated_password=passwords[nurse.hospital_id].plain) for nurse in nurses]
 
@@ -213,7 +215,9 @@ def confirm_skills_import(request: HttpRequest, response: HttpResponse, file: Fi
 def _staff_list_row(nurse: NurseProfile) -> list[str]:
     current, *coming = membership.from_now_on(nurse)
     user = nurse.user
+    on_probation = probation_of(nurse)  # Only one not over yet: "who is on probation and until when".
     return [user.username, user.full_name, nurse.gender, current.unit.name, nurse.start_date.isoformat(),
+            "Yes" if on_probation else "", on_probation.last_day.isoformat() if on_probation else "",
             nurse.end_date.isoformat() if nurse.end_date else "", user.get_role_display(),
             "Active" if user.is_active else "Deactivated",
             "; ".join(f"{placement.unit.name} from {placement.from_month:%Y-%m}" for placement in coming)]

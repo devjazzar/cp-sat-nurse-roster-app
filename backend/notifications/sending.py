@@ -112,6 +112,12 @@ def request_decided(request: "Request", step: str, by: User | None) -> None:
            request_id=str(request.pk), step=str(step), **({"by": str(by.pk)} if by is not None else {}))
 
 
+def probation_ending(unit: Unit, nurse_id: UUID, last_month: dt.date) -> None:
+    """To her unit's manager, at the start of her probation's last month, which the payload keeps so that a later extension
+    does not rewrite what was said."""
+    notify([unit.manager], Event.PROBATION_ENDING, **_about(unit, last_month), nurse_id=str(nurse_id))
+
+
 def month_closed(unit: Unit, month: dt.date, close_id: UUID) -> None:
     """To the unit's manager, when the schedule closes its month: how many hard rules the recorded facts broke is read from the
     close when shown, never kept here, since a broken rule can be a nurse's leave. A manager who closes it again sees it there and

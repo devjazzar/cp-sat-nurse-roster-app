@@ -26,12 +26,15 @@ from hospital.catalogue_api import FIRST_YEAR, LAST_YEAR, IsoDate
 from nurses.models import Gender
 from units.models import Unit
 
-COLUMNS = ("Hospital ID", "Full name", "Gender", "Unit", "Start date")
+COLUMNS = ("Hospital ID", "Full name", "Gender", "Unit", "Start date", "On probation")
+OPTIONAL = 1  # How many of the last columns a file may leave out: "On probation" (ticket 54), which came after the others.
 MAX_ROWS = 500
 MAX_BYTES = 1024 * 1024  # Far more than 500 rows need. Under FILE_UPLOAD_MAX_MEMORY_SIZE, so this message can be given.
 
 _DELIMITERS = ",;\t"  # Excel uses the list separator of its locale, and a tab for "Unicode Text".
 _GENDERS = {"f": Gender.FEMALE, "m": Gender.MALE}
+# Empty means no. Excel writes TRUE and FALSE for a cell it took for a truth value.
+_ON_PROBATION = {"": False, "no": False, "n": False, "false": False, "yes": True, "y": True, "true": True}
 HOSPITAL_ID = TypeAdapter(Username)
 _FULL_NAME = TypeAdapter(FullName)
 _START_DATE = TypeAdapter(IsoDate)
@@ -45,6 +48,7 @@ class FileRefused(Exception):
 class Line:
     number: int
     cells: list[str]
+    width: int | None = None  # Set when the cells do not match the header, which named this many columns.
 
 
 @dataclass(frozen=True)
@@ -60,6 +64,7 @@ class NewNurse:
     gender: str
     unit: Unit
     start_date: dt.date
+    on_probation: bool = False
 
 
 @dataclass
@@ -71,6 +76,7 @@ class Row:
     gender: str = ""
     unit: str = ""
     start_date: str = ""
+    on_probation: str = ""
     problems: list[Problem] = field(default_factory=list)
     nurse: NewNurse | None = None
 
@@ -99,9 +105,14 @@ class Layout:
     lines: str  # "nurses": "more than 500 nurses".
     split_by: str  # How to split a file over the limit, ending the sentence: "Split it, by unit for example, and …".
     quote_hint: str  # What to quote when a line's cells do not match the columns.
+    optional: int = 0  # How many of the last columns a file may leave out, which then read as empty.
+
+    def headers(self) -> list[tuple[str, ...]]:
+        """The headers a file may have, the fullest first."""
+        return [self.columns[:len(self.columns) - left_out] for left_out in range(self.optional + 1)]
 
 
-NURSE_FILE = Layout(COLUMNS, "nurse", "nurses", ", by unit for example,", "a name that has a comma in it")
+NURSE_FILE = Layout(COLUMNS, "nurse", "nurses", ", by unit for example,", "a name that has a comma in it", OPTIONAL)
 
 
 def _trimmed(cells: list[str], columns: tuple[str, ...]) -> list[str]:
@@ -120,8 +131,12 @@ def _is_the_header(cells: list[str], columns: tuple[str, ...]) -> bool:
     return [cell.strip().casefold() for cell in _trimmed(cells, columns)] == [column.casefold() for column in columns]
 
 
-def _reader_after_header(text: str, columns: tuple[str, ...]):
-    wrong_columns = FileRefused(f"The first line must name exactly these columns: {', '.join(columns)}. "
+def _reader_after_header(text: str, layout: Layout):
+    """The reader past the header, and the columns the header named."""
+    columns = layout.columns
+    optional = f" The last {layout.optional} may be left out." if layout.optional > 1 else (
+        f" The last, {columns[-1]}, may be left out." if layout.optional else "")
+    wrong_columns = FileRefused(f"The first line must name exactly these columns: {', '.join(columns)}.{optional} "
                                 "Download the template to start from.")
     for delimiter in _DELIMITERS:
         # Strict, or an unclosed quote would swallow the lines after it without a word.
@@ -132,8 +147,9 @@ def _reader_after_header(text: str, columns: tuple[str, ...]):
             continue
         if first is None:
             raise FileRefused("This file is empty. Download the template to start from.")
-        if _is_the_header(first, columns):
-            return reader
+        named = next((header for header in layout.headers() if _is_the_header(first, header)), None)
+        if named is not None:
+            return reader, named
     raise wrong_columns
 
 
@@ -141,7 +157,9 @@ def read_file(raw: bytes, layout: Layout = NURSE_FILE) -> list[Line]:
     """The file's lines below the header, blank ones left out. Raises `FileRefused`."""
     if len(raw) > MAX_BYTES:
         raise FileRefused(f"This file is larger than {MAX_BYTES // 1024 // 1024} MB, which is more than {MAX_ROWS} {layout.lines} need.")
-    reader = _reader_after_header(_decoded(raw), layout.columns)
+    reader, named = _reader_after_header(_decoded(raw), layout)
+    left_out = len(layout.columns) - len(named)
+    # A line is padded to every column only when its cells match its header's, so a line of another count stays wrong.
     lines: list[Line] = []
     try:
         for cells in reader:
@@ -149,7 +167,11 @@ def read_file(raw: bytes, layout: Layout = NURSE_FILE) -> list[Line]:
                 continue
             if len(lines) == MAX_ROWS:
                 raise FileRefused(f"This file has more than {MAX_ROWS} {layout.lines}. Split it{layout.split_by} and import each part.")
-            lines.append(Line(reader.line_num, _trimmed(cells, layout.columns)))
+            cells = _trimmed(cells, named)
+            if len(cells) == len(named):  # The columns the header left out read as empty.
+                lines.append(Line(reader.line_num, cells + [""] * left_out))
+            else:
+                lines.append(Line(reader.line_num, cells, len(named)))
     except csv.Error:
         raise FileRefused(f"Line {reader.line_num} could not be read: check its quotation marks.") from None
     if not lines:
@@ -159,9 +181,9 @@ def read_file(raw: bytes, layout: Layout = NURSE_FILE) -> list[Line]:
 
 def wrong_cell_count(line: Line, layout: Layout) -> Problem | None:
     """The cells cannot be matched to the columns, so nothing can be said about any one of them."""
-    if len(line.cells) == len(layout.columns):
+    if line.width is None and len(line.cells) == len(layout.columns):
         return None
-    return Problem(None, f"This line has {len(line.cells)} cells, not {len(layout.columns)}. "
+    return Problem(None, f"This line has {len(line.cells)} cells, not {line.width or len(layout.columns)}. "
                          f"Put double quotes around {layout.quote_hint}.")
 
 
@@ -178,7 +200,7 @@ def _lines_by_hospital_id(lines: list[Line]) -> dict[str, list[int]]:
     Only possible ones, as the database is asked about these and cannot take a NUL."""
     seen: dict[str, list[int]] = {}
     for line in lines:
-        hospital_id = parsed(HOSPITAL_ID, line.cells[0].strip()) if len(line.cells) == len(COLUMNS) else None
+        hospital_id = parsed(HOSPITAL_ID, line.cells[0].strip()) if wrong_cell_count(line, NURSE_FILE) is None else None
         if hospital_id:
             seen.setdefault(hospital_id.lower(), []).append(line.number)
     return seen
@@ -230,9 +252,14 @@ def _judged(line: Line, standing: _Standing) -> Row:
     if start_date is None:
         row.problems.append(Problem("start_date", f"Use a date as YYYY-MM-DD, between {FIRST_YEAR} and {LAST_YEAR}."))
 
+    on_probation = _ON_PROBATION.get(row.on_probation.casefold())
+    if on_probation is None:
+        row.problems.append(Problem("on_probation", "Use Yes or No, or leave it empty for no."))
+
     if not row.problems:
         row.gender = gender
-        row.nurse = NewNurse(hospital_id, full_name, gender, unit, start_date)
+        row.on_probation = "Yes" if on_probation else "No"
+        row.nurse = NewNurse(hospital_id, full_name, gender, unit, start_date, on_probation)
     return row
 
 
@@ -240,7 +267,7 @@ def _token(rows: list[Row]) -> str:
     """Stands for what these rows mean right now, the unit's identity with its name, so that a unit archived and
     another opened under its name is a different preview."""
     meant = [(row.nurse.hospital_id, row.nurse.full_name, row.nurse.gender, str(row.nurse.unit.pk), row.nurse.unit.name,
-              row.nurse.start_date.isoformat()) for row in rows]
+              row.nurse.start_date.isoformat(), row.nurse.on_probation) for row in rows]
     return hashlib.sha256(json.dumps(meant).encode()).hexdigest()
 
 

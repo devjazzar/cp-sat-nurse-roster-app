@@ -35,7 +35,8 @@ class Unread(Schema):
 
 
 class NotificationLink(Schema):
-    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps", "covers", "unit_covers"]
+    page: Literal["roster", "my_roster", "unit_roster", "my_month", "requests", "swaps", "unit_swaps", "covers", "unit_covers",
+                  "rostering_attributes"]
     month: str
     unit_id: UUID | None = None
     cover_id: UUID | None = Field(None, description="The cover a manager's `unit_covers` link shows.")

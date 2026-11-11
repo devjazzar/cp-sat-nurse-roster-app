@@ -14,4 +14,6 @@ export interface CorrectionBody {
   full_name?: string | null;
   gender: CorrectionBodyGender;
   start_date: string;
+  /** Leaving it out leaves it as it is. Unticking removes the probation from the first month whose roster is not approved; ticking is refused once six months from her start date have passed. */
+  on_probation?: boolean | null;
 }

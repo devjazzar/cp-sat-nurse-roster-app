@@ -1903,6 +1903,163 @@
         ]
       }
     },
+    "/api/units/{unit_id}/nurses/{nurse_id}/probation/length": {
+      "put": {
+        "operationId": "setProbationLength",
+        "summary": "Set Probation Length",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseAttributesRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Refused once extended beyond 3, and for a length that would have ended it before this month: End does that.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LengthBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/nurses/{nurse_id}/probation/extend": {
+      "post": {
+        "operationId": "extendProbation",
+        "summary": "Extend Probation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseAttributesRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "One month at a time, to 6 at most.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/nurses/{nurse_id}/probation/end": {
+      "post": {
+        "operationId": "endProbation",
+        "summary": "End Probation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseAttributesRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Its last day becomes the last day of the month under way on the hospital's clock, so that month keeps its roster. Refused\nbefore the month she starts in, when there is no month of it under way: the CNO unticks it.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units/{unit_id}/leave": {
       "get": {
         "operationId": "listUnitLeave",
@@ -9074,6 +9231,17 @@
             },
             "title": "Skills",
             "type": "array"
+          },
+          "probation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Probation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it."
           }
         },
         "required": [
@@ -9095,7 +9263,8 @@
           "allowed_shifts",
           "allowed_shifts_to_check",
           "opening_values_locked",
-          "skills"
+          "skills",
+          "probation"
         ],
         "title": "NurseAttributesRow",
         "type": "object"
@@ -9149,6 +9318,40 @@
           "expiry"
         ],
         "title": "NurseSkillRow",
+        "type": "object"
+      },
+      "Probation": {
+        "description": "A probation not over yet: under way, or to begin on her start date.",
+        "properties": {
+          "last_day": {
+            "description": "Derived from her start date, the length and an early end, never entered.",
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "months": {
+            "description": "Whole calendar months from her start date, a month she joins after the 1st not counted.",
+            "title": "Months",
+            "type": "integer"
+          },
+          "ticked": {
+            "description": "The CNO's tick. False for one unticked whose months up to `last_day` had approved rosters.",
+            "title": "Ticked",
+            "type": "boolean"
+          },
+          "ended_early": {
+            "description": "Her unit manager pressed End, so it can no longer be extended.",
+            "title": "Ended Early",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "last_day",
+          "months",
+          "ticked",
+          "ended_early"
+        ],
+        "title": "Probation",
         "type": "object"
       },
       "AttributesBody": {
@@ -9255,6 +9458,23 @@
           "allowed_shifts"
         ],
         "title": "AllowedShiftsBody",
+        "type": "object"
+      },
+      "LengthBody": {
+        "additionalProperties": false,
+        "properties": {
+          "months": {
+            "description": "1, 2 or 3, while it stands at 3 or less. Beyond, it is extended a month at a time.",
+            "maximum": 3,
+            "minimum": 1,
+            "title": "Months",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "months"
+        ],
+        "title": "LengthBody",
         "type": "object"
       },
       "MonthFilter": {
@@ -16859,6 +17079,17 @@
             },
             "title": "Skills",
             "type": "array"
+          },
+          "probation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Probation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty when she is not on probation, or it is over."
           }
         },
         "required": [
@@ -16873,7 +17104,8 @@
           "must_change_password",
           "unit",
           "transfers",
-          "skills"
+          "skills",
+          "probation"
         ],
         "title": "NurseRow",
         "type": "object"
@@ -16935,6 +17167,12 @@
             "format": "date",
             "title": "Start Date",
             "type": "string"
+          },
+          "on_probation": {
+            "default": false,
+            "description": "A staff nurse's only: refused for a unit manager's nurse profile.",
+            "title": "On Probation",
+            "type": "boolean"
           },
           "hospital_id": {
             "maxLength": 150,
@@ -17016,6 +17254,12 @@
             "format": "date",
             "title": "Start Date",
             "type": "string"
+          },
+          "on_probation": {
+            "default": false,
+            "description": "A staff nurse's only: refused for a unit manager's nurse profile.",
+            "title": "On Probation",
+            "type": "boolean"
           },
           "user_id": {
             "format": "uuid",
@@ -17149,6 +17393,18 @@
             "format": "date",
             "title": "Start Date",
             "type": "string"
+          },
+          "on_probation": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Leaving it out leaves it as it is. Unticking removes the probation from the first month whose roster is not approved; ticking is refused once six months from her start date have passed.",
+            "title": "On Probation"
           }
         },
         "required": [
@@ -17237,6 +17493,11 @@
             "title": "Start Date",
             "type": "string"
           },
+          "on_probation": {
+            "description": "As the file has it, or Yes or No once the line has no problem.",
+            "title": "On Probation",
+            "type": "string"
+          },
           "problems": {
             "items": {
               "$ref": "#/components/schemas/ImportProblem"
@@ -17252,6 +17513,7 @@
           "gender",
           "unit",
           "start_date",
+          "on_probation",
           "problems"
         ],
         "title": "ImportRow",
@@ -17768,7 +18030,8 @@
               "swaps",
               "unit_swaps",
               "covers",
-              "unit_covers"
+              "unit_covers",
+              "rostering_attributes"
             ],
             "title": "Page",
             "type": "string"

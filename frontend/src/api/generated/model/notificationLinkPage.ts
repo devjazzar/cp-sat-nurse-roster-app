@@ -18,4 +18,5 @@ export const NotificationLinkPage = {
   unit_swaps: 'unit_swaps',
   covers: 'covers',
   unit_covers: 'unit_covers',
+  rostering_attributes: 'rostering_attributes',
 } as const;
