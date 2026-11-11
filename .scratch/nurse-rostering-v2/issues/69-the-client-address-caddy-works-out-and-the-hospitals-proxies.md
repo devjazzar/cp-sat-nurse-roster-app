@@ -39,8 +39,10 @@ The suites ran locally under the heavy-run lock:
   among them).
 
 **What the dev stack needs:** `docker compose up -d --build`. That is enough: `compose.yaml` gives `caddy` a new variable, so
-`up -d` recreates `caddy`, which then reads the new Caddyfile (seen on the scratch stack: the container's id changed). No
-`restart caddy` is needed this time. The user's `deploy/.env` needs nothing: with no `TRUSTED_PROXIES` line, compose passes it
+`up -d` recreates `caddy`, which then reads the new Caddyfile. Checked for the dev stack's own change: `docker compose config
+--hash caddy` differs between `e2ae502`'s `compose.yaml` and this one with the variable empty both times, and on the scratch
+stack a change of the value recreated the container. `docker compose restart caddy` after it is harmless and makes sure: a
+new `web` behind a Caddy still on the old Caddyfile would get no `X-Client-IP` from Caddy and believe one a client sent. The user's `deploy/.env` needs nothing: with no `TRUSTED_PROXIES` line, compose passes it
 empty, as today. The `web` rebuild is for `audit/log.py` and the access line.
 
 **What was built, criterion by criterion.**
@@ -70,8 +72,9 @@ empty, as today. The `web` rebuild is for `audit/log.py` and the access line.
   404 through the front proxy of the drive below.
 - **`deploy/INSTALL.md`** has a new "Behind the hospital's proxy" under Install. It says when to set the variable, with
   examples, and that without it, behind a proxy, every client shares the proxy's address and throttle, and the audit log
-  shows the proxy. It says to name the proxies only, never a client range or `private_ranges`. It also gives what Linux and
-  Docker Desktop pass through, and what a bad value does.
+  shows the proxy. It says to name the proxies only, never a client range or `private_ranges`; that the proxy must say
+  `https`; what Linux (as documented) and Docker Desktop pass through; and what a bad value does. The install checklist
+  gains a login from another computer, its address read in the audit log.
 - **`docs/ARCHITECTURE.md`.** Section 2's configuration list names `TRUSTED_PROXIES`. Section 8's throttle paragraph says
   how Caddy works out the address and that `client_ip` reads Caddy's header and never `X-Forwarded-For`.
 - **Tests at the seams:** the backend API suite and `operations.sh`, as above. Both workflows were green.
@@ -126,6 +129,12 @@ The stack, its volumes, image and env file, and the proxy container are gone. My
   `X-Forwarded-For`: Caddy reads `X-Forwarded-For` alone here.
 - The audit log's address through the front proxy: the drive read `web`'s access line, which reads the same header
   `client_ip` does. The audit log's address through Caddy alone is `operations.sh`'s check.
+- `operations.sh`'s new check seen red: by reading, without `header_up` the login that claims `X-Client-IP: 203.0.113.8`
+  records that address and the check fails, but I did not run it so.
+- A login through a trusted proxy: the drive sent `GET /api/health`. Beside it, three throwaway `caddy:2.11` containers showed
+  that a trusted proxy's `X-Forwarded-Proto` is passed on as it is (`https` from the proxy reached the upstream, where an
+  untrusted peer's became `http`). Django reads it (`SECURE_PROXY_SSL_HEADER`), so a proxy that said `http` would make every
+  login a CSRF refusal. The install guide says the proxy must say `https`; that refusal itself was not driven.
 - The six parallel frontend runs and the browser suite: GitHub's, green.
 
 **Decisions taken here.**
@@ -140,6 +149,10 @@ The stack, its volumes, image and env file, and the proxy container are gone. My
   any address.
 
 **Worth your review.**
+- **A trusted proxy is believed on the scheme too,** not only the address (`X-Forwarded-Proto`, above). The install guide asks
+  for a proxy that reaches the server over HTTPS and says `https`. The alternative, Caddy always setting its own
+  `X-Forwarded-Proto` (`header_up X-Forwarded-Proto https`), would make the proxy's word irrelevant; I left Caddy's
+  behaviour as it is, since the spec does not ask.
 - **The header's name, `X-Client-IP`.** The spec says only "a header of its own". I chose a name nothing else in the stack
   sets or reads (Django, gunicorn and Caddy's own client-address list ignore it). The other usual name, `X-Real-IP`, is one
   Caddy would read from a trusted proxy by default.
