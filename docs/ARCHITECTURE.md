@@ -105,6 +105,9 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Create, rename, archive units; assign each unit its manager | | yes | | | |
 | Read units | | yes | yes | own unit | |
 | Add nurses (form or CSV import), give a unit manager a nurse profile, correct a nurse's gender and start date and a staff nurse's name, transfer, set end dates, export staff list | | yes | | | |
+| Put a staff nurse on probation, on adding her or later as a correction, and take her off it (ticket 54) | | yes | | | |
+| A nurse's probation: its length, Extend, End (ticket 54) | | | | own unit | |
+| Read who is on probation and until when | | yes | yes | own unit | |
 | Read nurses | | yes | | own unit | |
 | Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | yes (from ticket 61) | | |
 | Read a nurse's skills with their expiries | | yes | yes | own unit | |
@@ -131,7 +134,8 @@ manager (a manager account with no unit assigned can log in but do nothing). A u
 with or without its manager and waits with none until the CNO assigns one. Deactivating a manager
 takes them off their unit at once, because ending an account cannot wait for the CNO, and
 reactivating does not give it back; the CNO's home names every unit with no manager. A unit
-manager sees nothing of other units. The System Admin sees no roster and no rostering attribute.
+manager sees nothing of other units. The System Admin sees no roster and no rostering attribute; of a probation, only what
+the audit log's entries carry, with their values, as the user decided on 2026-11-11 (ticket 54).
 A manager's nurse profile is in the unit they hold, if they hold one, because that unit is all they
 reach: moving one means taking them off, transferring the profile from this month, and assigning them.
 The CNO corrects a manager's gender and start date on their nurse profile. Their name is on the account,
@@ -219,6 +223,24 @@ and the Deputy CNO read every unit's on the Expiries page, a unit manager his un
 page, and the CNO's home shows how many there are. Nothing is sent about an expiry: the page is the reminder. Every write
 takes the hospital settings' lock before the nurse's, as a catalogue change and a transfer do. The skills CSV records and
 renews them in bulk (section 8, "Nurse import and the staff list").
+
+**Probation** (ticket 54; ADR 0014), on the nurse profile, so a transfer carries it: whether she is on one (`on_probation`, the
+CNO's tick, a staff nurse's only), its length in months (`probation_months`, her unit manager's: 1, 2 or 3, standing at 3 until he
+chooses, then extended a month at a time to 6) and an early end (`probation_ended_in`, a month). Its last day is derived, never
+entered (`nurses.probation`): whole calendar months from her start date, the month she joins counting only when she joins on the
+1st, so a start on 15 December with 3 months ends on 31 March, and a corrected start date moves it; an early end makes it the last
+day of that month. End sets it to the month under way on the hospital's clock, and is refused before the month she starts in; an
+ended probation cannot be extended or its length changed; Length is refused once extended, and for a length that would have ended
+it before the month under way. The CNO's untick removes it from the first month whose roster, in the unit that month falls under,
+is not approved, keeping the months before as an early end would; a later tick is refused once six months from her start date,
+counted the same way, have passed, and while her allowed shifts are her unit's night shift alone, and it starts again at 3
+months. While it is not over, her allowed shifts cannot be set to the night shift alone. It ends by itself on its last day, with no
+job; the hourly job tells her unit's manager once in her last month, from its first hour ("Layan Alharbi's probation ends on 31
+March. Extend it or let it end."), and again in a new last month after an extension (`probation_notified_for`), and never of one
+ended early. The CNO, the Deputy CNO and her unit's manager read it, on the Nurses list, Rostering attributes and the staff list;
+the System Admin reads none of it but the audit log, whose entries (`nurse.probation_ticked`, `nurse.probation_unticked`,
+`nurse.probation_length_set`, `nurse.probation_extended`, `nurse.probation_ended`) carry its values before and after, unlike
+every other rostering attribute: the user's decision of 2026-11-11. Tickets 55 and 56 bring it into a solve and onto the roster.
 
 **Placement**: nurse, unit, first month, allowed shifts. A nurse's allowed shifts are on the placement, not the
 profile, because a list means something only in a unit and two units can each roster their own months of one nurse at
@@ -353,7 +375,8 @@ chain out again; opening values are the nurse profile's and have no row.
 
 **Notification**: user, event, payload, when it was read. The payload holds identifiers only (a unit, a month, a solve, a
 version number), and the words are worked out as it is read, from what those name then: a rename or a corrected name leaves
-nothing stale, and nothing about a nurse, a leave or a rejection's comment is kept or said. **Audit entry**: actor, action, target,
+nothing stale, and nothing about a nurse, a leave or a rejection's comment is kept or said, but for a probation ending, which
+names the nurse to her unit's manager by her profile's identifier, with her last month as its month. **Audit entry**: actor, action, target,
 before and after, IP, time. **Technical settings** (one row): time limit cap (default 300 s),
 backup time and retention, close time.
 
@@ -827,7 +850,8 @@ app's own links are `same-origin`; a request with no such header, from an older 
 
 ### Nurse import and the staff list
 
-A CSV of hospital ID, full name, gender, unit and start date, in UTF-8 or UTF-16 with a byte order mark, at most 500
+A CSV of hospital ID, full name, gender, unit, start date and, optionally, on probation (ticket 54: Yes, No, TRUE or FALSE, empty
+meaning no; a file whose header leaves the column out imports as before, and the template names it), in UTF-8 or UTF-16 with a byte order mark, at most 500
 nurses and 1 MB. Any other encoding is refused rather than guessed. Previewing saves nothing and keeps nothing, so
 confirming sends the file again: it is judged again from the start, and with any problem, or when it no longer means what
 was previewed, nothing is saved and the answer is the preview as it now stands. One password hash takes about half a second
@@ -836,7 +860,9 @@ one long request instead: the hashes first, four at a time and holding no lock, 
 it inside gunicorn's 300-second timeout (the default of 30 would kill it) even on one core. The password sheet is the
 answer to that request and lives only in the page's memory: if the answer is lost after the transaction, the nurses stay and
 their passwords are reset one at a time. Uploads stay in memory and never reach a temporary file. In a
-staff list every cell is quoted, and one a spreadsheet would run as a formula starts with an apostrophe.
+staff list every cell is quoted, and one a spreadsheet would run as a formula starts with an apostrophe. Its columns are the
+import's, the probation's last day (both empty unless a probation is not over), the end date, role, status and the transfers
+to come.
 
 The skills CSV is the same kind of file (`nurses.importing.read_file`: the encodings, 500 lines and 1 MB, in memory),
 of hospital ID, skill and expiry, on its own Import skills page beside the nurse import's: a template, a preview that
