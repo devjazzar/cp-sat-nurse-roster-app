@@ -201,3 +201,10 @@ lock was released.
   ticket 70.
 - Both GitHub workflows were green on `7e735f3` (CI, and the browser checks with `operations.sh`). That head, with this note
   after it, is what reached `main`.
+
+**Reviewed by the user (2026-11-11):** all five points kept as built.
+- The job runs at 22:50 UTC, the last retention job, ten minutes before a 02:00 Riyadh backup.
+- It is checked in `deploy/tests/operations.sh` as well as the backend suite, with a restore from before the new column.
+- The page builds the sentence from the API's short text and `locked_until`, as the throttle's does.
+- The lockout's "Try again after" beside the throttle's "Try again at".
+- A typed name stays up to about two days after its last failure, the job running once a day.
