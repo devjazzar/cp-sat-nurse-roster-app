@@ -7032,6 +7032,30 @@ describe("the roster page", () => {
       expect(within(decision).getByRole("button", { name: "Reject with this comment" })).toHaveAttribute("aria-disabled", "false")
     })
 
+    it("cannot approve a month that is over, says so beside Approve, and still offers Reject (ticket 62)", async () => {
+      const late = "This month is over, so its roster cannot be approved. Reject it with a comment, so it no longer waits for a decision."
+      start("/unit-roster?unit=u1&month=2026-06", approver({ [`GET ${UNIT}/roster?month=2026-06`]: { body: { ...FOR_APPROVER, approve_refusal: late } } }))
+
+      const decision = await screen.findByRole("region", { name: "Your decision" })
+      expect(within(decision).getByText(late)).toBeInTheDocument()
+      expect(within(decision).getByRole("button", { name: "Approve" })).toHaveAttribute("aria-disabled", "true")
+      expect(within(decision).getByRole("button", { name: "Reject with this comment" })).toHaveAttribute("aria-disabled", "false")
+    })
+
+    it("says why in the dialog when the month ended while the page was open (ticket 62)", async () => {
+      const late = "This month is over, so its roster cannot be approved. Reject it with a comment, so it no longer waits for a decision."
+      const { user } = start("/unit-roster?unit=u1&month=2026-06", approver({
+        [`GET ${UNIT}/roster?month=2026-06`]: { body: FOR_APPROVER },
+        [`POST ${UNIT}/roster/approve`]: { status: 409, body: { detail: late } },
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Approve" }))
+      const dialog = await screen.findByRole("alertdialog", { name: "Approve the roster of June 2026?" })
+      await user.click(within(dialog).getByRole("button", { name: "Approve" }))
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(late)
+    })
+
     it("rejects only with a comment, which it sends", async () => {
       const { user, calls } = start("/unit-roster?unit=u1&month=2026-06", approver({
         [`GET ${UNIT}/roster?month=2026-06`]: { body: FOR_APPROVER },

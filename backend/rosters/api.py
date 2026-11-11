@@ -586,7 +586,7 @@ def approve_roster(request: HttpRequest, unit_id: UUID, body: MonthBody) -> Rost
         review.lock_the_months_nurses(unit, month, Roster.objects.filter(unit=unit, month=month).first())
         unit = unit_in_scope(request.user, unit_id, for_update=True)
         roster = _locked_roster(unit, month)
-        refusal = review.why_not_decide(roster) or review.why_not_approve(roster, check_saved(roster))
+        refusal = review.why_not_approve_at_all(roster) or review.why_not_approve(roster, check_saved(roster))
         if refusal:
             raise HttpError(409, refusal)
         version = review.approve(roster, request.user)

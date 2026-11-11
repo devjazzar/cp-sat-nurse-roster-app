@@ -29,6 +29,8 @@ FROZEN_STATES = [RosterState.SUBMITTED, RosterState.APPROVED]
 # In SOUND's June: Badr is off on the 3rd and works Day on the 2nd. Amal on Night on the 9th keeps it sound; Day on the 5th,
 # straight after a Night, does not.
 BADR_OFF, BADR_WORKS = 3, 2
+LATE = ("This month is over, so its roster cannot be approved. Reject it with a comment, so it no longer waits for a "
+        "decision.")
 
 
 @pytest.fixture(autouse=True)
@@ -409,6 +411,23 @@ class TestApproving:
         ok(submit(mona, er))
         assert ok(approve(carla, er))["state"] == "approved"
         assert RosterVersion.objects.get().grid["Badr"][f"{MONTH}-{BADR_WORKS:02d}"] == ""
+
+    def test_a_month_that_is_over_is_refused_and_nothing_changes_but_it_can_still_be_rejected(self, mona, carla, er, solver,
+                                                                                               monkeypatch):
+        """Ticket 62, as submitting refuses it: approved late, it would block every later close of the unit for good."""
+        from notifications.models import Notification
+        submitted(mona, er, solver)
+        monkeypatch.setattr(membership, "today", lambda: dt.date(2026, 7, 3))
+        told = Notification.objects.count()
+
+        seen = month_of(carla, er)
+        assert seen["approve_refusal"] == LATE
+        assert refused(approve(carla, er)) == LATE
+        assert roster(er).state == RosterState.SUBMITTED and not RosterVersion.objects.exists()
+        assert Notification.objects.count() == told and not entries("roster.approved")
+        assert seen["reject_refusal"] is None
+
+        assert ok(reject(carla, er, "Too late to approve."))["state"] == "draft"
 
     def test_a_pin_leave_ended_while_it_waits_is_shown_to_the_approver(self, mona, carla, er, solver):
         solved(mona, er, solver)

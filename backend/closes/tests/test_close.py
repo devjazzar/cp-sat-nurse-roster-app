@@ -303,6 +303,27 @@ class TestClosingAgain:
                                                     "longer change.")
         assert ok(mona.get(url(er, "/leave"), {"month": "2026-06"}))["closed"] == "fixed"
 
+    def test_a_roster_left_submitted_past_its_month_cannot_be_approved_and_block_the_closes_after_it(self, mona, carla, er,
+                                                                                                      solver, on):
+        """The audit's scenario (2026-11-11, section 4), a month on: June left submitted, July approved and closed, then June's
+        approval refused, and August's close not blocked by June."""
+        from hospital.models import FixedRamadanMonth
+        from rosters.tests.test_review import LATE
+        for month in ("2026-07", "2026-08"):
+            FixedRamadanMonth.objects.get_or_create(month=month, defaults={"dates": []})
+        solved(mona, er, solver)
+        ok(submit(mona, er))
+        approved(mona, carla, er, solver, "2026-07")
+        approved(mona, carla, er, solver, "2026-08")
+        on(dt.date(2026, 8, 3))
+        assert [close.month for close in making.catch_up(at(dt.date(2026, 8, 3), 9))] == [JULY]
+
+        assert refused(approve(carla, er)) == LATE
+        assert Roster.objects.get(unit=er, month=JUNE).state == "submitted"
+
+        on(dt.date(2026, 9, 1))
+        assert [close.month for close in making.catch_up(at(dt.date(2026, 9, 1), 1))] == [AUGUST]
+
     def test_a_month_not_over_or_with_a_draft_cannot_close(self, june, mona, er, on, solver):
         assert refused(close_again(mona, er)) == "June 2026 is not over yet, so it cannot close."
         solved(mona, er, solver, "2026-07")
