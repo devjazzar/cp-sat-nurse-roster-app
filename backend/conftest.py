@@ -19,6 +19,14 @@ def no_real_backups(settings, tmp_path, monkeypatch):
     monkeypatch.setattr(backups, "dump_database", lambda out: out.write(b"PGDMP-in-a-test"))
 
 
+@pytest.fixture(autouse=True)
+def nothing_kept_of_the_public_health():
+    """`GET /api/health` keeps its answer five seconds in the process (ticket 68), and every test runs in this one: each starts
+    with nothing kept, so it sees its own solver and database."""
+    from ops.api import kept_health
+    kept_health.forget()
+
+
 class _NoPushService:
     def post(self, url, **_):
         raise AssertionError(f"a push left the test for a real push service: {url}")
