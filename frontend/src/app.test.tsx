@@ -1640,11 +1640,9 @@ describe("the audit log page", () => {
     auditStart("/audit-log", () => ({ body: { entries: [{ ...ENTRY, actor: null, action: "auth.login_failed", target: "", before: null, after: { reason: "locked" } }], older_than: null } }))
 
     const row = (await screen.findByText("Failed login")).closest("tr")!
-    const cells = within(row).getAllByRole("cell")
-    expect(cells[1]).toHaveTextContent("Unknown")
-    expect(cells[3]).toBeEmptyDOMElement()
-    expect(within(row).getByText('reason: "locked"')).toBeInTheDocument()
-    expect(within(row).getByText("10.1.2.3")).toBeInTheDocument()
+    // Time, Who, Action, On, Details, IP address: "On" is empty.
+    expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(
+      ["2026-11-06 00:30:15", "Unknown", "Failed login", "", 'reason: "locked"', "10.1.2.3"])
   })
 
   it("names a throttle, with no one to name and the window's end", async () => {
