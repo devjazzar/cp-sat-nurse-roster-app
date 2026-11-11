@@ -15,3 +15,13 @@
 - [ ] An added holiday reaches the solver like any public holiday (a solve input test)
 - [ ] The page: the card for the CNO with each line's first day and length editable, Add with its status line naming what was added and skipped, a refusal beside the field, focus after adding, the line gone afterwards, no sideways scroll at 375 px
 - [ ] API tests under pytest beside the public holidays' tests, including Eid al-Fitr after a shortened and a lengthened Ramadan; the frontend's app-level suite in its "holidays and Ramadan page" block; the usual full suites and `e2e/ci.sh`
+
+## Comments
+
+**From ticket 44 (2026-11-11).** The Ramadan in force is a card: `_card(calendar_ramadan(h), _fixed_around(year))` in
+`backend/hospital/catalogue_api.py`, with `first`, `last` and `days` assembled month by month. It includes a
+neighbouring month whose fixed days continue the Ramadan over the edge. A card with gaps (a list entered by hand)
+counts its days, so "the 29th day in force" means the 29th of the sorted days, not `first + 28`. A card fixed to none
+has `days == 0` and no first day. `calendar_ramadans(year)` in `hospital/catalogue.py` gives the calendar's Ramadans with
+a day in a year; every year from 1925 to 2076 has one or two. The page's cards sit in the Ramadan section, above the
+month table. The section's status line is the one the cards write to.
