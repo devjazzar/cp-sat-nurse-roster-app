@@ -35,8 +35,10 @@ The suites ran locally under the heavy-run lock:
 - `makemigrations --check`: "No changes detected". No migration, no API change, so no OpenAPI or client to regenerate;
 - `deploy/tests/operations.sh nr-t69`: all checks passed, the new one included;
 - no frontend or Playwright file changed;
-- GitHub's two workflows were green on `31d3b19`: backend, frontend, image, solver and browser checks (`operations.sh`
-  among them).
+- GitHub's two workflows were green on `31d3b19` and `b4732aa`: backend, frontend, image, solver and browser checks
+  (`operations.sh` among them);
+- `main` then gained ticket 64 (`accounts/login.py`, `test_login.py`). It merged without conflict (`d81bfcd`), and the
+  `accounts` and `audit` suites with the two log-test files ran again on it: 1009 passed.
 
 **What the dev stack needs:** `docker compose up -d --build`. That is enough: `compose.yaml` gives `caddy` a new variable, so
 `up -d` recreates `caddy`, which then reads the new Caddyfile. Checked for the dev stack's own change: `docker compose config
