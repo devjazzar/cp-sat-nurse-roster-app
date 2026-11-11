@@ -66,7 +66,7 @@ local browser-check run on one long-lived stack within a day could meet the swap
 ## 3. Open leads
 
 Seven leads had a source trace and no verdict: each waits on a fact outside the repository. Leads 5 to 7 have since been
-fixed without one (ticket 62), and lead 4 (ticket 67). They carry no
+fixed without one (ticket 62), lead 1 (ticket 63) and lead 4 (ticket 67). They carry no
 severity. `NEEDS-VALIDATION.md` has the full plan for each; the checks named there are for the owner to make on
 their own installation or on a scratch stack, never traffic against a hospital's system.
 
@@ -90,7 +90,7 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
   (`.scratch/nurse-rostering-v2/issues/62-audit-follow-ups.md`): one active solve a unit across its months, `X-Frame-Options:
   DENY` and `frame-ancestors 'none'`, the file routes refusing `Sec-Fetch-Site: cross-site`, and no approval once a month is
   over (option A). **Fixed on 2026-11-11** in ticket 62, pull request 5: lead 5 in `d4404f5`, lead 6 in `2b70344`, lead 7 in
-  `6cda1dd` and `3b2fc9e`, the late approval in `0cac2f5`. Leads 1 to 3 stay open; lead 4 is fixed (below). (`NEEDS-VALIDATION.md` numbers its sections differently:
+  `6cda1dd` and `3b2fc9e`, the late approval in `0cac2f5`. Leads 2 and 3 stay open; leads 1 and 4 are fixed (below). (`NEEDS-VALIDATION.md` numbers its sections differently:
   this table's leads 5, 6 and 7 are its sections 6, 3 and 5.)
 - **Lead 1: fixed on 2026-11-11** in ticket 63 (`.scratch/nurse-rostering-v2/issues/63-the-throttle-on-failed-logins.md`), in
   `52db6f8` and `a9dcfa6`: the throttle per client address, before the hash. Lead 2 is bounded per address by it and stays
