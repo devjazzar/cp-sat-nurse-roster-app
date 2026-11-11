@@ -22,7 +22,7 @@ client address and its window). A restore brings back the backup's moment of it 
 here include it is this ticket's to say (an emptied one only gives every address a fresh budget).
 
 **Implemented on 2026-11-11,** on branch `claude/ticket-66-restore-clears-0cd300` (`d867d32`, `a851c33`, `74dc476`, then
-this comment and the audit document), from `main` at `e2ae502`. Draft pull request
+this comment and the audit document, and `origin/main` with ticket 64 merged in), from `main` at `e2ae502`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#12](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/12).
 
 - `deploy/tests/operations.sh nr-t66`, run locally under the heavy-run lock:
@@ -136,8 +136,8 @@ without proving that case.
 - **Ticket 69** (the client address): the restore check counts on this address having exactly 49 failed logins in its
   window when the backup is taken. A check added before it that fails a login from the same address shifts the count;
   recount. Nothing here reads `audit.log.client_ip` or `REMOTE_ADDR`.
-- **Ticket 64** (the lockout's clock): the check fakes a pre-63 backup by deleting the `accounts` migration
-  `0003_address_failures`. If 64 adds an `accounts` migration after it, delete that row too (and undo what it did), or
+- **A later `accounts` migration** (ticket 64 merged in here without one): the check fakes a pre-63 backup by deleting the
+  migration row `0003_address_failures`. A migration after it must have its row deleted too (and what it did undone), or
   `migrate` meets an inconsistent history.
 - `restore.sh`'s `list_undone` holds the four actions in its SQL. A new action that a restore undoes and someone must
   redo belongs there and in `deploy/INSTALL.md`.
