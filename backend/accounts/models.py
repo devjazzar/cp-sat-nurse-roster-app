@@ -59,11 +59,15 @@ class User(AbstractBaseUser):
 class LoginAttempts(models.Model):
     """Consecutive failed logins per username tried, known or not. Keyed by the name rather than
     held on the user, so an unknown username locks exactly like a real one and the answer to a
-    login never says which usernames exist. The row goes away at the next successful login."""
+    login never says which usernames exist. The row goes away at the next successful login, or a day after its last
+    failure unless the name is locked then (`accounts.login.remove_old_failures`): the name typed may be anything, a
+    password among them, and is no one's record."""
 
     username = models.CharField(max_length=150, primary_key=True)
     failures = models.PositiveSmallIntegerField(default=0)
     locked_until = models.DateTimeField(null=True)
+    # Null on the rows written before it was kept (ticket 65); a refusal while locked does not move it.
+    last_failure_at = models.DateTimeField(null=True)
 
 
 class AddressFailures(models.Model):

@@ -6,13 +6,15 @@
 #
 # It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; no answer
 # through Caddy framed (ticket 62); no address a client claims in the audit log (ticket 69); JSON lines
-# from web, worker and solver, and the push key pair made at the first start; the worker alone on a network with a way out
+# from web, worker and solver, and the push key pair made at the first start; Caddy holding the body (ticket 70): its version,
+# its body timeouts, a body over 2 MB refused, and a login withholding its body not stopping a one-worker web; the worker alone
+# on a network with a way out
 # (ticket 42); the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by
 # deploy/restore.sh, which takes back what was written after the backup, brings back no lockout or throttle, and lists the
 # deactivation, password reset, password change and key rotation it undid (ticket 66): by time when the backup it restores is
 # the one a restore took, saying so when there is nothing to list, and finishing when the list cannot be printed; a backup
 # without the throttle's table restored; deploy/reset-admin-password.sh lifting a lockout; the System Admin's health answer
-# and /metrics counting pushes sent and failed. Then it
+# and /metrics counting pushes sent and failed; a 1 MiB nurse import file previewed and confirmed through Caddy. Then it
 # removes everything it made, unless --keep (the stack stays up, and the line to remove it is printed).
 # TEST_HTTPS_PORT (default 18443) is where Caddy answers on 127.0.0.1. Needs docker, curl, openssl and python3.
 set -euo pipefail
@@ -123,6 +125,77 @@ print(sum(1 for line in sys.stdin if line.strip() and (json.loads(line).get("log
 [[ $made == 1 ]] && pass "prepare logged the push key pair it made at the first start, once" || fail "web logged the push key pair $made times"
 [[ $(sql "SELECT count(*) FROM notifications_pushkeypair") == 1 ]] && pass "and the database holds one pair" || fail "no one push key pair"
 
+# ---- Caddy holds the body (ticket 70) ----------------------------------------------------------------------------------------
+# Caddy refuses a body over 2 MB (2,000,000 bytes) and reads the whole body before it opens the request to web, so no web
+# worker waits on a client's body. After the log checks, since it recreates web, and web is put back before anything else.
+version=$(compose exec -T caddy caddy version | awk '{print $1}')
+python3 -c 'import re, sys; sys.exit(tuple(map(int, re.match(r"v(\d+)\.(\d+)\.(\d+)", sys.argv[1]).groups())) < (2, 11, 8))' "$version" \
+  && pass "the running Caddy is $version: 2.11.8 or later, which refuses an oversized body from its Content-Length" \
+  || fail "the running Caddy is $version, older than 2.11.8"
+adapted=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null)
+python3 -c '
+import json, sys
+servers = json.loads(sys.argv[1])["apps"]["http"]["servers"]
+assert servers
+for name, server in servers.items():
+    assert server.get("read_min_rate") == 10000 and server.get("read_idle_timeout") == 60 * 10**9, (name, server)
+    assert not {"read_timeout", "write_timeout", "read_header_timeout", "idle_timeout"} & server.keys(), (name, server)' "$adapted" \
+  && pass "the adapted configuration: a body that stalls for a minute or averages under 10 kB/s is dropped, and no whole-request deadline" \
+  || fail "the adapted configuration's body timeouts: $adapted"
+# A login of $1 bytes through Caddy; prints the answer's status. Django would refuse it too, but only once a worker had read it.
+login_of() {
+  head -c "$1" /dev/zero | tr '\0' x > "$work/body"
+  curl -sk -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' --data-binary @"$work/body" "$base/api/auth/login"
+}
+over_cap=$(login_of 2000001) at_cap=$(login_of 2000000)
+[[ $over_cap == 413 && $at_cap == 400 ]] && pass "a body of 2,000,001 bytes is 413 at Caddy, one of 2,000,000 reaches web, which refuses it: 400" \
+  || fail "a body of 2,000,001 bytes answered $over_cap and one of 2,000,000 $at_cap"
+
+# With web at one worker of one thread (tests/compose.one-worker.yaml), a login whose body never comes would leave nothing to
+# answer anyone if Caddy passed it on: with three workers one held request never shows. One connection, as the audit's.
+one_worker_web() { COMPOSE_FILE=$COMPOSE_FILE:tests/compose.one-worker.yaml docker compose up -d --no-deps --wait --quiet-pull web; }
+one_worker_web
+workers=$(compose exec -T web python -c '
+import os, pathlib
+print(sum(b"config.wsgi" in p.read_bytes() for p in pathlib.Path("/proc").glob("[0-9]*/cmdline") if p.parent.name != str(os.getpid())))')
+[[ $workers == 2 ]] && pass "web runs one gunicorn worker beside its master for this check" || fail "web runs $workers gunicorn processes"
+wait_for 60 curl -sfk "$base/api/health" || fail "no answer through Caddy from web at one worker"
+# Sends a login's headers and, as $1 says, no body of its Content-Length, or 2,000,000 bytes of a chunked body (the most the
+# cap lets through) without its last chunk; then holds the connection open.
+withhold() {
+  python3 -c '
+import socket, ssl, sys, time
+port, how = int(sys.argv[1]), sys.argv[2]
+context = ssl.create_default_context()
+context.check_hostname, context.verify_mode = False, ssl.CERT_NONE
+connection = context.wrap_socket(socket.create_connection(("127.0.0.1", port)), server_hostname="localhost")
+head = b"POST /api/auth/login HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
+if how == "length":
+    connection.sendall(head + b"Content-Length: 64\r\n\r\n")
+else:
+    cap, size = 2_000_000, 10_000
+    connection.sendall(head + b"Transfer-Encoding: chunked\r\n\r\n")
+    for _ in range(cap // size):
+        connection.sendall(b"%x\r\n" % size + b"x" * size + b"\r\n")
+print("withheld", flush=True)
+time.sleep(60)' "$port" "$1" > "$work/withheld" &
+  holder=$!
+  wait_for 30 grep -q withheld "$work/withheld" || fail "the login that withholds its body could not be sent"
+}
+# Django reads no chunked body, so a chunked login passed on would be answered at once: what shows it is web's access line.
+for how in length chunked; do
+  since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  withhold "$how"
+  sleep 2  # what a request Caddy passed on would need to reach web's one worker, so the health request queues behind it
+  code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$base/api/health" || true)
+  reached=$(compose logs --since "$since" --no-log-prefix --no-color web | grep -c '/api/auth/login' || true)
+  kill "$holder" 2>/dev/null || true; wait "$holder" 2>/dev/null || true
+  [[ $code == 200 && $reached == 0 ]] && pass "a login withholding its body ($how) never reaches web, and /api/health answers through Caddy" \
+    || fail "with a login withholding its body ($how), /api/health through Caddy answered '$code' in 10 seconds; web logged it $reached times"
+done
+compose up -d --no-deps --wait --quiet-pull web
+wait_for 60 curl -sfk "$base/api/health" || fail "no answer through Caddy once web is back at its own workers"
+
 # ---- only the worker has a way out -------------------------------------------------------------------------------------------
 # What the compose file promises of this running stack (ADR 0012): the worker is on a network that is not internal, for the
 # push services, and web, the database and the solver are on none. Whether the hospital's firewall lets the worker out is the
@@ -179,13 +252,29 @@ compose exec -T worker cat "/backups/$backup" | compose exec -T db pg_restore --
 
 # ---- the retention jobs ------------------------------------------------------------------------------------------------------
 sql "INSERT INTO notifications_pushattempt (at, outcome) VALUES (now() - interval '8 days', 'unreachable'), (now() - interval '6 days', 'sent')" >/dev/null
-for task in ops.tasks.remove_ended_jobs notifications.tasks.remove_old_notifications notifications.tasks.remove_old_push_attempts accounts.tasks.clear_expired_sessions; do
+# Failed-login counts (ticket 65): one a day old goes, a fresh one and one locked now stay; so does a current throttle window.
+sql "INSERT INTO accounts_loginattempts (username, failures, locked_until, last_failure_at) VALUES
+  ('day-old', 2, NULL, now() - interval '25 hours'), ('fresh', 2, NULL, now() - interval '1 hour'),
+  ('locked', 5, now() + interval '2 days', now() - interval '25 hours'), ('from-before', 3, NULL, NULL);
+  INSERT INTO accounts_addressfailures (address, window_start, failures) VALUES
+  ('192.0.2.1', now() - interval '16 minutes', 3), ('192.0.2.2', now() - interval '1 minute', 3)" >/dev/null
+for task in ops.tasks.remove_ended_jobs notifications.tasks.remove_old_notifications notifications.tasks.remove_old_push_attempts accounts.tasks.clear_expired_sessions accounts.tasks.remove_old_login_failures; do
   compose exec -T worker python manage.py queue defer --ignore-already-enqueued "$task" '{"timestamp": 0}' >/dev/null
   done_ok() { [[ $(sql "SELECT count(*) FROM procrastinate_jobs WHERE task_name = '$task' AND status = 'succeeded'") -ge 1 ]]; }
   wait_for 60 done_ok && pass "$task succeeded" || fail "$task did not succeed: $(sql "SELECT status FROM procrastinate_jobs WHERE task_name = '$task'")"
 done
 [[ $(sql "SELECT string_agg(outcome, ' ') FROM notifications_pushattempt") == sent ]] \
   && pass "a push attempt eight days old is gone and one six days old is kept" || fail "push attempts kept: $(sql "SELECT at, outcome FROM notifications_pushattempt")"
+kept_names="SELECT string_agg(username, ' ' ORDER BY username) FROM accounts_loginattempts
+  WHERE username IN ('day-old', 'fresh', 'locked', 'from-before')"
+[[ $(sql "$kept_names") == "fresh locked" ]] \
+  && pass "a failed-login count a day old or of unknown age is gone, a fresh one and a locked one are kept" \
+  || fail "failed-login counts kept: $(sql "$kept_names")"
+kept_windows="SELECT string_agg(address, ' ') FROM accounts_addressfailures WHERE address LIKE '192.0.2.%'"
+[[ $(sql "$kept_windows") == 192.0.2.2 ]] \
+  && pass "an ended throttle window is gone and the current one is kept" || fail "throttle windows kept: $(sql "$kept_windows")"
+sql "DELETE FROM accounts_loginattempts WHERE username IN ('fresh', 'locked');
+  DELETE FROM accounts_addressfailures WHERE address = '192.0.2.2'" >/dev/null
 
 # ---- logging in --------------------------------------------------------------------------------------------------------------
 jar="$work/cookies"
@@ -311,9 +400,11 @@ admin=$(log_in "$admin_password")
 [[ $admin == 200 ]] && pass "and the System Admin logs in with the password changed before it" \
   || fail "the System Admin's login after restoring $taken_before: $admin"
 
-# A backup from before the throttle (ticket 63) has no table of it: one made so restores, and `web` makes the table, empty, as
-# it migrates. Nothing is done after it, so the restore says there is nothing to do again.
-sql "DROP TABLE accounts_addressfailures; DELETE FROM django_migrations WHERE app = 'accounts' AND name = '0003_address_failures'" >/dev/null
+# A backup from before the throttle (ticket 63) has no table of it, nor the time of a name's last failure (ticket 65): one made
+# so restores, and `web` makes both, empty, as it migrates. Nothing is done after it, so the restore says there is nothing to do
+# again.
+sql "DROP TABLE accounts_addressfailures; ALTER TABLE accounts_loginattempts DROP COLUMN last_failure_at;
+  DELETE FROM django_migrations WHERE app = 'accounts' AND name IN ('0003_address_failures', '0004_login_attempts_last_failure')" >/dev/null
 without_throttle=$(compose exec -T worker python manage.py backup | tail -n 1)
 printed=$(./restore.sh --yes "$without_throttle") || fail "restoring a backup without the throttle's table failed: $printed"
 echo "$printed"
@@ -365,5 +456,30 @@ block=$(push_block) || fail "the health answer lost its push block"
 gauges=$(compose exec -T caddy wget -qO- http://web:8000/metrics | { grep '^nurse_roster_push_attempts{' || true; } | tr '\n' ' ')
 [[ $gauges == 'nurse_roster_push_attempts{result="sent"} 1 nurse_roster_push_attempts{result="failed"} 2 ' ]] \
   && pass "/metrics carries the same two counts" || fail "/metrics on pushes: $gauges"
+
+# ---- a nurse import of the largest file, through Caddy (ticket 70) -----------------------------------------------------------
+# Caddy's 2 MB cap sits above the import's 1 MiB file limit (nurses.importing.MAX_BYTES) and the multipart around it. The file
+# is three nurses and blank lines, which the import skips, to exactly that limit: each nurse costs a password hash to confirm.
+cno_password=$(post /api/users '{"username": "cno.import", "full_name": "Import CNO", "role": "cno"}' \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["generated_password"])') || fail "the CNO was not made"
+[[ $(log_in "$cno_password" cno.import) == 200 ]] || fail "the CNO cannot log in"
+post /api/auth/change-password "{\"current_password\": \"$cno_password\", \"new_password\": \"$(openssl rand -hex 12)\"}" >/dev/null \
+  || fail "the CNO's first password change was refused"
+post /api/units '{"name": "Import Ward", "manager_id": null}' >/dev/null || fail "the unit was not made"
+python3 - "$work/import.csv" <<'PY'
+import datetime, sys
+rows = "Hospital ID,Full name,Gender,Unit,Start date\n" + "".join(
+    f"N70-{n},Import Nurse {n},F,Import Ward,{datetime.date.today().isoformat()}\n" for n in (1, 2, 3))
+with open(sys.argv[1], "w", newline="") as file:
+    file.write(rows + "\n" * (1024 * 1024 - len(rows.encode())))
+PY
+[[ $(wc -c < "$work/import.csv" | tr -d ' ') == 1048576 ]] || fail "the import file is not 1 MiB"
+upload() { curl -sk -c "$jar" -b "$jar" -H "X-CSRFToken: $(csrf)" -H "Origin: $base" -F "file=@$work/import.csv;type=text/csv" "$@"; }
+preview_token=$(upload -f "$base/api/nurses/import/preview" | python3 -c 'import json, sys; print(json.load(sys.stdin)["token"] or "")') \
+  || fail "the preview of a 1 MiB file through Caddy failed"
+[[ -n $preview_token ]] && pass "a 1 MiB nurse import file previews through Caddy, with no problem" || fail "the 1 MiB file's preview has problems"
+code=$(upload -o "$work/sheet" -w '%{http_code}' -F "token=$preview_token" "$base/api/nurses/import/confirm")
+saved=$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["rows"]))' "$work/sheet" 2>/dev/null || echo none)
+[[ $code == 201 && $saved == 3 ]] && pass "and confirms: 201, three nurses on the password sheet" || fail "the 1 MiB file's confirm answered $code, rows: $saved"
 
 echo "# All checks passed."

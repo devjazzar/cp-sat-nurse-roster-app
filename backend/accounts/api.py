@@ -90,6 +90,8 @@ class ThrottleRefusal(Schema):
 
 
 THROTTLED = "Too many failed logins from this network."
+# The lockout is the name's, whether or not an account has it: the words name no account; the page adds `locked_until`.
+LOCKED_OUT = "Too many failed logins."
 # The 429 declared in full: Ninja's `openapi_extra` replaces the answer it names rather than adding the header to it.
 RETRY_AFTER = {"responses": {"429": {
     "description": "Too Many Requests",
@@ -134,7 +136,7 @@ def login(request: HttpRequest, response: HttpResponse, body: LoginBody):
         return _throttled(response, refused)
     except LoginRefused as refused:
         if refused.locked_until:
-            return Status(423, LoginRefusal(detail="Too many failed logins. This account is locked for now.",
+            return Status(423, LoginRefusal(detail=LOCKED_OUT,
                                             locked_until=timezone.localtime(refused.locked_until)))
         return Status(401, LoginRefusal(detail="Wrong username or password."))
 

@@ -41,6 +41,14 @@ is `notifications.subscriptions`'s list, checked at turn-on and before each send
 `deploy/INSTALL.md` names them. `web`, `db` and the solver are on internal networks only and reach nothing outside; only
 Caddy is on `public`. A hospital that lets nothing out loses pushes and nothing else.
 
+What Caddy limits (`deploy/Caddyfile`, stock handlers only, ADR 0015): a request body over 2 MB (2,000,000 bytes) is refused
+with 413, from its `Content-Length` before any of it is read, which is above the nurse import's 1 MiB file and its multipart.
+Caddy reads a body whole before it opens the request to `web`, so a web worker never waits on a client. A body that stalls for
+a minute, or averages under 10 kB/s from its start (each byte adding a tenth of a millisecond to the minute), is dropped by
+Caddy. Nothing bounds a whole request's time: once its body is in, a long nurse import's confirmation or a backup's download
+runs to its end. The other timeouts are Caddy's defaults (headers 1 minute, idle connections 5 minutes, a stalled write 1
+minute), with no write timeout. Caddy has no rate limit (ADR 0015); the limit on failed logins is the application's.
+
 Volumes: `pgdata` (PostgreSQL), `backups` (the nightly backups, mounted by `worker` and, read-only, by `web`, and by no other
 service), `caddy_data` (certificates).
 
@@ -679,7 +687,11 @@ minute takes a lock of its own. Jobs:
   jobs that ended well or were stopped more than seven days ago, and of failed jobs more than thirty days ago, so the health
   page counts the last month's failures),
   `remove_old_notifications` (older than a year, read or not), `remove_old_push_attempts` (older than seven days, whatever
-  came of them; the health page reads the last 24 hours), `clear_expired_sessions` (Django's `clearsessions`).
+  came of them; the health page reads the last 24 hours), `clear_expired_sessions` (Django's `clearsessions`), and last, at
+  22:50, before a nightly backup at 02:00 in Riyadh, `remove_old_login_failures` (ticket 65: each username's count of failed
+  logins, `LoginAttempts`, a day after its last failure or when that time is unknown, unless the name is locked now, and each
+  address's throttle window, `AddressFailures`, once it has ended; a name or an address removed counts afresh from its next
+  failure, and the audit entries of the failures stay).
 - `expire_swaps` (hourly, minute 15): expires each waiting swap one of whose dates has passed, telling its people. Every page reads
   the dates itself and every write about a swap does the same for it first, so a worker that is down delays only who is told.
 - `expire_covers` (hourly, minute 20): stores each waiting cover whose date has passed as expired and tells the nurses offered
@@ -933,7 +945,9 @@ the health page and `/metrics` ask afresh each time. Nothing else is bundled.
   deactivated, requests and swaps keep their final state, leave corrected or removed stays as
   an ended row, every roster version and solve is kept. The exceptions are a public holiday and a month's fixed Ramadan dates, which have no
   history of their own: what a solve used is stored with it and the audit log keeps the rest. Housekeeping removes only what is
-  no one's record (section 7): a notification after a year, a push attempt after seven days, an expired session, and the queue's rows of jobs that ended;
+  no one's record (section 7): a notification after a year, a push attempt after seven days, an expired session, a username's
+  count of failed logins a day after its last failure unless it is locked then, an address's throttle window once it has ended,
+  and the queue's rows of jobs that ended;
   backups go after the days the System Admin keeps them.
 
 ## 10. Repository, build and tests
@@ -978,6 +992,9 @@ Python 3.14, OR-Tools 9.15, Django 6.1, Django Ninja 1.7, Procrastinate 3.10, Po
 Caddy 2.11, uv 0.13, Node 26 LTS (build only), Vite 8, Vitest 5, React 19.3, Tailwind 4.3,
 TypeScript 6 (7 once the toolchain supports it), TanStack Query 5, Router 1, Table 9,
 Virtual 3, Pacer 0.24, React Hook Form 7, Zustand 5, Recharts 3, orval 8, Playwright 1.64.
+The Umm al-Qura calendar is `hijridate` 2 (`<3` in the solver's and the backend's dependencies): fixed tables for
+1925 to 2076, read offline by the solver and by the web container, which takes a month's Ramadan days from the
+solver's calendar module and calls `hijridate` itself only to name a Ramadan by its Hijri year and to find it.
 
 ## 12. Revisit later
 

@@ -20,3 +20,5 @@
 **From ticket 69 (2026-11-11).** `deploy/Caddyfile` now has a global options block first, and the site's `reverse_proxy` has a
 body. Ticket 62's `header Content-Security-Policy` line is unchanged, above `@metrics`; the compose-level check of ticket 69
 sits right after `operations.sh`'s framing check.
+
+**From ticket 70's review (2026-11-11):** the user chose to add a line here to `deploy/INSTALL.md`'s install checklist: at the first install with a `DOMAIN`, confirm a nurse import (or another request) that takes longer than a minute from a browser, which likely speaks HTTP/3 to Caddy, and see it complete. Ticket 70 drove HTTP/1.1 and HTTP/2 only (99 s and 94 s confirmations, both completed).

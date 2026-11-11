@@ -13,3 +13,12 @@
 - [ ] The existing per-month fix and "Use the calendar", and the holiday create, change and remove, send it; a change that leaves the month's dates as they were sends nothing
 - [ ] API tests under pytest beside the draft's "changed since" tests and the notification events' tests: a draft and a submitted roster warned after a Ramadan change and after a holiday change, unwarned when nothing moved, submit going through; the manager of a unit with each kind of roster told once per month, a manager with no roster not told, the CNO not told
 - [ ] The frontend's app-level suite: the draft page's new warning line and the notification's words; the usual full suites and `e2e/ci.sh`
+
+## Comments
+
+**From ticket 44 (2026-11-11).** Every Ramadan write goes through `_fix_month` in `backend/hospital/catalogue_api.py`:
+the per-month fix and the whole-Ramadan confirmation (`PUT /api/hospital/ramadans/{hijri_year}`) both call it. "Use the
+calendar" (`unfix_ramadan_month`) still writes on its own. `_fix_month` audits `ramadan_dates.changed` only when what is
+in force changes, so a notification beside that `record` call sends nothing for an unchanged month. A confirmation runs
+in one transaction and can touch three or four months, including one in the next or the previous year (Ramadan 1452
+writes December 2030 and January 2031). That makes one notification per changed month with a roster.

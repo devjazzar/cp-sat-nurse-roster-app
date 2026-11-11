@@ -1434,6 +1434,98 @@
         ]
       }
     },
+    "/api/hospital/ramadans": {
+      "get": {
+        "operationId": "listRamadans",
+        "summary": "List Ramadans",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "schema": {
+              "maximum": 2076,
+              "minimum": 1925,
+              "title": "Year",
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RamadanCard"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "Every Ramadan with a day in the year, by the calendar's dates; one across New Year is on both years.",
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/hospital/ramadans/{hijri_year}": {
+      "put": {
+        "operationId": "confirmRamadan",
+        "summary": "Confirm Ramadan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hijri_year",
+            "schema": {
+              "title": "Hijri Year",
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RamadanCard"
+                }
+              }
+            }
+          }
+        },
+        "description": "Fixes every month from the first day's to the last day's to the confirmed days in it, exactly as fixing each by\nhand would. A month the card read days from that the range no longer touches is fixed to none, so the calendar's\ndays, or an earlier confirmation's, do not survive beside this one.",
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RamadanConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units": {
       "get": {
         "operationId": "listUnits",
@@ -8348,6 +8440,99 @@
           }
         },
         "title": "RamadanFix",
+        "type": "object"
+      },
+      "RamadanCard": {
+        "properties": {
+          "hijri_year": {
+            "description": "The Ramadan's name: Ramadan 1448.",
+            "title": "Hijri Year",
+            "type": "integer"
+          },
+          "first": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first of the days in force; none when its months are fixed to none.",
+            "title": "First"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
+          "days": {
+            "description": "How many days are in force, which a list entered by hand may leave with gaps.",
+            "title": "Days",
+            "type": "integer"
+          },
+          "source": {
+            "description": "Derived when every month it touches follows the calendar; fixed when the CNO fixed any of them.",
+            "enum": [
+              "derived",
+              "fixed"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "calendar_first": {
+            "description": "The Umm al-Qura calendar's first day, whatever is in force.",
+            "format": "date",
+            "title": "Calendar First",
+            "type": "string"
+          },
+          "calendar_last": {
+            "format": "date",
+            "title": "Calendar Last",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hijri_year",
+          "first",
+          "last",
+          "days",
+          "source",
+          "calendar_first",
+          "calendar_last"
+        ],
+        "title": "RamadanCard",
+        "type": "object"
+      },
+      "RamadanConfirm": {
+        "additionalProperties": false,
+        "properties": {
+          "first": {
+            "description": "The first day of Ramadan, from the moon sighting.",
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "description": "Its last day.",
+            "format": "date",
+            "title": "Last",
+            "type": "string"
+          }
+        },
+        "required": [
+          "first",
+          "last"
+        ],
+        "title": "RamadanConfirm",
         "type": "object"
       },
       "UnitManagerSchema": {
