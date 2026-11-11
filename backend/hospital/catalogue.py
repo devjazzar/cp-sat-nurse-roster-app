@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import date, time, timedelta
 
 from django.db import transaction
-from hijridate import Gregorian
+from hijridate import Gregorian, Hijri
 from nurse_roster.calendar import parse_month
 
 from hospital.models import FixedRamadanMonth, LeaveType, Shift
@@ -49,6 +49,16 @@ def ramadan_dates(month: str) -> list[date]:
     return fixed.dates if fixed else derived_ramadan_dates(month)
 
 
+def month_of(day: date) -> str:
+    return day.strftime("%Y-%m")
+
+
+def shift_month(month: str, step: int) -> str:
+    """The "YYYY-MM" `step` months after `month` (before it when negative)."""
+    year, index = divmod(int(month[:4]) * 12 + int(month[5:]) - 1 + step, 12)
+    return f"{year:04d}-{index + 1:02d}"
+
+
 @dataclass(frozen=True, slots=True)
 class CalendarRamadan:
     hijri_year: int
@@ -56,20 +66,14 @@ class CalendarRamadan:
 
     @property
     def months(self) -> list[str]:
-        return sorted({day.strftime("%Y-%m") for day in self.days})
-
-
-def month_label(year: int, number: int) -> str:
-    """"YYYY-MM" for a month counted from January of `year`; `number` may run past 1..12 either way."""
-    year, index = divmod(year * 12 + number - 1, 12)
-    return f"{year:04d}-{index + 1:02d}"
+        return sorted({month_of(day) for day in self.days})
 
 
 def calendar_ramadans(year: int) -> list[CalendarRamadan]:
     """Every Ramadan with a day in the Gregorian `year`, in date order, by the calendar. The days are the solver's month
     derivation, read from December before to January after: a Ramadan is at most 30 days, so one with a day in `year`
-    lies within them. The Hijri year only names it, so it alone is converted here."""
-    days = [day for number in range(0, 14) for day in derived_ramadan_dates(month_label(year, number))]
+    lies within them. hijridate is used directly only to name each by its Hijri year."""
+    days = [day for step in range(-1, 13) for day in derived_ramadan_dates(shift_month(f"{year:04d}-01", step))]
     runs: list[list[date]] = []
     for day in days:
         if runs and day == runs[-1][-1] + timedelta(days=1):
@@ -78,3 +82,16 @@ def calendar_ramadans(year: int) -> list[CalendarRamadan]:
             runs.append([day])
     return [CalendarRamadan(Gregorian(run[0].year, run[0].month, run[0].day).to_hijri().year, run)
             for run in runs if any(day.year == year for day in run)]
+
+
+def calendar_ramadan(hijri_year: int) -> CalendarRamadan | None:
+    """Ramadan `hijri_year` by the calendar, or None when the calendar's data does not reach it. hijridate only finds
+    the Gregorian year; the days are `calendar_ramadans`'."""
+    try:
+        year = Hijri(hijri_year, 9, 1).to_gregorian().year
+    except (ValueError, OverflowError):
+        return None
+    try:
+        return next((ramadan for ramadan in calendar_ramadans(year) if ramadan.hijri_year == hijri_year), None)
+    except ValueError:  # A neighbouring month beyond the solver's calendar.
+        return None

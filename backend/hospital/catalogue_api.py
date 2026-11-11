@@ -21,9 +21,8 @@ from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
 from hospital.api import StrictSchema, differing, refuse, save_unless_taken
-from hijridate import Hijri
-
-from hospital.catalogue import CalendarRamadan, calendar_ramadans, derived_ramadan_dates, month_label
+from hospital.catalogue import (CalendarRamadan, calendar_ramadan, calendar_ramadans, derived_ramadan_dates, month_of,
+                                shift_month)
 from hospital.models import (FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename, Skill,
                              SkillRename)
 from hospital.rules import changes
@@ -601,14 +600,16 @@ class RamadanConfirm(StrictSchema):
 
 
 def _card_months(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> list[str]:
-    """The months the calendar's Ramadan touches, and a month either side that holds fixed days, which can only be a
-    sighting's day moved over the edge: another Ramadan is eleven months away."""
+    """The months the calendar's Ramadan touches, and a month either side whose fixed days continue it over the edge: a
+    sighting a day or two off. Another Ramadan is eleven months away, so they cannot be its days."""
     core = ramadan.months
-    year, number = int(core[0][:4]), int(core[0][5:])
-    before = month_label(year, number - 1)
-    year, number = int(core[-1][:4]), int(core[-1][5:])
-    after = month_label(year, number + 1)
-    return sorted(core + [month for month in (before, after) if fixed.get(month)])
+    before, after = shift_month(core[0], -1), shift_month(core[-1], 1)
+    continued = []
+    if fixed.get(before) and month_of(max(fixed[before]) + dt.timedelta(days=1)) == core[0]:
+        continued.append(before)
+    if fixed.get(after) and min(fixed[after]).day == 1:
+        continued.append(after)
+    return sorted(core + continued)
 
 
 def _card(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> dict:
@@ -622,7 +623,7 @@ def _card(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> dict:
 
 def _fixed_around(year: int) -> dict[str, list[dt.date]]:
     """The fixed months a card of `year` can read: November before to February after."""
-    months = [month_label(year, number) for number in range(-1, 15)]
+    months = [shift_month(f"{year:04d}-01", step) for step in range(-2, 14)]
     return dict(FixedRamadanMonth.objects.filter(month__in=months).values_list("month", "dates"))
 
 
@@ -631,18 +632,6 @@ def list_ramadans(request, filters: Query[YearFilter]) -> list[dict]:
     """Every Ramadan with a day in the year, by the calendar's dates; one across New Year is on both years."""
     fixed = _fixed_around(filters.year)
     return [_card(ramadan, fixed) for ramadan in calendar_ramadans(filters.year)]
-
-
-def _calendar_ramadan(hijri_year: int) -> CalendarRamadan:
-    try:
-        year = Hijri(hijri_year, 9, 1).to_gregorian().year  # Only to find it: its days are the solver's.
-    except (ValueError, OverflowError):
-        year = None
-    found = [ramadan for ramadan in calendar_ramadans(year) if ramadan.hijri_year == hijri_year] \
-        if year is not None and FIRST_YEAR <= year <= LAST_YEAR else []
-    if not found:
-        raise HttpError(404, f"The calendar has no Ramadan {hijri_year} between {FIRST_YEAR} and {LAST_YEAR}.")
-    return found[0]
 
 
 @router.put("/ramadans/{hijri_year}", response=RamadanCard, auth=cno, operation_id="confirmRamadan")
@@ -655,11 +644,17 @@ def confirm_ramadan(request, hijri_year: int, body: RamadanConfirm) -> dict:
     length = (body.last - body.first).days + 1
     if length > LONGEST_RAMADAN:
         refuse((("last",), f"That makes {length} days. A Ramadan has 29 or 30, so at most {LONGEST_RAMADAN} are taken."))
-    ramadan = _calendar_ramadan(hijri_year)
+    ramadan = calendar_ramadan(hijri_year)
+    if ramadan is None or not FIRST_YEAR <= ramadan.days[0].year <= LAST_YEAR:
+        raise HttpError(404, f"The calendar has no Ramadan {hijri_year} between {FIRST_YEAR} and {LAST_YEAR}.")
+    if body.last < ramadan.days[0] or body.first > ramadan.days[-1]:
+        # A wrong year or month, which would otherwise empty this Ramadan's months and overwrite another's.
+        calendar = f"{ramadan.days[0].isoformat()} to {ramadan.days[-1].isoformat()}"
+        refuse((("first",), f"These days do not touch Ramadan {hijri_year}, which the calendar puts at {calendar}."))
     confirmed = [body.first + dt.timedelta(days=offset) for offset in range(length)]
     with transaction.atomic():
         fixed = _fixed_around(ramadan.days[0].year)
-        months = sorted(set(_card_months(ramadan, fixed)) | {day.strftime("%Y-%m") for day in confirmed})
+        months = sorted(set(_card_months(ramadan, fixed)) | {month_of(day) for day in confirmed})
         for month in months:  # In order, so two confirmations lock the rows in the same order.
-            _fix_month(request, month, [day for day in confirmed if day.strftime("%Y-%m") == month])
+            _fix_month(request, month, [day for day in confirmed if month_of(day) == month])
         return _card(ramadan, _fixed_around(ramadan.days[0].year))

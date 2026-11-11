@@ -331,8 +331,8 @@ function inForce(card: RamadanCard): string {
   const range = `${dateRange(card.first, card.last)}, ${dayCount(card.days)}`
   if (card.source === RamadanCardSource.derived) return `${range}. The calendar's.`
   const differs = card.first !== card.calendar_first || card.last !== card.calendar_last || card.days !== calendarDays(card)
-  const sameYear = yearOf(card.first) === yearOf(card.last) && yearOf(card.calendar_first) === yearOf(card.calendar_last)
-    && yearOf(card.first) === yearOf(card.calendar_first)
+  // The calendar's year goes unsaid only when all four days share the one already said.
+  const sameYear = new Set([card.first, card.last, card.calendar_first, card.calendar_last].map(yearOf)).size === 1
   return `The CNO: ${range}.${differs ? ` The calendar says ${calendar(sameYear)}.` : ""}`
 }
 

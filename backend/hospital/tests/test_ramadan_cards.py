@@ -104,6 +104,14 @@ def test_a_neighbouring_month_holding_fixed_days_continues_the_card(signed_in):
     assert card(client, 2027, 1448) == {**CALENDAR_1448, "first": "2027-01-31", "days": 30, "source": "fixed"}
 
 
+def test_fixed_days_in_a_neighbouring_month_that_do_not_reach_the_edge_are_not_this_ramadans(signed_in):
+    client = signed_in(Role.CNO)
+    client.put(f"{MONTHS}/2027-01", {"dates": ["2027-01-30"]}, content_type="application/json")
+    client.put(f"{MONTHS}/2027-04", {"dates": ["2027-04-02"]}, content_type="application/json")
+
+    assert card(client, 2027, 1448) == CALENDAR_1448
+
+
 def test_a_ramadan_whose_months_are_fixed_to_none_has_no_first_or_last_day(signed_in):
     client = signed_in(Role.CNO)
     for month in ("2027-02", "2027-03"):
@@ -233,6 +241,23 @@ def test_a_refusal_names_the_field_and_writes_nothing(signed_in, first, last, fi
     assert refused_fields(confirm(client, 1448, first, last)) == {field}
     assert not FixedRamadanMonth.objects.exists()
     assert not AuditEntry.objects.filter(action="ramadan_dates.changed").exists()
+
+
+@pytest.mark.parametrize("first, last", [("2026-02-18", "2026-03-19"), ("2027-03-09", "2027-04-06"),
+                                         ("2027-01-10", "2027-02-07")])
+def test_days_that_do_not_touch_the_calendars_ramadan_are_refused_as_a_wrong_year_or_month(signed_in, first, last):
+    # 2026's are Ramadan 1447's: confirming them as 1448 would overwrite 1447's months and empty 1448's.
+    response = confirm(signed_in(Role.CNO), 1448, first, last)
+
+    assert refused_fields(response) == {("first",)}
+    assert "2027-02-08 to 2027-03-08" in response.json()["detail"][0]["msg"]
+    assert not FixedRamadanMonth.objects.exists()
+
+
+def test_one_day_of_overlap_is_enough(signed_in):
+    response = confirm(signed_in(Role.CNO), 1448, "2027-03-08", "2027-04-05")
+
+    assert response.status_code == 200 and response.json()["first"] == "2027-03-08"
 
 
 def test_thirty_five_days_is_the_longest_a_confirmation_may_be(signed_in):
