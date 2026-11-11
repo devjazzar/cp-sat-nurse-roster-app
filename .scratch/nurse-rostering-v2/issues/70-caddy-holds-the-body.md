@@ -76,7 +76,7 @@ a Python client:
 - The stack was removed (`e2e/stack.sh down nr-t70`); nothing of it is left.
 
 **What was NOT checked.**
-- HTTP/3: Caddy also listens on 443/udp. The body timeouts are the server's, but no client of mine spoke HTTP/3.
+- HTTP/3: no client of mine spoke it (Worth your review).
 - A 413 for a chunked body over the cap (no `Content-Length`): by the source, `MaxBytesReader` stops it at 2,000,000 bytes,
   but it was not driven.
 - The 1 MiB import in a browser: `operations.sh` sends it with curl through Caddy. The browser checks reach `web` directly,
@@ -93,6 +93,9 @@ a Python client:
 - **The one-worker override replaces web's whole command,** without `prepare` (it ran at the first start) and without
   `--timeout`. It is applied for that check alone, through a function, so `restore.sh` and the exit trap keep the test's
   own `COMPOSE_FILE`.
+- **A request carrying `Incremental: ?1` is refused** by Caddy now that `request_buffers` is set (`refuseIncremental`, v2.11.9
+  `incremental.go`). Only a client asking to stream its body sends that header. Nothing in `frontend/src` or `e2e/tests`
+  does.
 - **The held check reads web's access lines** as well as the health answer, so the chunked case can fail.
 
 **Worth your review.**
@@ -100,6 +103,11 @@ a Python client:
   1 minute, plus a tenth of a millisecond for each byte received. A body must keep its average above 10 kB/s after a
   minute's grace. A client that sent fast and then stalled may stall for longer than a minute, up to its credit. Any body
   the 2 MB cap allows has at most 260 s to arrive.
+- **HTTP/3, not driven.** Caddy answers with `Alt-Svc: h3`, so a browser on an installation with a real certificate will
+  likely move to HTTP/3 after its first answer. A long confirmation from a browser would then take the one path not driven
+  here. The idle reader's `DrainDeadline` and `ClearBetweenReads` are set for HTTP/1 and HTTP/2 only. I had no HTTP/3 client
+  (the macOS curl and `curlimages/curl` lack it). Worth one confirmation over a minute from a browser on the first
+  installation with a domain, or a check with an HTTP/3 curl.
 - **The buffers are 2 MiB, not the spec's 2 MB** (Decisions): the one place the build departs from the spec's numbers.
 - **The test's one-worker override** is a third compose file applied to `web` for that check and then removed. The
   alternatives were a second stack (slower) or the whole test stack at one worker (every other check would run on it).
