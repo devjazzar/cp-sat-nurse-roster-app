@@ -666,7 +666,11 @@ minute takes a lock of its own. Jobs:
   the subscription's failures; `gone` (404 or 410) ends it at once; a refusal counts one failure; an unreachable service is
   tried again after 1, 3 and 6 minutes, for the subscriptions that failed alone, and counts one failure after the last; ten
   failures in a row end a subscription. A try again is deferred at priority −1, so one waiting for its time holds back no
-  new push.
+  new push. A job starts no new send once it has run 30 seconds, and hands the sends it has not made to a new push job at the
+  normal priority with the same try number, so they wait behind any push already waiting and a first try stays one; the next
+  job reads again that the thing still waits and whose the subscription is. So no job holds the others back by more than
+  about 30 seconds and one send, and nothing is dropped. A user holds at most ten subscriptions (ticket 67), which bounds the
+  sends one reader costs.
 
 The queue code is one module of ours (enqueue, progress, cancel, schedule) so the library can
 be replaced without touching the API, the solver client or the solver.
@@ -711,7 +715,8 @@ subscribes with the installation's public key (on an iPhone or iPad only from th
 says); Turn off ends this device's push subscription, Turn off on every device all of the user's. Pressing Log out turns
 this device off first; a session that expires on its own does not, since reaching someone who is not using the app is the
 point. A deactivation ends every subscription of the account, beside its sessions. So does the push service saying an
-address is gone, and ten failed sends in a row. At each start the app replaces, unasked, a subscription bound to a key the
+address is gone, and ten failed sends in a row. A user holds at most ten: turning pushes on for an eleventh device, or taking
+over one of another user's, ends the user's earliest turned on, with no entry of its own; a browser's renewal is no new device. At each start the app replaces, unasked, a subscription bound to a key the
 server no longer uses. An address is accepted only on a push service's own host, at turn-on and again at each send, so the
 worker posts nowhere else.
 

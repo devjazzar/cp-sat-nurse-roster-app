@@ -66,7 +66,7 @@ local browser-check run on one long-lived stack within a day could meet the swap
 ## 3. Open leads
 
 Seven leads had a source trace and no verdict: each waits on a fact outside the repository. Leads 5 to 7 have since been
-fixed without one (ticket 62). They carry no
+fixed without one (ticket 62), and lead 4 (ticket 67). They carry no
 severity. `NEEDS-VALIDATION.md` has the full plan for each; the checks named there are for the owner to make on
 their own installation or on a scratch stack, never traffic against a hospital's system.
 
@@ -79,7 +79,7 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
 | 1 | Each anonymous login attempt costs a full password hash (0.5 s measured) on one of three sync workers; the lockout is per username, so rotating the username escapes it. | `backend/accounts/login.py` `attempt_login` | Whether it delays other users on a real server: cores, hash time there, and any limit in front of Caddy. | Owner: time one `make_password` in the web container; check for a rate limit in front of Caddy; look for bursts of `auth.login_failed` with many targets. |
 | 2 | Refused anonymous logins leave an audit entry and a `LoginAttempts` row that nothing removes; while a name is locked they are written without a hash. | `backend/accounts/login.py`, `backend/audit/log.py` | How fast rows can be written from outside, and the disk and backup headroom. | Owner: the read-only size queries in the plan; on a scratch stack, time 1,000 locked-path logins through Caddy. |
 | 3 | A sign-in request whose body has not arrived holds a gunicorn worker (observed in the sandbox with one worker). | `deploy/compose.yaml` (gunicorn `--workers 3 --timeout 300`), `deploy/Caddyfile` | Whether Caddy passes a request upstream before its body is complete. | Scratch stack only: `caddy adapt` to confirm no buffering or read timeout, then the one-connection check in the plan. |
-| 4 | One user may hold any number of push subscriptions, and the single push job sends to each in turn under the installation-wide `push` lock. | `backend/notifications/subscriptions.py` `turn_on`, `backend/notifications/pushes.py` | What a send to a made-up address under an allowed domain costs on the real network. | Owner: count subscriptions per user; read the gaps in `notifications_pushattempt`. Fix direction: cap subscriptions per user and give a job a send budget. |
+| 4 | **Fixed in ticket 67 (`756f5c5`).** One user may hold any number of push subscriptions, and the single push job sends to each in turn under the installation-wide `push` lock. | `backend/notifications/subscriptions.py` `turn_on`, `backend/notifications/pushes.py` | What a send to a made-up address under an allowed domain costs on the real network. | Owner: count subscriptions per user; read the gaps in `notifications_pushattempt`. Fix direction: cap subscriptions per user and give a job a send budget. |
 | 5 | **Fixed in ticket 62 (`d4404f5`).** One unit's manager can queue a solve for every future month to December 2076 ahead of other units' solves, and no role above the unit can cancel them. | `backend/solves/api.py` `start_solve`, `backend/solves/running.py` | How long each such solve holds the queue (no solver ran in the audit), and whether first-come-first-served across units (ADR 0009) is acceptable here. | Scratch stack with the real solver: the three-solve check in the plan. Product decision: a per-unit share of the queue and a cancel for the CNO or System Admin. |
 | 6 | **Fixed in ticket 62 (`2b70344`).** No response carries `X-Frame-Options` or a `frame-ancestors` policy, so a page on a same-site origin could frame the signed-in app. | `backend/config/settings.py` `MIDDLEWARE`, `deploy/Caddyfile` | Whether any same-site origin exists that someone other than the app's operators controls; browser behaviour. | Cheap to close without validating: add `XFrameOptionsMiddleware` or a CSP with `frame-ancestors 'none'`. |
 | 7 | **Fixed in ticket 62 (`6cda1dd`).** The file download routes are plain GETs, so a page on another site may be able to make a signed-in CNO's browser take the audited staff-list export, or tell that the visitor is the CNO; the System Admin's backup download may be reachable the same way, since a backup's name is predictable. | `backend/nurses/files_api.py`, `backend/ops/api.py` | Whether current browsers attach the Lax session cookie and let the other page tell the two answers apart. | Test installation with dummy accounts: the static-page check in the plan. Fix direction: refuse these GETs when `Sec-Fetch-Site` is `cross-site`. |
@@ -90,12 +90,19 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
   (`.scratch/nurse-rostering-v2/issues/62-audit-follow-ups.md`): one active solve a unit across its months, `X-Frame-Options:
   DENY` and `frame-ancestors 'none'`, the file routes refusing `Sec-Fetch-Site: cross-site`, and no approval once a month is
   over (option A). **Fixed on 2026-11-11** in ticket 62, pull request 5: lead 5 in `d4404f5`, lead 6 in `2b70344`, lead 7 in
-  `6cda1dd` and `3b2fc9e`, the late approval in `0cac2f5`. Leads 1 to 4 stay open. (`NEEDS-VALIDATION.md` numbers its sections differently:
+  `6cda1dd` and `3b2fc9e`, the late approval in `0cac2f5`. Leads 1 to 3 stay open; lead 4 is fixed (below). (`NEEDS-VALIDATION.md` numbers its sections differently:
   this table's leads 5, 6 and 7 are its sections 6, 3 and 5.)
 - **Leads 1 to 4, the hardening notes and the restore note of section 4:** one hardening feature, grilled first
   (`/grill-with-docs`), then specced and ticketed: limits per client (Caddy's timeouts and body cap, threaded gunicorn
   workers, a per-IP failed-login throttle before the hash, housekeeping of login-attempt rows), at most a few push
   subscriptions a user, HSTS and a content security policy, and what `restore.sh` should clear and print.
+- **Lead 4 and the push hardening notes:** **fixed on 2026-11-11** in ticket 67
+  (`.scratch/nurse-rostering-v2/issues/67-ten-devices-a-user-and-a-push-job-that-hands-on.md`), `756f5c5`: at most ten push
+  subscriptions a user, an eleventh device ending the earliest turned on; a push job that starts no new send after 30 seconds
+  and hands the rest to the next job, behind any push already waiting; the API's `auth` key limit the column's (100), so a
+  longer key is 422; and `pushing.send` counting any exception the library raises that is not already sorted as a refusal.
+  How long one send to a made-up address takes on a real network stays unmeasured; the cap and the budget bound the delay
+  whatever it is.
 - **Known vulnerabilities in dependencies (section 5):** checked with `pip-audit` and `npm audit` on 2026-11-11; the result is
   below in section 5.
 
@@ -119,7 +126,8 @@ Rejected candidates are listed so the next audit does not spend time on them wit
 
 `REPORT.md` section 5 lists the hardening notes (HSTS and a content security policy, limits in the Caddyfile,
 the audit log being append-only by convention only, the application's database role being a superuser, images
-and actions pinned by tag, and others) and the patterns that held up.
+and actions pinned by tag, and others) and the patterns that held up. Its push note (cap the subscriptions, give a push job a
+send budget, align the `auth` key's length, make `pushing.send` never raise) is fixed in ticket 67 (`756f5c5`).
 
 ## 5. Not covered
 

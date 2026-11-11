@@ -53,3 +53,5 @@ expiry has none.
   its test asserts that instead of the exact two listeners.
 - The sending library (pywebpush, one maintainer) sits behind one module of ours, as Procrastinate does.
 - A feature that adds a notification with a deadline adds its kind code and words; nothing else is per feature.
+- A subscription also ends when the same user turns pushes on for an eleventh device, which ends their earliest turned on,
+  with no entry, as any drop has none (ticket 67, from the security audit's lead 4). A renewal is not a new device.
