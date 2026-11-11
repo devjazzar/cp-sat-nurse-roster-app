@@ -18,3 +18,20 @@
 
 **From ticket 69 (2026-11-11).** gunicorn's access line now takes `remote` from `X-Client-IP`, the header Caddy always sets,
 else the peer (`solver/solver_service/logs.py`). `audit.log.client_ip` keeps no state, so threads change nothing there.
+
+**From ticket 70 (2026-11-11).**
+- `deploy/Caddyfile`'s `reverse_proxy web:8000` block now holds `header_up X-Client-IP {client_ip}` and `request_buffers 2MiB`.
+  Caddy's idle time to `web` goes in a `transport http { keepalive … }` there (check its name with `caddy adapt` on
+  `caddy:2.11`, as ticket 70 did).
+- `deploy/tests/compose.one-worker.yaml` replaces web's whole `command` for `operations.sh`'s held-body check:
+  `--workers 1 --threads 1`, no `--worker-class`, no `--timeout`. Once compose.yaml says `gthread`, mirror it there
+  (`--worker-class gthread --threads 1`) so the check still runs one request at a time on the same kind of worker. The check
+  also counts gunicorn processes in `web` (master plus one), which stays true under `gthread`.
+- That check now asserts a withheld login never reaches `web` at all, read from web's access lines (`/api/auth/login`).
+  Django reads no chunked body, so under sync workers a chunked login passed on is answered at once. Under `gthread` with
+  keep-alive, gunicorn may try to read the rest of such a body before the connection's next request; Caddy no longer passes
+  one on, which is why `request_buffers` is larger than the 2 MB cap.
+- Caddy's minimum body rate runs from the body's start: 1 minute, plus a tenth of a millisecond for each byte received. A
+  2 MB body therefore has at most 260 s to arrive. Once it is in, nothing bounds the request: confirmations of 140 rows took
+  99 s (HTTP/1.1) and 94 s (HTTP/2) through Caddy on a scratch stack with `web` held to one CPU (`docker update --cpus 1`),
+  and both finished. That is the setup for timing the 500-row import without the 300-second limit.

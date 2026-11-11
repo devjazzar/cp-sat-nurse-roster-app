@@ -1,0 +1,8 @@
+# For deploy/tests/operations.sh's ticket 70 check only, on top of compose.yaml and compose.test.yaml: web at one gunicorn
+# worker of one thread, so that a request held on its body, if Caddy passed one on, would leave nothing to answer anyone.
+# `prepare` has run at the stack's first start. The script puts web back on compose.yaml's command after the check.
+services:
+  web:
+    command: >-
+      sh -c "unset INITIAL_ADMIN_PASSWORD
+      && exec gunicorn config.wsgi -c config/gunicorn.py --bind 0.0.0.0:8000 --workers 1 --threads 1"

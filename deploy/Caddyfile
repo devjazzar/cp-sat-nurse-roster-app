@@ -8,11 +8,22 @@
 # The client's address. Caddy believes a client's X-Forwarded-For only from a peer named in TRUSTED_PROXIES (.env, empty by
 # default: no one), read strictly from the right, so the address taken is the one the nearest untrusted hop was seen at.
 # Only X-Forwarded-For is read, not X-Real-IP. The site sends what Caddy worked out to web in X-Client-IP.
+#
+# A client's body (ticket 70). The site reads it whole before web sees the request, so Caddy, not a web worker, waits on a
+# slow client. A body that stalls drops after a minute (read_body_idle, Caddy's default, written out to give it a rate),
+# and one averaging under 10 kB/s too: 10000 is bytes a second, counted from the body's start, each byte earning a tenth
+# of a millisecond on top of the minute. Once the body is in, Caddy clears the deadline. No read_body: Caddy gives it to Go
+# as a deadline on the whole request from its start, and Go cancels the request when it fires, after the body or not, so a
+# nurse import's confirmation or a backup's download that ran past it would be cut off. The other timeouts are Caddy's own
+# (headers 1 minute, idle 5 minutes, a stalled write 1 minute) and there is no write timeout, as a backup may be large.
 {
 	servers {
 		trusted_proxies static {$TRUSTED_PROXIES}
 		trusted_proxies_strict
 		client_ip_headers X-Forwarded-For
+		timeouts {
+			read_body_idle 1m 10000
+		}
 	}
 }
 
@@ -32,8 +43,16 @@
 	# The metrics answer with no sign-in, for a Prometheus on the internal network only (backend/ops/metrics.py).
 	@metrics path /metrics /metrics/*
 	respond @metrics 404
-	# Always set, replacing any a client sent: what audit.log.client_ip reads, the throttle's and the audit log's address.
+	# Above the nurse import's largest file, 1 MiB (nurses.importing.MAX_BYTES), and its multipart: 413 past 2,000,000 bytes,
+	# from Content-Length before a byte of the body is read.
+	request_body {
+		max_size 2MB
+	}
 	reverse_proxy web:8000 {
+		# Always set, replacing any a client sent: what audit.log.client_ip reads, the throttle's and the audit log's address.
 		header_up X-Client-IP {client_ip}
+		# The whole body, held before the request is opened to web. Larger than the cap: a body that fills the buffers
+		# exactly is passed on with the rest still to come from the client, so this one never fills them.
+		request_buffers 2MiB
 	}
 }
