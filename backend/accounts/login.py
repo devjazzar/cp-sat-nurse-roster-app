@@ -118,7 +118,7 @@ def remove_old_failures() -> None:
     from its next failure, as it would have anyway. The audit entries of the failures stay."""
     now = timezone.now()
     (LoginAttempts.objects.exclude(locked_until__gt=now)
-     .filter(Q(last_failure_at__lte=now - FAILURES_KEPT) | Q(last_failure_at__isnull=True)).delete())
+     .filter(Q(last_failure_at__lt=now - FAILURES_KEPT) | Q(last_failure_at__isnull=True)).delete())
     AddressFailures.objects.filter(window_start__lte=now - THROTTLE_WINDOW).delete()
 
 

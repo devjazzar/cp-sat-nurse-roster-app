@@ -192,12 +192,16 @@ for task in ops.tasks.remove_ended_jobs notifications.tasks.remove_old_notificat
 done
 [[ $(sql "SELECT string_agg(outcome, ' ') FROM notifications_pushattempt") == sent ]] \
   && pass "a push attempt eight days old is gone and one six days old is kept" || fail "push attempts kept: $(sql "SELECT at, outcome FROM notifications_pushattempt")"
-[[ $(sql "SELECT string_agg(username, ' ' ORDER BY username) FROM accounts_loginattempts") == "fresh locked" ]] \
+kept_names="SELECT string_agg(username, ' ' ORDER BY username) FROM accounts_loginattempts
+  WHERE username IN ('day-old', 'fresh', 'locked', 'from-before')"
+[[ $(sql "$kept_names") == "fresh locked" ]] \
   && pass "a failed-login count a day old or of unknown age is gone, a fresh one and a locked one are kept" \
-  || fail "failed-login counts kept: $(sql "SELECT username FROM accounts_loginattempts")"
-[[ $(sql "SELECT string_agg(address, ' ') FROM accounts_addressfailures") == 192.0.2.2 ]] \
-  && pass "an ended throttle window is gone and the current one is kept" \
-  || fail "throttle windows kept: $(sql "SELECT address, window_start FROM accounts_addressfailures")"
+  || fail "failed-login counts kept: $(sql "$kept_names")"
+kept_windows="SELECT string_agg(address, ' ') FROM accounts_addressfailures WHERE address LIKE '192.0.2.%'"
+[[ $(sql "$kept_windows") == 192.0.2.2 ]] \
+  && pass "an ended throttle window is gone and the current one is kept" || fail "throttle windows kept: $(sql "$kept_windows")"
+sql "DELETE FROM accounts_loginattempts WHERE username IN ('fresh', 'locked');
+  DELETE FROM accounts_addressfailures WHERE address = '192.0.2.2'" >/dev/null
 
 # ---- logging in --------------------------------------------------------------------------------------------------------------
 jar="$work/cookies"

@@ -55,6 +55,15 @@ class TestTheNamesCounts:
 
         assert counted_names() == {"fresh-name"}
 
+    def test_a_count_exactly_a_day_old_stays_until_it_is_more(self, clock):
+        clock(timedelta(0))  # held, so the day is exact
+        fail(1, "someone")
+        clock(timedelta(hours=24))
+
+        run_the_job()
+
+        assert counted_names() == {"someone"}
+
     def test_the_day_counts_from_the_last_failure_not_the_first(self, clock):
         fail(1, "someone")
         clock(timedelta(hours=20))
