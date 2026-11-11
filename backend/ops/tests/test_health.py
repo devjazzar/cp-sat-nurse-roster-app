@@ -91,7 +91,7 @@ DEGRADED = {"status": "degraded", "database": True, "solver": {"reachable": Fals
 
 
 @pytest.mark.django_db
-class TestThePublicAnswerIsKeptFiveSeconds:
+class TestThePublicAnswerIsHeldFiveSeconds:
     def test_within_five_seconds_the_answer_is_the_same_and_nothing_is_asked_again(self, solver, clock,
                                                                                    django_assert_num_queries):
         assert Client().get("/api/health").json() == OK
@@ -112,7 +112,7 @@ class TestThePublicAnswerIsKeptFiveSeconds:
         assert Client().get("/api/health").json() == DEGRADED
         assert solver.calls == 2
 
-    def test_a_degraded_answer_is_kept_too_and_then_turns_ok(self, solver, clock):
+    def test_a_degraded_answer_is_held_too_and_then_turns_ok(self, solver, clock):
         solver.up = False
         assert Client().get("/api/health").json() == DEGRADED
         solver.up = True
@@ -124,7 +124,7 @@ class TestThePublicAnswerIsKeptFiveSeconds:
 
 
 @pytest.mark.django_db
-def test_the_system_admins_health_page_is_not_kept(solver, clock, signed_in):
+def test_the_system_admins_health_page_is_not_held(solver, clock, signed_in):
     client = signed_in()
     assert client.get("/api/ops/health").json()["solver"]["reachable"] is True
     solver.up = False
@@ -134,7 +134,7 @@ def test_the_system_admins_health_page_is_not_kept(solver, clock, signed_in):
 
 
 @pytest.mark.django_db
-def test_metrics_are_not_kept(solver, clock):
+def test_metrics_are_not_held(solver, clock):
     def solver_up():
         body = Client().get("/metrics").content.decode()
         return next(line for line in body.splitlines() if line.startswith("nurse_roster_solver_up"))

@@ -20,11 +20,11 @@ def no_real_backups(settings, tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def nothing_kept_of_the_public_health():
-    """`GET /api/health` keeps its answer five seconds in the process (ticket 68), and every test runs in this one: each starts
-    with nothing kept, so it sees its own solver and database."""
-    from ops.api import kept_health
-    kept_health.forget()
+def no_public_health_answer_held():
+    """`GET /api/health` holds its answer five seconds in the process (ticket 68), and every test runs in this one: each starts
+    with nothing held, so it sees its own solver and database."""
+    from ops.api import public_health
+    public_health.forget()
 
 
 class _NoPushService:

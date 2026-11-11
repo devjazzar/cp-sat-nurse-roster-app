@@ -11,7 +11,7 @@ from accounts.models import Role
 from audit.log import record
 from ops import backups
 from ops.models import TechnicalSettings
-from ops.public_health import Kept
+from ops.public_health import HeldAnswer
 from ops.status import database_reachable, database_size_bytes, disk_usage, push_state, queue_state, solver_state
 
 router = Router()
@@ -50,14 +50,14 @@ def _health_now() -> Health:
                   solver=PublicSolverHealth(reachable=solver.reachable))
 
 
-# Kept five seconds in this process (ticket 68); `/api/ops/health` and `/metrics` are never kept.
-kept_health = Kept(_health_now)
+# Held five seconds in this process (ticket 68); `/api/ops/health` and `/metrics` are never held.
+public_health = HeldAnswer(_health_now)
 
 
 @router.get("/health", response=Health, auth=None, operation_id="getHealth")
 def health(request) -> Health:
     """Always 200 while this process is alive; the body says what it can reach."""
-    return kept_health()
+    return public_health()
 
 
 class Disk(Schema):
