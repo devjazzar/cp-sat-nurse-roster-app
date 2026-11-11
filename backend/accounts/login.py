@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 from django.contrib.auth import authenticate, login
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpRequest
 from django.utils import timezone
 
@@ -18,6 +19,8 @@ LOCK_DURATION = timedelta(minutes=15)
 # The throttle: this many failed logins from one address within one window refuse its logins for the rest of the window.
 MAX_ADDRESS_FAILURES = 50
 THROTTLE_WINDOW = timedelta(minutes=15)
+# A name's count of failures is forgotten this long after its last failure, unless the name is locked then.
+FAILURES_KEPT = timedelta(hours=24)
 
 
 class LoginRefused(Exception):
@@ -59,6 +62,7 @@ def attempt_login(request: HttpRequest, username: str, password: str) -> User:
                 record("auth.login", actor=user, target=username, request=request)
                 return user
             attempts.failures += 1
+            attempts.last_failure_at = now
             if attempts.failures >= MAX_FAILURES:
                 attempts.locked_until = now + LOCK_DURATION
             attempts.save()
@@ -106,6 +110,16 @@ def record_address_failure(request: HttpRequest) -> None:
         if row.failures == MAX_ADDRESS_FAILURES:  # once: a parallel failure that lands past the limit writes nothing
             until = timezone.localtime(row.window_start + THROTTLE_WINDOW)
             record("auth.login_throttled", after={"until": until.isoformat(timespec="seconds")}, request=request)
+
+
+def remove_old_failures() -> None:
+    """Housekeeping (ticket 65): removes each name's count not locked now whose last failure is over a day old or was never
+    kept, and each address's window that has ended. Neither is anyone's record; a name or an address removed counts afresh
+    from its next failure, as it would have anyway. The audit entries of the failures stay."""
+    now = timezone.now()
+    (LoginAttempts.objects.exclude(locked_until__gt=now)
+     .filter(Q(last_failure_at__lte=now - FAILURES_KEPT) | Q(last_failure_at__isnull=True)).delete())
+    AddressFailures.objects.filter(window_start__lte=now - THROTTLE_WINDOW).delete()
 
 
 def _address_key(request: HttpRequest) -> str | None:

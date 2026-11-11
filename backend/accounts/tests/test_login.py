@@ -188,6 +188,9 @@ class TestLockout:
     def test_an_unknown_username_locks_the_same_so_names_cannot_be_probed(self):
         assert fail(5, username="nobody").status_code == 423
 
+    def test_the_lock_says_too_many_failed_logins_and_names_no_account(self):
+        assert fail(5, username="nobody").json()["detail"] == "Too many failed logins."
+
     def test_the_lock_is_sent_on_the_hospitals_clock(self, make_user):
         make_user()
 

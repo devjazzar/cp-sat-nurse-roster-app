@@ -42,10 +42,11 @@ const schema = z.object({
 function refusalMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 429) return throttledWords(error.body as ThrottleRefusal | undefined)
   if (error instanceof ApiError && error.status === 423) {
-    const until = (error.body as LoginRefusal).locked_until
+    // The lockout is the name's, whether or not an account has it, so the words name no account.
+    const until = (error.body as Partial<LoginRefusal> | undefined)?.locked_until
     return until
-      ? `Too many failed logins. This account is locked until ${hospitalClock(until)}. Try again then.`
-      : "Too many failed logins. This account is locked. Try again later."
+      ? `Too many failed logins. Try again after ${hospitalClock(until)}.`
+      : "Too many failed logins. Try again later."
   }
   if (error instanceof ApiError && error.status === 401) return "Wrong username or password."
   return "The login could not be completed. Try again."
