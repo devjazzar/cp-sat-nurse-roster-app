@@ -21,3 +21,11 @@
 - [ ] `docs/ARCHITECTURE.md` names the assignment in the domain model, the fields in the solve input, the notifications and the swap and cover rules; the OpenAPI document and the generated client regenerated; the migration
 
 ## Comments
+
+**From ticket 53 (2026-11-11), the mark this ticket reads.** `hospital.models.Skill.lets_a_nurse_precept` (API field
+`lets_a_nurse_precept` on `listSkills`). A nurse qualifies through her current records, `NurseSkill.objects.current()`,
+of a skill with the mark on, unexpired on the day of assigning; read `expiry` only when the skill's `expires` is on (ticket
+33's rule), and decide whether a retired marked skill still qualifies (the spec does not say). The mark is read when
+assigning only: clearing it is never refused and must end no assignment, and the Skills page tells every role so.
+`hospital/tests/test_skills.py::test_the_mark_is_cleared_while_a_nurse_holds_the_skill` is the place to extend once a
+preceptor exists: clear the mark on a skill someone precepts by, and the assignment stands.

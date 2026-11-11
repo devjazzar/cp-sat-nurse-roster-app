@@ -16,3 +16,10 @@
 - [ ] `docs/ARCHITECTURE.md` section 4's Skill entry names the kind and the issuing body and that a licence always expires
 
 ## Comments
+
+**From ticket 53 (2026-11-11).** The catalogue now has three marks: `expires`, `required_to_work`,
+`lets_a_nurse_precept` (`hospital/catalogue_api.py`: `SkillBody`, `SkillSchema`, `_skill_fields`, `_write_skill`; migration
+`hospital/0006`). Each is required in the body, so a new field means every test that sends a skill body carries it: `NEW`
+and `update` in `hospital/tests/test_skills.py`, `catalogue` in `nurses/tests/test_skills.py` and `test_skills_import.py`,
+`icu_skill` in `test_two_at_once.py`, `change_skill` in `units/tests/test_skill_needs.py`. The Skills page's table is Name,
+Expires, Required to work, Lets a nurse precept, Status, Edit, and its opening paragraph carries the mark's help line.
