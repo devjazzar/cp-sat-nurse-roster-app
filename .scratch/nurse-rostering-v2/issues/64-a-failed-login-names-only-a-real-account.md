@@ -36,7 +36,13 @@ The suites ran locally under the heavy-run lock, on `cb57fd1`:
 - `makemigrations --check`: "No changes detected". There is no migration;
 - the OpenAPI document and the client, exported and generated again: no difference. `locked_until` was a date-time
   already; only its offset changed;
-- no Playwright file changed.
+- no Playwright file changed;
+- GitHub's two workflows were green on `79d7451`, the last commit with code: CI (backend, frontend, image, solver) on
+  the first attempt, and the browser checks (73 passed, then `operations.sh`) on the second. The first attempt failed one
+  test, `swap.spec.ts:9` on `phone-360` (the "Becomes" column header had a viewport ratio of 0 after
+  `scrollIntoViewIfNeeded`). The same test passed on `phone-320` in that run, and this diff touches no swap page. I found no
+  earlier failure of it in the workflow's history, so it is recorded here as a flake. The commits after `79d7451` are this
+  ticket's markdown, `[skip ci]`.
 
 **What the dev stack needs:** a **rebuild** (`docker compose up -d --build`) for the new code. No migration, no change to
 `deploy/Caddyfile`, compose or the `Dockerfile`, and no new dependency.
