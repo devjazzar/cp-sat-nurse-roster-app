@@ -72,10 +72,11 @@ These cannot be proven anywhere but on the hospital's own server.
 ## Upgrade
 
 ```bash
-docker compose pull && docker compose up -d
+docker compose pull && docker compose up -d && docker compose restart caddy
 ```
 
-`web` runs the migrations as it starts.
+`web` runs the migrations as it starts. Caddy reads `Caddyfile` only when it starts, and `up -d` leaves its container
+running when only that file changed, so the restart is what puts a new release's Caddyfile in force.
 
 ## Backups
 

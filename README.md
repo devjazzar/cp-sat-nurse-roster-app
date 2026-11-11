@@ -56,7 +56,7 @@ hot reload. After a change reaches the checkout, rebuild it:
 cd deploy && docker compose up -d --build
 ```
 
-A `restart` serves the image's old code. Then `curl -sk https://localhost/api/health` answers as above.
+A `restart` serves the image's old code; when `deploy/Caddyfile` changed, also `docker compose restart caddy`. Then `curl -sk https://localhost/api/health` answers as above.
 
 ## Run the tests
 

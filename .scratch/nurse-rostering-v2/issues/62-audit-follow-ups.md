@@ -44,7 +44,7 @@ in section 4).
 - [x] `docs/ARCHITECTURE.md`: section 5's approval paragraph says a month that is over can no longer be approved; section 4's
       Solve says one active solve a unit; section 8's Security says the framing and download rules
 - [x] `docs/security/2026-11-11-security-audit.md`: the late approval and leads 5 to 7 marked fixed, with this ticket's commits
-- [ ] Tests at the existing seams: the backend API suite (review, solves, the file routes, the middleware), the frontend's
+- [x] Tests at the existing seams: the backend API suite (review, solves, the file routes, the middleware), the frontend's
       app-level suite for the approver's page, the Playwright files touched; the usual full suites and both workflows
 
 ## Comments
@@ -239,3 +239,16 @@ The stack is down, its volumes and `e2e/.stack/nr-t62.*` are gone, and my Postgr
 - A new route that answers with a file takes `for_a_file(<its auth>)` (`accounts.authz`).
 - A test that needs two solves active at once needs two units now.
 
+**From the main session (2026-11-11):** PR 5 merged into `main` as `5d51f2b` by the ticket session; both workflows green on
+`182e61c` and again on `main`. The last criterion is ticked here, since the workflows passed after the comment was committed.
+Dev stack rebuilt (`up -d --build`, then `restart caddy`): health ok, `X-Frame-Options: DENY` and
+`Content-Security-Policy: frame-ancestors 'none'` served through Caddy.
+
+**Reviewed by the user (2026-11-11):** all seven points kept as recommended.
+- The approver's page shows the refusal beside a disabled Approve, read to a screen reader.
+- The late-approval words and the one-solve-a-unit words stay as built.
+- The roster page's refusal in place of Solve does not refresh by itself; a reload brings the form back.
+- A stuck solve holding its unit's months is accepted: its manager stops it, or `recover_lost_jobs` ends it.
+- Finding 1, Caddy not restarted: `docker compose restart caddy` added to `deploy/INSTALL.md`'s upgrade step, the guide's
+  sections 2 and 4.8 and the README, in the same commit as this review.
+- Finding 2, `stack.sh clock` not moving the close job's moment: noted here and left until a test needs it.

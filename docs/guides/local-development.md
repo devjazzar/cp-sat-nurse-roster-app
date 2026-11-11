@@ -46,7 +46,9 @@ on scratch compose projects of their own, and the main session (section 4.8) ref
 **Whatever changed, the stack needs a rebuild**, because the image bakes in the backend, the solver, the built SPA and the
 compose commands: `cd deploy && docker compose up -d --build`. It rebuilds the image from the checkout, recreates `web`,
 `worker` and `solver`, keeps the volumes, and `web` runs any new migration as it starts. A `restart` serves the image's old
-code (tickets 23 to 25 were "refreshed" that way and kept ticket 22's build). Then check:
+code (tickets 23 to 25 were "refreshed" that way and kept ticket 22's build). When the change touched `deploy/Caddyfile`,
+also `docker compose restart caddy`: Caddy reads the mounted file only when it starts, and `up -d --build` leaves it running
+(found in ticket 62). Then check:
 
 ```bash
 curl -sk https://localhost/api/health
@@ -241,8 +243,8 @@ When the ticket session reports:
 3. Bring the main checkout level: `git fetch origin && git merge --ff-only refs/remotes/origin/main` (the full ref: a tag of
    the same name would win over a bare branch name). The main checkout never holds a commit that is not pushed, so this
    always fast-forwards.
-4. Refresh the dev stack (section 2): `cd deploy && docker compose up -d --build`, then `curl -sk
-   https://localhost/api/health`, and `showmigrations <app>` for a ticket with a migration. Your own manual pass of what the
+4. Refresh the dev stack (section 2): `cd deploy && docker compose up -d --build` (and `docker compose restart caddy` when
+   `deploy/Caddyfile` changed), then `curl -sk https://localhost/api/health`, and `showmigrations <app>` for a ticket with a migration. Your own manual pass of what the
    ticket built happens here, on your data, in your browser.
 5. Tell you the ticket is on `main`.
 
