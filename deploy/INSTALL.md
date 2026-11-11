@@ -116,11 +116,11 @@ off-site copy. It asks you to type `RESTORE`, then:
 
 1. stops `web` and `worker`, so nothing writes (Caddy stays up and answers 502 meanwhile);
 2. takes a backup of the database as it stands, kept beside the others, so a wrong choice can be undone by restoring that one;
-3. restores into a new database and empties its login attempts there, so no account comes back locked and no address
+3. restores into a new database and empties its login attempts there, so no user comes back locked out and no address
    throttled, and only once that has worked puts it in place of the old one: the old one is renamed aside, the restored one
    renamed in, and the old one dropped last;
 4. before it drops the old one, prints from it every deactivation, password reset, password change and push key rotation
-   recorded after the backup's newest audit entry: the action, the account and the time on the hospital's clock, one a
+   recorded after the backup's newest audit entry: the action, the user and the time on the hospital's clock, one a
    line, and then "Recorded after the backup and undone by this restore: do these again by hand." Or it says none were
    recorded. It does none of them again itself; the hourly job deactivates again any staff nurse whose end date has passed.
    If the list cannot be printed the restore still finishes: the backup of step 2 holds the same entries;

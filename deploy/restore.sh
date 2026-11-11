@@ -48,11 +48,11 @@ in_worker() { compose run --rm --no-deps -T worker "$@"; }
 
 # Prints each deactivation, password reset, password change and push key rotation in $REPLACED later than the newest audit
 # entry of $DB, the restored one: by time, not id, since restoring the backup a restore took gives back a database whose ids
-# run past those written in between. Its action, its account ("-" for none) and its time on the hospital's clock, which is
+# run past those written in between. Its action, its user ("-" for none) and its time on the hospital's clock, which is
 # the database container's TZ (compose sets it from TIME_ZONE), then a line saying to do them again; or a line saying there
 # were none. It reads everything before it prints anything.
 list_undone() {
-  local newest zone rows action account at
+  local newest zone rows action user at
   newest=$(psql_in "$DB" --no-align -c "SELECT coalesce(max(at), '-infinity') FROM audit_auditentry") || return 1
   zone=$(compose exec -T db printenv TZ) || return 1
   rows=$(psql_in "$REPLACED" --no-align --field-separator=$'\t' -v newest="$newest" -v zone="$zone" <<'SQL'
@@ -67,8 +67,8 @@ SQL
     echo "No deactivation, password reset, password change or push key rotation was recorded after the backup."
     return 0
   fi
-  while IFS=$'\t' read -r action account at; do
-    printf '  %-22s %-24s %s\n' "$action" "$account" "$at"
+  while IFS=$'\t' read -r action user at; do
+    printf '  %-22s %-24s %s\n' "$action" "$user" "$at"
   done <<<"$rows"
   echo "Recorded after the backup and undone by this restore: do these again by hand."
 }
@@ -128,16 +128,16 @@ echo "Kept as $before."
 echo "Restoring $what into a new database…"
 psql_db -c "DROP DATABASE IF EXISTS $RESTORING WITH (FORCE)" -c "CREATE DATABASE $RESTORING OWNER $DB"
 source_of | compose exec -T db pg_restore --username "$DB" --dbname "$RESTORING" --no-owner --exit-on-error --single-transaction
-# No lock or throttle of the backup's moment comes back. A backup from before the throttle has no table of it: `web` makes that
+# No lockout or throttle of the backup's moment comes back. A backup from before the throttle has no table of it: `web` makes that
 # one, empty, when it migrates.
 echo "Emptying its login attempts…"
 psql_in "$RESTORING" <<'SQL'
 DO $$
-DECLARE name text;
+DECLARE login_table text;
 BEGIN
-  FOREACH name IN ARRAY ARRAY['accounts_loginattempts', 'accounts_addressfailures'] LOOP
-    IF to_regclass('public.' || name) IS NOT NULL THEN
-      EXECUTE format('TRUNCATE %I', name);
+  FOREACH login_table IN ARRAY ARRAY['accounts_loginattempts', 'accounts_addressfailures'] LOOP
+    IF to_regclass('public.' || login_table) IS NOT NULL THEN
+      EXECUTE format('TRUNCATE %I', login_table);
     END IF;
   END LOOP;
 END
@@ -149,11 +149,12 @@ psql_db -c "ALTER DATABASE $DB RENAME TO $REPLACED"
 aside=1
 psql_db -c "ALTER DATABASE $RESTORING RENAME TO $DB"
 swapped=1
-trap - EXIT INT HUP TERM
+# Stopped from here on, it still starts the application again: the restore is done.
 echo "Listing what the restore undid…"
 list_undone || echo "Could not list what the restore undid: the backup $before holds the audit log as it stood." >&2
 psql_db -c "DROP DATABASE $REPLACED WITH (FORCE)" \
   || echo "The old database is left as $REPLACED: drop it once the restore is checked (deploy/INSTALL.md)." >&2
+trap - EXIT INT HUP TERM
 
 echo "Starting web and worker…"
 compose up -d --no-deps --wait web worker

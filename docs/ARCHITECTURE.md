@@ -67,10 +67,10 @@ self-signed certificate via `tls internal`), `SECRET_KEY`, `POSTGRES_PASSWORD`,
   it subscribes with the new key without being asked. Each refusal counts toward the ten that end a subscription, so a
   device not opened in that time is turned off and its user turns it on again. There is no scheduled rotation.
 - `deploy/restore.sh <backup name or file>`: stops `web` and `worker`, backs up the database as it stands, restores into a new
-  database and empties its login attempts and the throttle's addresses there, so no lock or throttle comes back, and only then
+  database and empties its login attempts and the throttle's addresses there, so no lockout or throttle comes back, and only then
   puts it in the old one's place (the old renamed aside, the new renamed in, the old dropped last). Before it drops the old
   one it prints from it, by time and not id, each deactivation, password reset, password change and push key rotation
-  recorded after the restored database's newest audit entry (action, account, time on the hospital's clock), to be done again
+  recorded after the restored database's newest audit entry (action, user, time on the hospital's clock), to be done again
   by hand; it re-applies none, and a failure to print does not stop it. Then it starts them again (`web` migrates an older
   backup forward).
   Restore is deliberately a script, not a button.
