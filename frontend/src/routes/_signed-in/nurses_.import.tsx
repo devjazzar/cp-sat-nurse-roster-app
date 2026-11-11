@@ -30,6 +30,7 @@ const COLUMN_NAMES: Record<string, string> = {
   gender: "Gender",
   unit: "Unit",
   start_date: "Start date",
+  on_probation: "On probation",
 }
 
 const nurseCount = (count: number) => (count === 1 ? "1 nurse" : `${count} nurses`)
@@ -49,6 +50,7 @@ function RowsTable({ rows, label }: { rows: ImportRow[]; label: string }) {
           <TableHead>Gender</TableHead>
           <TableHead>Unit</TableHead>
           <TableHead>Start date</TableHead>
+          <TableHead>On probation</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -65,6 +67,7 @@ function RowsTable({ rows, label }: { rows: ImportRow[]; label: string }) {
             <TableCell className={CELL}>{row.gender}</TableCell>
             <TableCell className={CELL}>{row.unit}</TableCell>
             <TableCell className={cn(CELL, "min-w-24 tabular-nums")}>{row.start_date}</TableCell>
+            <TableCell className={CELL}>{row.on_probation}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -244,7 +247,9 @@ function ImportPage() {
                 <dt className="font-medium">Unit</dt>
                 <dd className="mb-2 text-muted-foreground sm:mb-0">Its name on the Units page.</dd>
                 <dt className="font-medium">Start date</dt>
-                <dd className="text-muted-foreground">YYYY-MM-DD, such as 2027-01-31. In Excel, format the column as yyyy-mm-dd, or saving changes the dates.</dd>
+                <dd className="mb-2 text-muted-foreground sm:mb-0">YYYY-MM-DD, such as 2027-01-31. In Excel, format the column as yyyy-mm-dd, or saving changes the dates.</dd>
+                <dt className="font-medium">On probation</dt>
+                <dd className="text-muted-foreground">Yes for a newly hired nurse, or No. Empty means No, and a file without this column imports as before.</dd>
               </dl>
               {/* The reset only clears what the last import said: no check runs during one, nor one during a check. */}
               <CheckFileForm check={check} lines="nurses" confirming={confirm.isPending} checking={checking} onChecking={setChecking}

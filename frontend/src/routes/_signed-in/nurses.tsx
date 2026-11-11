@@ -29,7 +29,7 @@ import {
   createNurseBodyHospitalIdMax as HOSPITAL_ID_MAX,
   createNurseBodyHospitalIdRegExp as HOSPITAL_ID,
 } from "@/api/generated/zod"
-import { FormField, SelectField } from "@/components/form-field"
+import { CheckboxField, FormField, SelectField } from "@/components/form-field"
 import { ExpiriesList } from "@/components/expiries"
 import { SkillList, untilWords } from "@/components/nurse-skills"
 import { LeavePageGuard, PasswordDialog, type Shown } from "@/components/password-dialog"
@@ -101,6 +101,7 @@ const newNurseSchema = z.object({
     .regex(HOSPITAL_ID, "Use only letters, digits, dots, dashes and underscores."),
   full_name: fullName,
   ...profileFields,
+  on_probation: z.boolean(),
 })
 type NewNurse = z.input<typeof newNurseSchema>
 
@@ -144,7 +145,7 @@ function AddNurseForm({ units, onCreated, onCancel }: { units: UnitSchema[]; onC
   const create = useCreateNurse({ mutation: { gcTime: 0 } })
   const form = useForm<NewNurse>({
     resolver: zodResolver(newNurseSchema),
-    defaultValues: { hospital_id: "", full_name: "", gender: "" as NewNurse["gender"], unit_id: "", start_date: "" },
+    defaultValues: { hospital_id: "", full_name: "", gender: "" as NewNurse["gender"], unit_id: "", start_date: "", on_probation: false },
   })
   const { errors } = form.formState
 
@@ -169,12 +170,15 @@ function AddNurseForm({ units, onCreated, onCancel }: { units: UnitSchema[]; onC
         <SelectField label="Gender" registration={form.register("gender")} error={errors.gender}><GenderOptions /></SelectField>
         <SelectField label="Unit" registration={form.register("unit_id")} error={errors.unit_id}><UnitOptions units={units} /></SelectField>
         <FormField label="Start date" type="date" registration={form.register("start_date")} error={errors.start_date} />
+        <CheckboxField label="On probation" description={PROBATION_DESCRIPTION} registration={form.register("on_probation")} error={errors.on_probation} />
         <Unexpected error={create.error} />
         <FormButtons submit="Add nurse" pending={create.isPending} onCancel={onCancel} />
       </FieldGroup>
     </form>
   )
 }
+
+const PROBATION_DESCRIPTION = "A newly hired nurse. Her probation begins on her start date, and her unit manager sets how long it lasts."
 
 const managerProfileSchema = z.object({ user_id: required("Choose a unit manager."), ...profileFields })
 type ManagerProfile = z.input<typeof managerProfileSchema>
@@ -280,7 +284,7 @@ function TransferForm({ nurse, units, onDone, onCancel }: { nurse: NurseRow; uni
   )
 }
 
-const detailsSchema = z.object({ full_name: fullName, gender: profileFields.gender, start_date: profileFields.start_date })
+const detailsSchema = z.object({ full_name: fullName, gender: profileFields.gender, start_date: profileFields.start_date, on_probation: z.boolean() })
 type Details = z.input<typeof detailsSchema>
 
 function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (message: string) => void; onCancel: () => void }) {
@@ -288,7 +292,7 @@ function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
   const correct = useCorrectNurseDetails()
   const form = useForm<Details>({
     resolver: zodResolver(detailsSchema),
-    defaultValues: { full_name: nurse.full_name, gender: nurse.gender, start_date: nurse.start_date },
+    defaultValues: { full_name: nurse.full_name, gender: nurse.gender, start_date: nurse.start_date, on_probation: nurse.probation?.ticked ?? false },
   })
   const { errors } = form.formState
   const isStaffNurse = nurse.role === Role.staff_nurse
@@ -296,13 +300,18 @@ function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
   useFocusOnOpen(() => { form.setFocus(isStaffNurse ? "full_name" : "gender") }, [form, isStaffNurse])
 
   const submit = form.handleSubmit((data) => {
-    const { full_name, ...profile } = data as z.output<typeof detailsSchema>
-    // A manager's name is not this form's to send: the System Admin may have corrected it since this form opened.
-    return correct.mutate({ nurseId: nurse.id, data: isStaffNurse ? { full_name, ...profile } : profile }, {
+    const { full_name, on_probation, ...profile } = data as z.output<typeof detailsSchema>
+    const ticked = nurse.probation?.ticked ?? false
+    // A manager's name is not this form's to send: the System Admin may have corrected it since this form opened. Nor is the
+    // tick, which only a staff nurse has, and which is sent only when it changes, so that a save of the rest is not refused once
+    // her six months have passed.
+    const probation = isStaffNurse && on_probation !== ticked ? { on_probation } : {}
+    return correct.mutate({ nurseId: nurse.id, data: { ...(isStaffNurse ? { full_name } : {}), ...profile, ...probation } }, {
       onSuccess: ({ nurse: next, first_placement_extended: extended }) => {
         refresh()
         const renamed = isStaffNurse && next.full_name !== nurse.full_name
-        if (!renamed && next.gender === nurse.gender && next.start_date === nurse.start_date) {
+        const reticked = (next.probation?.ticked ?? false) !== ticked || (next.probation?.last_day ?? null) !== (nurse.probation?.last_day ?? null)
+        if (!renamed && !reticked && next.gender === nurse.gender && next.start_date === nurse.start_date) {
           onDone(`Nothing changed for ${next.full_name}.`)
           return
         }
@@ -321,6 +330,10 @@ function DetailsForm({ nurse, onDone, onCancel }: { nurse: NurseRow; onDone: (me
         <SelectField label="Gender" registration={form.register("gender")} error={errors.gender}><GenderOptions /></SelectField>
         <FormField label="Start date" type="date" registration={form.register("start_date")} error={errors.start_date}
           description="A date before their first month in a unit starts their time in that unit from that date's month." />
+        {isStaffNurse && (
+          <CheckboxField label="On probation" registration={form.register("on_probation")} error={errors.on_probation}
+            description="Unticking takes her probation off from the first month whose roster is not approved yet. It can be ticked only until six months from her start date have passed." />
+        )}
         <p className="text-sm text-muted-foreground">
           Hospital ID <span translate="no">{nurse.hospital_id}</span> cannot be corrected, because it is their username.
         </p>
@@ -571,6 +584,7 @@ function Status({ nurse, isCno }: { nurse: NurseRow; isCno: boolean }) {
         {nurse.role !== Role.staff_nurse && <Badge variant="outline">{ROLE_NAMES[nurse.role]}</Badge>}
         {nurse.must_change_password && <Badge variant="outline">Password change due</Badge>}
       </div>
+      {nurse.probation && <span>On probation until {shortDay(nurse.probation.last_day)}</span>}
       {nurse.end_date && <span className="text-muted-foreground">End date {shortDay(nurse.end_date)}</span>}
       {transferLines(nurse, isCno).map((line) => <span key={line} className="text-muted-foreground">{line}</span>)}
     </div>

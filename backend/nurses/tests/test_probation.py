@@ -63,6 +63,12 @@ def row(client, unit, nurse_id) -> dict:
     return next(nurse for nurse in response.json() if nurse["id"] == nurse_id)
 
 
+def read(nurse_row) -> dict | None:
+    """Her probation as the row reads it, without what each action would give."""
+    probation = nurse_row["probation"]
+    return probation and {key: probation[key] for key in ("last_day", "months", "ticked", "ended_early")}
+
+
 def last_day(client, unit, nurse_id) -> str | None:
     probation = row(client, unit, nurse_id)["probation"]
     return probation and probation["last_day"]
@@ -121,7 +127,7 @@ class TestTheCounting:
 
     def test_it_stands_at_three_months_until_her_unit_manager_chooses(self, cno, mona, er):
         nurse = on_probation(cno, er, "2026-12-15")
-        assert row(mona, er, nurse)["probation"] == {"last_day": "2027-03-31", "months": 3, "ticked": True, "ended_early": False}
+        assert read(row(mona, er, nurse)) == {"last_day": "2027-03-31", "months": 3, "ticked": True, "ended_early": False}
 
     def test_a_corrected_start_date_moves_it(self, cno, mona, er):
         nurse = on_probation(cno, er, "2026-12-15")
@@ -186,7 +192,7 @@ class TestTheCnosTick:
         approve(er, "2026-12-01")
         approve(er, "2027-02-01")  # January is not approved, so February is not kept either
         assert correct(cno, nurse, on_probation=False).status_code == 200
-        assert row(mona, er, nurse)["probation"] == {"last_day": "2026-12-31", "months": 3, "ticked": False, "ended_early": False}
+        assert read(row(mona, er, nurse)) == {"last_day": "2026-12-31", "months": 3, "ticked": False, "ended_early": False}
         assert entries("nurse.probation_unticked")[0]["after"]["last_day"] == "2026-12-31"
 
     def test_an_approved_roster_of_another_unit_does_not_keep_a_month(self, cno, mona, er, icu):
@@ -213,6 +219,24 @@ class TestTheCnosTick:
 
 
 class TestTheUnitManager:
+    def test_the_row_says_what_each_action_would_make_her_last_day(self, cno, mona, er, today):
+        nurse = on_probation(cno, er, "2026-09-01")  # September to November
+        probation = row(mona, er, nurse)["probation"]
+        assert (probation["lengths"], probation["if_extended"], probation["if_ended"]) == (
+            [{"months": 3, "last_day": "2026-11-30"}], "2026-12-31", "2026-11-30")
+        later = on_probation(cno, er, "2026-12-15", hospital_id="h2")
+        probation = row(mona, er, later)["probation"]
+        assert (probation["lengths"], probation["if_extended"], probation["if_ended"]) == (
+            [{"months": 1, "last_day": "2027-01-31"}, {"months": 2, "last_day": "2027-02-28"},
+             {"months": 3, "last_day": "2027-03-31"}], "2027-04-30", None)
+        today(2026, 12, 20)
+        ok(act(mona, er, later, "extend"))
+        probation = row(mona, er, later)["probation"]
+        assert (probation["lengths"], probation["if_extended"], probation["if_ended"]) == ([], "2027-05-31", "2026-12-31")
+        ok(act(mona, er, later, "end"))
+        probation = row(mona, er, later)["probation"]
+        assert (probation["lengths"], probation["if_extended"], probation["if_ended"]) == ([], None, None)
+
     def test_the_length_one_to_three_at_first(self, cno, mona, er):
         nurse = on_probation(cno, er, "2026-12-15")
         assert ok(act(mona, er, nurse, "length", months=2))["probation"]["last_day"] == "2027-02-28"
@@ -242,7 +266,7 @@ class TestTheUnitManager:
     def test_end_makes_its_last_day_the_last_of_the_month_under_way(self, cno, mona, er, today):
         nurse = on_probation(cno, er, "2026-09-01")
         today(2026, 10, 20)
-        assert ok(act(mona, er, nurse, "end"))["probation"] == {"last_day": "2026-10-31", "months": 3, "ticked": True,
+        assert read(ok(act(mona, er, nurse, "end"))) == {"last_day": "2026-10-31", "months": 3, "ticked": True,
                                                                  "ended_early": True}
         assert entries("nurse.probation_ended")[0]["after"] == {"on_probation": True, "months": 3, "ended_early": True,
                                                                "last_day": "2026-10-31"}
@@ -365,7 +389,7 @@ class TestTime:
         response = post(cno, f"{NURSES}/{nurse}/transfer", {"unit_id": str(icu.pk), "from_month": "2027-01"})
         assert response.status_code == 200, response.content
         today(2027, 1, 4)
-        assert row(omar, icu, nurse)["probation"] == {"last_day": "2027-03-31", "months": 3, "ticked": True, "ended_early": False}
+        assert read(row(omar, icu, nurse)) == {"last_day": "2027-03-31", "months": 3, "ticked": True, "ended_early": False}
         assert ok(act(omar, icu, nurse, "extend"))["probation"]["last_day"] == "2027-04-30"
         assert act(mona, er, nurse, "extend").status_code == 403
         today(2027, 4, 1)

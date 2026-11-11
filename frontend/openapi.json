@@ -9115,6 +9115,25 @@
         "title": "UnitRulesBody",
         "type": "object"
       },
+      "LengthChoice": {
+        "properties": {
+          "months": {
+            "title": "Months",
+            "type": "integer"
+          },
+          "last_day": {
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          }
+        },
+        "required": [
+          "months",
+          "last_day"
+        ],
+        "title": "LengthChoice",
+        "type": "object"
+      },
       "NurseAttributesRow": {
         "properties": {
           "id": {
@@ -9235,7 +9254,7 @@
           "probation": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Probation"
+                "$ref": "#/components/schemas/ProbationOnTheRow"
               },
               {
                 "type": "null"
@@ -9320,8 +9339,8 @@
         "title": "NurseSkillRow",
         "type": "object"
       },
-      "Probation": {
-        "description": "A probation not over yet: under way, or to begin on her start date.",
+      "ProbationOnTheRow": {
+        "description": "Her probation as her row shows it, with what each of her unit manager's actions would make its last day, worked out here\non the hospital's clock. An action that would be refused has none.",
         "properties": {
           "last_day": {
             "description": "Derived from her start date, the length and an early end, never entered.",
@@ -9343,15 +9362,52 @@
             "description": "Her unit manager pressed End, so it can no longer be extended.",
             "title": "Ended Early",
             "type": "boolean"
+          },
+          "lengths": {
+            "description": "The lengths Length may choose, with the last day each gives.",
+            "items": {
+              "$ref": "#/components/schemas/LengthChoice"
+            },
+            "title": "Lengths",
+            "type": "array"
+          },
+          "if_extended": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last day Extend would give.",
+            "title": "If Extended"
+          },
+          "if_ended": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last day End would give: the last of the month under way.",
+            "title": "If Ended"
           }
         },
         "required": [
           "last_day",
           "months",
           "ticked",
-          "ended_early"
+          "ended_early",
+          "lengths",
+          "if_extended",
+          "if_ended"
         ],
-        "title": "Probation",
+        "title": "ProbationOnTheRow",
         "type": "object"
       },
       "AttributesBody": {
@@ -17108,6 +17164,40 @@
           "probation"
         ],
         "title": "NurseRow",
+        "type": "object"
+      },
+      "Probation": {
+        "description": "A probation not over yet: under way, or to begin on her start date.",
+        "properties": {
+          "last_day": {
+            "description": "Derived from her start date, the length and an early end, never entered.",
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "months": {
+            "description": "Whole calendar months from her start date, a month she joins after the 1st not counted.",
+            "title": "Months",
+            "type": "integer"
+          },
+          "ticked": {
+            "description": "The CNO's tick. False for one unticked whose months up to `last_day` had approved rosters.",
+            "title": "Ticked",
+            "type": "boolean"
+          },
+          "ended_early": {
+            "description": "Her unit manager pressed End, so it can no longer be extended.",
+            "title": "Ended Early",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "last_day",
+          "months",
+          "ticked",
+          "ended_early"
+        ],
+        "title": "Probation",
         "type": "object"
       },
       "UnitName": {

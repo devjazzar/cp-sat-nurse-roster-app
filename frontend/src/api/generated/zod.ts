@@ -1505,8 +1505,14 @@ export const ListNurseAttributesResponseItem = zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
   "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
-  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
-}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.'),
+  "lengths": zod.array(zod.object({
+  "months": zod.int(),
+  "last_day": zod.iso.date()
+})).describe('The lengths Length may choose, with the last day each gives.'),
+  "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+}).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 export const ListNurseAttributesResponse = zod.array(ListNurseAttributesResponseItem)
 
@@ -1583,8 +1589,14 @@ export const UpdateNurseAttributesResponse = zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
   "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
-  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
-}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.'),
+  "lengths": zod.array(zod.object({
+  "months": zod.int(),
+  "last_day": zod.iso.date()
+})).describe('The lengths Length may choose, with the last day each gives.'),
+  "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+}).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
 
@@ -1636,8 +1648,14 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
   "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
-  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
-}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.'),
+  "lengths": zod.array(zod.object({
+  "months": zod.int(),
+  "last_day": zod.iso.date()
+})).describe('The lengths Length may choose, with the last day each gives.'),
+  "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+}).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
 
@@ -1689,8 +1707,14 @@ export const SetProbationLengthResponse = zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
   "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
-  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
-}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.'),
+  "lengths": zod.array(zod.object({
+  "months": zod.int(),
+  "last_day": zod.iso.date()
+})).describe('The lengths Length may choose, with the last day each gives.'),
+  "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+}).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
 
@@ -1734,8 +1758,14 @@ export const ExtendProbationResponse = zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
   "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
-  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
-}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.'),
+  "lengths": zod.array(zod.object({
+  "months": zod.int(),
+  "last_day": zod.iso.date()
+})).describe('The lengths Length may choose, with the last day each gives.'),
+  "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+}).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
 
@@ -1780,8 +1810,14 @@ export const EndProbationResponse = zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
   "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
-  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.')
-}).describe('A probation not over yet: under way, or to begin on her start date.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.'),
+  "lengths": zod.array(zod.object({
+  "months": zod.int(),
+  "last_day": zod.iso.date()
+})).describe('The lengths Length may choose, with the last day each gives.'),
+  "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+}).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
 

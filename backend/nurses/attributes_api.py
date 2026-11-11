@@ -5,6 +5,7 @@ on a nurse who was at the default can mean only one thing. Her probation is the 
 and end are logged with their values, as the user decided on 2026-11-11."""
 from __future__ import annotations
 
+import datetime as dt
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -53,6 +54,34 @@ class AttributesBody(AllowedShiftsBody):
     friday_balance: Balance = Field(description="Weekend days above (+) or below (-) their fair share.")
 
 
+class LengthChoice(Schema):
+    months: int
+    last_day: dt.date
+
+
+class ProbationOnTheRow(Probation):
+    """Her probation as her row shows it, with what each of her unit manager's actions would make its last day, worked out here
+    on the hospital's clock. An action that would be refused has none."""
+    lengths: list[LengthChoice] = Field(description="The lengths Length may choose, with the last day each gives.")
+    if_extended: dt.date | None = Field(description="The last day Extend would give.")
+    if_ended: dt.date | None = Field(description="The last day End would give: the last of the month under way.")
+
+
+def _probation_on_the_row(nurse: NurseProfile) -> ProbationOnTheRow | None:
+    read = probation_of(nurse)
+    if read is None:
+        return None
+    month = membership.this_month()
+    open_to_change = not read.ended_early
+    lengths = [LengthChoice(months=months, last_day=last) for months in probation.FIRST_LENGTHS
+               if (last := probation.last_day_after(nurse.start_date, months)) >= month] \
+        if open_to_change and read.months <= probation.FIRST_LENGTHS[-1] else []
+    extended = probation.last_day_after(nurse.start_date, read.months + 1) \
+        if open_to_change and read.months < probation.LONGEST else None
+    ended = membership.last_day_of(month) if open_to_change and month >= nurse.start_date.replace(day=1) else None
+    return ProbationOnTheRow(**read.model_dump(), lengths=lengths, if_extended=extended, if_ended=ended)
+
+
 class NurseAttributesRow(Schema):
     id: UUID
     hospital_id: str
@@ -76,7 +105,7 @@ class NurseAttributesRow(Schema):
                                                     "`hours_balance`, `night_balance`, `friday_balance`) can no longer change, "
                                                     "as the carry-over comes from the closes now.")
     skills: list[NurseSkillRow] = Field(description="Their current skills, to read: the CNO sets them on the Nurses page.")
-    probation: Probation | None = Field(description="Empty when she is not on probation, or it is over. Her unit manager sets "
+    probation: ProbationOnTheRow | None = Field(description="Empty when she is not on probation, or it is over. Her unit manager sets "
                                                     "its length, extends it and ends it; the CNO ticks it.")
 
 
@@ -93,7 +122,8 @@ def _row(nurse: NurseProfile, unit: Unit) -> NurseAttributesRow:
         breastfeeding=nurse.breastfeeding, ytd_overtime=nurse.ytd_overtime, hours_balance=nurse.hours_balance,
         night_balance=nurse.night_balance, friday_balance=nurse.friday_balance,
         allowed_shifts=here.allowed_shifts, allowed_shifts_to_check=here.allowed_shifts_to_check,
-        opening_values_locked=has_closed(nurse), skills=skills_of(nurse), probation=probation_of(nurse))
+        opening_values_locked=has_closed(nurse), skills=skills_of(nurse),
+        probation=_probation_on_the_row(nurse))
 
 
 OPENING_VALUES = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance")

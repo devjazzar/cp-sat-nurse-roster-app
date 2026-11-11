@@ -2782,7 +2782,7 @@ describe("the nurses page", () => {
     const dialog = await screen.findByRole("alertdialog", { name: "Password for h123" })
     expect(within(dialog).getByLabelText("Generated password")).toHaveValue("abcd-efgh-jkmn-pqrs")
     expect(calls.find((call) => call.method === "POST")?.body).toEqual({
-      hospital_id: "h123", full_name: "Amal Saleh", gender: "F", unit_id: "u1", start_date: "2026-01-10",
+      hospital_id: "h123", full_name: "Amal Saleh", gender: "F", unit_id: "u1", start_date: "2026-01-10", on_probation: false,
     })
 
     await user.click(within(dialog).getByRole("button", { name: "Done" }))
@@ -2790,6 +2790,82 @@ describe("the nurses page", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
     expect(screen.queryByDisplayValue("abcd-efgh-jkmn-pqrs")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Hospital ID")).not.toBeInTheDocument()
+  })
+
+  describe("probation", () => {
+    const PROBATION = { last_day: "2027-03-31", months: 3, ticked: true, ended_early: false }
+
+    it("is ticked when adding a nurse, and the list says until when", async () => {
+      const layan = { ...AMAL, full_name: "Layan Alharbi", probation: PROBATION }
+      const nurses = { body: [AMAL, BADR] as unknown[] }
+      const { user, calls } = start("/nurses", asCnoHere({
+        "GET /api/nurses": nurses,
+        "POST /api/nurses": () => { nurses.body = [layan, BADR]; return { status: 201, body: { nurse: layan, generated_password: "abcd-efgh-jkmn-pqrs" } } },
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Add a nurse" }))
+      await user.type(screen.getByLabelText("Hospital ID"), "h123")
+      await user.type(screen.getByLabelText("Full name"), "Layan Alharbi")
+      await user.selectOptions(screen.getByLabelText("Gender"), "Female")
+      await user.selectOptions(screen.getByLabelText("Unit"), "ER")
+      await user.type(screen.getByLabelText("Start date"), "2026-12-15")
+      expect(screen.getByRole("checkbox", { name: "On probation" })).not.toBeChecked()
+      expect(screen.getByText(/her unit manager sets how long it lasts/)).toBeInTheDocument()
+      await user.click(screen.getByRole("checkbox", { name: "On probation" }))
+      await user.click(screen.getByRole("button", { name: "Add nurse" }))
+
+      const dialog = await screen.findByRole("alertdialog", { name: "Password for h123" })
+      expect(calls.find((call) => call.method === "POST")?.body).toMatchObject({ start_date: "2026-12-15", on_probation: true })
+      await user.click(within(dialog).getByRole("button", { name: "Done" }))
+      const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
+      expect(row.getByText("On probation until 31 Mar 2027")).toBeInTheDocument()
+      expect(within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!).queryByText(/On probation/)).not.toBeInTheDocument()
+    })
+
+    it("is corrected on a staff nurse's details, sent only when it changes", async () => {
+      const layan = { ...AMAL, probation: PROBATION }
+      const { user, calls } = start("/nurses", asCnoHere({
+        "PUT /api/nurses/n1/details": { body: { nurse: { ...layan, probation: null }, first_placement_extended: null } },
+      }, [layan, BADR]))
+
+      await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))
+      const tick = screen.getByRole("checkbox", { name: "On probation" })
+      expect(tick).toBeChecked()
+      expect(screen.getByText(/from the first month whose roster is not approved yet/)).toBeInTheDocument()
+      await user.click(tick)
+      await user.click(screen.getByRole("button", { name: "Save details" }))
+
+      expect(await screen.findByText("The details of Amal Saleh are corrected.")).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ full_name: "Amal Saleh", gender: "F", start_date: "2026-01-10", on_probation: false })
+    })
+
+    it("shows the refusal of a tick beside it", async () => {
+      const { user, calls } = start("/nurses", asCnoHere({
+        "PUT /api/nurses/n1/details": refusal(["on_probation"], "Value error, Amal Saleh started on 10 January 2026, more than six months ago, so she can no longer be put on probation."),
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Correct details of Amal Saleh" }))
+      await user.click(screen.getByRole("checkbox", { name: "On probation" }))
+      await user.click(screen.getByRole("button", { name: "Save details" }))
+
+      expect(await screen.findByText(/more than six months ago, so she can no longer be put on probation/)).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole("checkbox", { name: "On probation" })).toHaveFocus())
+      expect(calls.find((call) => call.method === "PUT")?.body).toMatchObject({ on_probation: true })
+    })
+
+    it("is not on a unit manager's details, and a save of the rest leaves it out", async () => {
+      const { user, calls } = start("/nurses", asCnoHere({
+        "PUT /api/nurses/n3/details": { body: { nurse: { ...MONA_NURSE, gender: "M" }, first_placement_extended: null } },
+      }, [MONA_NURSE]))
+
+      await user.click(await screen.findByRole("button", { name: "Correct details of Mona Ali" }))
+      expect(screen.queryByRole("checkbox", { name: "On probation" })).not.toBeInTheDocument()
+      await user.selectOptions(screen.getByLabelText("Gender"), "Male")
+      await user.click(screen.getByRole("button", { name: "Save details" }))
+
+      expect(await screen.findByText("The details of Mona Ali are corrected.")).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ gender: "M", start_date: "2026-01-10" })
+    })
   })
 
   describe("while a new nurse's password is on its way", () => {
@@ -4601,13 +4677,106 @@ describe("the rostering attributes page", () => {
     const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
     expect(document.title).toBe("Rostering attributes · Nurse roster")
     expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(
-      ["Amal Saleh", "Set attributes", "h1", "In the unit", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5", "BLSuntil 30 Jun 2027"])
+      ["Amal Saleh", "Set attributes", "h1", "In the unit", "No", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5", "BLSuntil 30 Jun 2027"])
     expect(within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!).getByText("None")).toBeInTheDocument()
     const badr = within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!)
     expect(badr.getByText("Joins from January 2030")).toBeInTheDocument()
     expect(badr.getByText("Any")).toBeInTheDocument()
     expect(badr.getByText("To check")).toBeInTheDocument()
     expect(screen.getByText(/Badr Omar came with allowed shifts this unit does not work/)).toBeInTheDocument()
+  })
+
+  describe("a nurse on probation", () => {
+    const PROBATION = {
+      last_day: "2027-03-31", months: 3, ticked: true, ended_early: false,
+      lengths: [{ months: 1, last_day: "2027-01-31" }, { months: 2, last_day: "2027-02-28" }, { months: 3, last_day: "2027-03-31" }],
+      if_extended: "2027-04-30", if_ended: null,
+    }
+    const LAYAN = { ...AMAL, full_name: "Layan Alharbi", probation: PROBATION }
+    const cellOf = (name: string) => within(screen.getByRole("cell", { name }).closest("tr")!)
+
+    it("shows the length and the last day, and her unit manager only the actions he may take", async () => {
+      start("/rostering-attributes", pageOf(ME_MANAGER, [LAYAN, AMAL]))
+
+      const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
+      expect(row.getByText("Until 31 Mar 2027")).toBeInTheDocument()
+      expect(row.getByText("3 months")).toBeInTheDocument()
+      expect(row.getByRole("button", { name: "Length the probation of Layan Alharbi" })).toBeInTheDocument()
+      expect(row.getByRole("button", { name: "Extend the probation of Layan Alharbi" })).toBeInTheDocument()
+      expect(row.queryByRole("button", { name: /End the probation/ })).not.toBeInTheDocument()
+      expect(within(cellOf("Amal Saleh").getAllByRole("cell")[4]).getByText("No")).toBeInTheDocument()
+    })
+
+    it.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s reads it and has no action", async (_name, me) => {
+      start("/rostering-attributes?unit=er", pageOf(me, [{ ...LAYAN, probation: { ...PROBATION, ended_early: true, lengths: [], if_extended: null } }]))
+
+      const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
+      expect(row.getByText("Until 31 Mar 2027")).toBeInTheDocument()
+      expect(row.getByText("Ended early")).toBeInTheDocument()
+      expect(row.queryByRole("button")).not.toBeInTheDocument()
+    })
+
+    it("extends it after asking, waiting on the answer, and says so with focus on her row", async () => {
+      const extended = { ...LAYAN, probation: { ...PROBATION, months: 4, last_day: "2027-04-30", lengths: [], if_extended: "2027-05-31" } }
+      const { user } = start("/rostering-attributes", pageOf(ME_MANAGER, [LAYAN]))
+      const held = hold("POST /api/units/er/nurses/n1/probation/extend")
+
+      await user.click(await screen.findByRole("button", { name: "Extend the probation of Layan Alharbi" }))
+      const question = await screen.findByRole("alertdialog", { name: "Extend the probation of Layan Alharbi by a month?" })
+      expect(question).toHaveTextContent("It then ends on 30 Apr 2027 instead of 31 Mar 2027, 4 months in all.")
+      await user.click(within(question).getByRole("button", { name: "Extend by a month" }))
+      await held.waitFor(1)
+      expect(within(question).getByRole("button", { name: "Extend by a month" })).toHaveAttribute("aria-disabled", "true")
+      await held.answer({ body: extended })
+
+      expect(await screen.findByText("The probation of Layan Alharbi now ends on 30 Apr 2027.")).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole("button", { name: "Set attributes of Layan Alharbi" })).toHaveFocus())
+    })
+
+    it("ends it after asking", async () => {
+      const ending = { ...LAYAN, probation: { ...PROBATION, if_ended: "2027-01-31" } }
+      const ended = { ...LAYAN, probation: { ...PROBATION, last_day: "2027-01-31", ended_early: true, lengths: [], if_extended: null, if_ended: null } }
+      const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [ending], { "POST /api/units/er/nurses/n1/probation/end": { body: ended } }))
+
+      await user.click(await screen.findByRole("button", { name: "End the probation of Layan Alharbi" }))
+      const question = await screen.findByRole("alertdialog", { name: "End the probation of Layan Alharbi?" })
+      expect(question).toHaveTextContent("Her last day of probation becomes 31 Jan 2027, the last day of this month, so this month keeps its roster. An ended probation cannot be extended.")
+      await user.click(within(question).getByRole("button", { name: "End probation" }))
+
+      expect(await screen.findByText("The probation of Layan Alharbi ends on 31 Jan 2027.")).toBeInTheDocument()
+      expect(calls.filter((call) => call.method === "POST").map((call) => call.url)).toEqual(["/api/units/er/nurses/n1/probation/end"])
+    })
+
+    it("sets its length from the choices with their last days, and cancelling changes nothing", async () => {
+      const shorter = { ...LAYAN, probation: { ...PROBATION, months: 2, last_day: "2027-02-28" } }
+      const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [LAYAN], { "PUT /api/units/er/nurses/n1/probation/length": { body: shorter } }))
+
+      const opener = await screen.findByRole("button", { name: "Length the probation of Layan Alharbi" })
+      await user.click(opener)
+      let question = await screen.findByRole("alertdialog", { name: "How long is the probation of Layan Alharbi?" })
+      await user.click(within(question).getByRole("button", { name: "Cancel" }))
+      await waitFor(() => expect(opener).toHaveFocus())
+
+      await user.click(opener)
+      question = await screen.findByRole("alertdialog", { name: "How long is the probation of Layan Alharbi?" })
+      expect(within(question).getByRole("radio", { name: "3 months, until 31 Mar 2027" })).toBeChecked()
+      await user.click(within(question).getByRole("radio", { name: "2 months, until 28 Feb 2027" }))
+      await user.click(within(question).getByRole("button", { name: "Set length" }))
+
+      expect(await screen.findByText("The probation of Layan Alharbi is 2 months, until 28 Feb 2027.")).toBeInTheDocument()
+      expect(calls.filter((call) => call.method === "PUT").map((call) => call.body)).toEqual([{ months: 2 }])
+    })
+
+    it("says in the question why it was refused", async () => {
+      const { user } = start("/rostering-attributes", pageOf(ME_MANAGER, [LAYAN], {
+        "POST /api/units/er/nurses/n1/probation/extend": apiRefusal(["probation"], "Layan Alharbi's probation is 6 months, the longest it can be."),
+      }))
+
+      await user.click(await screen.findByRole("button", { name: "Extend the probation of Layan Alharbi" }))
+      const question = await screen.findByRole("alertdialog")
+      await user.click(within(question).getByRole("button", { name: "Extend by a month" }))
+      expect(await within(question).findByRole("alert")).toHaveTextContent("Layan Alharbi's probation is 6 months, the longest it can be.")
+    })
   })
 
   it("keeps the opening values as they are once a nurse's first month has closed", async () => {

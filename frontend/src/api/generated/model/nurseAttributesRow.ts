@@ -6,7 +6,7 @@
  */
 import type { NurseAttributesRowGender } from './nurseAttributesRowGender';
 import type { NurseSkillRow } from './nurseSkillRow';
-import type { Probation } from './probation';
+import type { ProbationOnTheRow } from './probationOnTheRow';
 
 export interface NurseAttributesRow {
   id: string;
@@ -36,5 +36,5 @@ export interface NurseAttributesRow {
   /** Their current skills, to read: the CNO sets them on the Nurses page. */
   skills: NurseSkillRow[];
   /** Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it. */
-  probation: Probation | null;
+  probation: ProbationOnTheRow | null;
 }

@@ -20,6 +20,7 @@ import {
 import { CodeCheckboxes } from "@/components/code-checkboxes"
 import { CheckboxField, FormField } from "@/components/form-field"
 import { SkillList } from "@/components/nurse-skills"
+import { ProbationCell, useProbationQuestions, type ProbationAction } from "@/components/probation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -202,7 +203,15 @@ function Status({ nurse }: { nurse: NurseAttributesRow }) {
   )
 }
 
-function NurseTable({ nurses, unitName, mayChange, onEdit }: { nurses: NurseAttributesRow[]; unitName: string; mayChange: boolean; onEdit: (nurse: NurseAttributesRow, button: HTMLElement) => void }) {
+const editButtonId = (nurse: NurseAttributesRow) => `attributes-${nurse.id}`
+
+function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
+  nurses: NurseAttributesRow[]
+  unitName: string
+  mayChange: boolean
+  onEdit: (nurse: NurseAttributesRow, button: HTMLElement) => void
+  onAskProbation: (action: ProbationAction, nurse: NurseAttributesRow) => void
+}) {
   return (
     <Table container={mayChange ? undefined : scrollableRegion(`Rostering attributes of ${unitName}`)}>
       <TableHeader>
@@ -212,6 +221,7 @@ function NurseTable({ nurses, unitName, mayChange, onEdit }: { nurses: NurseAttr
           {mayChange && <TableHead><span className="sr-only">Actions</span></TableHead>}
           <TableHead>Hospital ID</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>On probation</TableHead>
           <TableHead>Gender</TableHead>
           <TableHead>Team leader</TableHead>
           <TableHead>Score</TableHead>
@@ -231,7 +241,7 @@ function NurseTable({ nurses, unitName, mayChange, onEdit }: { nurses: NurseAttr
             <TableCell>{nurse.full_name}</TableCell>
             {mayChange && (
               <TableCell>
-                <Button variant="outline" size="sm" aria-label={`${nurse.joins_from ? "Set allowed shifts of" : "Set attributes of"} ${nurse.full_name}`}
+                <Button id={editButtonId(nurse)} variant="outline" size="sm" aria-label={`${nurse.joins_from ? "Set allowed shifts of" : "Set attributes of"} ${nurse.full_name}`}
                   onClick={(event) => onEdit(nurse, event.currentTarget)}>
                   {nurse.joins_from ? "Set allowed shifts" : "Set attributes"}
                 </Button>
@@ -239,6 +249,7 @@ function NurseTable({ nurses, unitName, mayChange, onEdit }: { nurses: NurseAttr
             )}
             <TableCell translate="no">{nurse.hospital_id}</TableCell>
             <TableCell><Status nurse={nurse} /></TableCell>
+            <TableCell><ProbationCell nurse={nurse} mayChange={mayChange} onAsk={onAskProbation} /></TableCell>
             <TableCell>{GENDERS[nurse.gender]}</TableCell>
             <TableCell>{yesNo(nurse.team_leader)}</TableCell>
             <TableCell className="tabular-nums">{nurse.score}</TableCell>
@@ -271,6 +282,8 @@ function ChosenUnitAttributes({ unit, mayChange, username }: { unit: { id: strin
   const shifts = state?.rules.shifts ?? []
   const toCheck = (nurses.data ?? []).filter((nurse) => nurse.allowed_shifts_to_check)
   const finished = (message: string) => { setDone(message); finish() }
+  // After an answer, focus goes to her row's own button, as the action's may be gone. A manager's only, as the actions are.
+  const questions = useProbationQuestions(unit.id, editButtonId, setDone)
 
   return (
     <>
@@ -300,13 +313,15 @@ function ChosenUnitAttributes({ unit, mayChange, username }: { unit: { id: strin
           </CardContent>
         </Card>
       )}
+      {mayChange && questions.dialogs}
       {nurses.data && state && (
         <Card>
           <CardContent>
             {nurses.data.length === 0
               ? <p>{unit.name} has no nurses yet. The CNO adds them.</p>
               : <NurseTable nurses={nurses.data} unitName={unit.name} mayChange={mayChange}
-                  onEdit={(nurse, button) => { setDone(""); start(nurse, button) }} />}
+                  onEdit={(nurse, button) => { setDone(""); start(nurse, button) }}
+                  onAskProbation={(action, nurse) => { setDone(""); questions.ask(action, nurse) }} />}
           </CardContent>
         </Card>
       )}
@@ -327,7 +342,7 @@ function RosteringAttributesPage() {
       <p className="text-muted-foreground">
         What the solver needs to know about each nurse, and where each one stands when they are added.
         {!mayChange && " Only the unit's manager can change these."}
-        {mayChange && " Gender and skills are the CNO's to set. Of all this, nurses see only their own skills."}
+        {mayChange && " Gender, skills and whether a nurse is on probation are the CNO's to set; you set how long it lasts. Of all this, nurses see only their own skills."}
         {!mayChange && " The CNO sets skills on the Nurses page."}
       </p>
       {units.isPending && <p>Loading…</p>}
