@@ -7,7 +7,8 @@
 # It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; no answer
 # through Caddy framed (ticket 62); no address a client claims in the audit log (ticket 69); JSON lines
 # from web, worker and solver, and the push key pair made at the first start; Caddy holding the body (ticket 70): its version,
-# its body timeouts, a body over 2 MB refused, and a login withholding its body not stopping a one-worker web; the worker alone on a network with a way out
+# its body timeouts, a body over 2 MB refused, and a login withholding its body not stopping a one-worker web; the worker alone
+# on a network with a way out
 # (ticket 42); the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by
 # deploy/restore.sh, which takes back what was written after the backup, brings back no lockout or throttle, and lists the
 # deactivation, password reset, password change and key rotation it undid (ticket 66): by time when the backup it restores is
@@ -131,27 +132,29 @@ version=$(compose exec -T caddy caddy version | awk '{print $1}')
 python3 -c 'import re, sys; sys.exit(tuple(map(int, re.match(r"v(\d+)\.(\d+)\.(\d+)", sys.argv[1]).groups())) < (2, 11, 8))' "$version" \
   && pass "the running Caddy is $version: 2.11.8 or later, which refuses an oversized body from its Content-Length" \
   || fail "the running Caddy is $version, older than 2.11.8"
-compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | python3 -c '
+adapted=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null)
+python3 -c '
 import json, sys
-servers = json.load(sys.stdin)["apps"]["http"]["servers"]
+servers = json.loads(sys.argv[1])["apps"]["http"]["servers"]
+assert servers
 for name, server in servers.items():
     assert server.get("read_min_rate") == 10000 and server.get("read_idle_timeout") == 60 * 10**9, (name, server)
-    assert "read_timeout" not in server and "write_timeout" not in server, (name, server)' \
+    assert not {"read_timeout", "write_timeout", "read_header_timeout", "idle_timeout"} & server.keys(), (name, server)' "$adapted" \
   && pass "the adapted configuration: a body that stalls for a minute or averages under 10 kB/s is dropped, and no whole-request deadline" \
-  || fail "the adapted configuration's body timeouts: $(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null)"
+  || fail "the adapted configuration's body timeouts: $adapted"
 # A login of $1 bytes through Caddy; prints the answer's status. Django would refuse it too, but only once a worker had read it.
 login_of() {
   head -c "$1" /dev/zero | tr '\0' x > "$work/body"
   curl -sk -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' --data-binary @"$work/body" "$base/api/auth/login"
 }
-over=$(login_of 2000001) at=$(login_of 2000000)
-[[ $over == 413 && $at != 413 ]] && pass "a body of 2,000,001 bytes is 413 at Caddy, one of 2,000,000 passes on ($at)" \
-  || fail "a body of 2,000,001 bytes answered $over and one of 2,000,000 $at"
+over_cap=$(login_of 2000001) at_cap=$(login_of 2000000)
+[[ $over_cap == 413 && $at_cap == 400 ]] && pass "a body of 2,000,001 bytes is 413 at Caddy, one of 2,000,000 reaches web, which refuses it: 400" \
+  || fail "a body of 2,000,001 bytes answered $over_cap and one of 2,000,000 $at_cap"
 
 # With web at one worker of one thread (tests/compose.one-worker.yaml), a login whose body never comes would leave nothing to
 # answer anyone if Caddy passed it on: with three workers one held request never shows. One connection, as the audit's.
-one_worker="COMPOSE_FILE=$COMPOSE_FILE:tests/compose.one-worker.yaml"
-env "$one_worker" docker compose up -d --no-deps --wait --quiet-pull web
+one_worker_web() { COMPOSE_FILE=$COMPOSE_FILE:tests/compose.one-worker.yaml docker compose up -d --no-deps --wait --quiet-pull web; }
+one_worker_web
 workers=$(compose exec -T web python -c '
 import os, pathlib
 print(sum(b"config.wsgi" in p.read_bytes() for p in pathlib.Path("/proc").glob("[0-9]*/cmdline") if p.parent.name != str(os.getpid())))')
@@ -170,21 +173,25 @@ head = b"POST /api/auth/login HTTP/1.1\r\nHost: localhost\r\nContent-Type: appli
 if how == "length":
     connection.sendall(head + b"Content-Length: 64\r\n\r\n")
 else:
-    connection.sendall(head + b"Transfer-Encoding: chunked\r\n\r\n" + b"2710\r\n" + b"x" * 10000 + b"\r\n")
-    for _ in range(199):
-        connection.sendall(b"2710\r\n" + b"x" * 10000 + b"\r\n")
+    cap, size = 2_000_000, 10_000
+    connection.sendall(head + b"Transfer-Encoding: chunked\r\n\r\n")
+    for _ in range(cap // size):
+        connection.sendall(b"%x\r\n" % size + b"x" * size + b"\r\n")
 print("withheld", flush=True)
 time.sleep(60)' "$port" "$1" > "$work/withheld" &
   holder=$!
   wait_for 30 grep -q withheld "$work/withheld" || fail "the login that withholds its body could not be sent"
 }
+# Django reads no chunked body, so a chunked login passed on would be answered at once: what shows it is web's access line.
 for how in length chunked; do
+  since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   withhold "$how"
-  sleep 2
+  sleep 2  # what a request Caddy passed on would need to reach web's one worker, so the health request queues behind it
   code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$base/api/health" || true)
+  reached=$(compose logs --since "$since" --no-log-prefix --no-color web | grep -c '/api/auth/login' || true)
   kill "$holder" 2>/dev/null || true; wait "$holder" 2>/dev/null || true
-  [[ $code == 200 ]] && pass "a login withholding its body ($how) does not stop /api/health answering through Caddy" \
-    || fail "with a login withholding its body ($how), /api/health through Caddy answered '$code' in 10 seconds"
+  [[ $code == 200 && $reached == 0 ]] && pass "a login withholding its body ($how) never reaches web, and /api/health answers through Caddy" \
+    || fail "with a login withholding its body ($how), /api/health through Caddy answered '$code' in 10 seconds; web logged it $reached times"
 done
 compose up -d --no-deps --wait --quiet-pull web
 wait_for 60 curl -sfk "$base/api/health" || fail "no answer through Caddy once web is back at its own workers"
@@ -435,10 +442,10 @@ gauges=$(compose exec -T caddy wget -qO- http://web:8000/metrics | { grep '^nurs
 # ---- a nurse import of the largest file, through Caddy (ticket 70) -----------------------------------------------------------
 # Caddy's 2 MB cap sits above the import's 1 MiB file limit (nurses.importing.MAX_BYTES) and the multipart around it. The file
 # is three nurses and blank lines, which the import skips, to exactly that limit: each nurse costs a password hash to confirm.
-cno=$(post /api/users '{"username": "cno.import", "full_name": "Import CNO", "role": "cno"}' \
+cno_password=$(post /api/users '{"username": "cno.import", "full_name": "Import CNO", "role": "cno"}' \
   | python3 -c 'import json, sys; print(json.load(sys.stdin)["generated_password"])') || fail "the CNO was not made"
-[[ $(log_in "$cno" cno.import) == 200 ]] || fail "the CNO cannot log in"
-post /api/auth/change-password "{\"current_password\": \"$cno\", \"new_password\": \"$(openssl rand -hex 12)\"}" >/dev/null \
+[[ $(log_in "$cno_password" cno.import) == 200 ]] || fail "the CNO cannot log in"
+post /api/auth/change-password "{\"current_password\": \"$cno_password\", \"new_password\": \"$(openssl rand -hex 12)\"}" >/dev/null \
   || fail "the CNO's first password change was refused"
 post /api/units '{"name": "Import Ward", "manager_id": null}' >/dev/null || fail "the unit was not made"
 python3 - "$work/import.csv" <<'PY'
