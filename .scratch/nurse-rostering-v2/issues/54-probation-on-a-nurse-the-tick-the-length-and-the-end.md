@@ -210,3 +210,13 @@ The stack, its volumes and its env file are down and removed. My PostgreSQL cont
 - **56:** `last_day` and `running` against `on_probation_in` for a past month, and the staff list's columns.
 - **61:** the row's new fifth column and its buttons behind `mayChange`; keep the Deputy's controls on a flag of their own.
   The `attributes-<id>` focus target.
+
+**Reviewed by the user (2026-11-11):** all eight points kept as built; the night-shift gap goes to ticket 55.
+- End pressed on a month's last day ends the probation that day.
+- End is refused before the month she starts in; the CNO unticks instead.
+- A length is refused when it would have ended the probation before this month.
+- End marks it ended early even when it already ends this month, stopping a later extension and the notification.
+- A re-tick starts again at 3 months.
+- A probation that ran out by itself cannot be extended.
+- The CNO's tick is refused while her allowed shifts are the night shift alone.
+- The staff list's "On probation" and "Probation's last day", and the questions' words as in the comment.
