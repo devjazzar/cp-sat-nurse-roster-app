@@ -649,7 +649,8 @@ def confirm_ramadan(request, hijri_year: int, body: RamadanConfirm) -> dict:
         raise HttpError(404, f"The calendar has no Ramadan {hijri_year} between {FIRST_YEAR} and {LAST_YEAR}.")
     if body.last < ramadan.days[0] or body.first > ramadan.days[-1]:
         # A wrong year or month, which would otherwise empty this Ramadan's months and overwrite another's.
-        calendar = f"{ramadan.days[0].isoformat()} to {ramadan.days[-1].isoformat()}"
+        first, last = ramadan.days[0], ramadan.days[-1]
+        calendar = f"{first.day} {first:%B}{f' {first.year}' if first.year != last.year else ''} – {last.day} {last:%B} {last.year}"
         refuse((("first",), f"These days do not touch Ramadan {hijri_year}, which the calendar puts at {calendar}."))
     confirmed = [body.first + dt.timedelta(days=offset) for offset in range(length)]
     with transaction.atomic():

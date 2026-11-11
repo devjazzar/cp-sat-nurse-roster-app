@@ -250,8 +250,15 @@ def test_days_that_do_not_touch_the_calendars_ramadan_are_refused_as_a_wrong_yea
     response = confirm(signed_in(Role.CNO), 1448, first, last)
 
     assert refused_fields(response) == {("first",)}
-    assert "2027-02-08 to 2027-03-08" in response.json()["detail"][0]["msg"]
+    assert response.json()["detail"][0]["msg"].endswith(
+        "These days do not touch Ramadan 1448, which the calendar puts at 8 February – 8 March 2027.")
     assert not FixedRamadanMonth.objects.exists()
+
+
+def test_the_refusal_names_both_years_of_a_ramadan_across_new_year(signed_in):
+    response = confirm(signed_in(Role.CNO), 1452, "2031-12-15", "2032-01-13")
+
+    assert response.json()["detail"][0]["msg"].endswith("at 26 December 2030 – 23 January 2031.")
 
 
 def test_one_day_of_overlap_is_enough(signed_in):
