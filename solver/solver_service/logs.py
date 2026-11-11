@@ -44,10 +44,10 @@ class AccessFormatter(JsonFormatter):
         if not atoms:
             return super().fields_of(record)
         # The client's address as Caddy worked it out (backend/audit/log.py, `client_ip`), else the peer.
-        caddys = atoms.get("{x-client-ip}i", "-")
+        client_address = atoms.get("{x-client-ip}i", "-")
         return {"method": atoms.get("m"), "path": atoms.get("U"), "query": atoms.get("q") or None,
                 "status": _number(atoms.get("s")), "duration_ms": _number(atoms.get("M")), "bytes": _number(atoms.get("B")),
-                "remote": caddys if caddys not in ("", "-") else atoms.get("h")}
+                "remote": client_address if client_address not in ("", "-") else atoms.get("h")}
 
 
 def _number(value):

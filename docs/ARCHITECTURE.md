@@ -782,8 +782,8 @@ budget. Caddy works it out and always sends it to `web` in `X-Client-IP`, replac
 header, and the peer only without Caddy (development), never `X-Forwarded-For`. Caddy takes the peer as the client unless the
 peer is one of `TRUSTED_PROXIES` (empty by default: no one), whose `X-Forwarded-For` it then reads strictly from the right,
 skipping only trusted hops, so the address is the one the nearest untrusted hop was seen at. Without the variable, behind a
-hospital's proxy, every client is the proxy and shares its throttle. The address's row is not held across the hash, so a burst of parallel tries may pass the 50 by at most what the web
-pool serves at once. Every login the server checked, failed or not, goes to the audit log, and so does each throttle, once,
+hospital's proxy, every client is the proxy and shares its throttle. The address's row is not held across the hash, so a
+burst of parallel tries may pass the 50 by at most what the web pool serves at once. Every login the server checked, failed or not, goes to the audit log, and so does each throttle, once,
 when an address reaches it (`auth.login_throttled`: no actor, no target, the address and the window's end); a request a
 throttle refused is not, since its password was never looked at. Every change to settings, accounts,
 rosters, requests, swaps and covers goes there too. So does each taking of the staff list, which holds everyone's gender:

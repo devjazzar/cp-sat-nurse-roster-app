@@ -85,17 +85,23 @@ pass "/, /unit-roster, /api/health and /metrics through Caddy may not be framed"
 
 # Ticket 69: the audit log's address is the one Caddy worked out, whatever a client claims. With TRUSTED_PROXIES empty, as
 # here, Caddy believes no X-Forwarded-For and replaces any X-Client-IP; gunicorn drops X_Client_IP, the same WSGI key.
-spoofed=(203.0.113.7 203.0.113.8 203.0.113.9)
 claims="$work/claims"
-curl -sk -c "$claims" -b "$claims" "$base/api/auth/session" >/dev/null
-code=$(curl -sk -o /dev/null -w '%{http_code}' -c "$claims" -b "$claims" -H "X-CSRFToken: $(awk '$6 == "csrftoken" {print $7}' "$claims")" \
-  -H "Origin: $base" -H 'Content-Type: application/json' -H "X-Forwarded-For: ${spoofed[0]}" -H "X-Client-IP: ${spoofed[1]}" \
-  -H "X_Client_IP: ${spoofed[2]}" -d "{\"username\": \"admin\", \"password\": \"$admin_password\"}" "$base/api/auth/login")
-[[ $code == 200 ]] || fail "the System Admin's login with claimed addresses answered $code"
-recorded=$(sql "SELECT coalesce(host(ip), 'none') FROM audit_auditentry WHERE action = 'auth.login' ORDER BY id DESC LIMIT 1")
-[[ -n $recorded && $recorded != none && " ${spoofed[*]} " != *" $recorded "* ]] \
-  && pass "a client's X-Forwarded-For, X-Client-IP and X_Client_IP do not reach the audit log, which has Caddy's peer: $recorded" \
-  || fail "the audit log recorded the login from '$recorded'"
+# Logs the System Admin in through Caddy with the extra headers given, and prints the address its audit entry records.
+recorded_login() {
+  rm -f "$claims"
+  curl -sk -c "$claims" -b "$claims" "$base/api/auth/session" >/dev/null
+  local code
+  code=$(curl -sk -o /dev/null -w '%{http_code}' -c "$claims" -b "$claims" -H "Origin: $base" -H 'Content-Type: application/json' \
+    -H "X-CSRFToken: $(awk '$6 == "csrftoken" {print $7}' "$claims")" "$@" \
+    -d "{\"username\": \"admin\", \"password\": \"$admin_password\"}" "$base/api/auth/login")
+  [[ $code == 200 ]] || fail "the System Admin's login through Caddy answered $code"
+  sql "SELECT coalesce(host(ip), 'none') FROM audit_auditentry WHERE action = 'auth.login' ORDER BY id DESC LIMIT 1"
+}
+peer=$(recorded_login)
+claimed=$(recorded_login -H 'X-Forwarded-For: 203.0.113.7' -H 'X-Client-IP: 203.0.113.8' -H 'X_Client_IP: 203.0.113.9')
+[[ $peer != none && $claimed == "$peer" ]] \
+  && pass "a client's X-Forwarded-For, X-Client-IP and X_Client_IP do not reach the audit log, which has the address Caddy saw: $peer" \
+  || fail "the audit log recorded $peer for a login that claimed nothing and $claimed for one that claimed addresses"
 
 for service in web worker solver; do
   lines=$(compose logs --no-log-prefix --no-color "$service" | python3 -c '

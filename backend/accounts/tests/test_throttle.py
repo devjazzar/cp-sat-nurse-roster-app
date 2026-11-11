@@ -16,16 +16,16 @@ pytestmark = pytest.mark.django_db
 ADDRESS = "10.1.2.3"
 
 
-def login(username="someone", password=PASSWORD, address=ADDRESS, client=None):
+def login(username="someone", password=PASSWORD, address=ADDRESS, client=None, headers=None):
     return (client or Client()).post("/api/auth/login", {"username": username, "password": password},
-                                     content_type="application/json", REMOTE_ADDR=address)
+                                     content_type="application/json", REMOTE_ADDR=address, headers=headers)
 
 
-def fail(times, address=ADDRESS, username=None):
+def fail(times, address=ADDRESS, username=None, headers=None):
     """A different name each time unless one is given, as a client escaping the lockout would send."""
     response = None
     for n in range(times):
-        response = login(username or f"guess{n}", "wrong-password", address)
+        response = login(username or f"guess{n}", "wrong-password", address, headers=headers)
     return response
 
 
@@ -146,25 +146,19 @@ class TestTheAddress:
     """Behind Caddy every peer is Caddy: the address counted is the one Caddy worked out and sent in its own header."""
     CADDY = "172.18.0.5"
 
-    def through_caddy(self, client_address, password="wrong-password", username="someone", **headers):
-        return Client().post("/api/auth/login", {"username": username, "password": password},
-                             content_type="application/json", REMOTE_ADDR=self.CADDY,
-                             headers={"X-Client-IP": client_address} | headers)
-
-    def test_each_client_behind_caddy_has_its_own_budget(self, make_user):
+    def test_each_client_behind_caddy_has_a_throttle_of_its_own(self, make_user):
         make_user()
-        for n in range(50):
-            self.through_caddy("203.0.113.7", username=f"guess{n}")
+        fail(50, address=self.CADDY, headers={"X-Client-IP": "203.0.113.7"})
 
-        assert self.through_caddy("203.0.113.7", PASSWORD).status_code == 429
-        assert self.through_caddy("203.0.113.8", PASSWORD).status_code == 200
+        assert login(address=self.CADDY, headers={"X-Client-IP": "203.0.113.7"}).status_code == 429
+        assert login(address=self.CADDY, headers={"X-Client-IP": "203.0.113.8"}).status_code == 200
 
-    def test_a_forwarded_for_header_does_not_move_a_client_to_another_budget(self, make_user):
+    def test_a_forwarded_for_header_does_not_move_a_client_out_of_its_throttle(self, make_user):
         make_user()
-        for n in range(50):
-            self.through_caddy("203.0.113.7", username=f"guess{n}", **{"X-Forwarded-For": f"198.51.100.{n}"})
+        fail(50, address=self.CADDY, headers={"X-Client-IP": "203.0.113.7", "X-Forwarded-For": "198.51.100.1"})
 
-        assert self.through_caddy("203.0.113.7", PASSWORD, **{"X-Forwarded-For": "198.51.100.99"}).status_code == 429
+        assert login(address=self.CADDY,
+                     headers={"X-Client-IP": "203.0.113.7", "X-Forwarded-For": "198.51.100.99"}).status_code == 429
 
 
 class TestIPv6:
