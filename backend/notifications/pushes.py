@@ -34,6 +34,10 @@ clock = time.monotonic
 """The job's own clock, in seconds; the tests move it."""
 
 
+def _pair(note: Notification, subscription_id) -> list[str]:
+    return [str(note.pk), str(subscription_id)]
+
+
 class Delivered(NamedTuple):
     retry: Pairs
     """The sends that could not reach their push service, to try again."""
@@ -131,7 +135,7 @@ def deliver(notification_ids: list[str], *, started: float, budget: float = BUDG
         if remaining is not None:
             held = held.filter(pk__in=[subscription_id for note_id, subscription_id in remaining if note_id == str(note.pk)])
         if spent():
-            handed_on += [[str(note.pk), str(subscription_id)] for subscription_id in held.values_list("pk", flat=True)]
+            handed_on += [_pair(note, subscription_id) for subscription_id in held.values_list("pk", flat=True)]
             continue
         kind = kind_of(note.event, note.payload)
         if kind is None or not still_waits(kind, note) or not has_page(note):
@@ -141,7 +145,7 @@ def deliver(notification_ids: list[str], *, started: float, budget: float = BUDG
                 subscriptions.end(subscription.pk)
                 continue
             if spent():
-                handed_on.append([str(note.pk), str(subscription.pk)])
+                handed_on.append(_pair(note, subscription.pk))
                 continue
             key = key or push_keys.private_key()
             outcome = pushing.send(endpoint=subscription.endpoint, p256dh=subscription.p256dh, auth=subscription.auth,
@@ -153,7 +157,7 @@ def deliver(notification_ids: list[str], *, started: float, budget: float = BUDG
                 case PushOutcome.GONE:
                     subscriptions.end(subscription.pk)
                 case PushOutcome.UNREACHABLE if not last_try:
-                    retry.append([str(note.pk), str(subscription.pk)])
+                    retry.append(_pair(note, subscription.pk))
                 case _:  # refused, or unreachable at the last try
                     subscriptions.not_reached(subscription.pk)
     return Delivered(retry, handed_on)

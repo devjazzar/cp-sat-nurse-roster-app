@@ -715,8 +715,9 @@ subscribes with the installation's public key (on an iPhone or iPad only from th
 says); Turn off ends this device's push subscription, Turn off on every device all of the user's. Pressing Log out turns
 this device off first; a session that expires on its own does not, since reaching someone who is not using the app is the
 point. A deactivation ends every subscription of the account, beside its sessions. So does the push service saying an
-address is gone, and ten failed sends in a row. A user holds at most ten: turning pushes on for an eleventh device, or taking
-over one of another user's, ends the user's earliest turned on, with no entry of its own; a browser's renewal is no new device. At each start the app replaces, unasked, a subscription bound to a key the
+address is gone, and ten failed sends in a row. A user holds at most ten: turning pushes on for an eleventh device, or
+taking over one of another user's, ends the user's earliest turned on, with no entry of its own; a browser's renewal is no
+new device. At each start the app replaces, unasked, a subscription bound to a key the
 server no longer uses. An address is accepted only on a push service's own host, at turn-on and again at each send, so the
 worker posts nowhere else.
 
