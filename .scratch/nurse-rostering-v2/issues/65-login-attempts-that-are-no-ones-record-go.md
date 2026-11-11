@@ -193,3 +193,11 @@ lock was released.
   table and the column, and deletes both migration rows). A new migration joins that list.
 - **Ticket 70** also edits `operations.sh`. This ticket's change sits in the retention block (after the backup checks) and
   the pre-63 restore line.
+
+**After ticket 70 landed (2026-11-11):** `origin/main` (ticket 70, up to `28d7ec4`) was merged in at `7e735f3`.
+- `deploy/tests/operations.sh` merged cleanly: this ticket's retention rows and the pre-63 line sit beside ticket 70's
+  checks.
+- The audit document's three conflicts were resolved keeping both: lead 2 fixed in ticket 65, lead 3 fixed at Caddy in
+  ticket 70.
+- Both GitHub workflows were green on `7e735f3` (CI, and the browser checks with `operations.sh`). That head, with this note
+  after it, is what reached `main`.
