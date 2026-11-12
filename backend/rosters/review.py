@@ -15,7 +15,7 @@ from rosters.drafts import FROZEN
 from rosters.editing import Checked
 from rosters.models import Decision, Roster, RosterState, RosterVersion, Submission, VersionOrigin
 from rosters.versions import make_version
-from solves.input import Assembled, assemble, changes_since
+from solves.input import MONTH_DATES, Assembled, assemble, changes_since
 from solves.models import ACTIVE_STATES, Solve
 from units.models import Unit
 
@@ -122,17 +122,20 @@ def submit(roster: Roster, by: User) -> Submission:
     from what the manager was warned of: a second leave of a nurse already warned of is news."""
     roster.state = RosterState.SUBMITTED
     roster.save(update_fields=["state"])  # `updated_at` stays: it is when a solve or a restore last replaced the grid.
+    assembled = assemble(roster.unit, roster.month)
     # Her skills always, none included, so that one recorded while it waits is news (`solves.input._compares_skills`).
     month = [{key: row[key] for key in MONTH_AT_SUBMIT_KEYS if key in row} | {"skills": row.get("skills", {})}
-             for row in assemble(roster.unit, roster.month).nurses]
-    return Submission.objects.create(roster=roster, submitted_by=by, month_at_submit=month)
+             for row in assembled.nurses]
+    # The month's own dates too, so that a Ramadan day or a holiday changed while it waits is news (ticket 46).
+    dates = {key: assembled.input[key] for key in MONTH_DATES}
+    return Submission.objects.create(roster=roster, submitted_by=by, month_at_submit=month, dates_at_submit=dates)
 
 
 def new_since(submission: Submission, assembled: Assembled | None = None) -> list[dict]:
     """`changes_since` against the month as it stood at the submit; `assembled` is the month now, if the caller has it."""
     roster = submission.roster
-    return changes_since({"nurses": submission.month_at_submit}, roster.unit, roster.month, since=submission.submitted_at,
-                         assembled=assembled)
+    return changes_since({"nurses": submission.month_at_submit} | (submission.dates_at_submit or {}), roster.unit,
+                         roster.month, since=submission.submitted_at, assembled=assembled, month_dates=True)
 
 
 def _decide(roster: Roster, decision: Decision, by: User, comment: str = "") -> Submission:

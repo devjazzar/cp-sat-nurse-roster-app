@@ -68,10 +68,12 @@ type CheckboxFieldProps = {
   description?: ReactNode
   registration: UseFormRegisterReturn
   error?: HookFormError
+  /** Shown but fixed; the form keeps the value it holds. */
+  disabled?: boolean
 }
 
 /** A switch for a rule. Native, so a phone and a screen reader get what they already know. */
-export function CheckboxField({ label, description, registration, error }: CheckboxFieldProps) {
+export function CheckboxField({ label, description, registration, error, disabled }: CheckboxFieldProps) {
   const id = `field-${registration.name}`
   const descriptionId = description ? `${id}-description` : undefined
   const errorId = error ? `${id}-error` : undefined
@@ -79,7 +81,7 @@ export function CheckboxField({ label, description, registration, error }: Check
     <Field orientation="horizontal" data-invalid={!!error || undefined}>
       <input id={id} type="checkbox" aria-invalid={!!error || undefined}
         aria-describedby={[errorId, descriptionId].filter(Boolean).join(" ") || undefined}
-        className={cn(CHECKBOX, "mt-0.5")} {...registration} />
+        className={cn(CHECKBOX, "mt-0.5 disabled:cursor-not-allowed disabled:opacity-50")} {...registration} disabled={disabled} />
       <FieldContent>
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         {description && <FieldDescription id={descriptionId}>{description}</FieldDescription>}

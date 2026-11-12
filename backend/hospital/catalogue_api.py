@@ -26,6 +26,7 @@ from hospital.catalogue import (CalendarRamadan, calendar_arafat_days, calendar_
 from hospital.models import (FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename, Skill,
                              SkillRename)
 from hospital.rules import changes
+from notifications.sending import MonthDates, month_dates_changed
 from nurses.membership import carry_rename_through_allowed_shifts, this_month
 from nurses.models import NurseSkill
 from ops.api import ClockTime
@@ -292,10 +293,15 @@ def _safe_in_a_file(value: str) -> str:
 
 
 SkillName = Annotated[Name, AfterValidator(_safe_in_a_file)]
+SkillKind = Literal["skill", "certificate", "licence"]
+IssuingBody = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100), AfterValidator(no_nul)]
 
 
 class SkillBody(StrictSchema):
     name: SkillName = Field(description="What nurses' records, unit rules and solve inputs call it.")
+    kind: SkillKind = Field(description="A skill (an ability), a certificate (a degree, a course) or a licence (permits a "
+                                        "nurse to practise). Every kind is read alike, but a licence always expires.")
+    issuing_body: IssuingBody = Field(description="Who issues it, as free text; empty when no one does.")
     expires: bool = Field(description="Every nurse who holds it has an expiry for it, the last day it counts.")
     required_to_work: bool = Field(description="From the day after its expiry, a nurse holding it works no shift.")
     lets_a_nurse_precept: bool = Field(description="A nurse holding it, unexpired, may be assigned as a preceptor. Checked "
@@ -317,6 +323,8 @@ class SkillRenameSchema(Schema):
 class SkillSchema(Schema):
     id: UUID
     name: str
+    kind: SkillKind
+    issuing_body: str
     expires: bool
     required_to_work: bool
     lets_a_nurse_precept: bool
@@ -329,13 +337,15 @@ class SkillSchema(Schema):
 
 
 def _skill_fields(skill: Skill) -> dict:
-    return {"name": skill.name, "expires": skill.expires, "required_to_work": skill.required_to_work,
-            "lets_a_nurse_precept": skill.lets_a_nurse_precept, "active": skill.active}
+    return {"name": skill.name, "kind": skill.kind, "issuing_body": skill.issuing_body, "expires": skill.expires,
+            "required_to_work": skill.required_to_work, "lets_a_nurse_precept": skill.lets_a_nurse_precept,
+            "active": skill.active}
 
 
 def _write_skill(skill: Skill, body: SkillBody) -> None:
-    skill.name, skill.expires, skill.required_to_work, skill.lets_a_nurse_precept, skill.active = (
-        body.name, body.expires, body.required_to_work, body.lets_a_nurse_precept, body.active)
+    (skill.name, skill.kind, skill.issuing_body, skill.expires, skill.required_to_work, skill.lets_a_nurse_precept,
+     skill.active) = (body.name, body.kind, body.issuing_body, body.expires, body.required_to_work,
+                      body.lets_a_nurse_precept, body.active)
     # The constraint still decides should anything ever write without the catalogue's lock.
     save_unless_taken(skill, "name", f"{body.name} is already a skill")
 
@@ -354,9 +364,16 @@ def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
 NAMED_AT_MOST = 3
 
 
-def _refuse_records_without_expiry(skill: Skill) -> None:
+def _refuse_a_licence_that_does_not_expire(body: SkillBody) -> None:
+    # The constraint `hospital_skill_a_licence_expires` holds it in the database too.
+    if body.kind == Skill.Kind.LICENCE and not body.expires:
+        refuse((("expires",), "A licence always expires."))
+
+
+def _refuse_records_without_expiry(skill: Skill, field: str = "expires", why: str = "") -> None:
     """Turning `expires` on would leave a record dateless, an unknown the solver cannot model: refused, naming a few of the
-    nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`)."""
+    nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`).
+    A change to licence turns it on, so it is refused the same way, beside the kind."""
     names = list(NurseSkill.objects.current().filter(skill=skill, expiry__isnull=True)
                  .order_by(Lower("nurse__user__full_name"), "nurse_id").values_list("nurse__user__full_name", flat=True))
     if not names:
@@ -365,8 +382,8 @@ def _refuse_records_without_expiry(skill: Skill) -> None:
         who = f"{', '.join(names[:NAMED_AT_MOST])} and {len(names) - NAMED_AT_MOST} more"
     else:
         who = " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 1 else names)
-    refuse((("expires",), f"{who} {'hold' if len(names) > 1 else 'holds'} {skill.name} with no expiry. "
-                          "Take it off them first, then record it again with its expiry."))
+    refuse(((field,), f"{who} {'hold' if len(names) > 1 else 'holds'} {skill.name} with no expiry{why}. "
+                      "Take it off them first, then record it again with its expiry."))
 
 
 @router.get("/skills", response=list[SkillSchema], operation_id="listSkills")
@@ -379,6 +396,7 @@ def list_skills(request) -> list[Skill]:
 def create_skill(request, body: SkillBody) -> tuple[int, Skill]:
     with transaction.atomic():
         HospitalSettings.load(for_update=True)  # One writer at a time, so a taken or old name cannot slip through.
+        _refuse_a_licence_that_does_not_expire(body)
         _refuse_a_taken_name(body.name, None)
         skill = Skill()
         _write_skill(skill, body)
@@ -388,14 +406,18 @@ def create_skill(request, body: SkillBody) -> tuple[int, Skill]:
 
 @router.put("/skills/{skill_id}", response=SkillSchema, auth=cno, operation_id="updateSkill")
 def update_skill(request, skill_id: UUID, body: SkillBody) -> Skill:
-    """A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back."""
+    """A rename, a change of kind, issuing body or a mark, and a retire alike: `active` off retires it, on brings it back."""
     with transaction.atomic():
         HospitalSettings.load(for_update=True)
         skill = get_object_or_404(Skill, pk=skill_id)
         old, new = differing(_skill_fields(skill), body.model_dump())
         if not new:
             return skill
-        if new.get("expires"):
+        _refuse_a_licence_that_does_not_expire(body)
+        if new.get("kind") == Skill.Kind.LICENCE:
+            # Ticket 59 adds the second refusal here: a current record with no identifier.
+            _refuse_records_without_expiry(skill, "kind", ", and a licence always expires")
+        elif new.get("expires"):
             _refuse_records_without_expiry(skill)
         if new.get("active") is False:
             units = units_needing(skill.name)
@@ -437,6 +459,12 @@ def _write_holiday(row: PublicHoliday, body: PublicHolidayBody) -> None:
     _save_holiday(row)
 
 
+def _holidays_changed(request, *days: dt.date) -> None:
+    """Tells the managers with a roster in each month these days fall in (ticket 46): a holiday moved to another month changes
+    both. A write that adds several days calls this once, with all of them, so a month is told once."""
+    month_dates_changed({day.replace(day=1) for day in days}, MonthDates.PUBLIC_HOLIDAYS, request.user)
+
+
 @router.get("/public-holidays", response=list[PublicHolidaySchema], operation_id="listPublicHolidays")
 def list_public_holidays(request, filters: Query[YearFilter]) -> list[PublicHoliday]:
     return list(PublicHoliday.objects.filter(date__year=filters.year))
@@ -445,12 +473,14 @@ def list_public_holidays(request, filters: Query[YearFilter]) -> list[PublicHoli
 @router.post("/public-holidays", response={201: PublicHolidaySchema}, auth=cno, operation_id="createPublicHoliday")
 def create_public_holiday(request, body: PublicHolidayBody) -> tuple[int, PublicHoliday]:
     with transaction.atomic():
-        return 201, _create_holiday(request, body.date, body.name)
+        row = _create_holiday(request, body.date, body.name)
+        _holidays_changed(request, row.date)
+    return 201, row
 
 
 def _create_holiday(request, day: dt.date, name: str) -> PublicHoliday:
     """The one way a holiday is created, by hand or from a proposal: refused on `date` when the day is one already.
-    The caller holds the transaction."""
+    The caller holds the transaction, and tells the managers once for all it creates (`_holidays_changed`)."""
     row = PublicHoliday(date=day, name=name)
     _save_holiday(row)
     record("public_holiday.created", actor=request.user, target=row.date.isoformat(),
@@ -465,9 +495,12 @@ def update_public_holiday(request, holiday_id: UUID, body: PublicHolidayBody) ->
         row = get_object_or_404(PublicHoliday.objects.select_for_update(), pk=holiday_id)
         old, new = differing(_holiday_fields(row), body.model_dump(mode="json"))
         if new:
+            moved_from = row.date
             _write_holiday(row, body)
             record("public_holiday.changed", actor=request.user, target=row.date.isoformat(),
                    before=old, after=new, request=request)
+            if row.date != moved_from:  # A new name moves no date.
+                _holidays_changed(request, moved_from, row.date)
     return row
 
 
@@ -479,6 +512,7 @@ def delete_public_holiday(request, holiday_id: UUID) -> tuple[int, None]:
         record("public_holiday.removed", actor=request.user, target=row.date.isoformat(),
                before=_holiday_fields(row), request=request)
         row.delete()
+        _holidays_changed(request, row.date)
     return 204, None
 
 
@@ -557,9 +591,16 @@ def list_ramadan_months(request, filters: Query[YearFilter]) -> list[dict]:
     return [_ramadan_month(month, fixed.get(month)) for month in months]
 
 
+def _ramadan_changed(request, month: str, before: dict, after: dict) -> None:
+    """Tells the managers with a roster in the month when its Ramadan days moved (ticket 46). Fixing a month to the calendar's
+    own days, or returning one so fixed to the calendar, is audited, since who decides changed, but moves no day."""
+    if before["dates"] != after["dates"]:
+        month_dates_changed([dt.date.fromisoformat(f"{month}-01")], MonthDates.RAMADAN_DAYS, request.user)
+
+
 def _fix_month(request, month: str, dates: list[dt.date]) -> dict:
     """The one way a month's dates are fixed, by hand or by confirming a Ramadan: under the row's lock, audited only
-    when what is in force changes. The caller holds the transaction."""
+    when what is in force changes, and its managers told when its days do. The caller holds the transaction."""
     row = _fixed_row(month)
     before = _ramadan_month(month, row.dates if row else None)
     after = _ramadan_month(month, dates)
@@ -567,6 +608,7 @@ def _fix_month(request, month: str, dates: list[dt.date]) -> dict:
         FixedRamadanMonth.objects.update_or_create(month=month, defaults={"dates": dates})
         record("ramadan_dates.changed", actor=request.user, target=month, before=_audited_ramadan(before),
                after=_audited_ramadan(after), request=request)
+        _ramadan_changed(request, month, before, after)
     return after
 
 
@@ -589,6 +631,7 @@ def unfix_ramadan_month(request, month: Month) -> dict:
             row.delete()
             record("ramadan_dates.changed", actor=request.user, target=month, before=_audited_ramadan(before),
                    after=_audited_ramadan(after), request=request)
+            _ramadan_changed(request, month, before, after)
     return after
 
 
@@ -759,4 +802,6 @@ def add_proposed_holidays(request, filters: Query[YearFilter], body: HolidayAdd)
                 skipped.append(day)
             else:
                 added.append(day)
+        if added:  # Once for them all: a four-day Eid tells a manager once a month, not once a day.
+            _holidays_changed(request, *added)
     return {"added": added, "skipped": skipped}

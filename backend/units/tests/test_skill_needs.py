@@ -54,8 +54,9 @@ def unit(name, needs=(), **rules) -> Unit:
 
 def change_skill(cno, current, /, **changes):
     skill = Skill.objects.get(name=current)
-    row = {"name": skill.name, "expires": skill.expires, "required_to_work": skill.required_to_work,
-           "lets_a_nurse_precept": skill.lets_a_nurse_precept, "active": skill.active} | changes
+    row = {"name": skill.name, "kind": skill.kind, "issuing_body": skill.issuing_body, "expires": skill.expires,
+           "required_to_work": skill.required_to_work, "lets_a_nurse_precept": skill.lets_a_nurse_precept,
+           "active": skill.active} | changes
     return cno.put(f"{SKILLS}/{skill.pk}", row, content_type="application/json")
 
 
@@ -98,6 +99,19 @@ def test_the_page_is_offered_the_live_skills_in_the_catalogues_order(mona, er):
     Skill.objects.create(name="acls", expires=True, required_to_work=False)
 
     assert mona.get(rules_of(er)).json()["active_skills"] == ["acls", "BLS", "ICU"]
+
+
+def test_a_need_may_name_a_licence_or_a_certificate_as_it_names_a_skill(mona, er, cno):
+    # Ticket 58: every kind is counted alike, and a change of kind leaves the needs that name the entry as they were.
+    Skill.objects.create(name="SCFHS registration", kind=Skill.Kind.LICENCE, expires=True, required_to_work=True)
+    needs = [need("N", "SCFHS registration", 2, 2), need("D", "ICU", 1, 1)]
+    assert put(mona, er, body(skill_needs=needs)).status_code == 200
+
+    assert change_skill(cno, "ICU", kind="certificate", issuing_body="A university").status_code == 200
+
+    er.refresh_from_db()
+    assert load_request(solve_input(er)).problem.department.skill_needs == [
+        SkillNeed("N", "SCFHS registration", 2, 2), SkillNeed("D", "ICU", 1, 1)]
 
 
 # ---- the audit log --------------------------------------------------------------------------------

@@ -1128,7 +1128,7 @@
             }
           }
         },
-        "description": "A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back.",
+        "description": "A rename, a change of kind, issuing body or a mark, and a retire alike: `active` off retires it, on brings it back.",
         "tags": [
           "hospital"
         ],
@@ -8314,6 +8314,19 @@
             "title": "Name",
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "skill",
+              "certificate",
+              "licence"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "issuing_body": {
+            "title": "Issuing Body",
+            "type": "string"
+          },
           "expires": {
             "title": "Expires",
             "type": "boolean"
@@ -8342,6 +8355,8 @@
         "required": [
           "id",
           "name",
+          "kind",
+          "issuing_body",
           "expires",
           "required_to_work",
           "lets_a_nurse_precept",
@@ -8359,6 +8374,22 @@
             "maxLength": 100,
             "minLength": 1,
             "title": "Name",
+            "type": "string"
+          },
+          "kind": {
+            "description": "A skill (an ability), a certificate (a degree, a course) or a licence (permits a nurse to practise). Every kind is read alike, but a licence always expires.",
+            "enum": [
+              "skill",
+              "certificate",
+              "licence"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "issuing_body": {
+            "description": "Who issues it, as free text; empty when no one does.",
+            "maxLength": 100,
+            "title": "Issuing Body",
             "type": "string"
           },
           "expires": {
@@ -8384,6 +8415,8 @@
         },
         "required": [
           "name",
+          "kind",
+          "issuing_body",
           "expires",
           "required_to_work",
           "lets_a_nurse_precept",
@@ -11020,12 +11053,12 @@
       "DraftChange": {
         "properties": {
           "hospital_id": {
-            "description": "Empty for a change of the unit's own, `skills` alone so far.",
+            "description": "Empty for a change of the unit's own (`skills`) or of the month's (`ramadan_days`, `public_holidays`).",
             "title": "Hospital Id",
             "type": "string"
           },
           "what": {
-            "description": "`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21).",
+            "description": "`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month's Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).",
             "enum": [
               "gender",
               "leave",
@@ -11034,7 +11067,9 @@
               "pins",
               "preferences",
               "skills",
-              "closed"
+              "closed",
+              "ramadan_days",
+              "public_holidays"
             ],
             "title": "What",
             "type": "string"
