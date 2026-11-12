@@ -4665,7 +4665,7 @@ describe("importing skills", () => {
   const NEW = { ...ROW, line: 3, hospital_id: "h2", full_name: "Badr Omar", skill: "ACLS", expiry: "2027-03-01", change: "record", held_expiry: null }
   const SAME = { ...ROW, line: 4, skill: "ICU", expiry: "", change: "none", held_expiry: null }
   const BAD = { ...NEW, full_name: "", change: null, problems: [
-    { column: "hospital_id", message: "No nurse has this hospital ID. Use the one on the Nurses page." },
+    { column: "hospital_id", message: "No nurse has this hospital ID. Use the one the Nurses page or Rostering attributes shows." },
     { column: "expiry", message: "ACLS expires. Enter the last day it counts, as YYYY-MM-DD." },
   ] }
   const GOOD = { rows: [ROW, NEW, SAME], token: "the-token" }
@@ -4727,7 +4727,7 @@ describe("importing skills", () => {
     await check(user)
 
     expect(await screen.findByRole("heading", { name: "1 of 2 lines has a problem" })).toHaveFocus()
-    expect(screen.getByText("Hospital ID: No nurse has this hospital ID. Use the one on the Nurses page.")).toBeInTheDocument()
+    expect(screen.getByText("Hospital ID: No nurse has this hospital ID. Use the one the Nurses page or Rostering attributes shows.")).toBeInTheDocument()
     expect(screen.getByText("Expiry: ACLS expires. Enter the last day it counts, as YYYY-MM-DD.")).toBeInTheDocument()
     expect(screen.queryByText("Amal Saleh")).not.toBeInTheDocument()
     expect(screen.getByText(/The other line has no problem/)).toBeInTheDocument()

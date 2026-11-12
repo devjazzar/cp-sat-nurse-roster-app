@@ -133,8 +133,9 @@ class NurseAttributesRow(Schema):
                                                     "`hours_balance`, `night_balance`, `friday_balance`, "
                                                     "`overtime_balance`) can no longer change, "
                                                     "as the carry-over comes from the closes now.")
-    skills: list[NurseSkillRow] = Field(description="Their current skills, to read: the CNO sets them on the Nurses page. "
-                                                     "Their details for the CNO and the Deputy CNO only.")
+    skills: list[NurseSkillRow] = Field(description="Their current skills, to read: the CNO records them on the "
+                                                     "Nurses page, the Deputy CNO on this page (ticket 61). Their "
+                                                     "details for the CNO and the Deputy CNO only.")
     probation: ProbationOnTheRow | None = Field(description="Empty when she is not on probation, or it is over. Her unit manager sets "
                                                     "its length, extends it and ends it; the CNO ticks it.")
 

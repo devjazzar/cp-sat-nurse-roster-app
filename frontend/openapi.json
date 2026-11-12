@@ -9824,7 +9824,7 @@
             "type": "boolean"
           },
           "skills": {
-            "description": "Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.",
+            "description": "Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.",
             "items": {
               "$ref": "#/components/schemas/NurseSkillRow"
             },

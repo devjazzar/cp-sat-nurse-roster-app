@@ -198,3 +198,44 @@ PREFERENCE_ROLES = {
 def test_each_preference_endpoint_is_for_these_roles_only():
     guarded = {label(method, path): set(guard.roles) for method, path, guard in RESTRICTED}
     assert {name: roles for name, roles in guarded.items() if "preferences" in name} == PREFERENCE_ROLES
+
+
+# A nurse's records (ticket 61): the CNO and the Deputy CNO record, renew and take off a nurse's skills, certificates and
+# licences, by hand or from the skills import; every other write about a nurse keeps its roles, and the catalogue stays the
+# CNO's. A closed list: a write about a nurse that a later ticket adds is named here with its roles.
+CNO, RECORDERS = {Role.CNO}, {Role.CNO, Role.DEPUTY_CNO}
+NURSE_WRITE_ROLES = {
+    "POST /api/hospital/skills": CNO,
+    "PUT /api/hospital/skills/{skill_id}": CNO,
+    "POST /api/nurses": CNO,
+    "POST /api/nurses/managers": CNO,
+    "POST /api/nurses/{nurse_id}/transfer": CNO,
+    "PUT /api/nurses/{nurse_id}/end-date": CNO,
+    "PUT /api/nurses/{nurse_id}/details": CNO,
+    "POST /api/nurses/{nurse_id}/reset-password": CNO | MANAGER,
+    "GET /api/nurses/import/template": CNO,
+    "POST /api/nurses/import/preview": CNO,
+    "POST /api/nurses/import/confirm": CNO,
+    "GET /api/nurses/export": CNO,
+    "GET /api/nurses/skills-import/template": RECORDERS,
+    "POST /api/nurses/skills-import/preview": RECORDERS,
+    "POST /api/nurses/skills-import/confirm": RECORDERS,
+    "POST /api/nurses/{nurse_id}/skills": RECORDERS,
+    "PUT /api/nurses/{nurse_id}/skills/{skill_id}": RECORDERS,
+    "POST /api/nurses/{nurse_id}/skills/{skill_id}/remove": RECORDERS,
+    "PUT /api/units/{unit_id}/nurses/{nurse_id}/attributes": MANAGER,
+    "PUT /api/units/{unit_id}/nurses/{nurse_id}/allowed-shifts": MANAGER,
+    "PUT /api/units/{unit_id}/nurses/{nurse_id}/probation/length": MANAGER,
+    "POST /api/units/{unit_id}/nurses/{nurse_id}/probation/extend": MANAGER,
+    "POST /api/units/{unit_id}/nurses/{nurse_id}/probation/end": MANAGER,
+    "PUT /api/units/{unit_id}/nurses/{nurse_id}/preceptor": MANAGER,
+}
+
+
+def test_the_cno_and_the_deputy_cno_record_a_nurses_skills_and_every_other_nurse_write_keeps_its_roles():
+    guarded = {label(method, path): set(guard.roles) for method, path, guard in RESTRICTED}
+    writes = {name: roles for name, roles in guarded.items()
+              if re.match(r"(POST|PUT|PATCH|DELETE) /api/(nurses|units/\{unit_id\}/nurses)", name)
+              or re.match(r"GET /api/nurses/(import/template|skills-import/template|export)$", name)
+              or re.match(r"(POST|PUT) /api/hospital/skills", name)}
+    assert writes == NURSE_WRITE_ROLES
