@@ -73,7 +73,6 @@ class Weights(StrictSchema):
     desired_day: Weight
     change: Weight
 
-
     @field_validator("overtime_above_share")
     @classmethod
     def not_above_an_hour_of_overtime(cls, value: int, info: ValidationInfo) -> int:

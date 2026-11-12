@@ -885,7 +885,7 @@ describe("the hospital rules page", () => {
     const share = within(await screen.findByRole("region", { name: "Weights" })).getByLabelText("Overtime away from the fair share")
     expect(share).toHaveValue(1)
     expect(share).toHaveAccessibleDescription(
-      "Each hour of overtime a nurse works above their fair share of the unit's overtime, beyond the unit's free hours. At most the weight of Nurse overtime, so that adding overtime never lowers this cost.")
+      "Each hour of overtime a nurse works above their overtime share, beyond the unit's overtime tolerance. At most the weight of Nurse overtime, so that adding overtime never lowers this cost.")
     await user.clear(share)
     await user.type(share, "0")
     await user.click(screen.getByRole("button", { name: "Save" }))

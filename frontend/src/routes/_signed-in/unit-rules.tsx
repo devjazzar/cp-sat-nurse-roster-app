@@ -87,6 +87,7 @@ const scoreLevel = number(1)
 const shiftCount = number(PARAM_MAX)
 const people = wholeNumber(0, HEADCOUNT_MAX)
 const fullRuns = wholeNumber(0, FULL_RUNS_MAX)
+// The tolerance's and the carry's limit alike: the solver bounds both by the hours of a 31-day month (MAX_OVERTIME_HOURS).
 const overtimeHours = wholeNumber(0, OVERTIME_HOURS_MAX)
 
 function schemaFor(timeLimitCap: number) {
