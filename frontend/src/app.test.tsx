@@ -6708,7 +6708,7 @@ describe("the roster page", () => {
     const region = within(await screen.findByRole("region", { name: "Penalties per rule" }))
     expect(region.getByText("Full run above the most").parentElement).toHaveTextContent("8")
     expect(region.getByText(/2 × 4/)).toHaveTextContent("full run above the maximum")
-    expect(region.getByText("Amal Saleh: h1: 5 full runs of 3 shifts, max 3")).toBeInTheDocument()
+    expect(region.getByText("Amal Saleh: 5 full runs of 3 shifts, max 3")).toBeInTheDocument()
   })
 
   it("names overtime above a fair share by its weight, with each nurse's overtime, share and hours priced in the solver's words", async () => {
@@ -6721,7 +6721,21 @@ describe("the roster page", () => {
     const region = within(await screen.findByRole("region", { name: "Penalties per rule" }))
     expect(region.getByText("Overtime away from the fair share").parentElement).toHaveTextContent("3")
     expect(region.getByText(/3 × 1/)).toHaveTextContent("hour of overtime above the share")
-    expect(region.getByText("Amal Saleh: h1: 20 h overtime, share 4.7 h, 3 h priced")).toBeInTheDocument()
+    expect(region.getByText("Amal Saleh: 20 h overtime, share 4.7 h, 3 h priced")).toBeInTheDocument()
+  })
+
+  it("says the nurse's name once on each line of the solver's, leaving words that begin with another id as they are", async () => {
+    const facts = [
+      { rule: "consecutive", hospital_id: "h1", full_name: "Amal Saleh", date: null, text: "h1: 6 shifts in a row" },
+      { rule: "consecutive", hospital_id: "h1", full_name: "Amal Saleh", date: null, text: "h10: 7 shifts in a row" },
+      { rule: "consecutive", hospital_id: "h2", full_name: "", date: null, text: "h2: 8 shifts in a row" },
+    ]
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, elapsed_violations: facts } } }))
+
+    const region = within(await screen.findByRole("region", { name: "Recorded facts that broke rules" }))
+    expect(region.getByText("Amal Saleh: 6 shifts in a row")).toBeInTheDocument()
+    expect(region.getByText("Amal Saleh: h10: 7 shifts in a row")).toBeInTheDocument()
+    expect(region.getByText("h2: 8 shifts in a row")).toBeInTheDocument()
   })
 
   it("does not repeat a date the solver's words already hold", async () => {

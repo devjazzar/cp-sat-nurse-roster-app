@@ -12,7 +12,7 @@ from hospital.models import HospitalSettings, PublicHoliday, Shift, SkillRename
 from hospital.rules import general_block
 from nurses import membership, preceptors, probation
 from nurses.models import NurseProfile
-from nurses.rostering import leave_dates, nurse_block, skills_block
+from nurses.rostering import leave_of, nurse_block, skills_block
 from nurses.skills import current_skills
 from requesting.models import Preference, PreferenceKind, PreferenceState
 from rosters.drafts import current_codes, in_current_codes
@@ -42,11 +42,12 @@ def _days_of(month: dt.date) -> list[dt.date]:
     return [month.replace(day=day) for day in range(1, membership.last_day_of(month).day + 1)]
 
 
-def _credited(nurse: NurseProfile, month: dt.date) -> tuple[list[str], int, list[str]]:
+def _credited(nurse: NurseProfile, month: dt.date, leave: list[str]) -> tuple[list[str], int, list[str]]:
     """Her `leave`, in order and each once, with how many of those are recorded leave and which are outside her dates. A
-    date recorded and since left outside them by a correction counts as outside, as the Leave page flags it."""
+    date recorded and since left outside them by a correction counts as outside, as the Leave page flags it. `leave` is her
+    recorded leave in the month (`nurses.rostering.leave_of`)."""
     outside = {day.isoformat() for day in _days_of(month) if membership.outside_dates(nurse, day)}
-    recorded = set(leave_dates(nurse, month))
+    recorded = set(leave)
     return sorted(recorded | outside), len(recorded - outside), sorted(outside)
 
 
@@ -91,19 +92,21 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         "nurses": [],
         "solver": {"time_limit_seconds": time_limit, "reproducible": False},
     })
-    nurses = (membership.rostered_in(unit, month).select_related("user")
-              .prefetch_related(current_skills(), "placements", "preceptor_assignments__preceptor__user")
-              .order_by("user__username"))
+    nurses = list(membership.rostered_in(unit, month).select_related("user")
+                  .prefetch_related(current_skills(), "placements", "preceptor_assignments__preceptor__user")
+                  .order_by("user__username"))
     preferred = _preferred(unit, month)
+    serving = [nurse for nurse in nurses if not membership.no_longer_serving(nurse)]
+    carried_in, recorded_leave = chain.carry_ins(serving, month), leave_of(serving, month)
     in_the_month = []
     for nurse in nurses:
         if membership.no_longer_serving(nurse):
             assembled.left_out.append(nurse)
             continue
         placement = membership.placement_in(nurse, month)
-        leave, recorded, outside = _credited(nurse, month)
+        leave, recorded, outside = _credited(nurse, month, recorded_leave.get(nurse.pk, []))
         pinned = pins.counted.get(nurse.user.username)
-        carried = assembled.carried[nurse.user.username] = chain.carry_in(nurse, month)
+        carried = assembled.carried[nurse.user.username] = carried_in[nurse.user.username]
         values = carried.into(month)
         skills = skills_block(nurse.current_skills, month)
         in_the_month.append(nurse)

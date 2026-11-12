@@ -104,8 +104,9 @@ def _carry_over(unit: Unit, month: dt.date, close: MonthClose | None) -> list[Nu
     else:
         out = {}
     names = full_names(nurses)
+    carried_in = chain.carry_ins(nurses.values(), month)  # The projection's assembly read them already: read once.
     return [NurseCarryOver(hospital_id=hospital_id, full_name=names.get(hospital_id, ""),
-                           into=_into(chain.carry_in(nurses[hospital_id], month), month),
+                           into=_into(carried_in[hospital_id], month),
                            out=_values(out[hospital_id][0], out[hospital_id][1], month) if hospital_id in out else None)
             for hospital_id in by_name(nurses, names)]
 

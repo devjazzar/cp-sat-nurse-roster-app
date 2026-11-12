@@ -23,7 +23,15 @@ def leave_dates(nurse: NurseProfile, month: dt.date) -> list[str]:
     """A nurse's `leave` in a month's solve input: ISO dates in order, each once, and no type, because a solve input is
     kept and read by people who may not see one. Ticket 11 adds the days outside the start and end dates, which are
     credited alike, as a set: a date recorded here can be one of those, and the solver refuses a day listed twice."""
-    return [day.isoformat() for day in Leave.objects.current().in_month(month).filter(nurse=nurse).values_list("date", flat=True)]
+    return leave_of([nurse], month).get(nurse.pk, [])
+
+
+def leave_of(nurses: list[NurseProfile], month: dt.date) -> dict:
+    """{nurse id: her `leave_dates`}, for those of `nurses` with leave in the month, in one query (ticket 57)."""
+    found: dict = {}
+    for nurse_id, day in Leave.objects.current().in_month(month).filter(nurse__in=nurses).values_list("nurse_id", "date"):
+        found.setdefault(nurse_id, []).append(day.isoformat())
+    return found
 
 
 def skills_block(rows, month: dt.date) -> dict[str, str | None]:

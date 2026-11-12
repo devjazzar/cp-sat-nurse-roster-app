@@ -16,7 +16,7 @@ from solver_service.grid import month_facts, nurses_of
 from accounts.models import Role
 from audit.models import AuditEntry
 from closes import making
-from closes.chain import CARRIED, NEW_YEAR, NO_HISTORY, Chain
+from closes.chain import CARRIED, CARRIED_SINCE, NEW_YEAR, NO_HISTORY, Carried, Chain, month_before, next_month, opening
 from closes.models import CarryOver, CarrySource, MonthClose
 from conftest import post
 from hospital.models import HospitalSettings, Shift
@@ -25,12 +25,12 @@ from nurses import membership
 from nurses.models import NurseProfile
 from ops import solver_client
 from requesting.models import PreferenceKind
-from rosters.models import PinnedCell, Roster
+from rosters.models import PinnedCell, Roster, RosterState
 from rosters.tests.test_pins import change_shift
 from rosters.tests.test_review import (SOUND, approve, carla, nurses_of_er, ok, record_leave, refused, solved,  # noqa: F401
                                       submit, url)
 from solves.input import assemble
-from solves.tests.conftest import MONTH
+from solves.tests.conftest import MONTH, nurse_in
 from solves.tests.test_input import full_runs_capped, preference
 
 pytestmark = pytest.mark.django_db
@@ -42,6 +42,36 @@ IN_FORCE = SOUND[MONTH]["roster"]
 @pytest.fixture(autouse=True)
 def _scene(before_june, solver):
     pass
+
+
+@pytest.fixture
+def queries_counted(django_assert_max_num_queries):
+    """A test counting queries, which `every_batched_read_is_the_one_at_a_time_read` leaves unchecked: the reference's own
+    reads would be counted with the batch's."""
+    return django_assert_max_num_queries
+
+
+@pytest.fixture(autouse=True)
+def every_batched_read_is_the_one_at_a_time_read(request, monkeypatch):
+    """Ticket 57: every batched read of the chain in these tests, of any month a test or the months before it ask, answers for
+    each nurse exactly what the chain read one nurse at a time answered (`one_at_a_time`), source, month and year included, on
+    a reading of its own. The reads the reference makes for the months before are not checked again inside it."""
+    if "queries_counted" in request.fixturenames:
+        return
+    batched, checking = Chain.carry_ins, []
+
+    def checked(self, nurses, month):
+        answer = batched(self, nurses, month)
+        if not checking:
+            checking.append(True)
+            try:
+                reference = Chain(project=self.project)
+                for nurse in nurses:
+                    assert answer[nurse.user.username] == one_at_a_time(reference, nurse, month), (nurse.user.username, month)
+            finally:
+                checking.pop()
+        return answer
+    monkeypatch.setattr(Chain, "carry_ins", checked)
 
 
 def at(day: dt.date, hour: int, minute: int = 0) -> dt.datetime:
@@ -543,19 +573,123 @@ class TestAFarMonth:
         assert (response.status_code, response.json()["detail"]) == (409, "A solve of this month is already queued or running.")
 
 
+class TestTheBatchedRead:
+    """Ticket 57: a unit's month reads every nurse's carry-over in a fixed number of queries, whatever the count of its nurses;
+    the per-nurse answers are held to the one-at-a-time read by `every_batched_read_is_the_one_at_a_time_read`. ER's four
+    nurses and one joining it from January, then four more: those joining are in June's and July's months, with nothing worked
+    in June and no closed month, so each count is of the same kinds of nurse."""
+
+    @staticmethod
+    def joining(er, make_user, numbers):
+        for number in numbers:
+            nurse_in(er, make_user, f"Nurse{number}", night_balance=number / 4, overtime_balance=-number / 2)
+
+    @staticmethod
+    def statements(read) -> int:
+        with CaptureQueriesContext(connection) as queries:
+            read()
+        return len(queries)
+
+    @pytest.mark.parametrize("scene", ["opening", "projected", "closed", "projected_and_closed"])
+    @pytest.mark.parametrize("project", [True, False])
+    def test_the_chains_queries_for_a_units_month_do_not_grow_with_its_nurses(self, er, mona, carla, solver, on, make_user,
+                                                                               queries_counted, scene, project):  # noqa: F811
+        if scene != "opening":
+            approved(mona, carla, er, solver)
+        if scene in ("closed", "projected_and_closed"):
+            on(dt.date(2026, 7, 1))
+            making.catch_up(at(dt.date(2026, 7, 1), 1))
+        if scene == "projected_and_closed":
+            approved(mona, carla, er, solver, "2026-07")
+        month = AUGUST if scene == "projected_and_closed" else JULY
+
+        def read():
+            nurses = list(membership.rostered_in(er, month).select_related("user"))
+            return Chain(project=project).carry_ins(nurses, month)
+
+        self.joining(er, make_user, [5])
+        five = self.statements(read)
+        self.joining(er, make_user, range(6, 10))
+        with queries_counted(five):
+            assert len(read()) == 9
+
+    @pytest.mark.parametrize("scene", ["opening", "projected", "closed"])
+    def test_a_months_assembly_does_not_grow_with_its_nurses_either(self, er, mona, carla, solver, on, make_user,
+                                                                    queries_counted, scene):  # noqa: F811
+        if scene != "opening":
+            approved(mona, carla, er, solver)
+        if scene == "closed":
+            on(dt.date(2026, 7, 1))
+            making.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        self.joining(er, make_user, [5])
+        five = self.statements(lambda: assemble(er, JULY))
+        self.joining(er, make_user, range(6, 10))
+        with queries_counted(five):
+            assert len(assemble(er, JULY).nurses) == 9
+
+    def test_a_close_reads_each_nurses_carry_over_once_for_both_columns(self, june, er, mona, monkeypatch):
+        """June approved and not closed: the projection's assembly of June and the `into` column share one reading, so each
+        nurse's carry-over into June is read once."""
+        reads = []
+        batched = Chain.carry_ins
+
+        def counted(self, nurses, month):
+            reads.extend((nurse.user.username, month) for nurse in nurses if (nurse.pk, month) not in self._in)
+            return batched(self, nurses, month)
+        monkeypatch.setattr(Chain, "carry_ins", counted)
+
+        view = close_view(mona, er, "2026-06")
+
+        assert {row["out"]["source"] for row in view["carry_over"]} == {"projected"}
+        assert sorted(reads) == [(hospital_id, JUNE) for hospital_id in ("Amal", "Badr", "Dana", "Emad")]
+
+
 def walked(chain: Chain, nurse: NurseProfile, month: dt.date):
     """`Chain.carry_in` as it was until a far month stopped stepping through every month: one `_through` a month."""
-    from closes.chain import CARRIED_SINCE, Carried, _added, latest_closed, next_month, opening
-    closed = latest_closed(nurse, month)
-    if closed is not None:
-        carried = Carried(CARRIED_SINCE | closed.values, CarrySource.CLOSED, closed.month, closed.month.year)
-        step = next_month(closed.month)
-    else:
-        carried, step = Carried(opening(nurse), CarrySource.OPENING, None, _added(nurse).year), chain._first_roster(nurse, month)
+    carried, step = where_she_starts(chain, nurse, month)
     while step is not None and step < month:
         carried = chain._through(nurse, step, carried)
         step = next_month(step)
     return carried
+
+
+def one_at_a_time(chain: Chain, nurse: NurseProfile, month: dt.date) -> Carried:
+    """`Chain.carry_in` as it was before ticket 57 batched it: her latest closed month, her first month and her first approved
+    roster each read for her alone, then a run of months with no roster as one step."""
+    carried, step = where_she_starts(chain, nurse, month)
+    while step is not None and step < month:
+        ahead = chain._next_roster_month(step, month)
+        last = month_before(ahead or month)
+        if step <= last:
+            carried = Carried(carried.into(last) | NO_HISTORY, carried.source, last, last.year)
+        if ahead is None:
+            return carried
+        carried = chain._through(nurse, ahead, carried)
+        step = next_month(ahead)
+    return carried
+
+
+def where_she_starts(chain: Chain, nurse: NurseProfile, month: dt.date) -> tuple[Carried, dt.date | None]:
+    """What the chain starts from for her, and the first month it steps through: the latest month before `month` closed with
+    her in it, from that month's close in force; else her opening values, at the first approved roster of any unit that holds
+    her from her start, if a chain that projects has one."""
+    rows = list(CarryOver.objects.filter(nurse=nurse, source=CarrySource.CLOSED, month__lt=month)
+                .select_related("close").order_by("-month", "-close__closed_at"))
+    latest = {}  # Each unit's month's close in force: the latest.
+    for close in MonthClose.objects.filter(unit_id__in={row.unit_id for row in rows}, month__in={row.month for row in rows}
+                                           ).order_by("unit_id", "month", "-closed_at", "-id"):
+        latest.setdefault((close.unit_id, close.month), close.pk)
+    closed = next((row for row in rows if row.close_id in set(latest.values())), None)
+    if closed is not None:
+        return (Carried(CARRIED_SINCE | closed.values, CarrySource.CLOSED, closed.month, closed.month.year),
+                next_month(closed.month))
+    first = nurse.placements.order_by("from_month").first()
+    added = first.from_month if first else nurse.start_date.replace(day=1)
+    roster = (Roster.objects.filter(state=RosterState.APPROVED, month__lt=month, month__gte=nurse.start_date.replace(day=1),
+                                    grid__has_key=nurse.user.username).order_by("month").values_list("month", flat=True).first()
+              if chain.project else None)
+    return Carried(opening(nurse), CarrySource.OPENING, None, added.year), roster
 
 
 def mona_user():
@@ -805,3 +939,4 @@ class TestThreeMonths:
         assert before.source == after.source == CarrySource.CLOSED
         assert after.values["previous"] != before.values["previous"]
         assert self.starts(making.latest_close(er, JULY)) == self.starts(july) == carried(june)  # The same start: June's close.
+

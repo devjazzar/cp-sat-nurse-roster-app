@@ -10,7 +10,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { HOSPITAL_RULE_LABELS, WEEKDAYS } from "@/lib/hospital-rules-words"
 import { plainRefusal } from "@/lib/server-errors"
-import { replanStatus, ruleName, signed, solveDuration, solveStatus, stoppedBy } from "@/lib/solve-words"
+import { replanStatus, ruleName, signed, solveDuration, solverLine, solveStatus, stoppedBy } from "@/lib/solve-words"
 import { SCORE_MODES, UNIT_RULE_LABELS } from "@/lib/unit-rules-words"
 import { hospitalTime, longDay, monthName, scrollableRegion, shortDay, WRAP_ON_PHONE } from "@/lib/utils"
 
@@ -339,7 +339,6 @@ function Hours({ nurses }: { nurses: ComparedHours[] }) {
   )
 }
 
-const whose = (row: Violation) => `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}`
 
 function Grouped({ id, title, groups, none, note }: { id: string; title: string; groups: ViolationGroups; none: string; note?: string }) {
   const parts: [string, Violation[]][] = [["In both", groups.both], ["Only in the older", groups.only_older], ["Only in the newer", groups.only_newer]]
@@ -354,7 +353,7 @@ function Grouped({ id, title, groups, none, note }: { id: string; title: string;
               <p className="text-sm font-medium">{name}</p>
               {rows.length === 0
                 ? <p className="text-sm text-muted-foreground">None.</p>
-                : <ul className="list-disc ps-5 text-sm">{rows.map((row, index) => <li key={index} className="wrap-anywhere">{whose(row)}: {row.text}</li>)}</ul>}
+                : <ul className="list-disc ps-5 text-sm">{rows.map((row, index) => <li key={index} className="wrap-anywhere">{solverLine(row)}</li>)}</ul>}
             </div>
           ))}
         </>
