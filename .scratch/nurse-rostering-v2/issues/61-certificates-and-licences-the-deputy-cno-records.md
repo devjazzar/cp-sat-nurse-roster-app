@@ -39,3 +39,11 @@ shows the renew form under the table, since a row as wide as the table scrolls a
 `RecordSkillForm` (`routes/_signed-in/nurses.tsx`) if you lift them into a component. The page's words "The CNO sets skills on
 the Nurses page" and My month's "The CNO records them" need the Deputy then. The renew body's identifier and issue date may be
 left out (carried forward); the page always sends all three.
+
+**From ticket 60 (2026-11-12).** The skills import is still the CNO's alone, in four places to widen together:
+`auth=cno` on `previewSkillsImport` and `confirmSkillsImport` and `auth=cno_for_files` on the template
+(`nurses/files_api.py`); the `Role.CNO` re-check inside `_save_skills`, which a confirm makes under the locks; `onlyFor(Role.cno)`
+on the route (`routes/_signed-in/nurses_.import-skills.tsx`); and `test_only_the_cno_imports_skills` in
+`nurses/tests/test_skills_import.py`, with "sends a unit manager home" in the app-level suite. The file now carries Identifier and
+Issue date, and the preview's rows carry the record's `held_identifier` and `held_issue_date`: fine for the Deputy, who reads them
+(ticket 59). The audit entry `nurse.skills_imported` carries the actor, so the Deputy's import would show as the Deputy's.
