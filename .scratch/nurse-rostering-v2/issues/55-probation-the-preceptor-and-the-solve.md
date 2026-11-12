@@ -267,3 +267,8 @@ No Codex review, as the brief says.
   your heading. `preceptors.assignment_in` and `spans` serve My month.
 - **61:** the row's fourth action, "Choose/Change preceptor", shows behind `mayChange` and also for a nurse due to join. The
   Deputy CNO reads the preceptor and assigns none.
+
+**Merged on 2026-11-12:** `origin/main` (tickets 51 and 60) merged in at `7ac08d1`, with one conflict, both tickets' notes on
+ticket 61, both kept; no migration clash and no change to the generated client. The overlapping tests passed locally (backend 275,
+frontend 65), and both workflows (backend, solver, frontend, image, browser checks) were green on `7ac08d1`; `main` was
+fast-forwarded from `c62cc35` to `7ac08d1`. What follows it is this ticket's markdown only (`[skip ci]`).
