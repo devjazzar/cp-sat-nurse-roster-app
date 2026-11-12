@@ -36,6 +36,16 @@ then on the variable is ignored.
 **On a server reachable from the internet, set `DOMAIN`.** Without it Caddy issues a self-signed certificate for any name a
 client sends, and each adds files to the `caddy_data` volume.
 
+**With `DOMAIN`, browsers keep to HTTPS for that name for a year (HSTS).** Every answer then carries
+`Strict-Transport-Security: max-age=31536000`: a browser that has opened the app remembers, for a year from its latest visit,
+to reach that name over HTTPS alone, and to refuse it outright, with no way past the warning, if its certificate is not
+valid. It covers that one name, not the names under it, and the name is on no browser's built-in list. Without `DOMAIN` it is
+never sent. **If the hospital later stops using the name for this app**, a browser that visited keeps refusing that name over
+plain HTTP, or with a self-signed or expired certificate, for up to a year after it last did. Whatever answers on the name
+next must therefore have a valid certificate, or the hospital keeps one there (a redirect to the new address will do) until a
+year after the app last answered on it. To release it sooner, first change the header to `max-age=0` in `Caddyfile`, restart
+Caddy (`docker compose restart caddy`) and keep it answering until the users' browsers have each opened the app once more.
+
 ### Behind the hospital's proxy
 
 The application tells clients apart by address: fifty failed logins from one address in fifteen minutes refuse every login
@@ -66,6 +76,17 @@ These cannot be proven anywhere but on the hospital's own server.
   Authority". If it is not, `docker compose logs caddy` says why (most often port 80 or 443 is not reachable from the
   internet, or the DNS does not point here yet). This has never been proven: no certificate was issued while building, for want
   of a real name.
+- **The headers at the hospital's name.** With `DOMAIN` set, `curl -sI https://<DOMAIN>/` (or the browser's developer
+  tools, Network, the first answer) shows `Strict-Transport-Security: max-age=31536000`, once, and one
+  `Content-Security-Policy` beginning `default-src 'self'`. Before setting `DOMAIN`, read what HSTS means for the name if the
+  hospital stops using it (above). The policy has only been checked in Chromium, by the browser checks; the main pages in
+  the hospital's own browsers, with their developer tools' Console showing no "Content Security Policy" refusal, are in the
+  checklist below.
+- **A request over a minute, from a browser.** A browser at `https://<DOMAIN>/` likely speaks HTTP/3 to Caddy, over UDP
+  port 443, which no check here has driven (ticket 70 drove HTTP/1.1 and HTTP/2, 99 s and 94 s confirmations, both done). On
+  the backup taken for the import below, confirm a nurse import that takes longer than a minute (the 500-row one does) from
+  a browser and see it complete, with the passwords shown. The developer tools' Network tab, its Protocol column, says
+  `h3` if it was HTTP/3.
 - **The 500-row nurse import, timed.** Confirming an import hashes one password a nurse, about half a second each, four at
   once, in one request. Nothing cuts that request short: gunicorn's threads end no request for its length (ticket 71), so
   there is no limit to stay under, only how long the CNO waits. 500 rows took 62.5 seconds on 8 cores of a development
@@ -81,6 +102,9 @@ These cannot be proven anywhere but on the hospital's own server.
 - [ ] The roster's print page printed on a real printer: A4 landscape, a 31-day month on one page, the header row repeated.
 - [ ] One pass of the main pages with the keyboard alone and with a screen reader.
 - [ ] Caddy in a browser at the hospital's own address: the certificate (Let's Encrypt with `DOMAIN`, or the self-signed one), and the app through it.
+- [ ] With `DOMAIN`: HSTS (`Strict-Transport-Security: max-age=31536000`) and one content security policy on the answers,
+      as above, and the main pages in the hospital's own browsers with no "Content Security Policy" refusal in the Console.
+- [ ] With `DOMAIN`: a nurse import's confirmation longer than a minute, from a browser (likely HTTP/3), completed, as above.
 - [ ] Time a solve, a draft's read and a re-plan's comparison on a 60-nurse unit on the real server.
 - [ ] Time the audit log filtered by user on the real database.
 - [ ] The 500-row import, timed as above.

@@ -64,9 +64,10 @@ export const test = base.extend<{ policyWatch: void }>({
  *  seed made (e2e/seed.py). An `--empty` stack has no seed: only its System Admin's first password. */
 export type Stack = {
   project: string
-  /** `web` over HTTP on localhost: the checks' origin, where a browser lets the service worker register. */
+  /** Caddy over plain HTTP on localhost, in front of `web` with the site's own headers (e2e/compose.e2e.yaml): the checks'
+   *  origin, where a browser lets the service worker register. */
   baseURL: string
-  /** Caddy in front, as a hospital reaches it, behind its self-signed certificate. */
+  /** Caddy over HTTPS, as a hospital reaches it, behind its self-signed certificate. */
   caddyURL: string
   seeded: boolean
   password: string

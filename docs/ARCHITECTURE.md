@@ -894,8 +894,15 @@ as `push.turned_on` and `push.turned_off`, the user as actor and target: nothing
 even the IP it called from. A subscription ended by Log out is the user's own turn-off; one ended by a deactivation, by the
 push service or by ten failures has no entry, and a push sent has none. `push.keys_rotated` has no actor, "from the server".
 
-No answer may be framed (ticket 62): `web` sends `X-Frame-Options: DENY` on every answer, WhiteNoise's files included, and Caddy
-adds `Content-Security-Policy: frame-ancestors 'none'` to everything it serves; nothing in the app frames itself. The routes
+Two headers come from Caddy alone (`deploy/Caddyfile`, ticket 72). **One content security policy** on every answer it passes on,
+pages, static files and the API alike, set deferred so it replaces any `web` sent: `default-src 'self'; script-src 'self';
+style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`. Only the
+app's own scripts, styles and connections, no inline script or style, images from `data:` besides; the browser checks reach the
+app through Caddy and fail on any violation a page reports (`e2e/support.ts`), so a change that needs more widens it there, by
+name. **HSTS**, `Strict-Transport-Security: max-age=31536000`, without `includeSubDomains` or `preload`, only with `DOMAIN` (the
+snippet that mode imports): a self-signed installation never sends it. Caddy's own error pages (the 502 while `web` restarts
+or a restore runs) carry neither. No answer may be framed (ticket 62): `web` sends `X-Frame-Options: DENY` on every answer,
+WhiteNoise's files included, and the policy's `frame-ancestors 'none'` says it again; nothing in the app frames itself. The routes
 that answer with a file, the staff list, both import templates, a roster version's file and the System Admin's backup, are
 plain GETs that the `SameSite=Lax` session cookie reaches from a link on another site, so they refuse with 403 a request whose
 browser says another site started it (`Sec-Fetch-Site: cross-site`, `accounts.authz.for_a_file`), before the user and the role are
