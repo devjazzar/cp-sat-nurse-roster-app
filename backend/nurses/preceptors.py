@@ -153,55 +153,75 @@ def candidates(nurse: NurseProfile, unit: Unit, month: dt.date) -> list[NursePro
     return [candidate for candidate in rostered if why_not(nurse, unit, candidate, month) is None]
 
 
-def first_gained(nurse: NurseProfile, preceptor: NurseProfile, month: dt.date) -> dt.date | None:
-    """The first of her months from this one on that this nurse does not precept her yet: where choosing them from `month`
-    first changes anything. None when they precept her in all of them already."""
-    rows = _rows(nurse)
-    return next((each for each in probation_months(nurse) if each >= month
+def first_gained(nurse: NurseProfile, preceptor: NurseProfile, unit: Unit, month: dt.date) -> dt.date | None:
+    """The first of her months in this unit from this one on, up to the last the two are there together, that this nurse does
+    not precept her yet: where choosing them from `month` first changes anything. None when it changes nothing."""
+    rows, last = _rows(nurse), _last_month_together(nurse, preceptor, unit, month)
+    return next((each for each in probation_months(nurse) if each >= month and (last is None or each <= last)
                  and ((held := assignment_in(nurse, each, rows)) is None or held.preceptor_id != preceptor.pk)), None)
 
 
-def preceptors_from(nurse: NurseProfile, month: dt.date) -> set:
-    """The pks of the nurses who precept her in some month from this one on."""
-    return {span.assignment.preceptor_id for span in spans(nurse, month)}
+def preceptors_from(nurse: NurseProfile, month: dt.date, unit: Unit) -> set:
+    """The pks of the nurses who precept her in this unit in some month from this one on."""
+    return {span.assignment.preceptor_id for span in spans(nurse, month) if span.assignment.unit_id == unit.pk}
 
 
-def assign(nurse: NurseProfile, unit: Unit, preceptor: NurseProfile, month: dt.date, by: User) -> PreceptorAssignment:
-    """From this month on, whatever was assigned for then or later: a later choice replaces a plan, as a transfer does. A
-    leaving already recorded, a transfer or an end date of either nurse's, ends it as one recorded later would."""
-    nurse.preceptor_assignments.filter(from_month__gte=month).delete()
-    return PreceptorAssignment.objects.create(nurse=nurse, preceptor=preceptor, unit=unit, from_month=month, assigned_by=by,
+def assign(nurse: NurseProfile, unit: Unit, preceptor: NurseProfile, month: dt.date, by: User) -> tuple[PreceptorAssignment, list]:
+    """From this month on, whatever this unit assigned for then or later: a later choice replaces a plan, as a transfer does.
+    Another unit's plan, for the months she is due there, stays. A leaving already recorded, a transfer or an end date of
+    either nurse's, ends it as one recorded later would. Returns it and the plans it replaced, as an audit entry keeps them."""
+    replaced = list(nurse.preceptor_assignments.filter(from_month__gte=month, unit=unit).select_related("preceptor__user"))
+    nurse.preceptor_assignments.filter(pk__in=[row.pk for row in replaced]).delete()
+    made = PreceptorAssignment.objects.create(nurse=nurse, preceptor=preceptor, unit=unit, from_month=month, assigned_by=by,
                                               until=_last_month_together(nurse, preceptor, unit, month))
+    return made, [describe(row) for row in replaced]
 
 
 def _last_month_together(nurse: NurseProfile, preceptor: NurseProfile, unit: Unit, month: dt.date) -> dt.date | None:
-    """The month before the first of her months from `month` that one of the two is not in the unit (a transfer, or the
-    preceptor's end date before it), or None when both are there to her probation's end."""
+    """The month before the first of her months from `month` that one of the two is not in the unit (a transfer, or an end date
+    before it: the month of an end date is still theirs), or None when both are there to her probation's end."""
     for each in probation_months(nurse):
         if each < month:
             continue
-        gone = (membership.unit_in(nurse, each).pk != unit.pk or membership.unit_in(preceptor, each).pk != unit.pk
-                or (preceptor.end_date is not None and preceptor.end_date < each))
+        gone = any(membership.unit_in(either, each).pk != unit.pk or (either.end_date is not None and either.end_date < each)
+                   for either in (nurse, preceptor))
         if gone:
             return probation.months_on(each, -1)
     return None
 
 
-def released_by_ending(nurse: NurseProfile, was_last: dt.date | None) -> tuple[dt.date, list[NurseProfile]] | None:
-    """When her probation now ends before `was_last` (an End, a shorter Length, the CNO's untick): its first month no longer on
-    probation, and the nurses who precepted her in one of the months it gave up, to be told they precept her no more."""
+def released_by_ending(nurse: NurseProfile, was_last: dt.date | None) -> list[tuple[PreceptorAssignment, dt.date]]:
+    """When her probation now ends before `was_last` (an End, a shorter Length, the CNO's untick): each assignment that was in
+    force in a month it gave up, with the first such month, so its preceptor is told, under its own unit, that they precept her
+    no more from then."""
     if was_last is None:
-        return None
+        return []
     now = probation.last_day(nurse)
-    first = probation.months_on(now.replace(day=1), 1) if now else nurse.start_date.replace(day=1)
-    rows = list(nurse.preceptor_assignments.select_related("preceptor__user"))
-    month, gone = first, {}
+    month = probation.months_on(now.replace(day=1), 1) if now else nurse.start_date.replace(day=1)
+    rows = list(nurse.preceptor_assignments.select_related("preceptor__user", "unit"))
+    first: dict = {}
     while month <= was_last:
         held = next((row for row in reversed(rows) if row.from_month <= month), None)
         if held is not None and (held.until is None or month <= held.until):
-            gone[held.preceptor_id] = held.preceptor
+            first.setdefault(held.pk, (held, month))
         month = probation.months_on(month, 1)
-    return (first, list(gone.values())) if gone else None
+    return list(first.values())
+
+
+def end_with_probation(nurse: NurseProfile) -> list[Ended]:
+    """The CNO's untick: each assignment ends for good with the months of probation it keeps, so a later tick, which starts a
+    probation anew, brings no preceptor back. Returned are those that were in force in a month it gave up, to log."""
+    last = probation.last_day(nurse)
+    last_month = last.replace(day=1) if last else probation.months_on(nurse.start_date.replace(day=1), -1)
+    ended = []
+    for row in nurse.preceptor_assignments.select_related("nurse__user", "preceptor__user", "unit"):
+        if row.until is not None and row.until <= last_month:
+            continue
+        was = describe(row)
+        row.until = max(last_month, probation.months_on(row.from_month, -1))
+        row.save(update_fields=["until"])
+        ended.append(Ended(row, was, by_preceptor=False))
+    return ended
 
 
 def describe(row: PreceptorAssignment | None) -> dict:

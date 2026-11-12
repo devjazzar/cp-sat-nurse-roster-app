@@ -432,6 +432,7 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
                 from nurses.attributes_api import tell_released  # It imports this module.
 
                 tell_released(nurse, dt.date.fromisoformat(was["last_day"]) if was["last_day"] else None)
+                preceptors.log_ended(preceptors.end_with_probation(nurse), request)
     return CorrectedNurse(nurse=_row_as_saved(nurse_id), first_placement_extended=extended)
 
 

@@ -441,3 +441,71 @@ def test_a_transfer_after_her_probation_keeps_a_night_shift_list(mona, omar, er,
 
     there = row(omar, icu, layan.pk)
     assert (there["allowed_shifts"], there["allowed_shifts_to_check"]) == (["N"], False)
+
+
+# ---- from the second code review --------------------------------------------------------------------------------------------
+@pytest.fixture
+def due_in_icu(mona, omar, er, icu, layan, amal, cno, precepting):
+    """Layan transfers to ICU from February, where Karim is to precept her; Amal precepts her in ER until then."""
+    karim = nurse(cno, icu, "h5", "Karim Saleh")
+    holds(karim, precepting)
+    assert post(cno, f"{NURSES}/{layan.pk}/transfer", {"unit_id": str(icu.pk), "from_month": "2027-02"}).status_code == 200
+    assigned(omar, icu, layan.pk, karim, "2027-02")
+    assigned(mona, er, layan.pk, amal, "2026-12")
+    return karim
+
+
+def test_a_choice_in_her_unit_leaves_the_unit_she_joins_its_own(mona, er, layan, due_in_icu):
+    assert preceptors(mona, er, layan.pk) == [("h2", "2026-12", "2027-01"), ("h5", "2027-02", "2027-03")]
+    assert told("h5")[-1].startswith("From February 2027 you precept")  # and never told of a release
+
+
+def test_choosing_again_a_preceptor_whose_months_end_with_a_leaving_changes_nothing(mona, er, layan, due_in_icu):
+    AuditEntry.objects.all().delete()
+    notes = Notification.objects.count()
+
+    assigned(mona, er, layan.pk, NurseProfile.objects.get(user__username="h2"), "2027-01")
+
+    assert not AuditEntry.objects.exists() and Notification.objects.count() == notes
+
+
+def test_her_own_end_date_ends_it_at_assigning(mona, er, layan, amal, cno):
+    assert cno.put(f"{NURSES}/{layan.pk}/end-date", {"end_date": "2027-01-20"}, content_type="application/json").status_code == 200
+
+    assigned(mona, er, layan.pk, amal, "2026-12")
+
+    assert preceptors(mona, er, layan.pk) == [("h2", "2026-12", "2027-01")]
+
+
+def test_an_end_tells_each_preceptor_under_their_own_unit(mona, er, icu, layan, due_in_icu, today):
+    today(2027, 1, 5)
+
+    assert post(mona, f"/api/units/{er.pk}/nurses/{layan.pk}/probation/end", {}).status_code == 200
+
+    released = Notification.objects.filter(user__username="h5", payload__role="released").get()
+    assert (released.payload["unit_id"], released.payload["month"]) == (str(icu.pk), "2027-02")
+    assert told("h5")[-1] == "From February 2027 you no longer precept Layan Alharbi."
+
+
+def test_a_choice_that_replaces_a_plan_logs_the_plan(mona, er, layan, amal, cno, precepting):
+    badr = nurse(cno, er, "h3", "Badr Omar")
+    holds(badr, precepting)
+    assigned(mona, er, layan.pk, badr, "2027-02")
+    AuditEntry.objects.all().delete()
+
+    assigned(mona, er, layan.pk, amal, "2027-01")
+
+    entry = AuditEntry.objects.get()
+    assert entry.before == {"preceptor": None, "replaced": [{"preceptor": "h3", "from_month": "2027-02", "until": None}]}
+
+
+def test_an_untick_ends_it_for_good_so_a_later_tick_brings_no_preceptor_back(mona, er, layan, amal, cno):
+    assigned(mona, er, layan.pk, amal, "2026-12")
+    details = {"gender": "F", "start_date": "2026-12-15"}
+
+    assert cno.put(f"{NURSES}/{layan.pk}/details", details | {"on_probation": False}, content_type="application/json").status_code == 200
+    assert AuditEntry.objects.filter(action="nurse.preceptor_ended", target="h1").exists()
+    assert told("h2")[-1] == "From December 2026 you no longer precept Layan Alharbi."
+    assert cno.put(f"{NURSES}/{layan.pk}/details", details | {"on_probation": True}, content_type="application/json").status_code == 200
+
+    assert preceptors(mona, er, layan.pk) == []

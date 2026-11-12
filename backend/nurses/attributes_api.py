@@ -277,11 +277,10 @@ def _save_probation(request, nurse: NurseProfile, action: str, was: dict) -> Non
 
 def tell_released(nurse: NurseProfile, was_last: dt.date | None) -> None:
     """A probation now ending sooner ends her preceptor's assignment with it: each nurse who precepted her in a month it gave
-    up is told, once (story 35). One that runs out by itself tells nobody: nothing was done, and the row says it."""
-    released = preceptors.released_by_ending(nurse, was_last)
-    if released:
-        first, gone = released
-        sending.preceptors_released(membership.unit_in(nurse, first), nurse, first, gone)
+    up is told, once, under that assignment's unit (story 35). One that runs out by itself tells nobody: nothing was done, and
+    the row says it."""
+    for assignment, first in preceptors.released_by_ending(nurse, was_last):
+        sending.preceptors_released(assignment.unit, nurse, first, [assignment.preceptor])
 
 
 @router.put("/{unit_id}/nurses/{nurse_id}/probation/length", response=NurseAttributesRow, auth=manager,
@@ -420,15 +419,15 @@ def set_preceptor(request, unit_id: UUID, nurse_id: UUID, body: PreceptorBody) -
         why = preceptors.why_not(nurse, unit, candidate, month)
         if why:
             refuse((("preceptor_id",), why))
-        gained = preceptors.first_gained(nurse, candidate, month)
+        gained = preceptors.first_gained(nurse, candidate, unit, month)
         if gained is None:
-            return _row_as_saved(nurse_id, unit)  # She is theirs in every month from then: nothing to change or tell.
+            return _row_as_saved(nurse_id, unit)  # She is theirs in every month they can be: nothing to change or tell.
         held = preceptors.assignment_in(nurse, month)
-        before = preceptors.preceptors_from(nurse, gained)
+        before = preceptors.preceptors_from(nurse, gained, unit)
         was = preceptors.describe(held)
-        assigned = preceptors.assign(nurse, unit, candidate, month, request.user)
-        record("nurse.preceptor_assigned", actor=request.user, target=nurse.user.username, request=request, before=was,
-               after=preceptors.describe(assigned))
+        assigned, replaced = preceptors.assign(nurse, unit, candidate, month, request.user)
+        record("nurse.preceptor_assigned", actor=request.user, target=nurse.user.username, request=request,
+               before=was | ({"replaced": replaced} if replaced else {}), after=preceptors.describe(assigned))
         released = NurseProfile.objects.select_related("user").filter(pk__in=before - {candidate.pk}).order_by("pk")
         # Once each, from the first month that changes: a nurse already hers then is told only of what changed for them.
         sending.preceptor_assigned(unit, nurse, gained, preceptor=candidate, released=list(released))
