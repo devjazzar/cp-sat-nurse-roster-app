@@ -197,3 +197,10 @@ refuses. The stack was removed by the script, and nothing of it is left (no cont
   - The install guide's import bullet was rewritten; nothing else there moved.
 - **Anyone adding module-level state:** web now runs four threads a process. Anything a request writes outside the request
   needs a lock, as `ops.public_health` does.
+
+**Reviewed by the user (2026-11-12):** points 1 and 2 kept as built; point 3 changed.
+- Keep-alive: 10 s at gunicorn, 2 s at Caddy.
+- The module-level state search's finding: nothing to change.
+- The long confirmation's timing did fail on GitHub: its runners hashed 100 passwords in 27–29 s, inside the 30 s timeout, so
+  every browser-checks run failed, main's on `77082ef` among them. At the user's choice the check now confirms 300 nurses
+  (`bf16ca8`, PR 23): 83 s on GitHub, past the timeout, within `MAX_ROWS`.
