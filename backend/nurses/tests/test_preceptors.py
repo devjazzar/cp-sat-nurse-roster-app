@@ -349,3 +349,39 @@ def test_a_preceptors_skill_expiring_later_ends_nothing(mona, er, layan, amal, t
     today(2027, 1, 5)
 
     assert preceptors(mona, er, layan.pk) == [("h2", "2027-01", "2027-03")]
+
+
+# ---- the night-alone gap (ticket 54's review: closed here) ------------------------------------------------------------------
+def three_shifts(unit) -> None:
+    unit.rules = unit.rules | {"shifts": ["D", "A", "N"],
+                               "headcounts": [*unit.rules["headcounts"], {**unit.rules["headcounts"][0], "shift": "A"}]}
+    unit.save()
+
+
+def rules_body(unit, shifts) -> dict:
+    rules = unit.rules | {"shifts": shifts, "headcounts": [row for row in unit.rules["headcounts"] if row["shift"] in shifts]}
+    return {"rules": rules, "request_cap": 3, "preference_cap": 10, "default_time_limit": 60}
+
+
+def test_a_unit_dropping_a_shift_that_would_leave_her_the_night_shift_alone_is_refused(mona, er, layan):
+    three_shifts(er)
+    assert mona.put(f"/api/units/{er.pk}/nurses/{layan.pk}/allowed-shifts", {"allowed_shifts": ["A", "N"]},
+                    content_type="application/json").status_code == 200
+
+    response = mona.put(f"/api/units/{er.pk}/rules", rules_body(er, ["D", "N"]), content_type="application/json")
+
+    assert refusal(response) == ("Layan Alharbi (h1) would have only N, the night shift, of these shifts, and a nurse on probation "
+                                 "works no night shift. Change their allowed shifts first.")
+    er.refresh_from_db()
+    assert er.rules["shifts"] == ["D", "A", "N"]
+
+
+def test_a_transfer_that_would_carry_her_the_night_shift_alone_empties_her_list_to_be_looked_at(mona, omar, er, icu, layan, cno):
+    three_shifts(er)
+    assert mona.put(f"/api/units/{er.pk}/nurses/{layan.pk}/allowed-shifts", {"allowed_shifts": ["A", "N"]},
+                    content_type="application/json").status_code == 200
+
+    assert post(cno, f"{NURSES}/{layan.pk}/transfer", {"unit_id": str(icu.pk), "from_month": "2027-01"}).status_code == 200
+
+    there = row(omar, icu, layan.pk)
+    assert (there["allowed_shifts"], there["allowed_shifts_to_check"]) == (None, True)

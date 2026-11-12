@@ -143,3 +143,61 @@ def test_an_extension_reaching_an_approved_month_changes_nothing_in_it_and_the_p
     page = month_of(mona, er)
     assert page["state"] == "approved"
     assert [(change["hospital_id"], change["what"]) for change in page["draft"]["changes"]] == [("Faten", "on_probation")]
+
+
+# ---- the real solver, in this process: the roster beside her preceptor, and its explanation -----------------------------------
+def solved_for_real(mona, er, solver) -> dict:
+    """The real solver's result for June as the app assembles it, through the app's own solve and result reading."""
+    solver.script([real_job(assemble(er, JUNE).input)])
+    solve_id = started(mona, er)["id"]
+    running.run(solve_id)
+    return ok(mona.get(f"/api/units/{er.pk}/solve-history/{solve_id}"))
+
+
+def test_she_is_beside_her_preceptor_works_no_night_and_every_headcount_is_met_without_her(er, faten, mona, solver):
+    answer = solved_for_real(mona, er, solver)
+
+    grid = Roster.objects.get(unit=er, month=JUNE).grid
+    assert answer["violations"] == []
+    for day in grid["Faten"]:
+        assert grid["Faten"][day] != "N"
+        if grid["Amal"][day] == "D":
+            assert grid["Faten"][day] == "D", day
+        # The sample's D is exactly one nurse and N one or two, counted without her.
+        assert sum(grid[nurse][day] == "D" for nurse in grid if nurse != "Faten") == 1, day
+        assert 1 <= sum(grid[nurse][day] == "N" for nurse in grid if nurse != "Faten") <= 2, day
+    assert answer["following"] == [{"hospital_id": "Faten", "full_name": "Faten Ali", "preceptor": "Amal",
+                                    "preceptor_name": "Amal", "followed": 2, "missed": []}]
+
+
+def test_the_explanation_says_which_of_her_preceptors_day_shifts_she_did_not_follow_and_why(er, faten, mona, solver):
+    from hospital.models import Shift
+    from rosters.models import PinOrigin, PinnedCell
+    from rosters.tests.test_review import record_leave
+
+    # Amal on D on the 4th, 7th and 10th, pinned; Faten on leave on the 7th and her day off accepted on the 10th.
+    amal, shift = NurseProfile.objects.get(user__username="Amal"), Shift.objects.get(code="D")
+    for day in (4, 7, 10):
+        PinnedCell.objects.create(unit=er, nurse=amal, date=dt.date(2026, 6, day), shift=shift, pinned_by=er.manager)
+    assert record_leave(mona, er, "Faten", 7).status_code == 201
+    PinnedCell.objects.create(unit=er, nurse=faten, date=dt.date(2026, 6, 10), shift=None, origin=PinOrigin.REQUEST,
+                              pinned_by=er.manager)
+
+    answer = solved_for_real(mona, er, solver)
+
+    followed = answer["following"][0]
+    assert [(day["date"], day["shift"], day["why"]) for day in followed["missed"]] == [
+        ("2026-06-07", "D", "leave"), ("2026-06-10", "D", "pinned")]
+    grid = Roster.objects.get(unit=er, month=JUNE).grid
+    assert grid["Faten"]["2026-06-04"] == "D" and grid["Faten"]["2026-06-10"] == ""  # an accepted day off holds over following
+
+
+def test_with_no_preceptor_the_solves_warnings_name_her(er, make_user, mona, solver):
+    add_faten(er, make_user)
+
+    answer = solved_for_real(mona, er, solver)
+
+    assert any(line.startswith("Faten: on probation with no preceptor") for line in answer["precheck"])
+    assert answer["following"] == [{"hospital_id": "Faten", "full_name": "Faten Ali", "preceptor": None, "preceptor_name": "",
+                                    "followed": 0, "missed": []}]
+    assert "N" not in Roster.objects.get(unit=er, month=JUNE).grid["Faten"].values()

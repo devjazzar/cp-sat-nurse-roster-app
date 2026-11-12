@@ -1,6 +1,8 @@
 """The skill catalogue (ticket 32): the CNO's list of skills, which every role reads. The refusals that depend on nurses'
 records and unit rules are tickets 33's and 34's; the third mark, "Lets a nurse precept", ticket 53's; the kind and the
 issuing body, ticket 58's."""
+import datetime as dt
+
 import pytest
 from django.core.management import call_command
 from django.db import connection
@@ -10,7 +12,9 @@ from accounts.models import Role
 from audit.models import AuditEntry
 from hospital.models import Skill
 from conftest import post
-from nurses.models import NurseSkill
+from nurses import preceptors
+from nurses.models import NurseProfile, NurseSkill, PreceptorAssignment
+from units.models import Unit
 from nurses.tests.conftest import added, make_unit
 
 pytestmark = pytest.mark.django_db
@@ -195,10 +199,18 @@ def test_the_mark_is_cleared_while_a_nurse_holds_the_skill(cno):
                                                           "issue_date": None}).status_code == 201
     assert NurseSkill.objects.current().filter(skill=icu).exists()
 
+    # Ticket 55: she precepts a nurse on probation by it, and clearing the mark takes her preceptor from nobody.
+    on_probation = NurseProfile.objects.get(pk=added(cno, Unit.objects.get(name="ER"), "h-new", start_date="2026-01-01",
+                                                     on_probation=True)["nurse"]["id"])
+    preceptor = NurseProfile.objects.get(pk=nurse_id)
+    PreceptorAssignment.objects.create(nurse=on_probation, preceptor=preceptor, unit=Unit.objects.get(name="ER"),
+                                       from_month=dt.date(2026, 1, 1), assigned_by=on_probation.user)
+
     response = update(cno, "ICU", lets_a_nurse_precept=False)
 
     assert response.status_code == 200 and marked(cno) == []
     assert NurseSkill.objects.current().filter(skill=icu).exists()
+    assert preceptors.assignment_in(on_probation, dt.date(2026, 2, 1)).preceptor == preceptor
 
 
 def test_setting_and_clearing_the_mark_are_audited_with_its_value(cno):
