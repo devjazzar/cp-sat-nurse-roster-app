@@ -136,3 +136,12 @@ the cutoff as well. The fixes were small; no second run. No adversarial review, 
 
 **Merged on 2026-11-12:** `main` fast-forwarded from `d759f0d` to `4faa2f0`; both workflows (backend, solver, frontend, image,
 browser checks) green on `50156ad`, the last code commit; what follows it is this ticket's markdown only (`[skip ci]`).
+
+**Reviewed by the user (2026-11-12):** all seven points kept as built.
+- Her rounding overtime on her own record, outside the unit's totals.
+- With shifts of several lengths, the hours bound is her shortest allowed shift.
+- With the hours rule off, no hours bound for her, as for every nurse.
+- One solve: her preceptor's roster is not guaranteed the one he would have without her; ticket 55 watches for it on the real thing.
+- The shared sample file without the fields; the contract tests add a nurse on probation to a copy.
+- Story 51's list of shifts not followed is ticket 55's, from this ticket's note.
+- The solver also refuses a nurse on probation whose allowed shifts are the night shift alone.
