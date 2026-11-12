@@ -166,8 +166,10 @@ def test_she_is_beside_her_preceptor_works_no_night_and_every_headcount_is_met_w
         # The sample's D is exactly one nurse and N one or two, counted without her.
         assert sum(grid[nurse][day] == "D" for nurse in grid if nurse != "Faten") == 1, day
         assert 1 <= sum(grid[nurse][day] == "N" for nurse in grid if nurse != "Faten") <= 2, day
+    # Her hours hold every one of Amal's day shifts, however many the search gave her (two, on this machine).
+    amal_days = sum(code == "D" for code in grid["Amal"].values())
     assert answer["following"] == [{"hospital_id": "Faten", "full_name": "Faten Ali", "preceptor": "Amal",
-                                    "preceptor_name": "Amal", "followed": 2, "missed": []}]
+                                    "preceptor_name": "Amal", "followed": amal_days, "missed": []}]
 
 
 def test_the_explanation_says_which_of_her_preceptors_day_shifts_she_did_not_follow_and_why(er, faten, mona, solver):
@@ -185,9 +187,9 @@ def test_the_explanation_says_which_of_her_preceptors_day_shifts_she_did_not_fol
 
     answer = solved_for_real(mona, er, solver)
 
-    followed = answer["following"][0]
-    assert [(day["date"], day["shift"], day["why"]) for day in followed["missed"]] == [
-        ("2026-06-07", "D", "leave"), ("2026-06-10", "D", "pinned")]
+    missed = {day["date"]: (day["shift"], day["why"]) for day in answer["following"][0]["missed"]}
+    assert (missed["2026-06-07"], missed["2026-06-10"]) == (("D", "leave"), ("D", "pinned"))
+    assert "2026-06-04" not in missed  # nothing keeps her from Amal's pinned D on the 4th
     grid = Roster.objects.get(unit=er, month=JUNE).grid
     assert grid["Faten"]["2026-06-04"] == "D" and grid["Faten"]["2026-06-10"] == ""  # an accepted day off holds over following
 

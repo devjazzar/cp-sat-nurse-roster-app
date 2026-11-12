@@ -2,8 +2,8 @@
 cover or a manager's edit that breaks the following rule is refused or shown; she is never listed for a cover; the Day view counts
 her toward nothing; the request form offers her day shifts only; and a night pin of hers is refused.
 
-The roster is the real solver's for `probation_scene`'s June, made in this process from the input the app assembled. Its rows,
-a dot for a day off, day 1 first:
+The roster is one the real solver found for `probation_scene`'s June, with every cell pinned here so that no machine's search
+can give another: the solver, in this process, only confirms it breaks no hard rule. Its rows, a dot for a day off, day 1 first:
 
     Amal  N..D..D.N.NNN....NNNN.N.NNNN.N
     Badr  ..D.NNNN.NNN.NNNN..D.D....D.DD
@@ -36,18 +36,29 @@ pytestmark = pytest.mark.django_db
 JUNE, JULY = dt.date(2026, 6, 1), dt.date(2026, 7, 1)
 
 
+ROWS = {
+    "Amal": "N..D..D.N.NNN....NNNN.N.NNNN.N",
+    "Badr": "..D.NNNN.NNN.NNNN..D.D....D.DD",
+    "Dana": "NNNN..N..DDDD.D.N.N..N.N....N.",
+    "Emad": "DD..DD.DD....D.DDDD.D.DDDD.D..",
+    "Faten": "...D.DD.DD.DDD.DDDD.D..DDD.D..",
+}
+
+
 @pytest.fixture(autouse=True)
 def june(before_june, er, make_user, mona, carla, solver):
     faten = add_faten(er, make_user)
     holds_the_skill("Amal")
     assign(mona, er, faten.pk, "Amal", "2026-05")
-    solver.script([real_job(assemble(er, JUNE).input)])
+    solve_input = assemble(er, JUNE).input
+    for row in solve_input["nurses"]:
+        row["pinned"] = {f"2026-06-{day:02d}": "" if code == "." else code for day, code in enumerate(ROWS[row["id"]], start=1)}
+    solver.script([real_job(solve_input)])
     running.run(started(mona, er)["id"])
     ok(submit(mona, er))
     ok(approve(carla, er))
     grid = Roster.objects.get(unit=er, month=JUNE).grid
-    assert by_row(grid, "Amal") == "N..D..D.N.NNN....NNNN.N.NNNN.N"
-    assert by_row(grid, "Faten") == "...D.DD.DD.DDD.DDDD.D..DDD.D.."
+    assert {hospital_id: by_row(grid, hospital_id) for hospital_id in ROWS} == ROWS
     return faten
 
 
