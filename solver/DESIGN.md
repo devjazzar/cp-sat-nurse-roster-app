@@ -60,7 +60,7 @@ defaults that could hide a unit's numbers. Decided 2026-11-03.
 * **Full runs (2026-11-09, ticket 47 of the app), optional in either version.**
   `department.max_full_runs` (a whole number 0..31; absent or null = no cap) and
   `weights.excess_full_run` (absent = 0) may be left out of a version 1 or 2 request, which then
-  loads and prices exactly as before (`request._full_runs`, on copies). Optional rather than a
+  loads and prices exactly as before (`request._optional_rules`, on copies). Optional rather than a
   version 3: they change nothing when absent, and the app still writes version 1. A bad value is
   refused with its path (`request: department.max_full_runs must be a whole number within 0..31
   or null, got 32`). The result's `version` stays 1 (its `penalties` gain `excess_full_run`).
@@ -142,7 +142,7 @@ The result (`result.build_result`, written by `solve --out`):
                                                   "friday_balance": -0.2, "ytd_overtime": 100,
                                                   "previous": ["N", "N", "", "", "D", "D", "D", ""],
                                                   "last_shift_kind": "day", "rest_owed": 0,
-                                                  "preferences_not_kept": 1}}}}
+                                                  "preferences_not_kept": 1, "overtime_balance": 0.0}}}}
 
 * `carry_over` uses the request's own nurse field names: next month's request is this month's
   static nurse fields plus this block (`hours_balance` = `Problem.carry_over`, the balances =
@@ -181,7 +181,7 @@ is no CSV reader any more. The ER instance (real scores, the three single-shift 
 random generator) lives in `tests/er_fixture.py`, and `tests/fixtures/er_request_2026-03.json`
 is the committed ER request every end-to-end test and benchmark uses.
 
-### Internal problem (`problem.py`; schema 6, everything explicit)
+### Internal problem (`problem.py`; schema 7, everything explicit)
 The solver's own contract, built by the request loader (0-based day indices, derived calendar).
 `Problem.from_dict` / `to_json` round-trip it for tests and debugging; schema 3 (2026-11-03)
 requires every field of the rule objects and every nurse scalar, and refuses versions 1 and 2

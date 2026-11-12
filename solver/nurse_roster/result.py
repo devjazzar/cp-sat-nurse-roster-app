@@ -20,7 +20,7 @@
                                        "friday_balance": -0.2, "ytd_overtime": 100,
                                        "previous": ["N", "N", "", "", "D", "D", "D", ""],
                                        "last_shift_kind": "day", "rest_owed": 0,
-                                       "preferences_not_kept": 1}}}}
+                                       "preferences_not_kept": 1, "overtime_balance": 0.0}}}}
 
 `carry_over` uses the request's own nurse field names, so next month's request is this
 month's static nurse fields plus this block (the app resets `ytd_overtime` and the balances

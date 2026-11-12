@@ -32,8 +32,8 @@ locally, under the heavy-run lock, on `929e2b3`:
 - the backend under pytest on a throwaway PostgreSQL 18 container of my own: **3332 passed**; `makemigrations --check`: no
   changes;
 - no frontend, OpenAPI or Playwright change (no API schema names a carried value; `closes/api.py` picks its fields), so
-  `npm test`, `npm run build` and the browser checks are GitHub's, on the pull request: all five workflows green before the
-  merge of `main`, and again on the merged head.
+  `npm test`, `npm run build` and the browser checks are GitHub's, on the pull request: both workflows (five jobs) green on
+  `929e2b3`, before the merge of `main` (tickets 46 and 58); the head that reached `main` is named in the merge's line below.
 
 **What the dev stack needs:** a **rebuild** (`docker compose up -d --build`): the vendored solver changed. No migration,
 dependency, compose or Dockerfile change. The app writes none of the unit's fields or the weight yet, so the rule is off for

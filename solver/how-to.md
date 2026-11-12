@@ -382,7 +382,8 @@ proven best for the weighted objective.
              "hours_worked": 204, "overtime": 0, "shortfall": 4, "shifts": {"D": 9, "N": 8}, "cost": 8,
              "carry_over": {"hours_balance": 4, "night_balance": 0.5, "friday_balance": 0.0,
                             "ytd_overtime": 0, "previous": ["D", "", "N", "…"],
-                            "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0}}
+                            "last_shift_kind": null, "rest_owed": 0, "preferences_not_kept": 0,
+                            "overtime_balance": 0.0}}
   }
 }
 ```
