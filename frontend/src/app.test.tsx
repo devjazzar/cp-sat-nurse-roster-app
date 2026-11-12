@@ -6437,7 +6437,8 @@ describe("the roster page", () => {
       const changes = await screen.findByRole("alert")
       expect(changes).toHaveTextContent("This draft was solved before these changes:")
       expect(within(changes).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-        "The Ramadan days of June 2026 changed", "The public holidays of June 2026 changed", "Amal Saleh: leave or dates changed"])
+        "The Ramadan days of June 2026 changed since this draft was solved",
+        "The public holidays of June 2026 changed since this draft was solved", "Amal Saleh: leave or dates changed"])
       expect(screen.getByRole("button", { name: "Submit for approval" })).toBeEnabled()
     })
 

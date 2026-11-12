@@ -25,10 +25,14 @@ export const CHANGE_SAYS: Record<Exclude<DraftChange["what"], MonthDates>, strin
 }
 
 /** One line of a draft's changes since its solve, under "This draft was solved before these changes". A change with no
- *  hospital ID is the unit's own (`skills`) or the month's (its Ramadan days or public holidays, ticket 46). */
-export function changeSays(change: DraftChange, month: string): string {
+ *  hospital ID is the unit's own (`skills`) or the month's (its Ramadan days or public holidays, ticket 46), which the
+ *  manager's page words in full with `since` ("since this draft was solved", the spec's sentence); the approvers' page adds
+ *  its own ", since it was submitted" instead. */
+export function changeSays(change: DraftChange, month: string, since = ""): string {
   const what = change.what
-  if (what === "ramadan_days" || what === "public_holidays") return `The ${MONTH_DATES_SAY[what]} of ${monthName(month)} changed`
+  if (what === "ramadan_days" || what === "public_holidays") {
+    return `The ${MONTH_DATES_SAY[what]} of ${monthName(month)} changed${since ? ` ${since}` : ""}`
+  }
   if (!change.hospital_id) return "The skill needs, the skills required to work or the skill shortfall weight changed"
   return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[what]}`
 }

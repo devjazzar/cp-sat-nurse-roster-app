@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** done
+**Status:** ready-for-agent
 
 - [x] The draft's "changed since its solve" list gains two month-level changes, the month's Ramadan days and its public holidays, each the stored solve input's list compared with the month as it stands, carried with no nurse; the per-nurse changes are as before
 - [x] The draft page words them ("The Ramadan days of March 2027 changed since this draft was solved", and the same for the public holidays); submit goes through with the warning and the check on submit runs on the month as it stands, as today
@@ -24,7 +24,7 @@ in one transaction and can touch three or four months, including one in the next
 writes December 2030 and January 2031). That makes one notification per changed month with a roster.
 
 **Implemented on 2026-11-12,** on branch `claude/ticket-46-ramadan-after-a-solve-51efd4` (`28045dc` the build, `11c73f4` the
-review's points, then this comment), from `main` at `3579d76`. Draft pull request
+review's points, `f7a02db` this comment, then the spec's sentence on the manager's page and the advisor's points), from `main` at `3579d76`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#21](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/21).
 
 The full suites ran locally under the heavy-run lock:
@@ -51,10 +51,12 @@ There is no change to `deploy/compose.yaml`, the `Dockerfile`, the solver or a d
   - Both sides are sorted before comparing, since the holiday query has no guaranteed order.
   - A list is compared only when the stored input holds it.
   - The per-nurse changes are unchanged. `DraftChange.what` gains the two values.
-- **The page's words.** `changeSays(change, month)` gives "The Ramadan days of June 2026 changed" and "The public holidays
-  of June 2026 changed". They sit under the existing heading "This draft was solved before these changes:" (see Worth your
-  review).
-  - The approvers' page adds ", since it was submitted" as for any change.
+- **The page's words.** On the manager's page, `changeSays(change, month, since)` gives the spec's sentences: "The Ramadan
+  days of June 2026 changed since this draft was solved" and "The public holidays of June 2026 changed since this draft was
+  solved". On an approved roster they say "since this roster was solved". Both sit under the existing heading "This draft
+  was solved before these changes:".
+  - The approvers' page gives the short form, "The Ramadan days of June 2026 changed", and adds ", since it was submitted"
+    as for any change.
   - Nothing blocks. Submit runs the existing check on the month as it stands, since any change makes `_checked` score the
     grid again.
 - **The submission records the dates.** `Submission.dates_at_submit` holds `{"ramadan_days": [...], "public_holidays":
@@ -110,7 +112,8 @@ There is no change to `deploy/compose.yaml`, the `Dockerfile`, the solver or a d
   2027's Ramadan days to 30–31 January, where ICU had a draft. Her own bell stayed empty.
 - **As `omar`, ICU's manager:** two unread notifications, with the words above for each month. "Open the roster" led to
   `/roster?month=2027-01`.
-  - The draft read "This draft was solved before these changes: The Ramadan days of January 2027 changed".
+  - The draft read "This draft was solved before these changes: The Ramadan days of January 2027 changed". That was before
+    the page took the spec's full sentence; the new words are covered by the frontend test only.
   - Submit went through.
 - **As `carla` again:** I added a holiday on 1 January 2027.
   - ICU's submitted roster read "The Ramadan days of January 2027 changed | The public holidays of January 2027 changed,
@@ -136,6 +139,14 @@ The stack, its volumes and its image are gone, and the lock is released.
 - A holiday moved across months, a removal, and a confirmation across two months were not driven; the API tests cover them.
 - The notification in a screen reader: it is an existing list item with new words.
 - The full backend suite after `11c73f4`: the changed files ran again, and GitHub runs everything.
+- The approved page's "since this roster was solved" is not covered by a test of its own; it is the same function with
+  the state's word.
+- The screens against `better-interface`, `better-writing` and `better-accessibility`, held by hand:
+  - The lines are plain list items in the existing `role="alert"` box.
+  - The notification is an existing list item with its link "Open the roster".
+  - The month is named in full, and there is no colour beyond the box's.
+  - At 375 px, nothing scrolls sideways.
+  - No skill was run against them.
 
 **Decisions taken here.**
 - **`changes_since` opts in** (`month_dates=True`) rather than opting out, so any other caller keeps today's behaviour.
@@ -147,10 +158,13 @@ The stack, its volumes and its image are gone, and the lock is released.
   solved before these changes", and the two new lines follow that list.
 
 **Worth your review.**
-- **The words of the draft's line.** The spec gives "The Ramadan days of March 2027 changed since this draft was solved".
-  The page shows "The Ramadan days of March 2027 changed" as an item under the existing heading "This draft was solved
-  before these changes:". The spec's words would repeat the heading, and they would not fit the approved page's heading
-  "This roster was solved before…".
+- **The words of the draft's line.** The page uses the spec's sentence, "The Ramadan days of March 2027 changed since this
+  draft was solved", under the heading "This draft was solved before these changes:", so it says "solved" twice. A
+  shorter "The Ramadan days of March 2027 changed", as the approvers' page has, would read better under that heading. It
+  is one argument at the call in `roster.tsx`.
+- **A month already over is told too.** A holiday entered late, such as National Day added after September, tells the
+  managers of that month's rosters, approved or closed-to-be. That follows the ticket's "every unit manager whose unit has
+  a … roster in a month touched".
 - **The notification's kind and words.** `month_dates_changed`, worded "Carla Haddad changed the Ramadan days of January
   2027. Check the ICU roster for that month: it was planned on the dates before."
   - It names who changed them, as every other notification does.
@@ -180,8 +194,10 @@ The stack, its volumes and its image are gone, and the lock is released.
   manager four times (see below).
 
 **Things later tickets should know.**
-- **Ticket 45's Add should call `notifications.sending.month_dates_changed` once with every month its days touch.** The
-  holiday create's `_holidays_changed(request, *days)` already takes several days. I sent the ticket 45 session a note
-  saying so; whichever lands second wires it.
+- **Ticket 45's Add must call `_holidays_changed(request, *days)` (`hospital/catalogue_api.py`) once with every day it
+  created.** The notification is in the endpoint bodies, not in `_write_holiday`. An Add that writes rows itself tells
+  nobody; one that calls the create per day tells a manager once per day. Ticket 45 was not on `main` when this merged. A
+  hand-over note is in the sessions' shared notes (`ticket-46-to-45-holiday-notification.md`), and the ticket 45 session
+  was sent the same.
 - **A new month-level change** goes in `MONTH_DATES` (`solves/input.py`), `DraftChange.what`, `MonthDates` and the frontend's
   `MONTH_DATES_SAY`.
