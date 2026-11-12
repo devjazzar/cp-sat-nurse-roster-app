@@ -48,11 +48,12 @@ its frontend test.
 
 **Implemented on 2026-11-12,** on branch `claude/ticket-57-batched-carry-over-67c293`, pull request
 devjazzar/cp-sat-nurse-roster-app#33, from `main` at `8c83302` (`ff91b98` the build, `6b950fe` the code review's points, then
-this comment). The suites, locally, under the heavy-run lock, on `6b950fe`:
+this comment, and `b7a1973` giving the query-count tests' newcomers skills, probation and a preceptor). The suites, locally, under the heavy-run lock, on `6b950fe`:
 - the backend under pytest on a throwaway PostgreSQL 18 container of my own: **3627 passed**; `makemigrations --check`: no
   changes;
 - the frontend: `npm test` **846 passed**, `npm run build` clean, the typecheck clean. No schema or endpoint changed, so the
   OpenAPI document and the client are untouched (GitHub's backend job compares them with the export);
+- on `b7a1973`, which changed only `test_close.py`'s `TestTheBatchedRead`: those 12 tests, passed;
 - the solver's suite not run: nothing in `solver/` changed. GitHub ran it, with the rest, on every push.
 
 **What the dev stack needs:** a **rebuild** (`docker compose up -d --build`) for the backend's code and the SPA. No migration,
@@ -89,12 +90,14 @@ dependency, compose, Dockerfile or solver change.
     Inside the reference, the months before are read one nurse at a time too. That covers every chain case of the file:
     `TestTheChain`, `TestAFarMonth`, `TestTheCountOfPreferencesNotKept`, `TestTheOvertimeBalance`, `TestThreeMonths`, and the
     schedule's, the facts' and closing-again's on the way. Checked that it bites: choosing the older closed month, or dropping
-    the first roster, fails it with the nurse and month named.
-  - `TestTheBatchedRead`: ER's four nurses and one joining, then four more, the chain's queries for the unit's month at nine
-    no more than at five (`django_assert_max_num_queries`), for a chain that projects and a close's, on her opening values,
-    a projected June, a closed June, and a closed June then a projected July; the month's whole assembly likewise (opening,
-    projected, closed); and the close's view of an approved June reading where each nurse's chain starts once for both
-    columns.
+    the first roster, fails it with the nurse and month named (the first again after the review's rewrite of the check).
+  - `TestTheBatchedRead`: ER's four nurses and one joining, then four more, each newcomer with a skill and every other one on
+    probation with a preceptor, so every per-nurse read of an assembly is asked of them: the chain's queries for the unit's
+    month at nine no more than at five (`django_assert_max_num_queries`), for a chain that projects and a close's, on her
+    opening values, a projected June, a closed June, and a closed June then a projected July, with the four's source asserted
+    (projected or closed as the scene says, so no scene measures a projection that fell back); the month's whole assembly
+    likewise (opening, projected, closed), its probation, preceptor and skills fields asserted; and the close's view of an
+    approved June reading where each nurse's chain starts once for both columns.
   - The existing `solves`, `rosters`, `closes` and Day view tests unchanged and green.
 - **Timings** on a seeded scratch stack (`e2e/stack.sh up nr-t57`), ICU's December, 64 nurses, approved, one version; in
   `web`'s own process with Django's test client signed in (as `omar`; the Day view of 10 December as `hala`), each warm, the
@@ -132,7 +135,8 @@ client. The stack went down after each.
 - The explanation line in a browser: the frontend tests render it; no Playwright file changed. GitHub's browser checks ran.
 - Timings on GitHub's runner (ticket 43's 2.3–3.5 s): not measured there.
 - The query-count tests grow the unit by nurses on their opening values, in no roster and no close (ER's scripted June holds
-  four); the batched read's queries are per kind of start, not per nurse, but nine closed or projected nurses were not counted.
+  four, the four are projected or closed); the batched read's queries are per kind of start, not per nurse, but a unit grown
+  by closed or projected nurses was not counted.
 - A re-close that drops a nurse, and a roster in a nurse's start month: kept as the old read had them (the same rule), but no
   test of the file has either case, so the reference check has not seen them.
 
@@ -142,11 +146,12 @@ client. The stack went down after each.
   moment: every caller already makes a `Chain` per request, per close and per projection task, and the projection task writes
   only projected rows, which the chain never reads.
 - **Worth your review: leave batched too.** The ticket names the chain; once it was batched, leave was the one read left in
-  `assemble` growing with the nurses, so the assembly's query count is now fixed as well. None left that I chose not to batch;
+  `assemble` growing with the nurses, so the assembly's query count is now fixed as well, counted with skills, probation and a
+  preceptor on the nurses added (their reads come from `assemble`'s prefetch). None left that I chose not to batch;
   `changes_since`'s `_closed_since` (one query a nurse, a draft's "closed" warning) is outside `assemble` and left as it was.
 - **Worth your review: the explanation line everywhere a name precedes the solver's words** (five lists), not only the rule
   explanation: the same repetition showed in each, and "every rule's line" read as all of them.
-- **Worth your review: the timings** (the table above): each of the roster page's three assembling calls is now 2.6 to 4.3 times faster and makes 32 to 52 queries instead of 286 to 477; an assembly of ICU's 64 nurses takes about 30 ms instead of 200 to 260 ms, the chain about 3 ms of it. What is left of `roster` (about 80 ms) and `replans/preview` (about 100 ms, the preview asks the solver service's precheck) is outside `assemble`, as is the Day view's 60 ms. The Day view's 29 ms of chain is ER's December, which projects through November, an assembly of its own; it does not grow with the nurses. Measured in `web`'s process with the test client, warm, on this machine, not through gunicorn and Caddy, and not on GitHub's runner; the small-fixes session's table was measured the same way, and its `roster` row after its own fix (313 ms, 365 queries) is close to this one's before (296 ms, 305: `main` has gained tickets since).
+- **Worth your review: the timings** (the table above): each of the roster page's three assembling calls is now 2.6 to 4.3 times faster and makes 32 to 52 queries instead of 286 to 477; an assembly of ICU's 64 nurses takes about 30 ms instead of 200 to 260 ms, the chain about 3 ms of it. What is left of `roster` (about 80 ms) and `replans/preview` (about 100 ms, the preview asks the solver service's precheck) is outside `assemble`, as is the Day view's 60 ms. The Day view's 29 ms of chain is, I take it, ER's December reaching back to the seed's approved month before it, a projection with an assembly of its own (not measured apart); it does not grow with the nurses. Measured in `web`'s process with the test client, warm, on this machine, not through gunicorn and Caddy, and not on GitHub's runner; the small-fixes session's table was measured the same way, and its `roster` row after its own fix (313 ms, 365 queries) is close to this one's before (296 ms, 305: `main` has gained tickets since).
 
 **Review:** `code-review` against `8c83302`, both axes, on `ff91b98`.
 *Standards:*
