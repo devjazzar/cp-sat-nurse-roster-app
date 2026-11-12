@@ -6,13 +6,13 @@
 
 **Status:** ready-for-agent
 
-- [ ] The web command runs `gthread`, 3 workers of 4 threads, with `--timeout` at its default; the comment above it, which sized 300 s for the import, is rewritten
-- [ ] Caddy's idle keep-alive to `web` is shorter than gunicorn's `--keep-alive`; the ticket comment says how it was checked
-- [ ] A search of the application for mutable module-level state a thread could race on, with what it found and what was done about it, in the ticket comment
-- [ ] `docs/ARCHITECTURE.md`: section 2 (web's command) and ADR 0009's connection count in the architecture (web at most 12, beside the worker's 9)
-- [ ] `deploy/INSTALL.md`: the 500-row import is still timed at the first real install, with no limit to stay under
-- [ ] `docs/security/2026-11-11-security-audit.md`: lead 3's worker half marked fixed, with this ticket's commits
-- [ ] Tests at the agreed seams: `deploy/tests/operations.sh` (gunicorn running threaded); the browser checks pass on the threaded server; both workflows
+- [x] The web command runs `gthread`, 3 workers of 4 threads, with `--timeout` at its default; the comment above it, which sized 300 s for the import, is rewritten
+- [x] Caddy's idle keep-alive to `web` is shorter than gunicorn's `--keep-alive`; the ticket comment says how it was checked
+- [x] A search of the application for mutable module-level state a thread could race on, with what it found and what was done about it, in the ticket comment
+- [x] `docs/ARCHITECTURE.md`: section 2 (web's command) and ADR 0009's connection count in the architecture (web at most 12, beside the worker's 9)
+- [x] `deploy/INSTALL.md`: the 500-row import is still timed at the first real install, with no limit to stay under
+- [x] `docs/security/2026-11-11-security-audit.md`: lead 3's worker half marked fixed, with this ticket's commits
+- [x] Tests at the agreed seams: `deploy/tests/operations.sh` (gunicorn running threaded); the browser checks pass on the threaded server; both workflows
 
 ## Comments
 
