@@ -1,15 +1,71 @@
 import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 
-import { devices, expect, type Browser, type BrowserContextOptions, type Locator, type Page } from "@playwright/test"
+import { test as base, devices, expect, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test"
+
+/** A content security policy violation a page reported (ticket 72): what was refused, by which directive, from where. */
+export type PolicyViolation = { page: string; directive: string; blocked: string; source: string; sample: string }
+
+/** Every violation reported in the running test, by any page of any context it opened. */
+let violations: PolicyViolation[] = []
+const watched = new WeakSet<BrowserContext>()
+
+/** Listens on every page and frame of a context, from before its first script, for the browser's own report of a refusal. */
+async function watchPolicy(context: BrowserContext) {
+  if (watched.has(context)) return
+  watched.add(context)
+  await context.exposeBinding("__e2ePolicyViolation", ({ page }, seen: Omit<PolicyViolation, "page">) => {
+    violations.push({ page: page?.url() ?? "", ...seen })
+  })
+  await context.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (event) => {
+      const report = (window as unknown as { __e2ePolicyViolation: (seen: object) => void }).__e2ePolicyViolation
+      report({ directive: event.effectiveDirective, blocked: event.blockedURI, source: `${event.sourceFile}:${event.lineNumber}`,
+        sample: event.sample })
+    })
+  })
+}
+
+/** The violations seen so far in this test, taken: the check that the listener catches one reads them here. */
+export function takePolicyViolations(): PolicyViolation[] {
+  const taken = violations
+  violations = []
+  return taken
+}
+
+/** Playwright's `test`, with the content security policy watched on every page: a test whose pages report a violation fails,
+ *  naming each one. Every context counts, the test's own and any it opens with `browser.newContext`. Every spec imports
+ *  `test` from here, never from @playwright/test (playwright.config.ts refuses one that does). */
+export const test = base.extend<{ policyWatch: void }>({
+  policyWatch: [async ({ browser, context }, use) => {
+    violations = []
+    await watchPolicy(context)
+    const newContext = browser.newContext.bind(browser)
+    browser.newContext = async (options) => {
+      const made = await newContext(options)
+      await watchPolicy(made)
+      return made
+    }
+    try {
+      await use()
+    } finally {
+      browser.newContext = newContext
+    }
+    const seen = takePolicyViolations()
+    expect(seen, `content security policy violations:\n${seen.map((one) =>
+      `  ${one.directive} refused ${one.blocked || "(inline)"} at ${one.source} on ${one.page}${one.sample ? `: ${one.sample}` : ""}`).join("\n")}`)
+      .toEqual([])
+  }, { auto: true }],
+})
 
 /** What e2e/stack.sh wrote for a stack the checks run against: where it answers, the seeded users' password, and what the
  *  seed made (e2e/seed.py). An `--empty` stack has no seed: only its System Admin's first password. */
 export type Stack = {
   project: string
-  /** `web` over HTTP on localhost: the checks' origin, where a browser lets the service worker register. */
+  /** Caddy over plain HTTP on localhost, in front of `web` with the site's own headers (e2e/compose.e2e.yaml): the checks'
+   *  origin, where a browser lets the service worker register. */
   baseURL: string
-  /** Caddy in front, as a hospital reaches it, behind its self-signed certificate. */
+  /** Caddy over HTTPS, as a hospital reaches it, behind its self-signed certificate. */
   caddyURL: string
   seeded: boolean
   password: string

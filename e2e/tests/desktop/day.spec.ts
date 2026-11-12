@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { monthName, signIn, stack } from "../../support"
+import { monthName, signIn, stack, test } from "../../support"
 
 // Ticket 39: the CNO opens the Day view from the header, moves it to the first day of the seeded approved month, reads ER's
 // row, expands it to its names, and clicks through to ER's roster of that month with the date's column marked. Read-only, so it

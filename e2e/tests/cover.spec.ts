@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { anotherPhone, desktop, expectThumbSized, go, monthName, signIn, soundCover, stack } from "../support"
+import { anotherPhone, desktop, expectThumbSized, go, monthName, signIn, soundCover, stack, test } from "../support"
 
 // Ticket 27: a sick call answered by a cover. On ICU's approved month, the large unit, whose desktop checks already read the
 // latest version whatever it is, so ER's swap and its readers are left alone. `e2e/stack.sh cover` finds, on the month as it

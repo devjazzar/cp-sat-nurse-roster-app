@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, type Page } from "@playwright/test"
 
-import { addDays, choose, dayBefore, firstSignIn, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, proposeSwap, reset, shortDay, soundSwap, toMonth } from "../../support"
+import { addDays, choose, dayBefore, firstSignIn, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, proposeSwap, reset, shortDay, soundSwap, test, toMonth } from "../../support"
 import { alongside, as, nameOf, notebook, openFromRosters, people, SOLVED, UNIT } from "./people"
 
 // Ticket 24: the hospital's first month, from an empty stack, as the hospital will use it. The System Admin logs in for the first

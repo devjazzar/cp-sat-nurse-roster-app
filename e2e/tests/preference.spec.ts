@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, type Page } from "@playwright/test"
 
-import { expectNoSidewaysScroll, expectThumbSized, monthName, shortDay, signIn, stack } from "../support"
+import { expectNoSidewaysScroll, expectThumbSized, monthName, shortDay, signIn, stack, test } from "../support"
 
 // Ticket 29: on a phone, a nurse makes a day-off preference, asks for it as a request, withdraws the request, makes the
 // preference again and withdraws it, on My month of the month whose window the seed opened. Withdrawn preferences and requests

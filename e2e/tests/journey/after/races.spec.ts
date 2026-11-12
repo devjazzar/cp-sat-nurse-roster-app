@@ -1,6 +1,6 @@
-import { expect, test, type Browser, type Page } from "@playwright/test"
+import { expect, type Browser, type Page } from "@playwright/test"
 
-import { choose, compose, go, journeyStack as on, monthName, proposeSwap, shortDay, soundSwap, type Swap } from "../../../support"
+import { choose, compose, go, journeyStack as on, monthName, proposeSwap, shortDay, soundSwap, type Swap, test } from "../../../support"
 import { alongside, as, nameOf, notebook, people, SOLVED, UNIT } from "../people"
 
 // Ticket 24: races, on what the desktop journey left. The server's tests force the order on real connections; here the order is

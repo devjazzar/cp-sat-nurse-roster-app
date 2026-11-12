@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { redeploy } from "../support"
+import { redeploy, test } from "../support"
 
 // Ticket 23: a new deploy is what a phone loads next, never a stale page from the worker or a cache. e2e/stack.sh redeploy
 // changes index.html and the service worker inside `web` and restarts it, which is what a browser sees of a new image. It runs
