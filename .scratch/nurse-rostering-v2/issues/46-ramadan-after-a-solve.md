@@ -163,7 +163,7 @@ The stack, its volumes and its image are gone, and the lock is released.
   shorter "The Ramadan days of March 2027 changed", as the approvers' page has, would read better under that heading. It
   is one argument at the call in `roster.tsx`.
 - **A month already over is told too.** A holiday entered late, such as National Day added after September, tells the
-  managers of that month's rosters, approved or closed-to-be. That follows the ticket's "every unit manager whose unit has
+  managers of that month's rosters, approved ones included. That follows the ticket's "every unit manager whose unit has
   a … roster in a month touched".
 - **The notification's kind and words.** `month_dates_changed`, worded "Carla Haddad changed the Ramadan days of January
   2027. Check the ICU roster for that month: it was planned on the dates before."
