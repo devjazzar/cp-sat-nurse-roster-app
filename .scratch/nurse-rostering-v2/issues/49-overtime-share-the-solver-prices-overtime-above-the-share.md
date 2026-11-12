@@ -155,3 +155,8 @@ No adversarial review, by the brief.
   you like (the contract tests' `shared` then folds). The violation rule in `/validate` is `overtime_above_share`, per nurse,
   `date` null, amount the hours priced. Read the incentive point above before the weight's description.
 
+**Merged on 2026-11-12:** `main` fast-forwarded to `4e9d9b5`, the branch's head after merging `main` with tickets 45, 46, 58
+and 71 and the fix to `operations.sh` (`bf16ca8`); both workflows green on it (backend, solver, frontend, image, browser
+checks). On `ae1c600` the browser checks had failed on ticket 71's one-CPU confirmation check (28.7 s, inside gunicorn's 30 s),
+as `main`'s own run did; the main session fixed it on `main`. The local suites ran on `929e2b3`, before those merges; the
+merges touched nothing in `solver/` or `backend/closes/`.
