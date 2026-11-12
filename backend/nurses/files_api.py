@@ -1,5 +1,6 @@
-"""The CNO's files about nurses: the nurse import and the skills import (each a template, a preview and a confirm), and the
-staff list. Reading a file and judging a nurse import is `nurses.importing`, judging a skills import `nurses.skills_importing`.
+"""The files about nurses: the nurse import (a template, a preview and a confirm) and the staff list, the CNO's; the skills
+import (the same three), the CNO's and the Deputy CNO's (ticket 61), since both record what a nurse holds.
+Reading a file and judging a nurse import is `nurses.importing`, judging a skills import `nurses.skills_importing`.
 Who belongs where is `nurses.membership`."""
 from __future__ import annotations
 
@@ -28,6 +29,8 @@ from units.models import Unit
 router = Router(tags=["nurses"])
 cno = SignedIn(Role.CNO)
 cno_for_files = for_a_file(cno)  # Not from another site (ticket 62).
+recorders = SignedIn(Role.CNO, Role.DEPUTY_CNO)
+recorders_for_files = for_a_file(recorders)
 
 STAFF_LIST_COLUMNS = (*importing.COLUMNS, "Probation's last day", "End date", "Role", "Status", "Transfers to come")
 _A_CSV_FILE = {"responses": {200: {"description": "A CSV file.", "content": {"text/csv": {"schema": {"type": "string"}}}}}}
@@ -162,12 +165,12 @@ class SkillImportDone(Schema):
     unchanged: int
 
 
-@router.get("/skills-import/template", auth=cno_for_files, operation_id="downloadSkillsImportTemplate", openapi_extra=_A_CSV_FILE)
+@router.get("/skills-import/template", auth=recorders_for_files, operation_id="downloadSkillsImportTemplate", openapi_extra=_A_CSV_FILE)
 def skills_import_template(request: HttpRequest) -> HttpResponse:
     return csv_response("skills-import-template.csv", [skills_importing.COLUMNS])
 
 
-@router.post("/skills-import/preview", response=SkillImportPreview, auth=cno, operation_id="previewSkillsImport")
+@router.post("/skills-import/preview", response=SkillImportPreview, auth=recorders, operation_id="previewSkillsImport")
 def preview_skills_import(request: HttpRequest, response: HttpResponse, file: File[UploadedFile]) -> skills_importing.Preview:
     """Every row's problems, and what each row would do. It saves nothing and keeps nothing: confirming sends the file again."""
     response["Cache-Control"] = "no-store"
@@ -178,7 +181,7 @@ def _save_skills(request: HttpRequest, lines: list[importing.Line], token: str) 
     """Under the locks every skill write takes, in their order: the catalogue's, then the nurses' (`nurses.skills_api`).
     The file is judged again under them, so nothing can change between that judgement and the writes."""
     with transaction.atomic():
-        if not User.objects.filter(pk=request.user.pk, role=Role.CNO, is_active=True).exists():
+        if not User.objects.filter(pk=request.user.pk, role__in=recorders.roles, is_active=True).exists():
             raise HttpError(403, "Your role may not do this.")
         HospitalSettings.load(for_update=True)
         list(skills_importing.nurses_named(lines).select_for_update(of=("self", "user"), no_key=True)
@@ -199,7 +202,7 @@ def _save_skills(request: HttpRequest, lines: list[importing.Line], token: str) 
     return SkillImportDone(recorded=changes[done.RECORD], renewed=changes[done.RENEW], unchanged=changes[done.NONE])
 
 
-@router.post("/skills-import/confirm", response={200: SkillImportDone, 409: SkillImportPreview}, auth=cno,
+@router.post("/skills-import/confirm", response={200: SkillImportDone, 409: SkillImportPreview}, auth=recorders,
              operation_id="confirmSkillsImport")
 def confirm_skills_import(request: HttpRequest, response: HttpResponse, file: File[UploadedFile], token: Form[str]) -> Status:
     """`token` is the preview's. The file is judged again from the start: with any problem, or when it no longer means

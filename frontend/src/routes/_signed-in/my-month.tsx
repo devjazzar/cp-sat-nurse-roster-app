@@ -96,7 +96,7 @@ function MySkillsCard() {
         {skills.data && skills.data.length > 0 && (
           <RecordsTable skills={skills.data} label="Your skills" details />
         )}
-        <p className="text-sm text-muted-foreground">The CNO records them and changes one when you renew it. Colleagues cannot see them, and your manager sees no identifier or issue date.</p>
+        <p className="text-sm text-muted-foreground">The CNO and the Deputy CNO record them and change one when you renew it. Colleagues cannot see them, and your manager sees no identifier or issue date.</p>
       </CardContent>
     </Card>
   )

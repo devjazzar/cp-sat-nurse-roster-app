@@ -1,4 +1,5 @@
-"""A nurse's skills: the CNO records, renews and takes them off; her unit manager (and the manager of a unit she is due to join)
+"""A nurse's skills: the CNO and the Deputy CNO record, renew and take them off (the Deputy since ticket 61, on Rostering
+attributes), and write nothing to the catalogue, which stays the CNO's; her unit manager (and the manager of a unit she is due to join)
 and the Deputy CNO read them on the rows they already read (`nurses.api.NurseRow`, `nurses.attributes_api.NurseAttributesRow`);
 she reads her own here, and the expiries of every nurse the reader may see are read here too (`nurses.expiries`). The System
 Admin reads the audit log, so an entry says only whose skills changed and by whom: never which skill or date, since a skill's
@@ -32,7 +33,8 @@ from nurses.skills import Identifier, NurseSkillRow, as_rows, carried, end_recor
 from units.scope import HOSPITAL_WIDE, units_in_scope
 
 router = Router(tags=["nurses"])
-cno = SignedIn(Role.CNO)
+# Who records what a nurse holds (ticket 61). Each entry names the actor, so the log shows whose hand it was.
+recorders = SignedIn(Role.CNO, Role.DEPUTY_CNO)
 
 
 IDENTIFIER = "The number or code its issuing body gave it, trimmed; required on a licence, empty otherwise when there is none."
@@ -85,7 +87,7 @@ def _changed(request: HttpRequest, nurse: NurseProfile) -> None:
     record("nurse.skills_changed", actor=request.user, target=nurse.user.username, request=request)
 
 
-@router.post("/{nurse_id}/skills", response={201: list[NurseSkillRow]}, auth=cno, operation_id="recordNurseSkill")
+@router.post("/{nurse_id}/skills", response={201: list[NurseSkillRow]}, auth=recorders, operation_id="recordNurseSkill")
 def record_skill(request: HttpRequest, nurse_id: UUID, body: NewNurseSkillBody) -> Status:
     """Any nurse's, a manager with a nurse profile's too, deactivated or not: a returning nurse has her record. Answers with all
     her skills as they now are."""
@@ -106,7 +108,7 @@ def record_skill(request: HttpRequest, nurse_id: UUID, body: NewNurseSkillBody) 
         return Status(201, skills_of(nurse, details=True))
 
 
-@router.put("/{nurse_id}/skills/{skill_id}", response=list[NurseSkillRow], auth=cno, operation_id="renewNurseSkill")
+@router.put("/{nurse_id}/skills/{skill_id}", response=list[NurseSkillRow], auth=recorders, operation_id="renewNurseSkill")
 def renew_skill(request: HttpRequest, nurse_id: UUID, skill_id: UUID, body: NurseSkillChangeBody) -> list[NurseSkillRow]:
     """A renewal, or a correction of what it says: the row ends and another begins, as leave's does, with what the body names
     and, carried from the row it ends, what it does not. Saving it as it reads (for a kind that no longer expires, with no
@@ -132,7 +134,7 @@ def renew_skill(request: HttpRequest, nurse_id: UUID, skill_id: UUID, body: Nurs
         return skills_of(nurse, details=True)
 
 
-@router.post("/{nurse_id}/skills/{skill_id}/remove", response=list[NurseSkillRow], auth=cno, operation_id="removeNurseSkill")
+@router.post("/{nurse_id}/skills/{skill_id}/remove", response=list[NurseSkillRow], auth=recorders, operation_id="removeNurseSkill")
 def remove_skill(request: HttpRequest, nurse_id: UUID, skill_id: UUID) -> list[NurseSkillRow]:
     """A retired skill's too: a record made in error comes off. The row ends, and stays as the record of what was there."""
     with transaction.atomic():

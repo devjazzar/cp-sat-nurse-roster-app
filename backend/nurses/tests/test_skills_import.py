@@ -123,8 +123,8 @@ def test_the_nurse_import_template_names_no_skill(cno):
         codecs.BOM_UTF8 + b'"Hospital ID","Full name","Gender","Unit","Start date","On probation"\r\n')
 
 
-@pytest.mark.parametrize("role", [role for role in Role if role != Role.CNO])
-def test_only_the_cno_imports_skills(client_of, role, amal):
+@pytest.mark.parametrize("role", [role for role in Role if role not in (Role.CNO, Role.DEPUTY_CNO)])
+def test_only_the_cno_and_the_deputy_cno_import_skills(client_of, role, amal):
     other = client_of("other", role)
     content = csv_of("h1,ICU,")
 
@@ -132,6 +132,38 @@ def test_only_the_cno_imports_skills(client_of, role, amal):
     assert preview(other, content).status_code == 403
     assert confirm(other, content, "x").status_code == 403
     assert Client().post(PREVIEW, {"file": upload(content)}).status_code == 401
+    assert not NurseSkill.objects.exists()
+
+
+def test_the_deputy_cno_takes_the_template_previews_and_confirms_as_the_cno_does(cno, client_of, amal, catalogue):
+    """Ticket 61: the bulk renewal is not the CNO's alone. The audit entry names the Deputy's hand."""
+    deputy = client_of("hala", Role.DEPUTY_CNO)
+    recorded(cno, amal, catalogue["BLS"], "2026-12-31")
+    AuditEntry.objects.all().delete()
+
+    template = deputy.get(TEMPLATE)
+    assert template.status_code == 200
+    assert template.content == cno.get(TEMPLATE).content
+    content = csv_of("h1,BLS,2027-12-31", "h1,ICU,")
+    rows = previewed(deputy, content)["rows"]
+    assert [(row["skill"], row["change"], row["held_expiry"]) for row in rows] == [
+        ("BLS", "renew", "2026-12-31"), ("ICU", "record", None)]
+
+    assert confirmed(deputy, content) == {"recorded": 1, "renewed": 1, "unchanged": 0}
+
+    assert on_nurses_page(cno, "h1") == {"BLS": "2027-12-31", "ICU": None}
+    assert {row.recorded_by.username for row in NurseSkill.objects.current()} == {"hala"}
+    summary = AuditEntry.objects.get(action="nurse.skills_imported")
+    assert (summary.actor.username, summary.target, summary.after) == ("hala", "", {"count": 2})
+
+
+def test_a_deputy_cno_deactivated_since_the_preview_changes_nothing(client_of, amal):
+    deputy = client_of("hala", Role.DEPUTY_CNO)
+    content = csv_of("h1,ICU,")
+    token = previewed(deputy, content)["token"]
+    User.objects.filter(username="hala").update(is_active=False)
+
+    assert confirm(deputy, content, token).status_code in (401, 403)
     assert not NurseSkill.objects.exists()
 
 
@@ -172,9 +204,9 @@ def test_every_problem_on_every_row_is_reported_beside_its_column(cno, amal, bad
         [("hospital_id", "Use 1 to 150 letters, digits, dots, dashes and underscores."),
          ("skill", "There is no such skill. Use its name on the Skills page."),
          ("expiry", "Use a date as YYYY-MM-DD, between 1925 and 2076.")],
-        [("hospital_id", "No nurse has this hospital ID. Use the one on the Nurses page."),
+        [("hospital_id", "No nurse has this hospital ID. Use the one the Nurses page or Rostering attributes shows."),
          ("skill", "ACLS is retired, so it can no longer be recorded or renewed.")],
-        [("hospital_id", "No nurse has this hospital ID. Use the one on the Nurses page."),
+        [("hospital_id", "No nurse has this hospital ID. Use the one the Nurses page or Rostering attributes shows."),
          ("expiry", "BLS expires. Enter the last day it counts, as YYYY-MM-DD.")],
         [("expiry", "ICU does not expire, so leave its expiry empty.")],
         [("expiry", "Use a date as YYYY-MM-DD, between 1925 and 2076.")],

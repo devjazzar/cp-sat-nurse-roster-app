@@ -1162,7 +1162,7 @@ describe("each role's navigation and home", () => {
 
   it.each([
     ["cno", "CNO", /under Hospital rules/, ["Home", "Rosters", "Day view", "Units", "Unit rules", "Rostering attributes", "Nurses", "Expiries", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted", "/api/units", "/api/nurses/expiries"]],
-    ["deputy_cno", "Deputy CNO", "No roster is waiting for a decision.", ["Home", "Rosters", "Day view", "Unit rules", "Rostering attributes", "Expiries", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted"]],
+    ["deputy_cno", "Deputy CNO", "No roster is waiting for a decision.", ["Home", "Rosters", "Day view", "Unit rules", "Rostering attributes", "Import skills", "Expiries", "Leave", "Hospital rules", ...CATALOGUE_LINKS, "Change password"], ["/api/rosters/submitted"]],
     ["unit_manager", "Unit Manager", /No unit is assigned to you yet/, ["Home", "Roster", "Solve history", "Requests", "Swaps", "Covers", "Unit rules", "Rostering attributes", "Nurses", "Leave", ...CATALOGUE_LINKS, "Change password"], ["/api/units"]],
     ["staff_nurse", "Staff Nurse", "No roster yet for December 2026.", ["Home", "My month", "My roster", "Swaps", "Covers", ...CATALOGUE_LINKS, "Change password"], ["/api/nurses/my-unit", "/api/rosters/mine"]],
   ])("%s has a home of its own and none of the System Admin's pages", async (role, name, says, links, reads) => {
@@ -2886,7 +2886,7 @@ describe("the expiries page", () => {
     expect(cells(rowOf("Dana Ali"))).toEqual(["Dana Ali", "h125", "ER", "BLS", "Skill", "No record", "Required to work"])
     expect(within(screen.getByRole("table")).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[0].textContent))
       .toEqual(["Amal Saleh", "Badr Omar", "Dana Ali"])
-    expect(screen.getByText(/Deactivated nurses and those past their end date are left out/)).toHaveTextContent(/You record and renew skills on the Nurses page\.$/)
+    expect(screen.getByText(/Deactivated nurses and those past their end date are left out/)).toHaveTextContent(/You record and renew skills on the Nurses page, and the Deputy CNO on Rostering attributes\.$/)
   })
 
   it("is the Deputy CNO's too, from the header", async () => {
@@ -2899,7 +2899,7 @@ describe("the expiries page", () => {
 
     expect(await screen.findByRole("cell", { name: "Badr Omar" })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/expiries")
-    expect(screen.getByText(/The CNO records and renews skills on the Nurses page\./)).toBeInTheDocument()
+    expect(screen.getByText(/You record and renew skills on Rostering attributes, and the CNO on the Nurses page\./)).toBeInTheDocument()
   })
 
   it("says when there is nothing to list", async () => {
@@ -3939,7 +3939,7 @@ describe("the nurses page", () => {
       expect(within(row).getByText("BLS")).toBeInTheDocument()
       expect(within(row).getByText("Retired")).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: /Skills of/ })).not.toBeInTheDocument()
-      expect(screen.getByText(/records their skills/)).toBeInTheDocument()
+      expect(screen.getByText(/the CNO and the Deputy CNO record their skills/)).toBeInTheDocument()
       expect(calls.some((call) => call.url === "/api/hospital/skills")).toBe(false)
     })
 
@@ -4665,7 +4665,7 @@ describe("importing skills", () => {
   const NEW = { ...ROW, line: 3, hospital_id: "h2", full_name: "Badr Omar", skill: "ACLS", expiry: "2027-03-01", change: "record", held_expiry: null }
   const SAME = { ...ROW, line: 4, skill: "ICU", expiry: "", change: "none", held_expiry: null }
   const BAD = { ...NEW, full_name: "", change: null, problems: [
-    { column: "hospital_id", message: "No nurse has this hospital ID. Use the one on the Nurses page." },
+    { column: "hospital_id", message: "No nurse has this hospital ID. Use the one the Nurses page or Rostering attributes shows." },
     { column: "expiry", message: "ACLS expires. Enter the last day it counts, as YYYY-MM-DD." },
   ] }
   const GOOD = { rows: [ROW, NEW, SAME], token: "the-token" }
@@ -4699,6 +4699,42 @@ describe("importing skills", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/"))
   })
 
+  it("is the Deputy CNO's too, from the link beside Rostering attributes, and saves as the CNO's does (ticket 61)", async () => {
+    const { user, router, calls } = start("/", {
+      ...session(ME_DEPUTY), "GET /api/rosters/submitted": { body: [] },
+      "POST /api/nurses/skills-import/preview": { body: GOOD },
+      "POST /api/nurses/skills-import/confirm": { body: { recorded: 1, renewed: 1, unchanged: 1 } },
+    })
+    await screen.findByText("No roster is waiting for a decision.")
+    const links = within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link").map((link) => link.textContent)
+    expect(links.slice(links.indexOf("Rostering attributes"), links.indexOf("Rostering attributes") + 2)).toEqual(["Rostering attributes", "Import skills"])
+
+    await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Import skills" }))
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Import skills" })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe("/nurses/import-skills")
+    expect(screen.getByRole("link", { name: "Download the template" })).toHaveAttribute("href", "/api/nurses/skills-import/template")
+    const back = within(screen.getByText(/Or go back to/))
+    expect(back.getByRole("link", { name: "Rostering attributes" })).toHaveAttribute("href", "/rostering-attributes")
+    expect(back.queryByRole("link", { name: "Nurses" })).not.toBeInTheDocument()
+    expect(screen.getByText("As on Rostering attributes.")).toBeInTheDocument()
+    await check(user)
+    expect(await screen.findByRole("heading", { name: "3 lines ready to save" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Save 2 skills" }))
+
+    expect(await screen.findByText("1 skill recorded and 1 skill renewed.")).toBeInTheDocument()
+    expect(calls.filter((call) => call.method === "POST").map((call) => call.url))
+      .toEqual(["/api/nurses/skills-import/preview", "/api/nurses/skills-import/confirm"])
+  })
+
+  it("sends the CNO back to Nurses, where her IDs are, and gives her no link to it in the header", async () => {
+    start("/nurses/import-skills", here())
+
+    expect(within(await screen.findByText(/Or go back to/)).getByRole("link", { name: "Nurses" })).toHaveAttribute("href", "/nurses")
+    expect(screen.getByText("As on the Nurses page.")).toBeInTheDocument()
+    expect(within(screen.getByRole("navigation", { name: "Main" })).queryByRole("link", { name: "Import skills" })).not.toBeInTheDocument()
+  })
+
   it("refuses a large file before sending it, in the skills' words", async () => {
     const { user, calls } = start("/nurses/import-skills", here())
 
@@ -4727,7 +4763,7 @@ describe("importing skills", () => {
     await check(user)
 
     expect(await screen.findByRole("heading", { name: "1 of 2 lines has a problem" })).toHaveFocus()
-    expect(screen.getByText("Hospital ID: No nurse has this hospital ID. Use the one on the Nurses page.")).toBeInTheDocument()
+    expect(screen.getByText("Hospital ID: No nurse has this hospital ID. Use the one the Nurses page or Rostering attributes shows.")).toBeInTheDocument()
     expect(screen.getByText("Expiry: ACLS expires. Enter the last day it counts, as YYYY-MM-DD.")).toBeInTheDocument()
     expect(screen.queryByText("Amal Saleh")).not.toBeInTheDocument()
     expect(screen.getByText(/The other line has no problem/)).toBeInTheDocument()
@@ -5561,13 +5597,24 @@ describe("the rostering attributes page", () => {
       expect(within(cellOf("Amal Saleh").getAllByRole("cell")[4]).getByText("No")).toBeInTheDocument()
     })
 
-    it.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s reads it and has no action", async (_name, me) => {
+    it.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s reads it and has no probation action", async (_name, me) => {
       start("/rostering-attributes?unit=er", pageOf(me, [{ ...LAYAN, probation: { ...PROBATION, ended_early: true, lengths: [], if_extended: null } }]))
 
       const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
       expect(row.getByText("Until 31 Mar 2027")).toBeInTheDocument()
       expect(row.getByText("Ended early")).toBeInTheDocument()
-      expect(row.queryByRole("button")).not.toBeInTheDocument()
+      // The Deputy CNO's one button on the row is her skills' (ticket 61); the probation's are the unit manager's alone.
+      expect(row.queryAllByRole("button").map((button) => button.getAttribute("aria-label")))
+        .toEqual(me === ME_DEPUTY ? ["Skills of Layan Alharbi"] : [])
+    })
+
+    it("gives the Deputy CNO, who records skills on the row, none of the probation's actions her manager has (ticket 61)", async () => {
+      start("/rostering-attributes?unit=er", pageOf(ME_DEPUTY, [LAYAN]))
+
+      const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
+      expect(row.getByText("3 months")).toBeInTheDocument()
+      expect(row.getByRole("button", { name: "Skills of Layan Alharbi" })).toBeInTheDocument()
+      expect(row.queryByRole("button", { name: /probation|preceptor/i })).not.toBeInTheDocument()
     })
 
     it("extends it after asking, waiting on the answer, and says so with focus on her row", async () => {
@@ -5771,14 +5818,35 @@ describe("the rostering attributes page", () => {
     expect(await screen.findByText("ER has no nurses yet. The CNO adds them.")).toBeInTheDocument()
   })
 
-  it.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s reads with no way to change anything, by keyboard too", async (_name, me) => {
-    start("/rostering-attributes", pageOf(me))
+  it("the CNO reads with no way to change anything, by keyboard too", async () => {
+    start("/rostering-attributes", pageOf(ME_CNO))
 
     await screen.findByRole("cell", { name: "Amal Saleh" })
-    expect(screen.queryByRole("button", { name: /Set / })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Set |Skills of/ })).not.toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Rostering attributes of ER" })).toHaveAttribute("tabindex", "0")
-    expect(screen.getByText(/Only the unit's manager can change these/)).toBeInTheDocument()
+    expect(screen.getByText(/Only the unit's manager can change these. You record skills, certificates and licences on the Nurses page, and the Deputy CNO records them here./)).toBeInTheDocument()
     expect(screen.queryByText(/came with allowed shifts/)).not.toBeInTheDocument()
+  })
+
+  it("the Deputy CNO changes nothing but each nurse's skills, from a button on her row", async () => {
+    start("/rostering-attributes", pageOf(ME_DEPUTY))
+
+    const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
+    expect(row.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Skills of Amal Saleh"])
+    expect(screen.queryByRole("button", { name: /Set / })).not.toBeInTheDocument()
+    // The buttons scroll the table for a keyboard, so it is no region of its own to scroll.
+    expect(screen.queryByRole("region", { name: "Rostering attributes of ER" })).not.toBeInTheDocument()
+    expect(screen.getByText(/Only the unit's manager can change these, but for skills, certificates and licences, which you record here and the CNO on the Nurses page./)).toBeInTheDocument()
+    expect(screen.queryByText(/came with allowed shifts/)).not.toBeInTheDocument()
+  })
+
+  it("gives the unit manager no skills button: the CNO and the Deputy CNO record them", async () => {
+    start("/rostering-attributes", pageOf(ME_MANAGER, [{ ...AMAL, skills: asManagers([BLS_HELD]) }]))
+
+    const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
+    expect(row.getAllByRole("button").map((button) => button.textContent)).toEqual(["Set attributes"])
+    expect(screen.queryByRole("button", { name: /Skills of/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/skills the CNO's and the Deputy CNO's to record/)).toBeInTheDocument()
   })
 
   it.each([["the Deputy CNO", ME_DEPUTY], ["the CNO", ME_CNO]])("shows %s each nurse's records under the three headings, with identifiers and issue dates", async (_name, me) => {
@@ -5791,8 +5859,134 @@ describe("the rostering attributes page", () => {
     expect(within(records).getByRole("rowgroup", { name: "Licences" })).toHaveTextContent("SCFHS31 Mar 202821-RN-04121 Apr 2026")
     expect(within(records).getByRole("rowgroup", { name: "Certificates" })).toHaveTextContent("BSNDoes not expireNone15 Jun 2019")
     expect(within(records).getByRole("rowgroup", { name: "Skills" })).toHaveTextContent("BLS30 Jun 2027NoneNot recorded")
-    expect(records.closest("[tabindex]")).toBe(screen.getByRole("region", { name: "Rostering attributes of ER" }))
-    expect(screen.getByText(/The CNO sets skills on the Nurses page/)).toBeInTheDocument()
+    // The CNO's page has no buttons, so its table is a region a keyboard scrolls; the Deputy CNO's buttons scroll hers.
+    expect(screen.queryByRole("region", { name: "Rostering attributes of ER" })?.contains(records) ?? false).toBe(me === ME_CNO)
+    expect(within(records).queryByRole("button")).not.toBeInTheDocument()
+  })
+
+  describe("the Deputy CNO's records (ticket 61)", () => {
+    const CATALOGUE = [
+      { id: "s1", name: "BLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] },
+      { id: "s2", name: "ICU", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] },
+      { id: "s4", name: "SCFHS", kind: "licence", issuing_body: "Saudi Commission for Health Specialties", expires: true,
+        required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] },
+    ]
+    /** The list as the API reads it after each write, so the panel is seen to take the fresh one. */
+    function withRecords(first: unknown[], extra: Record<string, Handler | Answer> = {}) {
+      let skills = first
+      const after = (next: unknown[], answer: Answer = {}) => () => { skills = next; return { body: next, ...answer } }
+      return {
+        handlers: pageOf(ME_DEPUTY, [], {
+          "GET /api/units/er/nurses": () => ({ body: [{ ...AMAL, skills }, BADR] }),
+          "GET /api/hospital/skills": { body: CATALOGUE },
+          ...extra,
+        }),
+        after,
+      }
+    }
+    const openRecords = async (user: ReturnType<typeof start>["user"]) => {
+      await user.click(await screen.findByRole("button", { name: "Skills of Amal Saleh" }))
+      return screen.findByRole("heading", { level: 2, name: "Skills of Amal Saleh" })
+    }
+    const status = () => screen.getAllByRole("status").find((region) => region.textContent)
+
+    it("opens her records above the list with focus on its heading, and Done puts focus back on her row", async () => {
+      const { handlers } = withRecords([BLS_HELD])
+      const { user } = start("/rostering-attributes", handlers)
+
+      expect(await openRecords(user)).toHaveFocus()
+      const panel = within(screen.getByRole("heading", { level: 2, name: "Skills of Amal Saleh" }).closest("[data-slot=card]") as HTMLElement)
+      expect(panel.getAllByRole("columnheader").map((head) => head.textContent)).toEqual(["Name", "Expiry", "Identifier", "Issue date", "Actions"])
+      expect(panel.getByRole("button", { name: "Renew BLS" })).toBeInTheDocument()
+      expect(panel.getByRole("button", { name: "Take off BLS" })).toBeInTheDocument()
+      expect(panel.getByRole("heading", { level: 3, name: "Record a skill" })).toBeInTheDocument()
+
+      await user.click(panel.getByRole("button", { name: "Done" }))
+
+      await waitFor(() => expect(screen.getByRole("button", { name: "Skills of Amal Saleh" })).toHaveFocus())
+      expect(screen.queryByRole("heading", { level: 2, name: "Skills of Amal Saleh" })).not.toBeInTheDocument()
+    })
+
+    it("records a licence with the CNO's fields and refusals, and the row reads the fresh list", async () => {
+      const { handlers, after } = withRecords([])
+      const { user, calls } = start("/rostering-attributes", { ...handlers, "POST /api/nurses/n1/skills": after([SCFHS_HELD], { status: 201 }) })
+      await openRecords(user)
+
+      const skill = await screen.findByLabelText("Skill")
+      expect(within(skill).getAllByRole("group").map((group) => group.getAttribute("label"))).toEqual(["Skills", "Licences"])
+      await user.selectOptions(skill, "SCFHS")
+      expect(screen.getByLabelText("Identifier")).toHaveAttribute("aria-required", "true")
+      await user.type(screen.getByLabelText("Expiry"), "2028-03-31")
+      await user.click(screen.getByRole("button", { name: "Record skill" }))
+      expect(screen.getByLabelText("Identifier")).toHaveAccessibleDescription(/SCFHS is a licence, so it needs its identifier./)
+      expect(calls.some((call) => call.method === "POST")).toBe(false)
+
+      await user.type(screen.getByLabelText("Identifier"), "21-RN-0412")
+      await user.type(screen.getByLabelText("Issue date (optional)"), "2026-04-01")
+      calls.length = 0
+      await user.click(screen.getByRole("button", { name: "Record skill" }))
+
+      await waitFor(() => expect(status()).toHaveTextContent("SCFHS is recorded for Amal Saleh."))
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual(
+        { skill_id: "s4", expiry: "2028-03-31", identifier: "21-RN-0412", issue_date: "2026-04-01" })
+      await waitFor(() => expect(calls.some((call) => call.url === "/api/units/er/nurses")).toBe(true))
+      const row = within(screen.getByRole("cell", { name: "Amal Saleh" }).closest("tr")!)
+      expect(await row.findByRole("table", { name: "Skills of Amal Saleh" })).toHaveTextContent("21-RN-0412")
+    })
+
+    it("shows the API's refusal beside its field", async () => {
+      const { handlers } = withRecords([], { "POST /api/nurses/n1/skills": refusal(["identifier"],
+        "Badr Omar already holds SCFHS with this identifier. Check the number: each one is one nurse's.") })
+      const { user } = start("/rostering-attributes", handlers)
+      await openRecords(user)
+
+      await user.selectOptions(await screen.findByLabelText("Skill"), "SCFHS")
+      await user.type(screen.getByLabelText("Expiry"), "2028-03-31")
+      await user.type(screen.getByLabelText("Identifier"), "21-RN-0412")
+      await user.click(screen.getByRole("button", { name: "Record skill" }))
+
+      await waitFor(() => expect(screen.getByLabelText("Identifier")).toHaveAccessibleDescription(/Badr Omar already holds SCFHS with this identifier./))
+    })
+
+    it("renews one, with the form under the table and focus back on its button", async () => {
+      const { handlers, after } = withRecords([BLS_HELD])
+      const { user, calls } = start("/rostering-attributes", { ...handlers, "PUT /api/nurses/n1/skills/s1": after([{ ...BLS_HELD, expiry: "2029-06-30" }]) })
+      await openRecords(user)
+
+      await user.click(screen.getByRole("button", { name: "Renew BLS" }))
+      expect(screen.getByLabelText("Expiry of BLS")).toHaveFocus()
+      await user.clear(screen.getByLabelText("Expiry of BLS"))
+      await user.type(screen.getByLabelText("Expiry of BLS"), "2029-06-30")
+      await user.click(screen.getByRole("button", { name: "Save BLS" }))
+
+      await waitFor(() => expect(status()).toHaveTextContent("BLS of Amal Saleh now counts until 30 Jun 2029."))
+      expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ expiry: "2029-06-30", identifier: null, issue_date: null })
+      await waitFor(() => expect(screen.getByRole("button", { name: "Renew BLS" })).toHaveFocus())
+    })
+
+    it("takes one off, and says so when the page was out of date", async () => {
+      const { handlers, after } = withRecords([BLS_HELD, ICU_HELD], {
+        "POST /api/nurses/n1/skills/s2/remove": { status: 409, body: { detail: "Amal Saleh does not hold this skill now. Reload the page to see their skills as they are." } },
+      })
+      const { user } = start("/rostering-attributes", { ...handlers, "POST /api/nurses/n1/skills/s1/remove": after([ICU_HELD]) })
+      await openRecords(user)
+
+      await user.click(screen.getByRole("button", { name: "Take off BLS" }))
+      await waitFor(() => expect(status()).toHaveTextContent("BLS is taken off Amal Saleh."))
+      await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Record a skill" })).toHaveFocus())
+
+      await user.click(screen.getByRole("button", { name: "Take off ICU" }))
+      expect(await screen.findByRole("alert")).toHaveTextContent("Amal Saleh does not hold this skill now.")
+    })
+
+    it("says who fills an empty catalogue, with no link to a page that is not hers to change", async () => {
+      const { handlers } = withRecords([], { "GET /api/hospital/skills": { body: [] } })
+      const { user } = start("/rostering-attributes", handlers)
+      await openRecords(user)
+
+      expect(await screen.findByText("The skill catalogue is empty. The CNO adds skills, certificates and licences to it under Skills.")).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: /Add skills/ })).not.toBeInTheDocument()
+    })
   })
 
   it("shows a manager his nurses' records by kind, name and expiry, and no identifier", async () => {
