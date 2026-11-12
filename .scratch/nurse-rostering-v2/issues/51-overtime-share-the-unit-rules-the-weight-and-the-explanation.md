@@ -182,3 +182,8 @@ Codex review, by the brief.
   the result comparison too) and, if the solver's sample should carry it, `four_nurses.json`.
 - A weight bounded by another weight is a `field_validator` on `Weights` reading `info.data`, declared after the one it reads, and
   the same check in the page's `superRefine`.
+
+**Merged on 2026-11-12:** `main` fast-forwarded to `fa41606`, the branch's head after merging `main` with ticket 60 (`8d68553`)
+and this comment; both workflows green on it (solver, backend, frontend, image, browser checks). The local suites ran on
+`3eeb14c`, before the review's small fixes and that merge, which touched nothing of this ticket's files but the regenerated
+OpenAPI document and client, exported again and matching.
