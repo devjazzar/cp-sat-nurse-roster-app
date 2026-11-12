@@ -4599,9 +4599,15 @@ describe("importing nurses", () => {
 })
 
 describe("importing skills", () => {
+  /** The cells of each line in a group, its heading row left out. */
+  const cellsOf = (group: HTMLElement) => within(group).getAllByRole("row").slice(1)
+    .map((line) => within(line).getAllByRole("cell").map((cell) => cell.textContent))
   const CHIEF = { ...ME, username: "chief", full_name: "The Chief", role: "cno" }
   const here = (extra = {}) => ({ ...session(CHIEF), ...extra })
-  const ROW = { line: 2, hospital_id: "h1", full_name: "Amal Saleh", skill: "BLS", expiry: "2027-12-31", change: "renew", held_expiry: "2026-12-31", problems: [] }
+  const ROW = {
+    line: 2, hospital_id: "h1", full_name: "Amal Saleh", skill: "BLS", kind: "skill", expiry: "2027-12-31", identifier: "", issue_date: "",
+    change: "renew", held_expiry: "2026-12-31", held_identifier: null, held_issue_date: null, problems: [],
+  }
   const NEW = { ...ROW, line: 3, hospital_id: "h2", full_name: "Badr Omar", skill: "ACLS", expiry: "2027-03-01", change: "record", held_expiry: null }
   const SAME = { ...ROW, line: 4, skill: "ICU", expiry: "", change: "none", held_expiry: null }
   const BAD = { ...NEW, full_name: "", change: null, problems: [
@@ -4624,6 +4630,9 @@ describe("importing skills", () => {
     expect(link).toHaveAttribute("download")
     expect(document.title).toBe("Import skills · Nurse roster")
     expect(screen.getByText(/Empty for a skill that does not expire/)).toBeInTheDocument()
+    expect(screen.getByText("Identifier")).toBeInTheDocument()
+    expect(screen.getByText(/Required on a licence/)).toBeInTheDocument()
+    expect(screen.getByText("Issue date")).toBeInTheDocument()
     expect(router.state.location.pathname).toBe("/nurses/import-skills")
   })
 
@@ -4685,11 +4694,10 @@ describe("importing skills", () => {
 
     expect(await screen.findByRole("heading", { name: "3 lines ready to save" })).toHaveFocus()
     expect(screen.getByText("Saving records 1 skill and renews 1 skill. Nothing is saved until you do. 1 line says what is already recorded.")).toBeInTheDocument()
-    const lines = within(screen.getByRole("region", { name: "Lines of the file" })).getAllByRole("row").slice(1)
-    expect(lines.map((line) => within(line).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
-      ["2", "Renewal, was until 31 Dec 2026", "h1", "Amal Saleh", "BLS", "2027-12-31"],
-      ["3", "New", "h2", "Badr Omar", "ACLS", "2027-03-01"],
-      ["4", "Already recorded", "h1", "Amal Saleh", "ICU", ""],
+    expect(cellsOf(within(screen.getByRole("region", { name: "Lines of the file" })).getByRole("rowgroup", { name: "Skills" }))).toEqual([
+      ["2", "Renewal, was until 31 Dec 2026", "h1", "Amal Saleh", "BLS", "2027-12-31", "", ""],
+      ["3", "New", "h2", "Badr Omar", "ACLS", "2027-03-01", "", ""],
+      ["4", "Already recorded", "h1", "Amal Saleh", "ICU", "", "", ""],
     ])
 
     await user.click(screen.getByRole("button", { name: "Save 2 skills" }))
@@ -4699,6 +4707,56 @@ describe("importing skills", () => {
     expect(screen.queryByRole("heading", { name: "3 lines ready to save" })).not.toBeInTheDocument()
     expect(sent?.get("token")).toBe("the-token")
     expect(await (sent?.get("file") as Blob).text()).toBe("the bytes")
+  })
+
+  it("groups the lines under Skills, Certificates and Licences, with each one's identifier and issue date and what a renewal changes", async () => {
+    const LICENCE = { ...ROW, line: 5, skill: "SCFHS", kind: "licence", expiry: "2026-12-31", identifier: "21-RN-0413", issue_date: "2024-12-15",
+      held_expiry: "2026-12-31", held_identifier: "21-RN-0412", held_issue_date: "2024-12-15" }
+    const DEGREE = { ...ROW, line: 6, skill: "BSN", kind: "certificate", expiry: "", identifier: "", issue_date: "2019-07-01",
+      held_expiry: null, held_identifier: "KSU-7", held_issue_date: null }
+    const RENEWED = { ...LICENCE, line: 7, hospital_id: "h2", full_name: "Badr Omar", expiry: "2028-12-31", identifier: "21-RN-0777", issue_date: "2026-11-01",
+      held_identifier: "21-RN-0777", held_issue_date: "2024-11-01" }
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { body: { rows: [ROW, LICENCE, DEGREE, RENEWED], token: "the-token" } },
+    }))
+
+    await check(user)
+
+    const table = await screen.findByRole("region", { name: "Lines of the file" })
+    expect(within(within(table).getAllByRole("row")[0]).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(
+      ["Line", "Change", "Hospital ID", "Nurse", "Skill", "Expiry", "Identifier", "Issue date"])
+    expect(within(table).getAllByRole("rowgroup").slice(1).map((group) => within(group).getAllByRole("row")[0].textContent))
+      .toEqual(["Skills", "Certificates", "Licences"])
+    expect(cellsOf(within(table).getByRole("rowgroup", { name: "Certificates" }))).toEqual([
+      ["6", "Renewal, identifier was KSU-7, no issue date before", "h1", "Amal Saleh", "BSN", "", "", "2019-07-01"],
+    ])
+    expect(cellsOf(within(table).getByRole("rowgroup", { name: "Licences" }))).toEqual([
+      ["5", "Renewal, identifier was 21-RN-0412", "h1", "Amal Saleh", "SCFHS", "2026-12-31", "21-RN-0413", "2024-12-15"],
+      ["7", "Renewal, was until 31 Dec 2026, issue date was 1 Nov 2024", "h2", "Badr Omar", "SCFHS", "2028-12-31", "21-RN-0777", "2026-11-01"],
+    ])
+  })
+
+  it("names the identifier's and the issue date's problems, and shows a line whose skill is unknown apart", async () => {
+    const LICENCE = { ...ROW, line: 3, skill: "SCFHS", kind: "licence", identifier: "21-RN-0412", issue_date: "2027-02-01", change: null, problems: [
+      { column: "identifier", message: "Amal Saleh already holds SCFHS with this identifier. Check the number: each one is one nurse's." },
+      { column: "issue_date", message: "The issue date cannot be after the expiry." },
+    ] }
+    const UNKNOWN = { ...ROW, line: 4, skill: "Nothing", kind: null, change: null, problems: [
+      { column: "skill", message: "There is no such skill. Use its name on the Skills page." },
+    ] }
+    const { user } = start("/nurses/import-skills", here({
+      "POST /api/nurses/skills-import/preview": { body: { rows: [ROW, LICENCE, UNKNOWN], token: null } },
+    }))
+
+    await check(user)
+
+    expect(await screen.findByRole("heading", { name: "2 of 3 lines have a problem" })).toBeInTheDocument()
+    const table = screen.getByRole("region", { name: "Lines of the file" })
+    expect(within(within(table).getByRole("rowgroup", { name: "Licences" })).getByText(
+      "Identifier: Amal Saleh already holds SCFHS with this identifier. Check the number: each one is one nurse's.")).toBeInTheDocument()
+    expect(within(table).getByText("Issue date: The issue date cannot be after the expiry.")).toBeInTheDocument()
+    expect(cellsOf(within(table).getByRole("rowgroup", { name: "Other lines" }))[0].slice(2, 5)).toEqual(["h1", "Amal Saleh", "Nothing"])
+    expect(within(table).queryByRole("rowgroup", { name: "Skills" })).not.toBeInTheDocument()
   })
 
   it("offers nothing to save when every line is already recorded", async () => {

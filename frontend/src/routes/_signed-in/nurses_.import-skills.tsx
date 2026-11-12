@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 import { ApiError } from "@/api/fetcher"
 import {
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serverErrors } from "@/lib/server-errors"
+import { byKind, type Kind } from "@/lib/skill-kinds"
 import { cn, scrollableRegion, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
@@ -26,16 +27,32 @@ const COLUMN_NAMES: Record<string, string> = {
   hospital_id: "Hospital ID",
   skill: "Skill",
   expiry: "Expiry",
+  identifier: "Identifier",
+  issue_date: "Issue date",
 }
+
+const COLUMN_COUNT = 8
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const lineCount = (n: number) => count(n, "line", "lines")
+
+/** What a renewal changes, each field the line differs in with what was recorded: "was until 31 Dec 2026, identifier
+ *  was 21-RN-0412". An empty cell in the file is none, so a line may take an identifier or an issue date off. */
+function renewalWords(row: SkillImportRow) {
+  const changes = [
+    row.expiry !== (row.held_expiry ?? "") && row.held_expiry && `was until ${shortDay(row.held_expiry)}`,
+    row.identifier !== (row.held_identifier ?? "") && (row.held_identifier ? `identifier was ${row.held_identifier}` : "no identifier before"),
+    row.issue_date !== (row.held_issue_date ?? "")
+      && (row.held_issue_date ? `issue date was ${shortDay(row.held_issue_date)}` : "no issue date before"),
+  ].filter(Boolean)
+  return ["Renewal", ...changes].join(", ")
+}
 
 /** What saving does with a row, in the page's words. */
 function changeWords(row: SkillImportRow) {
   switch (row.change) {
     case "record": return "New"
-    case "renew": return row.held_expiry ? `Renewal, was until ${shortDay(row.held_expiry)}` : "Renewal"
+    case "renew": return renewalWords(row)
     case "none": return "Already recorded"
     default: return ""
   }
@@ -54,7 +71,18 @@ function savedWords({ recorded, renewed }: { recorded: number; renewed: number }
   return said ? `${said}.` : "Nothing needed saving."
 }
 
+/** The lines under Skills, Certificates and Licences, as every table of skills is (ticket 58), and last the lines whose skill
+ *  names no catalogue entry or cannot be read, which have no kind. Within a group, in the file's order. */
+function groupsOf(rows: SkillImportRow[]) {
+  const unknown = rows.filter((row) => !row.kind)
+  return [
+    ...byKind(rows.filter((row) => row.kind), (row) => row.kind as Kind),
+    ...(unknown.length > 0 ? [{ kind: "unknown", heading: "Other lines", rows: unknown }] : []),
+  ]
+}
+
 function RowsTable({ rows, label }: { rows: SkillImportRow[]; label: string }) {
+  const id = useId()
   const hasProblems = rows.some((row) => row.problems.length > 0)
   return (
     <Table container={scrollableRegion(label)}>
@@ -66,26 +94,36 @@ function RowsTable({ rows, label }: { rows: SkillImportRow[]; label: string }) {
           <TableHead>Nurse</TableHead>
           <TableHead>Skill</TableHead>
           <TableHead>Expiry</TableHead>
+          <TableHead>Identifier</TableHead>
+          <TableHead>Issue date</TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody>
-        {rows.map((row) => (
-          <TableRow key={row.line}>
-            <TableCell className="tabular-nums">{row.line}</TableCell>
-            {hasProblems ? (
-              <TableCell className="min-w-64 whitespace-normal text-destructive">
-                <ProblemList problems={row.problems} columns={COLUMN_NAMES} />
-              </TableCell>
-            ) : (
-              <TableCell className="min-w-32 whitespace-normal">{changeWords(row)}</TableCell>
-            )}
-            <TableCell translate="no" className={CELL}>{row.hospital_id}</TableCell>
-            <TableCell className={cn(CELL, "min-w-32")}>{row.full_name}</TableCell>
-            <TableCell className={CELL}>{row.skill}</TableCell>
-            <TableCell className={cn(CELL, "min-w-24 tabular-nums")}>{row.expiry}</TableCell>
+      {groupsOf(rows).map((group) => (
+        <TableBody key={group.kind} aria-labelledby={`${id}-${group.kind}`}>
+          <TableRow className="hover:bg-transparent">
+            <TableHead id={`${id}-${group.kind}`} scope="rowgroup" colSpan={COLUMN_COUNT}
+              className="bg-muted/50 font-medium text-foreground">{group.heading}</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
+          {group.rows.map((row) => (
+            <TableRow key={row.line}>
+              <TableCell className="tabular-nums">{row.line}</TableCell>
+              {hasProblems ? (
+                <TableCell className="min-w-64 whitespace-normal text-destructive">
+                  <ProblemList problems={row.problems} columns={COLUMN_NAMES} />
+                </TableCell>
+              ) : (
+                <TableCell className="min-w-32 whitespace-normal">{changeWords(row)}</TableCell>
+              )}
+              <TableCell translate="no" className={CELL}>{row.hospital_id}</TableCell>
+              <TableCell className={cn(CELL, "min-w-32")}>{row.full_name}</TableCell>
+              <TableCell className={CELL}>{row.skill}</TableCell>
+              <TableCell className={cn(CELL, "min-w-24 tabular-nums")}>{row.expiry}</TableCell>
+              <TableCell translate="no" className={CELL}>{row.identifier}</TableCell>
+              <TableCell className={cn(CELL, "min-w-24 tabular-nums")}>{row.issue_date}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      ))}
     </Table>
   )
 }
@@ -184,9 +222,13 @@ function ImportSkillsPage() {
             <dt className="font-medium">Hospital ID</dt>
             <dd className="mb-2 text-muted-foreground sm:mb-0">As on the Nurses page.</dd>
             <dt className="font-medium">Skill</dt>
-            <dd className="mb-2 text-muted-foreground sm:mb-0">Its name on the Skills page. For a skill the nurse already holds, the line sets its new expiry.</dd>
+            <dd className="mb-2 text-muted-foreground sm:mb-0">Its name on the Skills page, a certificate or a licence among them. For one the nurse already holds, the line is her record as it should now read, and saving renews it.</dd>
             <dt className="font-medium">Expiry</dt>
-            <dd className="text-muted-foreground">The last day it counts, as YYYY-MM-DD, such as 2027-01-31. Empty for a skill that does not expire. In Excel, format the column as yyyy-mm-dd, or saving changes the dates.</dd>
+            <dd className="mb-2 text-muted-foreground sm:mb-0">The last day it counts, as YYYY-MM-DD, such as 2027-01-31. Empty for a skill that does not expire. In Excel, format the date columns as yyyy-mm-dd, or saving changes the dates.</dd>
+            <dt className="font-medium">Identifier</dt>
+            <dd className="mb-2 text-muted-foreground sm:mb-0">The number its issuing body gave it. Required on a licence; empty when there is none, which takes off one recorded.</dd>
+            <dt className="font-medium">Issue date</dt>
+            <dd className="text-muted-foreground">When it was issued, as YYYY-MM-DD: not after the expiry or today. Empty when not known, which takes off one recorded.</dd>
           </dl>
           {/* The reset only clears what the last save said: no check runs during one, nor one during a check. */}
           <CheckFileForm check={check} lines="skills" confirming={confirm.isPending} checking={checking} onChecking={setChecking}
