@@ -22,6 +22,9 @@ export const CHANGE_SAYS: Record<Exclude<DraftChange["what"], MonthDates>, strin
   preferences: "preferences changed",
   skills: "skills changed",
   closed: "the month before has closed since, so this month starts from its closed carry-over, not the projected one",
+  on_probation: "is on probation this month, but it was planned with her counted",
+  off_probation: "is no longer on probation this month, but it was planned with her on probation",
+  preceptor: "has a different preceptor this month from the one it was planned with",
 }
 
 /** One line of a draft's changes since its solve, under "This draft was solved before these changes". A change with no
@@ -46,6 +49,7 @@ const SET_ASIDE: Record<NonNullable<DraftPin["set_aside"]>, string> = {
   shift_not_worked: "a shift this unit no longer works",
   shift_not_allowed: "not one of their allowed shifts",
   barred: "a day after a skill required to work expired, so they can work no shift",
+  night_on_probation: "the night shift, which a nurse on probation does not work",
 }
 
 export function Violations({ check, what }: { check: GridCheck; what: string }) {

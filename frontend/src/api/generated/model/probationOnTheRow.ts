@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1
  */
 import type { LengthChoice } from './lengthChoice';
+import type { PreceptorOnTheRow } from './preceptorOnTheRow';
 
 /**
  * Her probation as her row shows it, with what each of her unit manager's actions would make its last day, worked out here
@@ -25,4 +26,8 @@ export interface ProbationOnTheRow {
   if_extended: string | null;
   /** The last day End would give: the last of the month under way. */
   if_ended: string | null;
+  /** Who precepts her from this month on, in month order. Empty when no one does. */
+  preceptors: PreceptorOnTheRow[];
+  /** YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved. */
+  preceptor_months: string[];
 }

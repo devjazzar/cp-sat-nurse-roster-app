@@ -5271,10 +5271,91 @@ describe("the rostering attributes page", () => {
     const PROBATION = {
       last_day: "2027-03-31", months: 3, ticked: true, ended_early: false,
       lengths: [{ months: 1, last_day: "2027-01-31" }, { months: 2, last_day: "2027-02-28" }, { months: 3, last_day: "2027-03-31" }],
-      if_extended: "2027-04-30", if_ended: null,
+      if_extended: "2027-04-30", if_ended: null, preceptors: [], preceptor_months: [],
     }
     const LAYAN = { ...AMAL, full_name: "Layan Alharbi", probation: PROBATION }
     const cellOf = (name: string) => within(screen.getByRole("cell", { name }).closest("tr")!)
+
+    describe("her preceptor (ticket 55)", () => {
+      const MONTHS = ["2026-12", "2027-01", "2027-02", "2027-03"]
+      const CHOOSING = { ...LAYAN, probation: { ...PROBATION, preceptor_months: MONTHS } }
+      const PRECEPTED = {
+        ...LAYAN, probation: { ...PROBATION, preceptor_months: MONTHS,
+          preceptors: [{ hospital_id: "h2", full_name: "Amal Hassan", from_month: "2026-12", to_month: "2027-03" }] },
+      }
+      const OFFERED = [{ id: "p2", hospital_id: "h2", full_name: "Amal Hassan" }, { id: "p5", hospital_id: "h5", full_name: "Eman Noor" }]
+      const choices = ({ url }: { url: string }) => {
+        const month = new URL(url, "http://x").searchParams.get("month")
+        return month === "2027-03"
+          ? { body: { month, refusal: "No nurse of ER can precept Layan Alharbi from March 2027: none holds a skill marked \"Lets a nurse precept\", unexpired today, without being on probation or precepting another nurse then.", nurses: [] } }
+          : { body: { month, refusal: null, nurses: OFFERED } }
+      }
+
+      it("shows who precepts her and over which months, and none when no one does", async () => {
+        start("/rostering-attributes", pageOf(ME_MANAGER, [PRECEPTED, { ...CHOOSING, id: "n3", full_name: "Huda Saad" }]))
+
+        const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
+        expect(row.getByText("Preceptor: Amal Hassan,")).toBeInTheDocument()
+        expect(row.getByText("December 2026 to March 2027")).toBeInTheDocument()
+        expect(row.getByRole("button", { name: "Change preceptor for Layan Alharbi" })).toBeInTheDocument()
+        const huda = cellOf("Huda Saad")
+        expect(huda.getByText("No preceptor")).toBeInTheDocument()
+        expect(huda.getByRole("button", { name: "Choose preceptor for Huda Saad" })).toBeInTheDocument()
+      })
+
+      it.each([["the CNO", ME_CNO], ["the Deputy CNO", ME_DEPUTY]])("%s reads it and cannot change it", async (_name, me) => {
+        start("/rostering-attributes?unit=er", pageOf(me, [PRECEPTED]))
+
+        const row = within((await screen.findByRole("cell", { name: "Layan Alharbi" })).closest("tr")!)
+        expect(row.getByText("Preceptor: Amal Hassan,")).toBeInTheDocument()
+        expect(row.queryByRole("button", { name: /preceptor/ })).not.toBeInTheDocument()
+      })
+
+      it("is chosen from a month, from the nurses the server offers then, after asking, and says so", async () => {
+        const { user, calls } = start("/rostering-attributes", pageOf(ME_MANAGER, [CHOOSING], {
+          "GET /api/units/er/nurses/n1/preceptor-choices": choices,
+          "PUT /api/units/er/nurses/n1/preceptor": { body: PRECEPTED },
+        }))
+
+        await user.click(await screen.findByRole("button", { name: "Choose preceptor for Layan Alharbi" }))
+        const question = await screen.findByRole("alertdialog", { name: "Choose a preceptor for Layan Alharbi?" })
+        expect(question).toHaveTextContent("The list offers this unit's nurses who hold a skill marked “Lets a nurse precept”, unexpired today, are not on probation and precept no other nurse in those months. Both nurses are told.")
+        const from = within(question).getByRole("combobox", { name: "From" })
+        expect(within(from).getAllByRole("option").map((option) => option.textContent)).toEqual(["December 2026", "January 2027", "February 2027", "March 2027"])
+        const who = within(question).getByRole("combobox", { name: "Preceptor" })
+        await waitFor(() => expect(within(who).getAllByRole("option").map((option) => option.textContent)).toEqual(["Choose a nurse", "Amal Hassan", "Eman Noor"]))
+        expect(within(question).getByRole("button", { name: "Choose preceptor" })).toHaveAttribute("aria-disabled", "true")
+
+        await user.selectOptions(from, "2027-03")
+        expect(await within(question).findByText(/No nurse of ER can precept Layan Alharbi from March 2027/)).toBeInTheDocument()
+        expect(who).toBeDisabled()
+        await user.selectOptions(from, "2027-01")
+        await waitFor(() => expect(who).toBeEnabled())
+        await user.selectOptions(who, "p2")
+        await user.click(within(question).getByRole("button", { name: "Choose preceptor" }))
+
+        expect(await screen.findByText("From January 2027, Amal Hassan precepts Layan Alharbi.")).toBeInTheDocument()
+        expect(put(calls).body).toEqual({ preceptor_id: "p2", from_month: "2027-01" })
+        await waitFor(() => expect(screen.getByRole("button", { name: "Set attributes of Layan Alharbi" })).toHaveFocus())
+      })
+
+      it("says a refusal from the save in the question", async () => {
+        const { user } = start("/rostering-attributes", pageOf(ME_MANAGER, [PRECEPTED], {
+          "GET /api/units/er/nurses/n1/preceptor-choices": choices,
+          "PUT /api/units/er/nurses/n1/preceptor": { status: 422, body: { detail: [{ loc: ["body", "body", "preceptor_id"], msg: "Eman Noor already precepts Huda Saad in December 2026, and a preceptor has one nurse on probation at a time.", type: "value_error" }] } },
+        }))
+
+        await user.click(await screen.findByRole("button", { name: "Change preceptor for Layan Alharbi" }))
+        const question = await screen.findByRole("alertdialog", { name: "Change the preceptor of Layan Alharbi?" })
+        expect(question).toHaveTextContent("Both nurses are told, and so is the nurse who precepted her.")
+        const who = within(question).getByRole("combobox", { name: "Preceptor" })
+        await waitFor(() => expect(who).toBeEnabled())
+        await user.selectOptions(who, "p5")
+        await user.click(within(question).getByRole("button", { name: "Change preceptor" }))
+
+        expect(await within(question).findByRole("alert")).toHaveTextContent("Eman Noor already precepts Huda Saad in December 2026")
+      })
+    })
 
     it("shows the length and the last day, and her unit manager only the actions he may take", async () => {
       start("/rostering-attributes", pageOf(ME_MANAGER, [LAYAN, AMAL]))
@@ -6044,7 +6125,7 @@ describe("the roster page", () => {
       },
       { rule: "fair_day", penalty: 5, weight: null, amount: null, counted_in: null, largest: [], others: 0 },
     ],
-    explained: true,
+    explained: true, following: [],
     nurses: [{ hospital_id: "h1", full_name: "Amal Saleh", contract: 192, leave_credit: 24, required: 168, hours_worked: 180, overtime: 12, shortfall: 0, shifts: { D: 15, N: 0 }, cost: 3 }],
     statistics: STATISTICS, grid: { days: DAYS, rows: DRAFT.rows, shifts: SHIFTS }, restore_refusal: "This result is the draft already.",
   }
@@ -6483,6 +6564,38 @@ describe("the roster page", () => {
     start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, last_solve: { ...DONE, found_roster: false, best_cost: null, ...fields } } } }))
 
     expect(await screen.findByRole("link", { name: "Open this result" })).toHaveAttribute("href", `/solve-history/${SOLVE_ID}`)
+  })
+
+  it("says how a roster was planned when a nurse's probation or preceptor has changed since (ticket 55)", async () => {
+    const changes = [
+      { hospital_id: "h3", full_name: "Faten Ali", what: "on_probation" },
+      { hospital_id: "h4", full_name: "Hind Zaki", what: "off_probation" },
+      { hospital_id: "h5", full_name: "Sara Adel", what: "preceptor" },
+    ]
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: { ...DRAFT, changes } } } }))
+
+    const warning = await screen.findByRole("alert")
+    expect(warning).toHaveTextContent("Faten Ali: is on probation this month, but it was planned with her counted")
+    expect(warning).toHaveTextContent("Hind Zaki: is no longer on probation this month, but it was planned with her on probation")
+    expect(warning).toHaveTextContent("Sara Adel: has a different preceptor this month from the one it was planned with")
+  })
+
+  it("beside the draft, says which of her preceptor's day shifts a nurse on probation did not follow, and why (ticket 55)", async () => {
+    const following = [
+      { hospital_id: "h3", full_name: "Faten Ali", preceptor: "h1", preceptor_name: "Amal Saleh", followed: 6,
+        missed: [{ date: "2026-06-07", shift: "D", why: "leave" }, { date: "2026-06-10", shift: "D", why: "hours" }] },
+      { hospital_id: "h4", full_name: "Hind Zaki", preceptor: null, preceptor_name: "", followed: 0, missed: [] },
+    ]
+    start("/roster", manager({
+      [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } },
+      [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, following } },
+    }))
+
+    const panel = await screen.findByRole("region", { name: "Nurses on probation" })
+    expect(panel).toHaveTextContent("Faten Ali works beside Amal Saleh, her preceptor, on 6 of their 8 day shifts. Not on:")
+    expect(within(panel).getAllByRole("listitem").slice(1, 3).map((item) => item.textContent)).toEqual([
+      "7 June, D: she was on leave", "10 June, D: her hours held no more"])
+    expect(panel).toHaveTextContent("Hind Zaki had no preceptor this month, so her day shifts were placed freely.")
   })
 
   it("warns of what has changed since the draft was solved", async () => {
@@ -9281,6 +9394,14 @@ describe("swaps", () => {
     expect(await screen.findByText("The ER roster for December 2026 is not approved yet, so there is nothing to swap.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Propose the swap" })).not.toBeInTheDocument()
     expect(screen.getByText("You have proposed no swap, and nobody has proposed one with you.")).toBeInTheDocument()
+  })
+
+  it("tells a nurse on probation why she proposes no swap (ticket 55)", async () => {
+    const said = "You are on probation in December 2026, and a nurse on probation takes no part in a swap: you work beside your preceptor, and the roster is planned around that."
+    start("/swaps?month=2026-12", nurse({ body: [] }, { "GET /api/swaps/compose": { body: { ...COMPOSER, refusal: said } } }))
+
+    expect(await screen.findByText(said)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Propose the swap" })).not.toBeInTheDocument()
   })
 
   it("a nurse reads her swaps, with each cell, each answer and the note", async () => {

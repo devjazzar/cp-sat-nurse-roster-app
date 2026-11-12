@@ -1642,7 +1642,14 @@ export const ListNurseAttributesResponseItem = zod.object({
   "last_day": zod.iso.date()
 })).describe('The lengths Length may choose, with the last day each gives.'),
   "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
-  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.'),
+  "preceptors": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "from_month": zod.string().describe('YYYY-MM: the first month this nurse precepts her, or this month for one under way.'),
+  "to_month": zod.string().describe('YYYY-MM: the last, with her probation\'s last month or a nurse\'s last month in the unit.')
+})).describe('Who precepts her from this month on, in month order. Empty when no one does.'),
+  "preceptor_months": zod.array(zod.string()).describe('YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.')
 }).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 export const ListNurseAttributesResponse = zod.array(ListNurseAttributesResponseItem)
@@ -1737,7 +1744,14 @@ export const UpdateNurseAttributesResponse = zod.object({
   "last_day": zod.iso.date()
 })).describe('The lengths Length may choose, with the last day each gives.'),
   "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
-  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.'),
+  "preceptors": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "from_month": zod.string().describe('YYYY-MM: the first month this nurse precepts her, or this month for one under way.'),
+  "to_month": zod.string().describe('YYYY-MM: the last, with her probation\'s last month or a nurse\'s last month in the unit.')
+})).describe('Who precepts her from this month on, in month order. Empty when no one does.'),
+  "preceptor_months": zod.array(zod.string()).describe('YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.')
 }).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
@@ -1803,7 +1817,14 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "last_day": zod.iso.date()
 })).describe('The lengths Length may choose, with the last day each gives.'),
   "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
-  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.'),
+  "preceptors": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "from_month": zod.string().describe('YYYY-MM: the first month this nurse precepts her, or this month for one under way.'),
+  "to_month": zod.string().describe('YYYY-MM: the last, with her probation\'s last month or a nurse\'s last month in the unit.')
+})).describe('Who precepts her from this month on, in month order. Empty when no one does.'),
+  "preceptor_months": zod.array(zod.string()).describe('YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.')
 }).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
@@ -1869,7 +1890,14 @@ export const SetProbationLengthResponse = zod.object({
   "last_day": zod.iso.date()
 })).describe('The lengths Length may choose, with the last day each gives.'),
   "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
-  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.'),
+  "preceptors": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "from_month": zod.string().describe('YYYY-MM: the first month this nurse precepts her, or this month for one under way.'),
+  "to_month": zod.string().describe('YYYY-MM: the last, with her probation\'s last month or a nurse\'s last month in the unit.')
+})).describe('Who precepts her from this month on, in month order. Empty when no one does.'),
+  "preceptor_months": zod.array(zod.string()).describe('YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.')
 }).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
@@ -1927,7 +1955,14 @@ export const ExtendProbationResponse = zod.object({
   "last_day": zod.iso.date()
 })).describe('The lengths Length may choose, with the last day each gives.'),
   "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
-  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.'),
+  "preceptors": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "from_month": zod.string().describe('YYYY-MM: the first month this nurse precepts her, or this month for one under way.'),
+  "to_month": zod.string().describe('YYYY-MM: the last, with her probation\'s last month or a nurse\'s last month in the unit.')
+})).describe('Who precepts her from this month on, in month order. Empty when no one does.'),
+  "preceptor_months": zod.array(zod.string()).describe('YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.')
 }).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
@@ -1986,7 +2021,115 @@ export const EndProbationResponse = zod.object({
   "last_day": zod.iso.date()
 })).describe('The lengths Length may choose, with the last day each gives.'),
   "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
-  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.')
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.'),
+  "preceptors": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "from_month": zod.string().describe('YYYY-MM: the first month this nurse precepts her, or this month for one under way.'),
+  "to_month": zod.string().describe('YYYY-MM: the last, with her probation\'s last month or a nurse\'s last month in the unit.')
+})).describe('Who precepts her from this month on, in month order. Empty when no one does.'),
+  "preceptor_months": zod.array(zod.string()).describe('YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.')
+}).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
+})
+
+
+/**
+ * The list Change preceptor offers, from a month on. Read with no lock: the save checks it all again.
+ * @summary List Preceptor Choices
+ */
+export const ListPreceptorChoicesParams = zod.object({
+  "unit_id": zod.uuid(),
+  "nurse_id": zod.uuid()
+})
+
+export const listPreceptorChoicesQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const ListPreceptorChoicesQueryParams = zod.object({
+  "month": zod.union([zod.string().regex(listPreceptorChoicesQueryMonthOneRegExp),zod.null()]).describe('YYYY-MM: the month the choice would take effect from.')
+})
+
+export const ListPreceptorChoicesResponse = zod.object({
+  "month": zod.string().describe('YYYY-MM: the month the choice would take effect from.'),
+  "refusal": zod.union([zod.string(),zod.null()]).describe('Why no preceptor can be chosen from that month.'),
+  "nurses": zod.array(zod.object({
+  "id": zod.uuid().describe('The nurse profile\'s.'),
+  "hospital_id": zod.string(),
+  "full_name": zod.string()
+})).describe('The unit\'s nurses that month who hold a skill marked "Lets a nurse precept", unexpired today, are not on probation in her months from then and precept no other nurse in any of them. Empty with a refusal.')
+})
+
+
+/**
+ * Assigns or changes her preceptor from a month on. Both nurses are told, and a nurse who precepted her then and no longer
+ * does; each assignment is logged with its values before and after, as her probation is.
+ * @summary Set Preceptor
+ */
+export const SetPreceptorParams = zod.object({
+  "unit_id": zod.uuid(),
+  "nurse_id": zod.uuid()
+})
+
+export const setPreceptorBodyFromMonthRegExp = new RegExp('^\\d{4}-(0[1-9]|1[0-2])$');
+
+
+export const SetPreceptorBody = zod.object({
+  "preceptor_id": zod.uuid().describe('The nurse profile\'s.'),
+  "from_month": zod.string().regex(setPreceptorBodyFromMonthRegExp)
+})
+
+export const SetPreceptorResponse = zod.object({
+  "id": zod.uuid(),
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "is_active": zod.boolean(),
+  "gender": zod.enum(['F', 'M']).describe('The CNO\'s to set: it is here to read.'),
+  "joins_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to join. Until then only their allowed shifts here are this unit\'s to set.'),
+  "leaves_from": zod.union([zod.string(),zod.null()]).describe('YYYY-MM, for a nurse due to leave. Names no other unit.'),
+  "team_leader": zod.boolean(),
+  "score": zod.number(),
+  "ramadan_reduced": zod.boolean(),
+  "breastfeeding": zod.boolean(),
+  "ytd_overtime": zod.int(),
+  "hours_balance": zod.int(),
+  "night_balance": zod.number(),
+  "friday_balance": zod.number(),
+  "overtime_balance": zod.number(),
+  "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
+  "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "skills": zod.array(zod.object({
+  "skill_id": zod.uuid(),
+  "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
+  "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
+  "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
+  "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
+  "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
+  "ticked": zod.boolean().describe('The CNO\'s tick. False for one unticked whose months up to `last_day` had approved rosters.'),
+  "ended_early": zod.boolean().describe('Her unit manager pressed End, so it can no longer be extended.'),
+  "lengths": zod.array(zod.object({
+  "months": zod.int(),
+  "last_day": zod.iso.date()
+})).describe('The lengths Length may choose, with the last day each gives.'),
+  "if_extended": zod.union([zod.iso.date(),zod.null()]).describe('The last day Extend would give.'),
+  "if_ended": zod.union([zod.iso.date(),zod.null()]).describe('The last day End would give: the last of the month under way.'),
+  "preceptors": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "from_month": zod.string().describe('YYYY-MM: the first month this nurse precepts her, or this month for one under way.'),
+  "to_month": zod.string().describe('YYYY-MM: the last, with her probation\'s last month or a nurse\'s last month in the unit.')
+})).describe('Who precepts her from this month on, in month order. Empty when no one does.'),
+  "preceptor_months": zod.array(zod.string()).describe('YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.')
 }).describe('Her probation as her row shows it, with what each of her unit manager\'s actions would make its last day, worked out here\non the hospital\'s clock. An action that would be refused has none.'),zod.null()]).describe('Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it.')
 })
 
@@ -2401,7 +2544,7 @@ export const GetRosterMonthResponse = zod.object({
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -2504,7 +2647,7 @@ export const GetRosterMonthResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -2531,7 +2674,7 @@ export const GetRosterMonthResponse = zod.object({
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -2625,7 +2768,7 @@ export const SaveDraftPinsResponse = zod.object({
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -2728,7 +2871,7 @@ export const SaveDraftPinsResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -2755,7 +2898,7 @@ export const SaveDraftPinsResponse = zod.object({
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -2805,7 +2948,7 @@ export const SaveRosterVersionResponse = zod.object({
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -2908,7 +3051,7 @@ export const SaveRosterVersionResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -2935,7 +3078,7 @@ export const SaveRosterVersionResponse = zod.object({
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -3027,7 +3170,7 @@ export const SubmitRosterResponse = zod.object({
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -3130,7 +3273,7 @@ export const SubmitRosterResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -3157,7 +3300,7 @@ export const SubmitRosterResponse = zod.object({
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -3189,7 +3332,7 @@ export const ApproveRosterResponse = zod.object({
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -3292,7 +3435,7 @@ export const ApproveRosterResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -3319,7 +3462,7 @@ export const ApproveRosterResponse = zod.object({
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -3353,7 +3496,7 @@ export const RejectRosterResponse = zod.object({
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -3456,7 +3599,7 @@ export const RejectRosterResponse = zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('The shift\'s code. Empty for a day off.'),
   "origin": zod.enum(['manager', 'request', 'swap', 'cover']),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why this pin counts for nothing at present and reaches no solve. It is kept, and counts again if that stops being so. Null for a pin that counts.')
 })),
   "pins_lost_to_leave": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -3483,7 +3626,7 @@ export const RejectRosterResponse = zod.object({
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
   "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays', 'on_probation', 'off_probation', 'preceptor']).describe('`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -3694,7 +3837,7 @@ export const CompareSolveResultsResponse = zod.object({
   "nurses": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
-  "kinds": zod.array(zod.enum(['joined', 'left', 'attributes', 'leave', 'pins', 'carry_over', 'preferences', 'skills'])).describe('Only the kinds: no date, pin, figure or skill of hers.')
+  "kinds": zod.array(zod.enum(['joined', 'left', 'attributes', 'leave', 'pins', 'carry_over', 'preferences', 'skills', 'probation'])).describe('Only the kinds: no date, pin, figure or skill of hers.')
 })).describe('Each nurse whose block differs, by hospital ID.')
 }),
   "rules": zod.array(zod.object({
@@ -3857,6 +4000,18 @@ export const GetSolveResultResponse = zod.object({
 })).describe('Its 5 largest occurrences.'),
   "others": zod.int().describe('How many more occurrences it has.')
 })).describe('Each soft rule that costs something, the costliest first.'),
+  "following": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "preceptor": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s hospital ID. Null when she had none in the input.'),
+  "preceptor_name": zod.string(),
+  "followed": zod.int().describe('Her preceptor\'s day shifts she worked beside them.'),
+  "missed": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('Her preceptor\'s day shift that day, under the code it has now.'),
+  "why": zod.enum(['hours', 'leave', 'pinned', 'elapsed', 'barred']).describe('`hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired.')
+})).describe('Those she did not, in date order.')
+}).describe('A nurse on probation in the solve (ticket 55, ADR 0014): which of her preceptor\'s day shifts she followed, and which\nnot and why. Worked out from the stored input and roster with the solver\'s own reading, as the explanation is.')).describe('Each nurse on probation in its input, by name. Empty with no roster.'),
   "explained": zod.boolean().describe('False when the solver\'s code could not explain the stored roster.'),
   "nurses": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -3992,6 +4147,18 @@ export const RestoreSolveResultResponse = zod.object({
 })).describe('Its 5 largest occurrences.'),
   "others": zod.int().describe('How many more occurrences it has.')
 })).describe('Each soft rule that costs something, the costliest first.'),
+  "following": zod.array(zod.object({
+  "hospital_id": zod.string(),
+  "full_name": zod.string(),
+  "preceptor": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s hospital ID. Null when she had none in the input.'),
+  "preceptor_name": zod.string(),
+  "followed": zod.int().describe('Her preceptor\'s day shifts she worked beside them.'),
+  "missed": zod.array(zod.object({
+  "date": zod.iso.date(),
+  "shift": zod.string().describe('Her preceptor\'s day shift that day, under the code it has now.'),
+  "why": zod.enum(['hours', 'leave', 'pinned', 'elapsed', 'barred']).describe('`hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired.')
+})).describe('Those she did not, in date order.')
+}).describe('A nurse on probation in the solve (ticket 55, ADR 0014): which of her preceptor\'s day shifts she followed, and which\nnot and why. Worked out from the stored input and roster with the solver\'s own reading, as the explanation is.')).describe('Each nurse on probation in its input, by name. Empty with no roster.'),
   "explained": zod.boolean().describe('False when the solver\'s code could not explain the stored roster.'),
   "nurses": zod.array(zod.object({
   "hospital_id": zod.string(),
@@ -4162,7 +4329,7 @@ export const ListWindowRequestsResponseItem = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -4225,7 +4392,7 @@ export const AcceptRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -4265,7 +4432,7 @@ export const RejectRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -4309,7 +4476,7 @@ export const EditRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({
@@ -4350,7 +4517,7 @@ export const CancelRequestResponse = zod.object({
   "shift": zod.string().describe('What she asked for: a shift\'s code, empty for a day off.'),
   "state": zod.enum(['pending', 'accepted', 'rejected', 'withdrawn', 'cancelled', 'replaced_by_leave', 'expired']),
   "promised": zod.union([zod.string(),zod.null()]).describe('While accepted, what its pin holds, which an edit may have changed. Null otherwise.'),
-  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
+  "set_aside": zod.union([zod.enum(['not_in_month', 'outside_dates', 'leave', 'shift_not_worked', 'shift_not_allowed', 'barred', 'night_on_probation']),zod.null()]).describe('Why its pin counts for nothing now, while accepted, as for any pin.'),
   "accept_refusal": zod.union([zod.string(),zod.null()]).describe('Why it cannot be accepted now, while pending.'),
   "replaces_pin": zod.union([zod.string(),zod.null()]).describe('While pending, the shift\'s code, or empty for a day off, of the pin you put on its cell, which accepting it replaces.'),
   "steps": zod.array(zod.object({

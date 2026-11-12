@@ -4,6 +4,7 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
+import type { Following } from './following';
 import type { GridView } from './gridView';
 import type { NurseAccounting } from './nurseAccounting';
 import type { ReplanComparison } from './replanComparison';
@@ -27,6 +28,8 @@ export interface SolveResult {
   unit_cost: number | null;
   /** Each soft rule that costs something, the costliest first. */
   rules: RuleResult[];
+  /** Each nurse on probation in its input, by name. Empty with no roster. */
+  following: Following[];
   /** False when the solver's code could not explain the stored roster. */
   explained: boolean;
   nurses: NurseAccounting[];

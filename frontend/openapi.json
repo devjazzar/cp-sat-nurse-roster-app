@@ -2244,6 +2244,136 @@
         ]
       }
     },
+    "/api/units/{unit_id}/nurses/{nurse_id}/preceptor-choices": {
+      "get": {
+        "operationId": "listPreceptorChoices",
+        "summary": "List Preceptor Choices",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "schema": {
+              "anyOf": [
+                {
+                  "examples": [
+                    "2027-01"
+                  ],
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM: the month the choice would take effect from.",
+              "title": "Month"
+            },
+            "required": true,
+            "description": "YYYY-MM: the month the choice would take effect from."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreceptorChoices"
+                }
+              }
+            }
+          }
+        },
+        "description": "The list Change preceptor offers, from a month on. Read with no lock: the save checks it all again.",
+        "tags": [
+          "nurses"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
+    "/api/units/{unit_id}/nurses/{nurse_id}/preceptor": {
+      "put": {
+        "operationId": "setPreceptor",
+        "summary": "Set Preceptor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "nurse_id",
+            "schema": {
+              "format": "uuid",
+              "title": "Nurse Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NurseAttributesRow"
+                }
+              }
+            }
+          }
+        },
+        "description": "Assigns or changes her preceptor from a month on. Both nurses are told, and a nurse who precepted her then and no longer\ndoes; each assignment is logged with its values before and after, as her probation is.",
+        "tags": [
+          "nurses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreceptorBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units/{unit_id}/leave": {
       "get": {
         "operationId": "listUnitLeave",
@@ -9814,6 +9944,36 @@
         "title": "NurseSkillRow",
         "type": "object"
       },
+      "PreceptorOnTheRow": {
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "from_month": {
+            "description": "YYYY-MM: the first month this nurse precepts her, or this month for one under way.",
+            "title": "From Month",
+            "type": "string"
+          },
+          "to_month": {
+            "description": "YYYY-MM: the last, with her probation's last month or a nurse's last month in the unit.",
+            "title": "To Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "from_month",
+          "to_month"
+        ],
+        "title": "PreceptorOnTheRow",
+        "type": "object"
+      },
       "ProbationOnTheRow": {
         "description": "Her probation as her row shows it, with what each of her unit manager's actions would make its last day, worked out here\non the hospital's clock. An action that would be refused has none.",
         "properties": {
@@ -9871,6 +10031,22 @@
             ],
             "description": "The last day End would give: the last of the month under way.",
             "title": "If Ended"
+          },
+          "preceptors": {
+            "description": "Who precepts her from this month on, in month order. Empty when no one does.",
+            "items": {
+              "$ref": "#/components/schemas/PreceptorOnTheRow"
+            },
+            "title": "Preceptors",
+            "type": "array"
+          },
+          "preceptor_months": {
+            "description": "YYYY-MM: the months her unit manager may choose a preceptor from: from this month on, while she is on probation in this unit, and not one whose roster is approved.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Preceptor Months",
+            "type": "array"
           }
         },
         "required": [
@@ -9880,7 +10056,9 @@
           "ended_early",
           "lengths",
           "if_extended",
-          "if_ended"
+          "if_ended",
+          "preceptors",
+          "preceptor_months"
         ],
         "title": "ProbationOnTheRow",
         "type": "object"
@@ -10014,6 +10192,117 @@
           "months"
         ],
         "title": "LengthBody",
+        "type": "object"
+      },
+      "PreceptorMonth": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "examples": [
+                  "2027-01"
+                ],
+                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "YYYY-MM: the month the choice would take effect from.",
+            "title": "Month"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "title": "PreceptorMonth",
+        "type": "object"
+      },
+      "PreceptorChoice": {
+        "properties": {
+          "id": {
+            "description": "The nurse profile's.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hospital_id",
+          "full_name"
+        ],
+        "title": "PreceptorChoice",
+        "type": "object"
+      },
+      "PreceptorChoices": {
+        "properties": {
+          "month": {
+            "description": "YYYY-MM: the month the choice would take effect from.",
+            "title": "Month",
+            "type": "string"
+          },
+          "refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why no preceptor can be chosen from that month.",
+            "title": "Refusal"
+          },
+          "nurses": {
+            "description": "The unit's nurses that month who hold a skill marked \"Lets a nurse precept\", unexpired today, are not on probation in her months from then and precept no other nurse in any of them. Empty with a refusal.",
+            "items": {
+              "$ref": "#/components/schemas/PreceptorChoice"
+            },
+            "title": "Nurses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "month",
+          "refusal",
+          "nurses"
+        ],
+        "title": "PreceptorChoices",
+        "type": "object"
+      },
+      "PreceptorBody": {
+        "additionalProperties": false,
+        "properties": {
+          "preceptor_id": {
+            "description": "The nurse profile's.",
+            "format": "uuid",
+            "title": "Preceptor Id",
+            "type": "string"
+          },
+          "from_month": {
+            "examples": [
+              "2027-01"
+            ],
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "From Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preceptor_id",
+          "from_month"
+        ],
+        "title": "PreceptorBody",
         "type": "object"
       },
       "MonthFilter": {
@@ -11136,7 +11425,7 @@
             "type": "string"
           },
           "what": {
-            "description": "`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month's Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).",
+            "description": "`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month's Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).",
             "enum": [
               "gender",
               "leave",
@@ -11147,7 +11436,10 @@
               "skills",
               "closed",
               "ramadan_days",
-              "public_holidays"
+              "public_holidays",
+              "on_probation",
+              "off_probation",
+              "preceptor"
             ],
             "title": "What",
             "type": "string"
@@ -11251,7 +11543,8 @@
                   "leave",
                   "shift_not_worked",
                   "shift_not_allowed",
-                  "barred"
+                  "barred",
+                  "night_on_probation"
                 ],
                 "type": "string"
               },
@@ -13106,7 +13399,8 @@
                 "pins",
                 "carry_over",
                 "preferences",
-                "skills"
+                "skills",
+                "probation"
               ],
               "type": "string"
             },
@@ -13473,6 +13767,58 @@
         "title": "ViolationGroups",
         "type": "object"
       },
+      "Following": {
+        "description": "A nurse on probation in the solve (ticket 55, ADR 0014): which of her preceptor's day shifts she followed, and which\nnot and why. Worked out from the stored input and roster with the solver's own reading, as the explanation is.",
+        "properties": {
+          "hospital_id": {
+            "title": "Hospital Id",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "preceptor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Her preceptor's hospital ID. Null when she had none in the input.",
+            "title": "Preceptor"
+          },
+          "preceptor_name": {
+            "title": "Preceptor Name",
+            "type": "string"
+          },
+          "followed": {
+            "description": "Her preceptor's day shifts she worked beside them.",
+            "title": "Followed",
+            "type": "integer"
+          },
+          "missed": {
+            "description": "Those she did not, in date order.",
+            "items": {
+              "$ref": "#/components/schemas/MissedDay"
+            },
+            "title": "Missed",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hospital_id",
+          "full_name",
+          "preceptor",
+          "preceptor_name",
+          "followed",
+          "missed"
+        ],
+        "title": "Following",
+        "type": "object"
+      },
       "GridView": {
         "properties": {
           "days": {
@@ -13503,6 +13849,39 @@
           "shifts"
         ],
         "title": "GridView",
+        "type": "object"
+      },
+      "MissedDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "shift": {
+            "description": "Her preceptor's day shift that day, under the code it has now.",
+            "title": "Shift",
+            "type": "string"
+          },
+          "why": {
+            "description": "`hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired.",
+            "enum": [
+              "hours",
+              "leave",
+              "pinned",
+              "elapsed",
+              "barred"
+            ],
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "shift",
+          "why"
+        ],
+        "title": "MissedDay",
         "type": "object"
       },
       "ReplanChange": {
@@ -13855,6 +14234,14 @@
             "title": "Rules",
             "type": "array"
           },
+          "following": {
+            "description": "Each nurse on probation in its input, by name. Empty with no roster.",
+            "items": {
+              "$ref": "#/components/schemas/Following"
+            },
+            "title": "Following",
+            "type": "array"
+          },
           "explained": {
             "description": "False when the solver's code could not explain the stored roster.",
             "title": "Explained",
@@ -13921,6 +14308,7 @@
           "elapsed_violations",
           "unit_cost",
           "rules",
+          "following",
           "explained",
           "nurses",
           "statistics",
@@ -14199,7 +14587,8 @@
                   "leave",
                   "shift_not_worked",
                   "shift_not_allowed",
-                  "barred"
+                  "barred",
+                  "night_on_probation"
                 ],
                 "type": "string"
               },

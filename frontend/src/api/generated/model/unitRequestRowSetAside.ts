@@ -18,4 +18,5 @@ export const UnitRequestRowSetAside = {
   shift_not_worked: 'shift_not_worked',
   shift_not_allowed: 'shift_not_allowed',
   barred: 'barred',
+  night_on_probation: 'night_on_probation',
 } as const;

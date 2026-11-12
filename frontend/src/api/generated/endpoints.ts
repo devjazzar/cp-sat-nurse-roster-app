@@ -81,6 +81,7 @@ import type {
   ListHospitalSolveHistoryParams,
   ListMyCoversParams,
   ListMySwapsParams,
+  ListPreceptorChoicesParams,
   ListPublicHolidaysParams,
   ListRamadanMonthsParams,
   ListRamadansParams,
@@ -127,6 +128,8 @@ import type {
   OpenCoverBody,
   Overview,
   PasswordSheet,
+  PreceptorBody,
+  PreceptorChoices,
   PreviewNurseImportBody,
   PreviewReplanParams,
   PreviewSkillsImportBody,
@@ -5125,6 +5128,224 @@ export const useEndProbation = <TError = unknown,
         TContext
       > => {
       return useMutation(getEndProbationMutationOptions(options), queryClient);
+    }
+
+export const getListPreceptorChoicesUrl = (unitId: string,
+    nurseId: string,
+    params: ListPreceptorChoicesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/units/${unitId}/nurses/${nurseId}/preceptor-choices?${stringifiedParams}` : `/api/units/${unitId}/nurses/${nurseId}/preceptor-choices`
+}
+
+/**
+ * The list Change preceptor offers, from a month on. Read with no lock: the save checks it all again.
+ * @summary List Preceptor Choices
+ */
+export const listPreceptorChoices = async (unitId: string,
+    nurseId: string,
+    params: ListPreceptorChoicesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PreceptorChoices> => {
+
+  return apiFetch<PreceptorChoices>(getListPreceptorChoicesUrl(unitId,nurseId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPreceptorChoicesQueryKey = (unitId: string,
+    nurseId: string,
+    params?: ListPreceptorChoicesParams,) => {
+    return [
+    `/api/units/${unitId}/nurses/${nurseId}/preceptor-choices`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPreceptorChoicesQueryOptions = <TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(unitId: string,
+    nurseId: string,
+    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPreceptorChoicesQueryKey(unitId,nurseId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPreceptorChoices>>> = ({ signal }) => listPreceptorChoices(unitId,nurseId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: unitId !== null && unitId !== undefined && nurseId !== null && nurseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPreceptorChoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listPreceptorChoices>>>
+export type ListPreceptorChoicesQueryError = unknown
+
+
+export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
+ unitId: string,
+    nurseId: string,
+    params: ListPreceptorChoicesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPreceptorChoices>>,
+          TError,
+          Awaited<ReturnType<typeof listPreceptorChoices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
+ unitId: string,
+    nurseId: string,
+    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPreceptorChoices>>,
+          TError,
+          Awaited<ReturnType<typeof listPreceptorChoices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
+ unitId: string,
+    nurseId: string,
+    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Preceptor Choices
+ */
+
+export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
+ unitId: string,
+    nurseId: string,
+    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPreceptorChoicesQueryOptions(unitId,nurseId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetPreceptorUrl = (unitId: string,
+    nurseId: string,) => {
+
+
+
+
+  return `/api/units/${unitId}/nurses/${nurseId}/preceptor`
+}
+
+/**
+ * Assigns or changes her preceptor from a month on. Both nurses are told, and a nurse who precepted her then and no longer
+ * does; each assignment is logged with its values before and after, as her probation is.
+ * @summary Set Preceptor
+ */
+export const setPreceptor = async (unitId: string,
+    nurseId: string,
+    preceptorBody: PreceptorBody, options?: Parameters<typeof apiFetch>[1]): Promise<NurseAttributesRow> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NurseAttributesRow>(getSetPreceptorUrl(unitId,nurseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(preceptorBody)
+  }
+);}
+
+
+
+
+
+export const getSetPreceptorMutationKey = () => ['setPreceptor'] as const;
+
+export const getSetPreceptorMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPreceptor>>, TError,SetPreceptorMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setPreceptor>>, TError,SetPreceptorMutationVariables, TContext> => {
+
+const mutationKey = getSetPreceptorMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setPreceptor>>, SetPreceptorMutationVariables> = (props) => {
+          const {unitId,nurseId,data} = props ?? {};
+
+          return  setPreceptor(unitId,nurseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetPreceptorMutationResult = NonNullable<Awaited<ReturnType<typeof setPreceptor>>>
+    export type SetPreceptorMutationBody = PreceptorBody
+    export type SetPreceptorMutationError = unknown
+    export type SetPreceptorMutationVariables = {unitId: string;nurseId: string;data: PreceptorBody}
+
+    /**
+ * @summary Set Preceptor
+ */
+export const useSetPreceptor = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPreceptor>>, TError,SetPreceptorMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setPreceptor>>,
+        TError,
+        SetPreceptorMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetPreceptorMutationOptions(options), queryClient);
     }
 
 export const getListUnitLeaveUrl = (unitId: string,

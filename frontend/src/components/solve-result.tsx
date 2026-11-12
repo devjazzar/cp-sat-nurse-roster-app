@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react"
 
-import type { GridShift, NurseAccounting, ReplanComparison, RuleMatch, RuleResult, SolveResult, SolverStatistics, Violation } from "@/api/generated/model"
+import type { Following as FollowingRow, GridShift, MissedDayWhy, NurseAccounting, ReplanComparison, RuleMatch, RuleResult, SolveResult, SolverStatistics, Violation } from "@/api/generated/model"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ruleName, signed, stoppedBy } from "@/lib/solve-words"
 import { longDay, scrollableRegion, shortDay } from "@/lib/utils"
@@ -53,6 +53,47 @@ function Accounting({ nurses, unitCost }: { nurses: NurseAccounting[]; unitCost:
         </TableBody>
       </Table>
       <p className="text-sm text-muted-foreground">In hours, apart from the shifts and the cost.{unitCost ? ` The unit as a whole costs ${unitCost} more, for what no one nurse is behind.` : ""}</p>
+    </Panel>
+  )
+}
+
+const MISSED_WHY: Record<MissedDayWhy, string> = {
+  hours: "her hours held no more",
+  leave: "she was on leave",
+  pinned: "her cell was pinned, or a request of hers accepted",
+  elapsed: "the day was already over",
+  barred: "a skill required to work had expired",
+}
+
+const shifts = (count: number) => (count === 1 ? "1 day shift" : `${count} day shifts`)
+
+/** Story 51: each nurse on probation, and which of her preceptor's day shifts she did not follow, and why (ticket 55). */
+function Following({ rows }: { rows: FollowingRow[] }) {
+  return (
+    <Panel id="result-following" title="Nurses on probation">
+      <ul className="flex flex-col gap-2 text-sm">
+        {rows.map((row) => {
+          const name = row.full_name || row.hospital_id
+          if (!row.preceptor) {
+            return <li key={row.hospital_id}>{name} had no preceptor this month, so her day shifts were placed freely.</li>
+          }
+          const preceptor = row.preceptor_name || row.preceptor
+          const all = row.followed + row.missed.length
+          const said = all === 0 ? `${preceptor}, her preceptor, works no day shift she may this month, so her day shifts were placed freely.`
+            : row.missed.length === 0 ? `${name} works beside ${preceptor}, her preceptor, on all ${shifts(all)} of theirs.`
+            : `${name} works beside ${preceptor}, her preceptor, on ${row.followed} of their ${shifts(all)}. Not on:`
+          return (
+            <li key={row.hospital_id} className="flex flex-col gap-1">
+              <span>{said}</span>
+              {row.missed.length > 0 && (
+                <ul className="list-disc ps-5">
+                  {row.missed.map((day) => <li key={day.date}>{longDay(day.date)}, {day.shift}: {MISSED_WHY[day.why]}</li>)}
+                </ul>
+              )}
+            </li>
+          )
+        })}
+      </ul>
     </Panel>
   )
 }
@@ -235,6 +276,7 @@ export function SolveResultPanels({ result, headingLevel = "h4" }: { result: Sol
     <div className="flex flex-col gap-6">
       {result.replan && <Replan replan={result.replan} shifts={result.grid?.shifts ?? []} />}
       {result.nurses.length > 0 && <Accounting nurses={result.nurses} unitCost={result.unit_cost} />}
+      {result.following.length > 0 && <Following rows={result.following} />}
       {result.grid && <Penalties rules={result.rules} explained={result.explained} />}
       {result.violations.length > 0 && (
         <Violations id="result-violations" title="Hard rules this roster breaks" rows={result.violations} note="A roster that breaks one does not become a draft." />

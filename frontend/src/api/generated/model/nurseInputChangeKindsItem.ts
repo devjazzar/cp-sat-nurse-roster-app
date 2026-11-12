@@ -17,4 +17,5 @@ export const NurseInputChangeKindsItem = {
   carry_over: 'carry_over',
   preferences: 'preferences',
   skills: 'skills',
+  probation: 'probation',
 } as const;

@@ -31,6 +31,7 @@ const KIND_WORDS: Record<NurseInputChangeKindsItem, string> = {
   carry_over: "carry-over",
   preferences: "preferences",
   skills: "skills",
+  probation: "probation or preceptor",
 }
 
 const GROUPS: { group: InputChange["group"]; title: string }[] = [

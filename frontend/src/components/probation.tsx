@@ -5,6 +5,8 @@ import {
   getListNurseAttributesQueryKey,
   useEndProbation,
   useExtendProbation,
+  useListPreceptorChoices,
+  useSetPreceptor,
   useSetProbationLength,
 } from "@/api/generated/endpoints"
 import type { NurseAttributesRow, ProbationOnTheRow } from "@/api/generated/model"
@@ -21,13 +23,15 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { serverErrors } from "@/lib/server-errors"
-import { shortDay } from "@/lib/utils"
+import { monthName, shortDay } from "@/lib/utils"
 
-/** A nurse on probation's row (ticket 54): its length and last day, and her unit manager's three actions, each behind its
- *  question. The last day each action would give comes from the server, on the hospital's clock. */
+/** A nurse on probation's row (ticket 54): its length and last day, her preceptor (ticket 55), and her unit manager's four
+ *  actions, each behind its question. The last day each action would give, and the months a preceptor may be chosen from, come
+ *  from the server, on the hospital's clock. */
 
-export type ProbationAction = "length" | "extend" | "end"
+export type ProbationAction = "length" | "extend" | "end" | "preceptor"
 
 const months = (count: number) => (count === 1 ? "1 month" : `${count} months`)
 const actionId = (action: ProbationAction, nurse: NurseAttributesRow) => `probation-${action}-${nurse.id}`
@@ -47,12 +51,18 @@ export function ProbationCell({ nurse, mayChange, onAsk }: {
     ["end", "End", `End the probation of ${nurse.full_name}`, probation.if_ended !== null],
   ]
   const shown = mayChange && !nurse.joins_from ? actions.filter(([, , , available]) => available) : []
+  // The new unit's manager chooses her preceptor there before she joins (story 34), so this one is not held back by it.
+  if (mayChange && probation.preceptor_months.length > 0) {
+    const word = probation.preceptors.length > 0 ? "Change preceptor" : "Choose preceptor"
+    shown.push(["preceptor", word, `${word} for ${nurse.full_name}`, true])
+  }
   return (
     <div className="flex flex-col items-start gap-1">
       <span className="whitespace-nowrap">Until {shortDay(probation.last_day)}</span>
       <span className="text-muted-foreground">{months(probation.months)}</span>
       {probation.ended_early && <Badge variant="outline">Ended early</Badge>}
       {!probation.ticked && <span className="text-muted-foreground">Taken off by the CNO, after the months already approved</span>}
+      <Preceptors probation={probation} />
       {shown.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {shown.map(([action, label, name]) => (
@@ -64,6 +74,22 @@ export function ProbationCell({ nurse, mayChange, onAsk }: {
         </div>
       )}
     </div>
+  )
+}
+
+const span = (first: string, last: string) => (first === last ? monthName(first) : `${monthName(first)} to ${monthName(last)}`)
+
+/** Who precepts her from this month on, each over the months they do. */
+function Preceptors({ probation }: { probation: ProbationOnTheRow }) {
+  if (probation.preceptors.length === 0) return <span>No preceptor</span>
+  return (
+    <ul className="flex flex-col">
+      {probation.preceptors.map((preceptor) => (
+        <li key={preceptor.hospital_id + preceptor.from_month}>
+          Preceptor: {preceptor.full_name}, <span className="whitespace-nowrap">{span(preceptor.from_month, preceptor.to_month)}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -130,6 +156,10 @@ function ProbationQuestions({ unitId, asking, focusAfter, onClose, onDone }: {
         onConfirm={() => nurse && end.mutate({ unitId, nurseId: nurse.id }, {
           onSuccess: (row) => { end.reset(); succeeded(row, `The probation of ${row.full_name} ends on ${ends(row)}.`) },
         })} />
+      {asking?.action === "preceptor" && nurse && probation && (
+        <PreceptorQuestion key={nurse.id} unitId={unitId} nurse={nurse} probation={probation} focusAfter={focusAfter}
+          onCancel={onClose} onDone={(row, said) => succeeded(row, said)} />
+      )}
       {asking?.action === "length" && nurse && probation && (
         <LengthQuestion key={nurse.id} unitId={unitId} nurse={nurse} probation={probation} focusAfter={focusAfter}
           onCancel={onClose} onDone={(row) => succeeded(row, `The probation of ${row.full_name} is ${months(row.probation?.months ?? 0)}, until ${ends(row)}.`)} />
@@ -177,6 +207,70 @@ function LengthQuestion({ unitId, nurse, probation, focusAfter, onCancel, onDone
           <Button disabled={set.isPending} onClick={() => set.mutate({ unitId, nurseId: nurse.id, data: { months: chosen } }, { onSuccess: onDone })}>
             Set length
           </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+/** Choose or change her preceptor from a month on: the month first, then the nurses the server offers from it, as only it knows
+ *  who holds a marked skill unexpired today and who precepts whom. */
+function PreceptorQuestion({ unitId, nurse, probation, focusAfter, onCancel, onDone }: {
+  unitId: string
+  nurse: NurseAttributesRow
+  probation: ProbationOnTheRow
+  focusAfter: RefObject<string | null>
+  onCancel: () => void
+  onDone: (row: NurseAttributesRow, said: string) => void
+}) {
+  const set = useSetPreceptor()
+  const [month, setMonth] = useState(probation.preceptor_months[0])
+  const [chosen, setChosen] = useState("")
+  const choices = useListPreceptorChoices(unitId, nurse.id, { month })
+  const offered = choices.data?.nurses ?? []
+  const picked = offered.some((candidate) => candidate.id === chosen) ? chosen : ""
+  const failure = set.isError ? (failureOf(set.error) ?? COULD_NOT_SAVE) : null
+  const changing = probation.preceptors.length > 0
+  const title = changing ? `Change the preceptor of ${nurse.full_name}?` : `Choose a preceptor for ${nurse.full_name}?`
+  const save = () => set.mutate({ unitId, nurseId: nurse.id, data: { preceptor_id: picked, from_month: month } }, {
+    onSuccess: (row) => {
+      const who = offered.find((candidate) => candidate.id === picked)?.full_name ?? "The nurse you chose"
+      onDone(row, `From ${monthName(month)}, ${who} precepts ${row.full_name}.`)
+    },
+  })
+
+  return (
+    <AlertDialog open onOpenChange={(open) => { if (!open && !set.isPending) onCancel() }}>
+      <AlertDialogContent finalFocus={() => (focusAfter.current ? document.getElementById(focusAfter.current) : true)}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>
+            From the month you choose until her probation ends, she works beside her preceptor on their day shifts. The list offers
+            this unit&apos;s nurses who hold a skill marked &ldquo;Lets a nurse precept&rdquo;, unexpired today, are not on probation
+            and precept no other nurse in those months. Both nurses are told{changing ? ", and so is the nurse who precepted her" : ""}.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`preceptor-month-${nurse.id}`} className="text-sm font-medium">From</label>
+          <NativeSelect id={`preceptor-month-${nurse.id}`} value={month} onChange={(event) => setMonth(event.target.value)}>
+            {probation.preceptor_months.map((each) => <NativeSelectOption key={each} value={each}>{monthName(each)}</NativeSelectOption>)}
+          </NativeSelect>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`preceptor-${nurse.id}`} className="text-sm font-medium">Preceptor</label>
+          <NativeSelect id={`preceptor-${nurse.id}`} value={picked} disabled={offered.length === 0}
+            aria-describedby={`preceptor-said-${nurse.id}`} onChange={(event) => setChosen(event.target.value)}>
+            <NativeSelectOption value="">{choices.isPending ? "Loading…" : "Choose a nurse"}</NativeSelectOption>
+            {offered.map((candidate) => <NativeSelectOption key={candidate.id} value={candidate.id}>{candidate.full_name}</NativeSelectOption>)}
+          </NativeSelect>
+          <p id={`preceptor-said-${nurse.id}`} className="text-sm text-muted-foreground empty:hidden">
+            {choices.isError ? "The nurses who could precept her could not be read. Check your connection and try again." : choices.data?.refusal ?? ""}
+          </p>
+        </div>
+        {failure && <p role="alert" className="text-sm text-destructive">{failure}</p>}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <Button disabled={set.isPending || !picked} onClick={save}>{changing ? "Change preceptor" : "Choose preceptor"}</Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
