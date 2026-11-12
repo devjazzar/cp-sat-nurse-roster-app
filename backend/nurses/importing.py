@@ -4,9 +4,10 @@ The skills import's rows are judged in `nurses.skills_importing`.
 
 How a large file behaves: a password hash takes about half a second on purpose, and the passwords may be kept nowhere,
 so the worker cannot make them and hand them back later. Confirming therefore stays one long request, in one of
-gunicorn's threads, which no timeout ends (deploy/compose.yaml); `MAX_ROWS` keeps the wait to minutes even on one core. A
-hospital with more nurses imports them unit by unit. If that request dies before the transaction, nothing is saved. If its answer is lost
-after the transaction, the nurses are saved and their passwords are gone: they are reset one at a time, as the page says."""
+gunicorn's threads, which no timeout ends (deploy/compose.yaml); `MAX_ROWS` keeps the wait to minutes even on one
+core. A hospital with more nurses imports them unit by unit. If that request dies before the transaction, nothing is
+saved. If its answer is lost after the transaction, the nurses are saved and their passwords are gone: they are reset
+one at a time, as the page says."""
 from __future__ import annotations
 
 import codecs

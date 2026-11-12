@@ -132,7 +132,7 @@ print(sum(1 for line in sys.stdin if line.strip() and (json.loads(line).get("log
 # What the running gunicorn was given, read by gunicorn's own parser from its command line (PID 1, which `exec` made it) with
 # config/gunicorn.py and any GUNICORN_CMD_ARGS, so no setting can hide in a file the command names: 3 workers of 4 threads,
 # the timeout at gunicorn's own default, and a keep-alive of its own.
-running=$(compose exec -T web python -c '
+gunicorn_settings=$(compose exec -T web python -c '
 import pathlib, sys
 from gunicorn.app.wsgiapp import WSGIApplication
 from gunicorn.config import Config
@@ -141,21 +141,22 @@ sys.argv = argv[next(i for i, arg in enumerate(argv) if arg.endswith("/gunicorn"
 cfg = WSGIApplication().cfg
 print(cfg.worker_class_str, cfg.workers, cfg.threads, cfg.timeout, Config().timeout, cfg.keepalive)') \
   || fail "web's PID 1 is not gunicorn, or its command line could not be read"
-read -r worker_class workers threads timeout default_timeout keep_alive <<<"$running"
-[[ $worker_class == gthread && $workers == 3 && $threads == 4 && $timeout == "$default_timeout" ]] \
-  && pass "web's gunicorn runs $worker_class: $workers workers of $threads threads, the timeout at gunicorn's default of $timeout s" \
-  || fail "web's gunicorn: worker class $worker_class, $workers workers, $threads threads, timeout $timeout (default $default_timeout)"
+read -r worker_class workers threads gunicorn_timeout default_timeout keep_alive <<<"$gunicorn_settings"
+[[ $worker_class == gthread && $workers == 3 && $threads == 4 && $gunicorn_timeout == "$default_timeout" && $keep_alive == 10 ]] \
+  && pass "web's gunicorn runs $worker_class: $workers workers of $threads threads, the timeout at gunicorn's default of $gunicorn_timeout s, keep-alive $keep_alive s" \
+  || fail "web's gunicorn: worker class $worker_class, $workers workers, $threads threads, timeout $gunicorn_timeout (default $default_timeout), keep-alive $keep_alive"
 started=$(compose logs --no-log-prefix --no-color web | grep -c '"Using worker: gthread"' || true)
 [[ $started == 1 ]] && pass "and says so as it starts: Using worker: gthread" || fail "web logged 'Using worker: gthread' $started times"
 processes=$(compose exec -T web python -c '
 import os, pathlib
-print(sum(b"config.wsgi" in p.read_bytes() for p in pathlib.Path("/proc").glob("[0-9]*/cmdline") if p.parent.name != str(os.getpid())))')
+print(sum(b"config.wsgi" in p.read_bytes() for p in pathlib.Path("/proc").glob("[0-9]*/cmdline") if p.parent.name != str(os.getpid())))') \
+  || fail "web's processes could not be counted"
 [[ $processes == 4 ]] && pass "web runs three gunicorn workers beside its master" || fail "web runs $processes gunicorn processes"
 
 # A gthread worker keeps a connection open for --keep-alive seconds after a response and then closes it (checked once a
 # second, so never sooner). Caddy forgets an idle connection to web before that, so it never sends a request down one gunicorn
 # has just closed, which would answer a POST with 502.
-idle=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | python3 -c '
+caddy_idle=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | python3 -c '
 import json, sys
 def proxies(node):
     if isinstance(node, dict):
@@ -170,15 +171,15 @@ found = list(proxies(json.load(sys.stdin)))
 assert found
 print(" ".join(str(p.get("transport", {}).get("keep_alive", {}).get("idle_timeout", "none")) for p in found))') \
   || fail "Caddy's adapted configuration has no reverse_proxy"
-python3 -c 'import sys; idle = sys.argv[1].split(); sys.exit(not all(i.isdigit() and int(i) < float(sys.argv[2]) * 10**9 for i in idle))' "$idle" "$keep_alive" \
-  && pass "Caddy keeps an idle connection to web $(( ${idle%% *} / 10**9 )) s, under gunicorn's keep-alive of $keep_alive s" \
-  || fail "Caddy's idle time to web (ns): $idle, against gunicorn's keep-alive of $keep_alive s"
+python3 -c 'import sys; idle = sys.argv[1].split(); sys.exit(not all(i.isdigit() and int(i) < float(sys.argv[2]) * 10**9 for i in idle))' "$caddy_idle" "$keep_alive" \
+  && pass "Caddy keeps an idle connection to web $(( ${caddy_idle%% *} / 10**9 )) s, under gunicorn's keep-alive of $keep_alive s" \
+  || fail "Caddy's idle time to web (ns): $caddy_idle, against gunicorn's keep-alive of $keep_alive s"
 # Driven: POSTs through Caddy at gaps either side of Caddy's idle time and of gunicorn's keep-alive. Each is refused by web the
 # same way, never with Caddy's 502. Go retries a GET on a reused connection that was closed, which is why these are POSTs.
 answers=""
 for gap in 0.5 1.5 2.5 $(( keep_alive - 1 )).5 $keep_alive.5; do
   sleep "$gap"
-  answers="$answers $(curl -sk -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$base/api/auth/login")"
+  answers="$answers $(curl -sk -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$base/api/auth/login" || true)"
 done
 [[ $answers != *502* && $(tr ' ' '\n' <<<"$answers" | sort -u | grep -c .) == 1 ]] \
   && pass "POSTs through Caddy at gaps of half a second to $keep_alive.5 s are answered by web alike:$answers" \
@@ -555,15 +556,16 @@ PY
 preview_token=$(upload -f "$base/api/nurses/import/preview" | python3 -c 'import json, sys; print(json.load(sys.stdin)["token"] or "")') \
   || fail "the preview of 100 nurses failed"
 [[ -n $preview_token ]] || fail "the preview of 100 nurses has problems"
+rm -f "$work/sheet"
 confirmed=$(upload -o "$work/sheet" -w '%{http_code} %{time_total}' -F "token=$preview_token" "$base/api/nurses/import/confirm") || true
 read -r code seconds <<<"$confirmed"
 seconds=${seconds:-0}
 saved=$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["rows"]))' "$work/sheet" 2>/dev/null || echo none)
-python3 -c 'import sys; sys.exit(float(sys.argv[1]) <= float(sys.argv[2]))' "$seconds" "$timeout" \
-  || fail "the confirmation of 100 nurses on one CPU took $seconds s, inside gunicorn's $timeout s: it shows nothing"
 killed=$(compose logs --no-log-prefix --no-color web | grep -c 'WORKER TIMEOUT' || true)
 [[ $code == 201 && $saved == 100 && $killed == 0 ]] \
-  && pass "a confirmation of 100 nurses on one CPU took $seconds s, past gunicorn's $timeout s, and ended: 201, 100 passwords" \
   || fail "the long confirmation answered $code in $seconds s, rows: $saved; web logged WORKER TIMEOUT $killed times"
+python3 -c 'import sys; sys.exit(float(sys.argv[1]) <= float(sys.argv[2]))' "$seconds" "$gunicorn_timeout" \
+  && pass "a confirmation of 100 nurses on one CPU took $seconds s, past gunicorn's $gunicorn_timeout s, and ended: 201, 100 passwords" \
+  || fail "the confirmation of 100 nurses on one CPU took $seconds s, inside gunicorn's $gunicorn_timeout s: it shows nothing"
 
 echo "# All checks passed."
