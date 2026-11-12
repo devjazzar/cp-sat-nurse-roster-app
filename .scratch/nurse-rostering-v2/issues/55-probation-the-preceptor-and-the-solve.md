@@ -39,3 +39,18 @@ preceptor exists: clear the mark on a skill someone precepts by, and the assignm
 - **Notifications:** `Event.PROBATION_ENDING` names the nurse by her profile's id in the payload, with her last month as `month`. The `Notification` docstring now allows that; a preceptor assignment's notifications can name nurses the same way.
 
 **From ticket 54's review (2026-11-11):** the user chose to close here the gap ticket 54 left: a unit dropping a shift, or a transfer, can leave a nurse on probation with the unit's night shift alone as her allowed shifts. This ticket makes that impossible or refused, and says how.
+
+**From ticket 52 (2026-11-12), what the solve input must carry:** each nurse in the month gains two optional fields, read in
+version 1 or 2: `on_probation` (true for a nurse on probation in that month; absent = false) and `preceptor` (the preceptor's
+hospital id, that is her `id` in the same input; absent or null = none). Write `preceptor` only when the assignment is in force in
+that month **and** the preceptor is a nurse of that input: the loader refuses an id not in the input, the nurse's own, a
+preceptor herself on probation, one named by two nurses, and a preceptor on a nurse not on probation, each as `request:
+nurses[i].preceptor: ...`. A nurse on probation with no preceptor is fine: precheck warns ("<id>: on probation with no preceptor,
+...") and she is rostered on day shifts. Her `night_balance`, `friday_balance` and `overtime_balance` going in are ignored and
+come out of a result's `carry_over` as 0. The solver refuses her allowed shifts if the night shift alone (`problem: <id>: on
+probation she works no night shift ('N'), and her allowed shifts hold no other`): the gap above, which the solver now reports
+loudly rather than leaving her no shift. The new hard rule is `following`; its violation reads "following: <id> works A on day
+3, her preceptor <id> works D" (day indices from 0, the `date` field the date). **The per-nurse explanation:** `solves.result`
+keeps only priced soft rules, and a hard rule has no match on a valid roster, so "which of her preceptor's day shifts she did not
+follow" has no channel yet: on a draft, her followable days left off are the days her preceptor works a day shift she is allowed
+while she is off; that list is yours to work out, or to ask the solver for in a later ticket.

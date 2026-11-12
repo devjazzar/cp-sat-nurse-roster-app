@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from .problem import Problem, expired_required
+from .problem import Problem, expired_required, preceptor_of
 
 HARD, SOFT = "hard", "soft"
 
@@ -69,6 +69,8 @@ _RULES = [
     Rule("pin", HARD, None, "cell differing from its pin", lambda p: any(nu.pinned for nu in p.nurses)),
     Rule("skill_expired", HARD, None, "shift on a day a required skill has expired",
          lambda p: any(expired_required(p, nu) for nu in p.nurses)),
+    Rule("following", HARD, None, "day a nurse on probation is not on her preceptor's day shift, or off it",
+         lambda p: any(preceptor_of(p, nu) is not None for nu in p.nurses)),
     # hard or soft, per department flag
     Rule("night_rest", lambda p: HARD if p.department.night_rest_hard else SOFT, "night_rest",
          "D day with too few off days since the last N",
