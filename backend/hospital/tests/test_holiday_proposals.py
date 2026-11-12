@@ -11,9 +11,9 @@ pytestmark = pytest.mark.django_db
 
 PROPOSALS = "/api/hospital/holiday-proposals"
 HOLIDAYS = "/api/hospital/public-holidays"
-# Umm al-Qura, as Saudi Arabia announced them: Ramadan 1446 ran from 1 to 29 March 2025 (29 days) and Arafat Day was
-# 5 June 2025; Ramadan 1447 runs from 18 February to 19 March 2026 (30 days), Arafat Day 26 May 2026; Ramadan 1448
-# from 8 February to 8 March 2027 (29 days), Arafat Day 15 May 2027.
+# Umm al-Qura. As Saudi Arabia announced them: Ramadan 1446 ran from 1 to 29 March 2025 (29 days) and Arafat Day was
+# 5 June 2025; Ramadan 1447 from 18 February to 19 March 2026 (30 days), Arafat Day 26 May 2026. By the calendar's
+# tables, not yet announced: Ramadan 1448 from 8 February to 8 March 2027 (29 days), Arafat Day 15 May 2027.
 
 
 def proposals(client, year: int) -> list[dict]:

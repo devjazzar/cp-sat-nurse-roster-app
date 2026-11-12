@@ -225,13 +225,16 @@ const listed = new Intl.ListFormat("en-GB", { type: "conjunction" })
 const dates = (days: string[]) => listed.format(days.map((day) => fullDate.format(asDate(day))))
 const lineId = (proposal: HolidayProposal) => `proposal-${proposal.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${proposal.first}`
 
-/** What Add did, in the section's status line: the days added, and the days left as they were. */
+/** What Add did, in the section's status line: the days added, by name when a skipped one breaks them, and the days left
+ *  as they were. */
 function addedWords(name: string, added: string[], skipped: string[]): string {
   const one = skipped.length === 1
-  if (added.length === 0) return `${name} adds no day: ${dates(skipped)} ${one ? "is a holiday" : "are holidays"} already.`
-  const left = skipped.length === 0 ? ""
-    : ` ${dates(skipped)} ${one ? "was a holiday already and is left as it was" : "were holidays already and are left as they were"}.`
-  return `${name} is added on ${dayCount(added.length)} from ${fullDate.format(asDate(added[0]))}.${left}`
+  if (added.length === 0) return `${name} is not added: ${dates(skipped)} ${one ? "is already a holiday" : "are already holidays"}.`
+  if (skipped.length === 0) {
+    const days = added.length === 1 ? fullDate.format(asDate(added[0])) : `${dateRange(added[0], added.at(-1) as string)}, ${dayCount(added.length)}`
+    return `${name} is added: ${days}.`
+  }
+  return `${name} is added on ${dates(added)}. ${dates(skipped)} ${one ? "was already a holiday and is unchanged" : "were already holidays and are unchanged"}.`
 }
 
 type ProposalFields = { first: string; length: number }
@@ -316,8 +319,8 @@ function HolidayProposals({ year, onStart, onDone }: { year: number; onStart: ()
       <CardHeader>
         <CardTitle><h3 ref={heading} tabIndex={-1} className="outline-none">Proposed by the calendar</h3></CardTitle>
         <CardDescription>
-          The Eids by the Umm al-Qura calendar and the Ramadan in force, and the national days, until their first day is a
-          holiday. Change the first day or the days to follow the year's circular.
+          The Eids by the Umm al-Qura calendar and the Ramadan in force, and the national days, each until its first day is a
+          holiday. Change the first day or the number of days to match this year's circular.
         </CardDescription>
       </CardHeader>
       <CardContent>

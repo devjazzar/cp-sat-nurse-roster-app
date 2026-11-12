@@ -2589,7 +2589,7 @@ describe("the holidays and Ramadan page", () => {
 
       await user.click(within(await lineOf("Eid al-Fitr")).getByRole("button", { name: "Add Eid al-Fitr" }))
 
-      expect(await screen.findByText("Eid al-Fitr is added on 3 days from 19 March 2026. 20 March 2026 was a holiday already and is left as it was.")).toBeInTheDocument()
+      expect(await screen.findByText("Eid al-Fitr is added on 19 March 2026, 21 March 2026 and 22 March 2026. 20 March 2026 was already a holiday and is unchanged.")).toBeInTheDocument()
       const post = calls.find((call) => call.method === "POST")
       expect(post?.url).toBe("/api/hospital/holiday-proposals?year=2026")
       expect(post?.body).toEqual({ name: "Eid al-Fitr", first: "2026-03-19", length: 4 })
@@ -2607,7 +2607,7 @@ describe("the holidays and Ramadan page", () => {
 
       await user.click(within(await lineOf("Eid al-Adha")).getByRole("button", { name: "Add Eid al-Adha" }))
 
-      expect(await screen.findByText("Eid al-Adha is added on 4 days from 26 May 2026.")).toBeInTheDocument()
+      expect(await screen.findByText("Eid al-Adha is added: 26 May – 29 May 2026, 4 days.")).toBeInTheDocument()
       await waitFor(() => expect(screen.getByRole("heading", { name: "Proposed by the calendar" })).toHaveFocus())
       expect(await proposalsCard()).toHaveTextContent("Every holiday the calendar proposes for 2026 is entered.")
     })
@@ -2628,7 +2628,7 @@ describe("the holidays and Ramadan page", () => {
       const add = within(adha).getByRole("button", { name: "Add Eid al-Adha" })
       await user.click(add)
 
-      expect(await screen.findByText("Eid al-Adha is added on 6 days from 27 May 2026.")).toBeInTheDocument()
+      expect(await screen.findByText("Eid al-Adha is added: 27 May – 1 June 2026, 6 days.")).toBeInTheDocument()
       expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Eid al-Adha", first: "2026-05-27", length: 6 })
       await waitFor(() => expect(first).toHaveValue("2026-05-26"))
       expect(length).toHaveValue(4)
@@ -2643,7 +2643,7 @@ describe("the holidays and Ramadan page", () => {
 
       await user.click(within(await lineOf("Founding Day")).getByRole("button", { name: "Add Founding Day" }))
 
-      expect(await screen.findByText("Founding Day adds no day: 22 February 2026 is a holiday already.")).toBeInTheDocument()
+      expect(await screen.findByText("Founding Day is not added: 22 February 2026 is already a holiday.")).toBeInTheDocument()
     })
 
     it("shows the API's refusal beside the field, with focus on it", async () => {

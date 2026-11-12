@@ -27,7 +27,8 @@ a day in a year; every year from 1925 to 2076 has one or two. The page's cards s
 month table. The section's status line is the one the cards write to.
 
 **Implemented on 2026-11-12,** on branch `claude/ticket-45-ramadan-holidays-card-0b299a` (`13f0d3b` the API and the page,
-`980879a` the review's points, `d3c8195` the merge of ticket 46 with Add's notification, then this comment), from `main` at
+`980879a` the review's points, `d3c8195` the merge of ticket 46 with Add's notification, then this comment and the
+words held against the design skills), from `main` at
 `3579d76`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#20](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/20).
 
@@ -41,8 +42,10 @@ The full suites ran locally on `980879a`, under the heavy-run lock:
 After the merge of ticket 46 (`d3c8195`):
 - `notifications/tests/test_events.py`, `hospital/tests/`, `solves/tests/test_input.py` and `test_authorization.py` ran
   again: 1300 passed.
-- The frontend's "holidays and Ramadan page" block ran again: 37 passed.
+- The frontend's "holidays and Ramadan page" block ran again: 37 passed, also after the status line's and the card's words
+  changed.
 - The OpenAPI document and the client still match the export.
+- The full local suites were not run again after the merge; GitHub ran everything.
 
 **What the dev stack needs:** `docker compose up -d --build`, for the `web` code and the client. There is no migration,
 no change to `deploy/compose.yaml`, the `Dockerfile`, the solver or any dependency.
@@ -96,8 +99,11 @@ no change to `deploy/compose.yaml`, the `Dockerfile`, the solver or any dependen
   - Each line is a fieldset named by the holiday, with "From Tuesday, 9 March 2027, 4 days.", the fields "First day" and
     "Days", and an Add button.
   - Two of one Eid in a year are named by their month ("Eid al-Fitr in January 2033").
-  - The status line is the section's: "Eid al-Fitr is added on 3 days from 9 March 2027. 10 March 2027 was a holiday
-    already and is left as it was.", or "Founding Day adds no day: 22 February 2027 is a holiday already."
+  - The status line is the section's:
+    - "Eid al-Adha is added: 16 May – 21 May 2027, 6 days.";
+    - with a day skipped, the days by name: "Eid al-Fitr is added on 9 March 2027, 11 March 2027 and 12 March 2027.
+      10 March 2027 was already a holiday and is unchanged.";
+    - "Founding Day is not added: 22 February 2027 is already a holiday."
   - A refusal shows beside its field, with focus on it. The page checks the year and the 1 to 14 itself first.
   - When the line goes, focus moves to the next line's first day, or to the card's heading when none is left.
   - When the CNO changed the first day, the line stays as the calendar gives it, its fields back to the proposal, with
@@ -111,7 +117,8 @@ no change to `deploy/compose.yaml`, the `Dockerfile`, the solver or any dependen
   - twelve new tests (counting each case) in the frontend's "holidays and Ramadan page" block, and the reader's test extended.
 
 **What was driven, and how.** I used my own scratch stack, `e2e/stack.sh up nr-t45` (seeded) on port 18450, on
-2026-11-12, in the app's built-in Chromium, on `980879a`. As `carla`, the CNO, on Holidays and Ramadan:
+2026-11-12, in the app's built-in Chromium, on `980879a`. The status line's words changed afterwards (see Review). The
+words quoted here are the ones driven. As `carla`, the CNO, on Holidays and Ramadan:
 - **2027:** the card listed Founding Day 22 February, Eid al-Fitr 9 March, Eid al-Adha 15 May and National Day 23
   September.
 - **Add with a day skipped:** I entered 10 March 2027 by hand as "Entered by hand", then pressed Add on Eid al-Fitr.
@@ -159,6 +166,8 @@ The stack, its volumes and its image are gone, and the lock is released.
 - **The card in a screen reader:** names, descriptions and the status line were read through the accessibility tree and
   tests only.
 - **The merge of ticket 46 was not driven on a stack.** Its tests ran.
+- **The status line's and the card's last words** were not driven, only tested.
+- **The 2027 dates** (Ramadan 1448, Arafat Day 15 May 2027) are the calendar's, not yet announced.
 
 **Decisions taken here.**
 - **Endpoints:** `GET` and `POST /api/hospital/holiday-proposals`, both with `?year=` as the holidays' list takes it. The
@@ -178,13 +187,15 @@ The stack, its volumes and its image are gone, and the lock is released.
   - The alternative: hide a line once any of its proposed days is a holiday.
 - **The card's words:**
   - the heading "Proposed by the calendar";
-  - the description "The Eids by the Umm al-Qura calendar and the Ramadan in force, and the national days, until their
-    first day is a holiday. Change the first day or the days to follow the year's circular.";
+  - the description "The Eids by the Umm al-Qura calendar and the Ramadan in force, and the national days, each until its
+    first day is a holiday. Change the first day or the number of days to match this year's circular.";
   - the line "From Tuesday, 9 March 2027, 4 days.";
   - the fields "First day" and "Days", and the button "Add".
 - **The status line's words:**
-  - "Eid al-Fitr is added on 3 days from 9 March 2027. 10 March 2027 was a holiday already and is left as it was.";
-  - "Founding Day adds no day: 22 February 2027 is a holiday already.";
+  - "Eid al-Adha is added: 16 May – 21 May 2027, 6 days.";
+  - with a day skipped, every day added by name, since "3 days from 9 March" hid the gap: "Eid al-Fitr is added on 9
+    March 2027, 11 March 2027 and 12 March 2027. 10 March 2027 was already a holiday and is unchanged.";
+  - "Founding Day is not added: 22 February 2027 is already a holiday.";
   - the refusals "This is not in 2027. Go to that year to add it.", "Enter a number of days from 1 to 14.", "This runs
     past 2076, the last year the calendar covers."
 - **A year with no proposal left:** the API answers `[]`. The card stays, saying "Every holiday the calendar proposes for
@@ -213,6 +224,23 @@ The stack, its volumes and its image are gone, and the lock is released.
   Kept:
   - the pre-check beside the concurrent-insert catch, which saves a failed insert per known holiday;
   - "proposal" in the names (Worth your review).
+
+**Held by hand against `better-interface`, `better-writing` and `better-accessibility`.**
+- **Writing:**
+  - "is added on 3 days from 9 March" read as 9 to 11 March when 10 March was skipped, so the days are now named;
+  - "a holiday already … left as it was" became "already a holiday … unchanged", and "adds no day" became "is not added";
+  - "or the days to follow the year's circular" became "or the number of days to match this year's circular".
+- **Accessibility:**
+  - each line is a fieldset named by its holiday, and the fields' names begin with their visible labels ("First day of Eid
+    al-Fitr", "Days of Eid al-Fitr");
+  - a refusal is tied to its field by `aria-describedby`, with `aria-invalid`, and focus goes to it;
+  - the status line is a `role="status"` region;
+  - Add is not disabled while it is sent, so it keeps focus.
+  - Kept: focus sent to the card's heading when no line is left, a heading with `tabIndex=-1` and no ring, as ticket
+    44's month form does. It is not a control, and the status line says what happened.
+- **Interface:**
+  - the card stacks at 375 px;
+  - "Add" is an outline button, so four of them do not outweigh the page's one primary "Add holiday".
 
 **Things later tickets should know.**
 - **Every holiday create goes through `_create_holiday`** in `hospital/catalogue_api.py`. The caller holds the transaction
