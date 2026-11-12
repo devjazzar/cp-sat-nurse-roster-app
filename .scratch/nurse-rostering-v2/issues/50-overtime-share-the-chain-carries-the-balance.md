@@ -16,3 +16,8 @@
 - [ ] `docs/ARCHITECTURE.md`: the balance among the opening values, in the chain's paragraph and in the January reset; the OpenAPI document and the generated client regenerated; a migration for the new opening value, `makemigrations --check` clean
 
 ## Comments
+
+**Note from ticket 49 (2026-11-12):** the balance already passes through the chain (`closes.chain.CARRIED`), 0 from opening
+values (`chain.opening`, a literal to replace) and from a close stored before it (`CARRIED_SINCE`); the January reset is not
+done (`NEW_YEAR`). Ticket 49 left no narrowing for the carried value, so the criterion removing one has nothing to act on.
+Details in ticket 49's comment, "Things later tickets should know".

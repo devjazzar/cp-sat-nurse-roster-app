@@ -18,3 +18,8 @@
 - [ ] `docs/ARCHITECTURE.md` names the rule beside the other fairness rules and the weight beside the others; the OpenAPI document and the generated client regenerated; a migration giving existing units the defaults, `makemigrations --check` clean
 
 ## Comments
+
+**Note from ticket 49 (2026-11-12):** the solver's fields are `department.share_overtime`, `overtime_tolerance`,
+`overtime_carry_cap` and `general.weights.overtime_above_share`, optional in both versions. Delete `OVERTIME_SHARE_FIELDS` in
+`units/tests/test_unit_rules.py`, `units/tests/test_rules_api.py` and `hospital/tests/test_rules.py`. Read ticket 49's
+"Worth your review" on the weight against `nurse_overtime` before the weight's description.
