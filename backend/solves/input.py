@@ -10,7 +10,7 @@ from nurse_roster.request import load_request
 from hospital.catalogue import ramadan_dates
 from hospital.models import HospitalSettings, PublicHoliday, Shift, SkillRename
 from hospital.rules import general_block
-from nurses import membership
+from nurses import membership, preceptors, probation
 from nurses.models import NurseProfile
 from nurses.rostering import leave_dates, nurse_block, skills_block
 from nurses.skills import current_skills
@@ -91,9 +91,11 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         "nurses": [],
         "solver": {"time_limit_seconds": time_limit, "reproducible": False},
     })
-    nurses = (membership.rostered_in(unit, month).select_related("user").prefetch_related(current_skills())
+    nurses = (membership.rostered_in(unit, month).select_related("user")
+              .prefetch_related(current_skills(), "placements", "preceptor_assignments__preceptor__user")
               .order_by("user__username"))
     preferred = _preferred(unit, month)
+    in_the_month = []
     for nurse in nurses:
         if membership.no_longer_serving(nurse):
             assembled.left_out.append(nurse)
@@ -104,6 +106,7 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         carried = assembled.carried[nurse.user.username] = chain.carry_in(nurse, month)
         values = carried.into(month)
         skills = skills_block(nurse.current_skills, month)
+        in_the_month.append(nurse)
         assembled.nurses.append(nurse_block(nurse, placement) | {key: values[key] for key in CARRIED} | {"leave": leave}
                                 | preferred.get(nurse.user.username, {}) | ({"pinned": pinned} if pinned else {})
                                 | ({"skills": skills} if skills else {}))
@@ -114,10 +117,33 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
         assembled.unreviewed_scores += not nurse.attributes_saved
         if placement.allowed_shifts_to_check:
             assembled.to_check.append(nurse)
+    _mark_probation(assembled, in_the_month, month)
     renamed = _renamed_in_histories(assembled)
     if renamed:
         assembled.input["renamed_shifts"] = renamed
     return assembled
+
+
+def _mark_probation(assembled: Assembled, nurses: list[NurseProfile], month: dt.date) -> None:
+    """`on_probation` on each nurse on probation in the month, and `preceptor` on hers when an assignment is in force then and
+    its preceptor is a nurse of this input, as the solver reads them (ADR 0014). Neither is written for anyone else, so a month
+    with no probation is the input it always was. The solver refuses a preceptor herself on probation or named by two nurses:
+    an assignment checked those when made, but a later correction (a tick, a start date) can bring one about, and a refused
+    input would fail the unit's whole solve, so such a preceptor is not written. Of two nurses naming one, the assignment made
+    first keeps her, and the other is rostered with nobody to follow, which precheck warns of by name."""
+    rows = {row["id"]: row for row in assembled.nurses}
+    on_probation = [nurse for nurse in nurses if probation.on_probation_in(nurse, month)]
+    for nurse in on_probation:
+        rows[nurse.user.username]["on_probation"] = True
+    held = sorted(((nurse, assignment) for nurse in on_probation if (assignment := preceptors.assignment_in(nurse, month))),
+                  key=lambda pair: (pair[1].from_month, pair[1].assigned_at, pair[1].pk))
+    taken = set()
+    for nurse, assignment in held:
+        preceptor = rows.get(assignment.preceptor.user.username)
+        if preceptor is None or preceptor.get("on_probation") or preceptor["id"] in taken:
+            continue
+        taken.add(preceptor["id"])
+        rows[nurse.user.username]["preceptor"] = preceptor["id"]
 
 
 @dataclass(frozen=True)
@@ -244,8 +270,9 @@ MONTH_DATES = ("ramadan_days", "public_holidays")
 def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.datetime | None = None,
                   assembled: Assembled | None = None, month_dates: bool = False) -> list[dict]:
     """What has changed since this input was stored that the draft was not solved for: a gender, a nurse's credited days,
-    who is in the month, the pins that count, her preferences (an input stored before them had none), or her skills as the
-    month sees them (one stored in version 1 had none); and, as a change of the unit's with no hospital ID, its skill needs,
+    who is in the month, the pins that count, her preferences (an input stored before them had none), her skills as the
+    month sees them (one stored in version 1 had none), or her probation and her preceptor (one stored before ticket 55 had
+    neither, and was planned with nobody on probation); and, as a change of the unit's with no hospital ID, its skill needs,
     their flag, the skills required to work or the skill shortfall's price (ticket 35). A rename is no change. Start and end dates count through their credited days, so a correction
     that moves nothing in this month does not warn. Other attributes are outside what the user asked for here.
 
@@ -286,6 +313,11 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
                 changes.append({"hospital_id": hospital_id, "what": "preferences"})
             if _compares_skills(solve_input, before) and before.get("skills", {}) != after.get("skills", {}):
                 changes.append({"hospital_id": hospital_id, "what": "skills"})
+            # An input stored before ticket 55 has neither field, and means no nurse on probation (ADR 0014).
+            if before.get("on_probation", False) != after.get("on_probation", False):
+                changes.append({"hospital_id": hospital_id, "what": "on_probation" if after.get("on_probation") else "off_probation"})
+            elif before.get("preceptor") != after.get("preceptor"):
+                changes.append({"hospital_id": hospital_id, "what": "preceptor"})
             if since is not None and _closed_since(hospital_id, assembled.carried[hospital_id], since):
                 changes.append({"hospital_id": hospital_id, "what": "closed"})
     return changes

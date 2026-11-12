@@ -56,7 +56,7 @@ class Names:
         self.swaps = {str(row.pk): row for row in Swap.objects.filter(pk__in=swap_ids).select_related("proposer__user")}
         cover_ids = {note.payload.get("cover_id") for note in notes} - {None}
         self.covers = {str(row.pk): row for row in Cover.objects.filter(pk__in=cover_ids).select_related("shift")}
-        nurse_ids = {note.payload.get("nurse_id") for note in notes} - {None}
+        nurse_ids = {note.payload.get(key) for note in notes for key in ("nurse_id", "preceptor_id")} - {None}
         self.nurses = {str(row.pk): row.user.full_name for row in NurseProfile.objects.filter(pk__in=nurse_ids).select_related("user")}
 
 
@@ -206,6 +206,24 @@ def _close_words(note: Notification, names: Names, roster: str) -> str:
             "roster.")
 
 
+def _preceptor_words(note: Notification, names: Names, unit) -> str:
+    """Ticket 55's: the two nurses' names, which each of them and her unit's manager read on Rostering attributes and My month."""
+    payload = note.payload
+    nurse = names.nurses.get(payload.get("nurse_id")) or "A nurse on probation"
+    preceptor = names.nurses.get(payload.get("preceptor_id")) or "A nurse"
+    month = _month_name(payload["month"])
+    if note.event == Event.PRECEPTOR_LEAVING:
+        where = unit.name if unit else "the unit"
+        return (f"{month} is {preceptor}'s last month in {where}, so {preceptor} no longer precepts {nurse} after it. Choose "
+                f"another preceptor for {nurse}.")
+    match payload.get("role"):
+        case "nurse":
+            return f"From {month} your preceptor is {preceptor}. You work beside them on their day shifts."
+        case "preceptor":
+            return f"From {month} you precept {nurse}, a nurse on probation, who works beside you on your day shifts."
+    return f"From {month} you no longer precept {nurse}."
+
+
 def text_of(note: Notification, names: Names) -> str:
     payload = note.payload
     unit = names.units.get(payload.get("unit_id"))
@@ -239,6 +257,8 @@ def text_of(note: Notification, names: Names) -> str:
         case Event.PROBATION_ENDING:
             last = last_day_of(dt.date.fromisoformat(f"{payload['month']}-01"))
             return f"{names.nurses.get(payload.get('nurse_id'), 'A nurse')}'s probation ends on {last:%-d %B}. Extend it or let it end."
+        case Event.PRECEPTOR_ASSIGNED | Event.PRECEPTOR_LEAVING:
+            return _preceptor_words(note, names, unit)
     return "Something has changed."
 
 
@@ -258,8 +278,10 @@ def link_of(note: Notification, reader: User, names: Names) -> Link | None:
         if unit.manager_id == reader.pk:
             return Link("unit_covers", month, cover_id=payload.get("cover_id"))
         return Link("covers", month) if reader.role == Role.STAFF_NURSE else None
-    if note.event == Event.PROBATION_ENDING:
+    if note.event in (Event.PROBATION_ENDING, Event.PRECEPTOR_LEAVING):
         return Link("rostering_attributes", month) if unit.manager_id == reader.pk else None
+    if note.event == Event.PRECEPTOR_ASSIGNED:
+        return Link("my_month", month) if reader.role == Role.STAFF_NURSE else None
     if note.event == Event.WINDOW_CLOSED:
         return Link("requests", month) if unit.manager_id == reader.pk else None
     if reader.role in (Role.CNO, Role.DEPUTY_CNO):

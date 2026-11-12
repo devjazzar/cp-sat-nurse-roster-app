@@ -118,6 +118,31 @@ def probation_ending(unit: Unit, nurse_id: UUID, last_month: dt.date) -> None:
     notify([unit.manager], Event.PROBATION_ENDING, **_about(unit, last_month), nurse_id=str(nurse_id))
 
 
+class PreceptorRole(TextChoices):
+    """Who a preceptor's notification is to, of the nurses it names (ticket 55)."""
+    NURSE = "nurse"  # The nurse on probation: who her preceptor is from the month.
+    PRECEPTOR = "preceptor"  # The nurse who precepts her from the month.
+    RELEASED = "released"  # The nurse who precepted her and no longer does from the month.
+
+
+def preceptor_assigned(unit: Unit, nurse, month: dt.date, *, preceptor, released) -> None:
+    """To the nurse on probation and her preceptor from `month`, and to each nurse who precepted her in a month from then and
+    no longer does: once each. Profiles, so a manager with a nurse profile is told as a preceptor."""
+    about = _about(unit, month) | {"nurse_id": str(nurse.pk), "preceptor_id": str(preceptor.pk)}
+    notify([nurse.user], Event.PRECEPTOR_ASSIGNED, **about, role=PreceptorRole.NURSE.value)
+    notify([preceptor.user], Event.PRECEPTOR_ASSIGNED, **about, role=PreceptorRole.PRECEPTOR.value)
+    for gone in released:
+        notify([gone.user], Event.PRECEPTOR_ASSIGNED, **_about(unit, month), nurse_id=str(nurse.pk), preceptor_id=str(gone.pk),
+               role=PreceptorRole.RELEASED.value)
+
+
+def preceptor_leaving(unit: Unit, nurse_id: UUID, preceptor_id: UUID, last_month: dt.date) -> None:
+    """To the unit's manager, when a preceptor's transfer or end date ends an assignment with her last month in the unit: to
+    choose another."""
+    notify([unit.manager], Event.PRECEPTOR_LEAVING, **_about(unit, last_month), nurse_id=str(nurse_id),
+           preceptor_id=str(preceptor_id))
+
+
 class MonthDates(TextChoices):
     """Which of a month's own dates changed (ticket 46), as a solve input names them."""
     RAMADAN_DAYS = "ramadan_days"

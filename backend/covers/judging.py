@@ -85,7 +85,8 @@ class CoverMonth(ApprovedMonth):
 
     def exclusion(self, hospital_id: str) -> str | None:
         """Why this nurse could not take the cover before her grid is checked, as a key ticket 27 words for her: `not_on_grid`,
-        `not_staff`, `works`, `not_in_month`, `outside_dates`, `leave`, `barred`, `shift_not_allowed` or `request`."""
+        `not_staff`, `works`, `not_in_month`, `outside_dates`, `leave`, `on_probation`, `barred`, `shift_not_allowed` or
+        `request`."""
         nurse = self.on_grid.get(hospital_id)
         if hospital_id not in self.roster.grid or nurse is None:
             return "not_on_grid"
@@ -97,6 +98,8 @@ class CoverMonth(ApprovedMonth):
         why = self.judge.day_why(serving.pk, self.day) if serving else "not_in_month"
         if why is not None:
             return why
+        if serving.pk in self.judge.on_probation:
+            return "on_probation"  # She fills no gap: a shift is fully staffed without her (ADR 0014).
         why = self.judge.shift_why(serving.pk, self.day, self.shift)
         if why is not None:
             # The cover's own shift is one the unit works, so anything but the bar is her allowed shifts.
@@ -125,6 +128,8 @@ class CoverMonth(ApprovedMonth):
                                 "this cover.",
                 "outside_dates": f"{on} is outside your dates on the roster, so you cannot take this cover.",
                 "leave": f"You are on leave on {on}, so you cannot take this cover.",
+                "on_probation": f"You are on probation in {self.month:%B %Y}, and a nurse on probation takes no cover: a shift "
+                                "is fully staffed without her.",
                 "shift_not_allowed": f"{self.shift.code} is not one of the shifts you work, so you cannot take this cover.",
                 "request": f"Your accepted request holds your cell on {on}, so you cannot take this cover.",
             }[why]]
@@ -162,7 +167,10 @@ class CoverMonth(ApprovedMonth):
                 continue
             high = headcount.weekend_max if problem.is_weekend(index) else headcount.weekday_max
             counted = {self.shift.code, *headcount.also_counts}
-            present = sum(1 for row in self.roster.grid.values() if row.get(self.day.isoformat()) in counted)
+            # The solver's own reading: a nurse on probation counts toward no headcount (`problem.counted`).
+            probation = {row["id"] for row in self.input["nurses"] if row.get("on_probation")}
+            present = sum(1 for hospital_id, row in self.roster.grid.items()
+                          if hospital_id not in probation and row.get(self.day.isoformat()) in counted)
             if present >= high:
                 return (f"{self.shift.display_name} on {long_date(self.day)} already has {present} of at most {high}, so one "
                         f"more nurse would break its headcount. To change who works it, edit the roster.")

@@ -23,14 +23,14 @@ from hospital.api import refuse
 from hospital.models import HospitalSettings, Shift
 from notifications import sending
 from notifications.sending import SwapStep
-from nurses import membership
+from nurses import membership, probation
 from nurses.models import NurseProfile
 from rosters.drafts import current_code
 from rosters.models import PinOrigin, Roster, RosterState, VersionOrigin
 from rosters.pins import long_date, pin_cell
 from rosters.versions import make_version
 from swaps.expiring import expire_passed
-from swaps.judging import Change, judge, name_of
+from swaps.judging import Change, judge, name_of, on_probation_said
 from swaps.models import Answer, Swap, SwapCell, SwapParticipant, SwapState
 from units.models import Unit
 from units.scope import unit_in_scope
@@ -85,6 +85,8 @@ def propose(user: User, month: dt.date, changes: list[Change], note: str, reques
     if too_many:
         raise HttpError(409, too_many)
     expire_passed(Swap.objects.filter(roster=roster))
+    if probation.on_probation_in(proposer, month):
+        raise HttpError(409, on_probation_said(month))
     if not any(change.hospital_id == user.username for change in changes):
         refuse((("cells",), NO_OWN_CELL))
     said = judge(roster, changes, proposer).for_proposer()

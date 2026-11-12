@@ -120,6 +120,10 @@ def transfer(nurse: NurseProfile, unit: Unit, month: dt.date) -> bool:
             allowed, to_check = waiting_there.allowed_shifts, waiting_there.allowed_shifts_to_check
         else:
             allowed, to_check = _carried_allowed_shifts(coming_from, unit)
+        if _night_alone_on_probation(nurse, allowed, unit):
+            # She works no night shift, so it alone would leave her no shift: the list empties and her new unit's manager is
+            # asked to look, as for a list with no shift in common (ticket 55).
+            allowed, to_check = None, True
         Placement.objects.create(nurse=nurse, unit=unit, from_month=month, allowed_shifts=allowed,
                                  allowed_shifts_to_check=to_check)
     return True
@@ -155,6 +159,15 @@ def _unit_placements_from_now_on(unit: Unit) -> QuerySet[Placement]:
     return Placement.objects.filter(Q(pk=in_force) | Q(from_month__gt=this_month()), unit=unit)
 
 
+def _night_alone_on_probation(nurse: NurseProfile, allowed: list[str] | None, unit: Unit, night_shift: str | None = None) -> bool:
+    """Allowed shifts that are the unit's night shift alone, on a nurse whose probation is not over: she works no night shift,
+    so they would leave her none (ADR 0014)."""
+    from nurses import probation  # It reads her months through this module.
+
+    night = night_shift if night_shift is not None else unit.rules.get("night_shift")
+    return allowed is not None and allowed == [night] and probation.running(nurse)
+
+
 def stranded_by(unit: Unit, shifts: list[str]) -> list[NurseProfile]:
     """The nurses these shifts would leave with none they may work, now or once they join. Only the manager can say
     what they work instead."""
@@ -163,6 +176,17 @@ def stranded_by(unit: Unit, shifts: list[str]) -> list[NurseProfile]:
     stranded = {placement.nurse.pk: placement.nurse for placement in placements
                 if not any(code in shifts for code in placement.allowed_shifts)}
     return list(stranded.values())
+
+
+def left_night_alone(unit: Unit, shifts: list[str], night_shift: str) -> list[NurseProfile]:
+    """The nurses on probation these shifts, with the unit rules' new night shift, would leave with that night shift alone,
+    now or once they join: she works none, so it would leave her no shift (ticket 55, beside `stranded_by`)."""
+    placements = (_unit_placements_from_now_on(unit).filter(allowed_shifts__isnull=False)
+                  .select_related("nurse__user").order_by("nurse__user__full_name", "pk"))
+    left = {placement.nurse.pk: placement.nurse for placement in placements
+            if _night_alone_on_probation(placement.nurse, [code for code in placement.allowed_shifts if code in shifts], unit,
+                                         night_shift)}
+    return list(left.values())
 
 
 def narrow_allowed_shifts(unit: Unit, shifts: list[str]) -> None:

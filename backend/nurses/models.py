@@ -147,3 +147,30 @@ class NurseSkill(models.Model):
                                     condition=models.Q(removed_at__isnull=True, identifier__isnull=False),
                                     name="nurses_one_current_identifier_a_skill"),
         ]
+
+
+class PreceptorAssignment(models.Model):
+    """From this month on, which nurse precepts a nurse on probation (ticket 55; `GLOSSARY.md`, Preceptor). The latest that has
+    begun is in force, as a placement is, and only in the months she is on probation, so a probation's end, extension or untick
+    moves it with no write here. `until` is the last month of one ended by a nurse leaving the unit: the preceptor's transfer
+    or end date, or her own transfer. It is never brought back, so a transfer cancelled after the manager was told to choose
+    another leaves it ended. Read through `nurses.preceptors`."""
+
+    id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
+    nurse = models.ForeignKey(NurseProfile, on_delete=models.PROTECT, related_name="preceptor_assignments")
+    preceptor = models.ForeignKey(NurseProfile, on_delete=models.PROTECT, related_name="precepting")
+    unit = models.ForeignKey("units.Unit", on_delete=models.PROTECT, related_name="+")
+    from_month = models.DateField(help_text="The first day of the month.")
+    until = models.DateField(null=True, blank=True, help_text="The first day of its last month, when a nurse's leaving the unit "
+                                                              "ended it.")
+    assigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["from_month"]
+        constraints = [
+            models.UniqueConstraint(fields=["nurse", "from_month"], name="nurses_one_preceptor_from_a_month"),
+            models.CheckConstraint(condition=models.Q(from_month__day=1), name="nurses_preceptor_from_a_month"),
+            models.CheckConstraint(condition=models.Q(until__day=1), name="nurses_preceptor_until_a_month"),
+            models.CheckConstraint(condition=~models.Q(nurse=models.F("preceptor")), name="nurses_preceptor_is_another_nurse"),
+        ]

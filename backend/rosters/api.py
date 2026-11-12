@@ -53,8 +53,10 @@ class DraftChange(Schema):
     hospital_id: str = Field(description="Empty for a change of the unit's own (`skills`) or of the month's (`ramadan_days`, "
                                          "`public_holidays`).")
     what: Literal["gender", "leave", "joined", "left", "pins", "preferences", "skills", "closed", "ramadan_days",
-                  "public_holidays"] = Field(
-        description="`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no "
+                  "public_holidays", "on_probation", "off_probation", "preceptor"] = Field(
+        description="`on_probation`: she is on probation this month and it was planned with her counted; `off_probation`: she "
+                    "is no longer on probation this month and it was planned with her on probation; `preceptor`: her preceptor "
+                    "this month is not the one it was planned with (ticket 55). `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no "
                     "hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's "
                     "price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and "
                     "the close's is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: "

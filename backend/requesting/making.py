@@ -132,6 +132,9 @@ def nurse_refusal(judge: Judge, nurse: NurseProfile, day: dt.date, asked: str | 
                              "You can still ask for the day off.")
         case "shift_not_allowed":
             return "shift", f"{asked} is not one of the shifts you work."
+        case "night_on_probation":
+            return "shift", (f"You are on probation in {month_name(judge.month)}, so you work no {asked}, the night shift. You "
+                             "can still ask for the day off.")
     return None
 
 

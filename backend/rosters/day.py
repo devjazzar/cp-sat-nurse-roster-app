@@ -125,6 +125,8 @@ def _figures(solve_input: dict, grid: Grid, violations: list[dict], nurses_block
     day = date.isoformat()
     people = {row["id"]: row for row in solve_input["nurses"]}
     cells = {hospital_id: grid.get(hospital_id, {}).get(day, "") for hospital_id in people}
+    # A nurse on probation is listed on her shift and counted toward nothing, as the solver reads her (`problem.counted`).
+    counted_cells = {hospital_id: cell for hospital_id, cell in cells.items() if not people[hospital_id].get("on_probation")}
     worked = [code for code in cells.values() if code]
     codes = list(dict.fromkeys([*department["shifts"], *worked]))
     headcounts = {headcount["shift"]: headcount for headcount in department["headcounts"]}
@@ -134,10 +136,10 @@ def _figures(solve_input: dict, grid: Grid, violations: list[dict], nurses_block
     for code in codes:
         pure = by_name([hospital_id for hospital_id, cell in cells.items() if cell == code], names)
         headcount = headcounts.get(code)
-        present, low, high, team_leader, both = len(pure), None, None, None, None
+        present, low, high, team_leader, both = sum(cell == code for cell in counted_cells.values()), None, None, None, None
         short = over = False
         if headcount is not None:
-            present += sum(cell in headcount["also_counts"] for cell in cells.values())
+            present += sum(cell in headcount["also_counts"] for cell in counted_cells.values())
             if department["headcount_enabled"]:
                 low, high = ((headcount["weekend_min"], headcount["weekend_max"]) if weekend
                              else (headcount["weekday_min"], headcount["weekday_max"]))
@@ -154,7 +156,9 @@ def _figures(solve_input: dict, grid: Grid, violations: list[dict], nurses_block
                                nurses=[OnShift(hospital_id, names.get(hospital_id) or hospital_id,
                                                bool(people[hospital_id].get("team_leader"))) for hospital_id in pure]))
     counted = bool(general["hours_rule_enabled"])
-    overtimes = [row["overtime"] for row in nurses_block.values()] if counted else []
+    # Her rounding overtime is on her own record, outside the unit's totals and the department cap (ticket 52).
+    overtimes = [row["overtime"] for hospital_id, row in nurses_block.items()
+                 if not people.get(hospital_id, {}).get("on_probation")] if counted else []
     return Figures(shifts=shifts, on_leave=on_leave, hours_counted=counted, overtime=sum(overtimes),
                    overtime_cap=general["dept_overtime_cap"], with_overtime=sum(hours > 0 for hours in overtimes))
 

@@ -23,7 +23,7 @@ from closes import making
 from hospital.api import differing, refuse
 from hospital.catalogue_api import MONTH_PATTERN, IsoDate, iso_date
 from hospital.models import HospitalSettings
-from nurses import membership, probation
+from nurses import membership, preceptors, probation
 from nurses.models import Gender, NurseProfile
 from nurses.skills import NurseSkillRow, current_skills, skills_of
 from units.models import Unit
@@ -175,7 +175,9 @@ def _row(nurse: NurseProfile, only_unit: UUID | None = None) -> NurseRow:
 
 
 def with_units(nurses):
-    return nurses.select_related("user").prefetch_related("placements__unit", current_skills()).order_by(Lower("user__full_name"), "pk")
+    return (nurses.select_related("user").prefetch_related("placements__unit", current_skills(),
+                                                           "preceptor_assignments__preceptor__user")
+            .order_by(Lower("user__full_name"), "pk"))
 
 
 def _row_as_saved(nurse_id: UUID, only_unit: UUID | None = None) -> NurseRow:
@@ -301,6 +303,7 @@ def transfer_nurse(request: HttpRequest, nurse_id: UUID, body: TransferBody) -> 
             refuse((("unit_id",), f"{user.full_name} is already in {unit.name} from that month."))
         record("nurse.transferred", actor=request.user, target=user.username, request=request,
                before={"unit": was.name}, after={"unit": unit.name, "from_month": body.from_month})
+        preceptors.log_ended(preceptors.end_on_leaving(nurse, month, staying_in=unit), request)
     return _row_as_saved(nurse_id)
 
 
@@ -331,6 +334,8 @@ def set_end_date(request: HttpRequest, nurse_id: UUID, body: EndDateBody) -> Nur
                                             for placement in cancelled]
         record("nurse.end_date_changed", actor=request.user, target=user.username, request=request,
                before={"end_date": before.isoformat() if before else None}, after=after)
+        if end is not None:
+            preceptors.log_ended(preceptors.end_on_leaving(nurse, probation.months_on(end.replace(day=1), 1)), request)
         is_staff_nurse = user.role == Role.STAFF_NURSE
         if is_staff_nurse and end is not None and end <= today:
             deactivate(request, user.pk)

@@ -74,6 +74,12 @@ def name_of(nurse: NurseProfile) -> str:
     return nurse.user.full_name or nurse.user.username
 
 
+def on_probation_said(month: dt.date) -> str:
+    """Why a nurse on probation proposes no swap (ADR 0014), in her own words."""
+    return (f"You are on probation in {month:%B %Y}, and a nurse on probation takes no part in a swap: you work beside your "
+            "preceptor, and the roster is planned around that.")
+
+
 def cannot_work_for(name: str, day: dt.date | None) -> str:
     """The one sentence a proposer reads for any reason that rests on a colleague."""
     return f"This swap cannot work for {name} on {long_date(day)}." if day else f"This swap cannot work for {name}."
@@ -106,6 +112,11 @@ def _cell_problem(month: SwapMonth, change: Change, index: int, proposer: NurseP
         return Problem.said(f"{on} has passed, so its cells can no longer be swapped.", index)
     if nurse.user.role != Role.STAFF_NURSE:
         return Problem.said(f"{name} is not a staff nurse, so a swap cannot change their cells.", index)
+    serving = month.serving.get(change.hospital_id)
+    if serving is not None and serving.pk in month.judge.on_probation:
+        # Her row sits under "On probation" on My roster (ticket 56), so saying so tells no one more than the roster does.
+        return Problem.said(on_probation_said(month.month) if mine else
+                            f"{name} is on probation in {month.month:%B %Y}, so a swap cannot change their cells.", index)
     shift = month.shift_of(change.shift)
     if change.shift and shift is None:
         return Problem.said(f"{change.shift} is not one of this unit's shifts.", index)
@@ -114,7 +125,6 @@ def _cell_problem(month: SwapMonth, change: Change, index: int, proposer: NurseP
         what = what_of(shift)
         return Problem(f"{name}'s cell on {on} is already {what}.", f"{whose} cell on {on} is already {what}.", index)
     hidden = cannot_work_for(name, change.date)
-    serving = month.serving.get(change.hospital_id)
     why = month.judge.day_why(serving.pk, change.date) if serving else "not_in_month"
     if why is not None:
         manager = (month.judge.refusal(nurse.pk, name, change.date, None, None) if serving
@@ -144,10 +154,16 @@ def _cell_problem(month: SwapMonth, change: Change, index: int, proposer: NurseP
     return None
 
 
-def _violation_problem(violation: dict, month: SwapMonth, changes: list[Change], proposer: NurseProfile | None) -> Problem:
+def _violation_problem(violation: dict, month: SwapMonth, changes: list[Change], proposer: NurseProfile | None,
+                       preceptors: dict[str, str]) -> Problem:
     text = in_dates(violation["text"], month.month)
     day = dt.date.fromisoformat(violation["date"]) if violation["date"] else None
     nurse = month.on_grid.get(violation["nurse"]) if violation["nurse"] else None
+    preceptor = month.on_grid.get(preceptors.get(violation["nurse"], ""))
+    if violation["rule"] == "following" and nurse is not None and preceptor is not None:
+        # What My roster shows: her row under "On probation" with her preceptor's name (ticket 56), and both rows' cells.
+        return Problem(text, f"This swap cannot work on {long_date(day)}: {name_of(nurse)} is on probation and works beside "
+                             f"her preceptor, {name_of(preceptor)}, on their day shifts.")
     if nurse is not None:
         if proposer is not None and nurse.pk == proposer.pk:
             return Problem(text, f"This swap breaks a rule for you: {text}")
@@ -182,6 +198,7 @@ def judge(roster: Roster, changes: list[Change], proposer: NurseProfile | None, 
         judged.problems.append(Problem(f"The swap cannot be checked: {in_dates(judged.after.reason, month.month)}",
                                        "This swap cannot be checked against the roster now. Ask your manager."))
         return judged
+    preceptors = {row["id"]: row["preceptor"] for row in solve_input["nurses"] if row.get("preceptor")}
     for violation in newly_broken(judged.before, judged.after):
-        judged.problems.append(_violation_problem(violation, month, changes, proposer))
+        judged.problems.append(_violation_problem(violation, month, changes, proposer, preceptors))
     return judged

@@ -114,7 +114,7 @@ def lock_the_months_nurses(unit: Unit, month: dt.date, roster: Roster | None) ->
          .filter(pk__in=ids).order_by("pk"))
 
 
-MONTH_AT_SUBMIT_KEYS = ("id", "gender", "leave", "pinned")
+MONTH_AT_SUBMIT_KEYS = ("id", "gender", "leave", "pinned", "on_probation", "preceptor")
 
 
 def submit(roster: Roster, by: User) -> Submission:

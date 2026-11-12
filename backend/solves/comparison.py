@@ -109,6 +109,8 @@ class _Reading:
                 "previous": [self.code(code) if code else code for code in row.get("previous") or []]},
             "preferences": (sorted(row.get("undesired_days", [])), sorted(row.get("desired_days", []))),
             "skills": row.get("skills", {}),
+            # Absent in an input stored before ticket 55: not on probation, no preceptor (ADR 0014).
+            "probation": (row.get("on_probation", False), row.get("preceptor")),
         }
 
 

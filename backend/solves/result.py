@@ -4,6 +4,8 @@ from __future__ import annotations
 import datetime as dt
 import re
 
+from nurse_roster.problem import barred_days, preceptor_of
+from nurse_roster.request import load_request
 from nurse_roster.rules import SOFT
 from solver_service.grid import validate_grid
 
@@ -36,6 +38,43 @@ def explanation(solve_input: dict, result: dict | None) -> dict[str, dict] | Non
         return None
     return {rule["id"]: rule | {"matches": sorted(rule["matches"], key=lambda match: -match["amount"])}
             for rule in answer["rules"] if rule["level"] == SOFT and rule["weighted"]}
+
+
+def not_followed(solve_input: dict, roster: dict[str, dict[str, str]]) -> list[dict]:
+    """Story 51's explanation, which a result does not keep (it holds priced soft rules only, and the following rule is hard):
+    for each nurse on probation in the input, her preceptor's day shifts she followed, and each she did not with why, read
+    with the solver's own `Problem` (her allowed shifts less the night shift, her leave, pins, bars and the cutoff). A day her
+    preceptor works a shift she is allowed and she does not is one she could have followed. On a valid roster she is then
+    off, and the reason is the first that holds: leave (the days outside her dates included), a barred day, a day already over
+    in a re-plan, a pin or an accepted request, or else her hours, which held no more (ADR 0014: hours win over following).
+    Nothing when the solver's code no longer reads the input."""
+    try:
+        problem = load_request(solve_input).problem
+    except ValueError:
+        return []
+    found = []
+    for nurse in problem.nurses:
+        if not nurse.on_probation:
+            continue
+        q = preceptor_of(problem, nurse)
+        row = {"nurse": nurse.id, "preceptor": None, "followed": 0, "missed": []}
+        found.append(row)
+        if q is None:
+            continue
+        row["preceptor"] = nurse.preceptor
+        allowed, barred = set(problem.allowed(nurse)), set(barred_days(problem, nurse))
+        mine, theirs = roster.get(nurse.id, {}), roster.get(nurse.preceptor, {})
+        for day, shift in sorted(theirs.items()):
+            d = dt.date.fromisoformat(day).day - 1  # The solver's day index: the month's days from 0.
+            if shift not in allowed:
+                continue
+            if mine.get(day) == shift:
+                row["followed"] += 1
+                continue
+            why = ("leave" if d in nurse.unavailable else "barred" if d in barred else "elapsed" if d < problem.planning_from
+                   else "pinned" if d in nurse.pinned else "hours")
+            row["missed"].append({"date": day, "shift": shift, "why": why})
+    return found
 
 
 def precheck_of(result: dict, month: dt.date) -> list[str]:

@@ -18,7 +18,7 @@ from accounts.models import Role
 from audit.log import record
 from hospital.api import StrictSchema, differing, refuse
 from hospital.models import HospitalSettings, Shift, Skill
-from nurses.membership import narrow_allowed_shifts, stranded_by, this_month
+from nurses.membership import left_night_alone, narrow_allowed_shifts, stranded_by, this_month
 from ops.models import TechnicalSettings
 from rosters.drafts import frozen_cells_on_shifts_going
 from rosters.grids import full_names
@@ -307,6 +307,11 @@ def update_unit_rules(request, unit_id: UUID, body: UnitRulesBody) -> dict:
         if stranded:
             refuse((("rules", "shifts"), f"{_names(stranded)} could work none of these shifts. "
                                          "Change their allowed shifts first."))
+        night_alone = left_night_alone(unit, body.rules.shifts, body.rules.night_shift)
+        if night_alone:
+            refuse((("rules", "shifts"), f"{_names(night_alone)} would have only {body.rules.night_shift}, the night shift, of "
+                                         "these shifts, and a nurse on probation works no night shift. Change their allowed "
+                                         "shifts first."))
 
         pinned = on_shifts_going(unit, body.rules.shifts)
         if pinned:

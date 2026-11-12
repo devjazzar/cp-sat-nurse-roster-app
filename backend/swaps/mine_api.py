@@ -19,7 +19,7 @@ from accounts.models import Role
 from hospital.api import StrictSchema, refuse
 from hospital.catalogue_api import IsoDate
 from hospital.models import Shift
-from nurses import membership
+from nurses import membership, probation
 from nurses.api import MonthText
 from nurses.models import NurseProfile
 from rosters.grids import GridDay, by_name, full_names
@@ -28,7 +28,7 @@ from rosters.review import name_of
 from rosters.sheets import days_of
 from swaps import steps
 from swaps.expiring import state_now
-from swaps.judging import Change
+from swaps.judging import Change, on_probation_said
 from swaps.models import Swap
 
 router = Router(tags=["swaps"])
@@ -163,10 +163,11 @@ def composer(request: HttpRequest, filters: Query[MyRosterFilter]) -> SwapCompos
         answer.refusal = steps.MONTH_OVER
         return answer
     grid = found.roster.grid
-    staff = set(NurseProfile.objects.filter(user__username__in=list(grid), user__role=Role.STAFF_NURSE)
-                .values_list("user__username", flat=True))
-    names = full_names(grid)
     me = found.nurse.user.username
+    # A nurse on probation that month is no colleague in a swap (ADR 0014), so she is not offered.
+    staff = {nurse.user.username for nurse in NurseProfile.objects.filter(user__username__in=list(grid), user__role=Role.STAFF_NURSE)
+             .select_related("user") if nurse.user.username == me or not probation.on_probation_in(nurse, found.month)}
+    names = full_names(grid)
     answer.days = days
     answer.shifts = [ComposerShift(code=shift.code, display_name=shift.display_name) for shift in Shift.objects.filter(
         active=True, code__in=found.unit.rules.get("shifts", [])).order_by("start_time", "code")]
@@ -175,6 +176,8 @@ def composer(request: HttpRequest, filters: Query[MyRosterFilter]) -> SwapCompos
                      for hospital_id in by_name(grid, names) if hospital_id in staff]
     if me not in grid:
         answer.refusal = f"You have no row on the {found.unit.name} roster for {found.month:%B %Y}, so you have no cell to swap."
+    elif probation.on_probation_in(found.nurse, found.month):
+        answer.refusal = on_probation_said(found.month)
     return answer
 
 

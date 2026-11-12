@@ -21,10 +21,12 @@ from audit.log import record
 from closes.chain import has_closed
 from hospital.api import StrictSchema, differing, refuse
 from hospital.models import HospitalSettings
-from nurses import membership, probation
-from nurses.api import Probation, probation_of, with_units
+from notifications import sending
+from nurses import membership, preceptors, probation
+from nurses.api import Body, MonthText, Probation, probation_of, with_units
 from nurses.models import Gender, NurseProfile
 from nurses.skills import NurseSkillRow, skills_of
+from rosters.models import Roster, RosterState
 from rosters.pins import outside_allowed, words_for
 from units.models import Unit
 from units.rules import distinct_shifts
@@ -63,15 +65,34 @@ class LengthChoice(Schema):
     last_day: dt.date
 
 
+class PreceptorOnTheRow(Schema):
+    hospital_id: str
+    full_name: str
+    from_month: str = Field(description="YYYY-MM: the first month this nurse precepts her, or this month for one under way.")
+    to_month: str = Field(description="YYYY-MM: the last, with her probation's last month or a nurse's last month in the unit.")
+
+
 class ProbationOnTheRow(Probation):
     """Her probation as her row shows it, with what each of her unit manager's actions would make its last day, worked out here
     on the hospital's clock. An action that would be refused has none."""
     lengths: list[LengthChoice] = Field(description="The lengths Length may choose, with the last day each gives.")
     if_extended: dt.date | None = Field(description="The last day Extend would give.")
     if_ended: dt.date | None = Field(description="The last day End would give: the last of the month under way.")
+    preceptors: list[PreceptorOnTheRow] = Field(description="Who precepts her from this month on, in month order. Empty when no "
+                                                            "one does.")
+    preceptor_months: list[str] = Field(description="YYYY-MM: the months her unit manager may choose a preceptor from: from "
+                                                    "this month on, while she is on probation in this unit, and not one whose "
+                                                    "roster is approved.")
 
 
-def _probation_on_the_row(nurse: NurseProfile) -> ProbationOnTheRow | None:
+def _preceptors_on_the_row(nurse: NurseProfile) -> list[PreceptorOnTheRow]:
+    return [PreceptorOnTheRow(hospital_id=span.assignment.preceptor.user.username,
+                              full_name=preceptors.name_of(span.assignment.preceptor),
+                              from_month=span.first.strftime("%Y-%m"), to_month=span.last.strftime("%Y-%m"))
+            for span in preceptors.spans(nurse, membership.this_month())]
+
+
+def _probation_on_the_row(nurse: NurseProfile, unit: Unit) -> ProbationOnTheRow | None:
     read = probation_of(nurse)
     if read is None:
         return None
@@ -83,7 +104,10 @@ def _probation_on_the_row(nurse: NurseProfile) -> ProbationOnTheRow | None:
     extended = probation.last_day_after(nurse.start_date, read.months + 1) \
         if open_to_change and read.months < probation.LONGEST else None
     ended = membership.last_day_of(month) if open_to_change and month >= nurse.start_date.replace(day=1) else None
-    return ProbationOnTheRow(**read.model_dump(), lengths=lengths, if_extended=extended, if_ended=ended)
+    return ProbationOnTheRow(**read.model_dump(), lengths=lengths, if_extended=extended, if_ended=ended,
+                             preceptors=_preceptors_on_the_row(nurse),
+                             preceptor_months=[month.strftime("%Y-%m") for month in preceptors.months_to_choose(nurse, unit)]
+                             if read.ticked else [])
 
 
 class NurseAttributesRow(Schema):
@@ -131,7 +155,7 @@ def _row(nurse: NurseProfile, unit: Unit, *, details: bool = False) -> NurseAttr
         night_balance=nurse.night_balance, friday_balance=nurse.friday_balance, overtime_balance=nurse.overtime_balance,
         allowed_shifts=here.allowed_shifts, allowed_shifts_to_check=here.allowed_shifts_to_check,
         opening_values_locked=has_closed(nurse), skills=skills_of(nurse, details=details),
-        probation=_probation_on_the_row(nurse))
+        probation=_probation_on_the_row(nurse, unit))
 
 
 OPENING_VALUES = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance", "overtime_balance")
@@ -266,6 +290,9 @@ def set_probation_length(request, unit_id: UUID, nurse_id: UUID, body: LengthBod
             refuse((("months",), f"{body.months} month{'' if body.months == 1 else 's'} would have ended {name}'s probation on "
                                  f"{last:%-d %B %Y}, before this month. End it instead, at the end of this month."))
         if body.months != nurse.probation_months:
+            clash = preceptors.clash_if_lasting(nurse, body.months)
+            if clash:
+                refuse((("months",), clash))
             was = probation.describe(nurse)
             nurse.probation_months = body.months
             _save_probation(request, nurse, "nurse.probation_length_set", was)
@@ -280,6 +307,9 @@ def extend_probation(request, unit_id: UUID, nurse_id: UUID) -> NurseAttributesR
         unit, nurse = _probation_to_change(request, unit_id, nurse_id)
         if nurse.probation_months >= probation.LONGEST:
             refuse((("probation",), f"{nurse.user.full_name}'s probation is {probation.LONGEST} months, the longest it can be."))
+        clash = preceptors.clash_if_lasting(nurse, nurse.probation_months + 1)
+        if clash:
+            refuse((("probation",), clash))
         was = probation.describe(nurse)
         nurse.probation_months += 1
         _save_probation(request, nurse, "nurse.probation_extended", was)
@@ -300,4 +330,102 @@ def end_probation(request, unit_id: UUID, nurse_id: UUID) -> NurseAttributesRow:
         was = probation.describe(nurse)
         nurse.probation_ended_in = month
         _save_probation(request, nurse, "nurse.probation_ended", was)
+    return _row_as_saved(nurse_id, unit)
+
+
+# ---- her preceptor: the unit manager's (ticket 55) ------------------------------------------------------------------------
+class PreceptorChoice(Schema):
+    id: UUID = Field(description="The nurse profile's.")
+    hospital_id: str
+    full_name: str
+
+
+class PreceptorChoices(Schema):
+    month: str = Field(description="YYYY-MM: the month the choice would take effect from.")
+    refusal: str | None = Field(description="Why no preceptor can be chosen from that month.")
+    nurses: list[PreceptorChoice] = Field(description="The unit's nurses that month who hold a skill marked \"Lets a nurse "
+                                                      "precept\", unexpired today, are not on probation in her months from then "
+                                                      "and precept no other nurse in any of them. Empty with a refusal.")
+
+
+class PreceptorBody(Body):
+    preceptor_id: UUID = Field(description="The nurse profile's.")
+    from_month: MonthText
+
+
+def _preceptor_to_change(request, unit_id: UUID, nurse_id: UUID) -> tuple[Unit, NurseProfile]:
+    """The manager of the unit she is in, now or due to join: the new unit's manager chooses her preceptor there (story 34)."""
+    unit, nurse = _nurse_to_change(request.user, unit_id, nurse_id)
+    if not probation.running(nurse):
+        refuse((("probation",), f"{nurse.user.full_name} is not on probation."))
+    if not nurse.on_probation:
+        refuse((("probation",), f"The CNO took {nurse.user.full_name} off probation, so she needs no preceptor."))
+    return unit, nurse
+
+
+def _month_refusal(nurse: NurseProfile, unit: Unit, month: dt.date) -> str | None:
+    name = nurse.user.full_name
+    if month < membership.this_month():
+        return f"{month:%B %Y} is over. A preceptor is chosen from this month or later."
+    if not probation.on_probation_in(nurse, month):
+        return f"{name} is not on probation in {month:%B %Y}: her probation ends on {probation.last_day(nurse):%-d %B %Y}."
+    if membership.unit_in(nurse, month).pk != unit.pk:
+        return f"{name} is not in {unit.name} in {month:%B %Y}, so that unit's manager chooses her preceptor there."
+    if Roster.objects.filter(unit=unit, month=month, state=RosterState.APPROVED).exists():
+        return (f"The roster of {month:%B %Y} is approved, so a preceptor can be chosen from a later month only. To change who "
+                f"works beside her in {month:%B %Y}, edit the roster.")
+    return None
+
+
+@router.get("/{unit_id}/nurses/{nurse_id}/preceptor-choices", response=PreceptorChoices, auth=manager,
+            operation_id="listPreceptorChoices")
+def list_preceptor_choices(request, unit_id: UUID, nurse_id: UUID, month: MonthText) -> PreceptorChoices:
+    """The list Change preceptor offers, from a month on. Read with no lock: the save checks it all again."""
+    unit = unit_in_scope(request.user, unit_id)
+    nurse = with_units(membership.on_the_list_of(unit)).filter(pk=nurse_id).first()
+    if nurse is None:
+        raise HttpError(403, "This nurse is not in your unit.")
+    chosen = dt.date.fromisoformat(f"{month}-01")
+    refusal = None if probation.running(nurse) and nurse.on_probation else f"{nurse.user.full_name} is not on probation."
+    refusal = refusal or _month_refusal(nurse, unit, chosen)
+    offered = [] if refusal else preceptors.candidates(nurse, unit, chosen)
+    if not refusal and not offered:
+        refusal = (f"No nurse of {unit.name} can precept {nurse.user.full_name} from {chosen:%B %Y}: none holds a skill marked "
+                   "\"Lets a nurse precept\", unexpired today, without being on probation or precepting another nurse then.")
+    return PreceptorChoices(month=month, refusal=refusal, nurses=[
+        PreceptorChoice(id=candidate.pk, hospital_id=candidate.user.username, full_name=preceptors.name_of(candidate))
+        for candidate in offered])
+
+
+@router.put("/{unit_id}/nurses/{nurse_id}/preceptor", response=NurseAttributesRow, auth=manager,
+            operation_id="setPreceptor")
+def set_preceptor(request, unit_id: UUID, nurse_id: UUID, body: PreceptorBody) -> NurseAttributesRow:
+    """Assigns or changes her preceptor from a month on. Both nurses are told, and a nurse who precepted her then and no longer
+    does; each assignment is logged with its values before and after, as her probation is."""
+    month = dt.date.fromisoformat(f"{body.from_month}-01")
+    with transaction.atomic():
+        unit, nurse = _preceptor_to_change(request, unit_id, nurse_id)
+        # The candidate's row too, in pk order with hers, so two managers cannot give one preceptor two nurses at once.
+        locked = NurseProfile.objects.select_for_update(no_key=True).filter(pk__in=[nurse.pk, body.preceptor_id]).order_by("pk")
+        list(locked.values_list("pk", flat=True))
+        refusal = _month_refusal(nurse, unit, month)
+        if refusal:
+            refuse((("from_month",), refusal))
+        candidate = NurseProfile.objects.select_related("user").filter(pk=body.preceptor_id).first()
+        if candidate is None:
+            refuse((("preceptor_id",), "There is no such nurse."))
+        why = preceptors.why_not(nurse, unit, candidate, month)
+        if why:
+            refuse((("preceptor_id",), why))
+        held = preceptors.assignment_in(nurse, month)
+        before = preceptors.preceptors_from(nurse, month)
+        if before == {candidate.pk}:
+            return _row_as_saved(nurse_id, unit)  # She is already theirs from that month on: nothing to change or tell.
+        was = preceptors.describe(held)
+        assigned = preceptors.assign(nurse, unit, candidate, month, request.user)
+        record("nurse.preceptor_assigned", actor=request.user, target=nurse.user.username, request=request, before=was,
+               after=preceptors.describe(assigned))
+        released = NurseProfile.objects.select_related("user").filter(pk__in=before - {candidate.pk}).order_by("pk")
+        if candidate.pk not in before or released:
+            sending.preceptor_assigned(unit, nurse, month, preceptor=candidate, released=list(released))
     return _row_as_saved(nurse_id, unit)

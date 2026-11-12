@@ -31,7 +31,8 @@ from solves.api import chosen_month, manager
 from solver_service.grid import validate_grid
 from solves.input import in_current_skill_names
 from solves.models import ReplanOutcomeWord, Solve, SolveFailureWord, SolveState
-from solves.result import LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, precheck_of, statistics_of
+from solves.result import (LARGEST, cost_of, explanation, has_a_roster_to_keep, in_dates, not_followed, precheck_of,
+                           statistics_of)
 from units.models import Unit
 from units.scope import HOSPITAL_WIDE, unit_in_scope
 
@@ -187,6 +188,26 @@ class NurseAccounting(Schema):
     cost: int
 
 
+class MissedDay(Schema):
+    date: dt.date
+    shift: str = Field(description="Her preceptor's day shift that day, under the code it has now.")
+    why: Literal["hours", "leave", "pinned", "elapsed", "barred"] = Field(
+        description="`hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; "
+                    "`pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; "
+                    "`barred`: a required skill of hers had expired.")
+
+
+class Following(Schema):
+    """A nurse on probation in the solve (ticket 55, ADR 0014): which of her preceptor's day shifts she followed, and which
+    not and why. Worked out from the stored input and roster with the solver's own reading, as the explanation is."""
+    hospital_id: str
+    full_name: str
+    preceptor: str | None = Field(description="Her preceptor's hospital ID. Null when she had none in the input.")
+    preceptor_name: str
+    followed: int = Field(description="Her preceptor's day shifts she worked beside them.")
+    missed: list[MissedDay] = Field(description="Those she did not, in date order.")
+
+
 class SolverStatistics(Schema):
     status: str
     stopped_by: str | None
@@ -245,6 +266,7 @@ class SolveResult(Schema):
                                                              "no solve could change.")
     unit_cost: int | None = Field(description="What it costs apart from any one nurse.")
     rules: list[RuleResult] = Field(description="Each soft rule that costs something, the costliest first.")
+    following: list[Following] = Field(description="Each nurse on probation in its input, by name. Empty with no roster.")
     explained: bool = Field(description="False when the solver's code could not explain the stored roster.")
     nurses: list[NurseAccounting]
     statistics: SolverStatistics | None
@@ -320,6 +342,7 @@ def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
     broken = (result.get("violations") or []) + (result.get("elapsed_violations") or [])
     roster = result.get("roster")
     named = {*accounting, *(roster or ()), *(row["nurse"] for row in broken if row["nurse"])}
+    followed = not_followed(solve.input, roster) if roster else []
     explained = explanation(in_current_skill_names(solve.input), result)  # A skill's name as it is now (ADR 0010).
     named |= {match["nurse"] for rule in (explained or {}).values() for match in rule["matches"][:LARGEST] if match["nurse"]}
     names = full_names(named)
@@ -331,6 +354,11 @@ def _result_of(solve: Solve, unit: Unit, user: User) -> SolveResult:
         elapsed_violations=_with_names(result.get("elapsed_violations") or [], names, solve.month),
         unit_cost=result.get("department_cost"), rules=_rule_results(solve, explained, names),
         explained=explained is not None,
+        following=[Following(hospital_id=row["nurse"], full_name=names.get(row["nurse"], ""), preceptor=row["preceptor"],
+                             preceptor_name=names.get(row["preceptor"], "") if row["preceptor"] else "",
+                             followed=row["followed"], missed=[MissedDay(date=day["date"], shift=drafts.current_code(day["shift"]),
+                                                                         why=day["why"]) for day in row["missed"]])
+                   for row in sorted(followed, key=lambda row: (names.get(row["nurse"], "").casefold(), row["nurse"]))],
         nurses=[_accounting(accounting[hospital_id], hospital_id, names.get(hospital_id, ""))
                 for hospital_id in by_name(accounting, names)],
         statistics=SolverStatistics(**statistics_of(result)) if result else None,
@@ -355,7 +383,7 @@ class InputChange(Schema):
 class NurseInputChange(Schema):
     hospital_id: str
     full_name: str
-    kinds: list[Literal["joined", "left", "attributes", "leave", "pins", "carry_over", "preferences", "skills"]] = Field(
+    kinds: list[Literal["joined", "left", "attributes", "leave", "pins", "carry_over", "preferences", "skills", "probation"]] = Field(
         description="Only the kinds: no date, pin, figure or skill of hers.")
 
 

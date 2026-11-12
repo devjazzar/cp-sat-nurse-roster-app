@@ -13,7 +13,7 @@ from django.utils import timezone
 from accounts.models import User
 from hospital.models import Shift
 from hospital.rules import required_skills
-from nurses import membership
+from nurses import membership, probation
 from nurses.models import Leave, NurseProfile
 from nurses.rostering import skills_block
 from nurses.skills import current_skills
@@ -27,7 +27,7 @@ def long_date(day: dt.date) -> str:
     return f"{day.day} {day:%B %Y}"
 
 
-AsideWhy = Literal["not_in_month", "outside_dates", "leave", "shift_not_worked", "shift_not_allowed", "barred"]
+AsideWhy = Literal["not_in_month", "outside_dates", "leave", "shift_not_worked", "shift_not_allowed", "barred", "night_on_probation"]
 
 
 class Judge:
@@ -45,6 +45,9 @@ class Judge:
         # {nurse's pk: the bar on her month}, read as her solve input reads her skills, so the two cannot disagree.
         self.bars = {pk: bar for pk, nurse in self.nurses.items()
                      if (bar := barred_from(skills_block(nurse.current_skills, month), required, month))}
+        # Those on probation this month, who work no night shift (ADR 0014): read as her solve input reads it.
+        self.on_probation = {pk for pk, nurse in self.nurses.items() if probation.on_probation_in(nurse, month)}
+        self.night_shift = unit.rules.get("night_shift")
 
     def day_why(self, nurse_id, day: dt.date) -> AsideWhy | None:
         nurse = self.nurses.get(nurse_id)
@@ -74,7 +77,9 @@ class Judge:
         if self.bar(nurse_id, day):
             return "barred"
         allowed = membership.placement_in(self.nurses[nurse_id], self.month).allowed_shifts
-        return "shift_not_allowed" if allowed is not None and shift.code not in allowed else None
+        if allowed is not None and shift.code not in allowed:
+            return "shift_not_allowed"
+        return "night_on_probation" if nurse_id in self.on_probation and shift.code == self.night_shift else None
 
     def why(self, nurse_id, day: dt.date, shift: Shift | None) -> AsideWhy | None:
         return self.day_why(nurse_id, day) or self.shift_why(nurse_id, day, shift)
@@ -98,6 +103,9 @@ class Judge:
                 return f"{self.bar_said(nurse_id, day, name + "'s")}, so {name} can work no shift on {long_date(day)}."
             case "shift_not_allowed":
                 return f"{shift.code} is not one of {name}'s allowed shifts."
+            case "night_on_probation":
+                return (f"{name} is on probation in {self.month:%B %Y}, and a nurse on probation works no {shift.code}, the "
+                        "night shift.")
         return None
 
 

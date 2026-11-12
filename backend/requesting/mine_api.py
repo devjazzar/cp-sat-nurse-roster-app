@@ -16,7 +16,7 @@ from accounts.models import Role
 from hospital.api import StrictSchema
 from hospital.catalogue_api import IsoDate
 from hospital.models import Shift
-from nurses import membership
+from nurses import membership, probation
 from nurses.models import NurseProfile
 from requesting import making
 from requesting.api import RequestStateText, RequestStepRow, step_rows, with_steps
@@ -69,10 +69,12 @@ def my_rows(requests: Iterable[Request]) -> list[MyRequestRow]:
 
 
 def requestable_shifts(nurse: NurseProfile, month: dt.date, unit: Unit) -> list[RequestableShift]:
+    """Her allowed shifts, less the unit's night shift in a month she is on probation (ADR 0014)."""
     allowed = membership.placement_in(nurse, month).allowed_shifts
+    night = unit.rules.get("night_shift") if probation.on_probation_in(nurse, month) else None
     shifts = Shift.objects.filter(active=True, code__in=unit.rules.get("shifts", [])).order_by("start_time", "code")
     return [RequestableShift(code=shift.code, display_name=shift.display_name) for shift in shifts
-            if allowed is None or shift.code in allowed]
+            if (allowed is None or shift.code in allowed) and shift.code != night]
 
 
 @router.get("/mine", response=MyRequests, auth=nurse_only, operation_id="getMyRequests")
