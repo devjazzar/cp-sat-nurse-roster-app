@@ -39,3 +39,10 @@ shows the renew form under the table, since a row as wide as the table scrolls a
 `RecordSkillForm` (`routes/_signed-in/nurses.tsx`) if you lift them into a component. The page's words "The CNO sets skills on
 the Nurses page" and My month's "The CNO records them" need the Deputy then. The renew body's identifier and issue date may be
 left out (carried forward); the page always sends all three.
+
+**From ticket 55 (2026-11-12).** The Rostering attributes row's probation cell (`components/probation.tsx`, `ProbationCell`) now
+has a fourth action, "Choose preceptor" or "Change preceptor" (`ProbationAction` "preceptor"). It shows behind `mayChange` too, and
+unlike the other three it also shows for a nurse due to join, since the unit she joins chooses her preceptor there. Keep the
+Deputy CNO's controls on a flag of their own, as ticket 54 asked: the Deputy CNO reads the preceptor (`probation.preceptors`) and
+assigns none (`PUT …/preceptor` is the unit manager's). Ticket 55's question puts focus back on the row's `attributes-<id>`
+button afterwards, as the others do.
