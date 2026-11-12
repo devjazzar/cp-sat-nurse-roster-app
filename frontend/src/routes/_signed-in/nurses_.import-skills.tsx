@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { ApiError } from "@/api/fetcher"
@@ -18,7 +18,8 @@ import { cn, scrollableRegion, shortDay } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/nurses_/import-skills")({
-  beforeLoad: onlyFor(Role.cno),
+  // The CNO's, and the Deputy CNO's since ticket 61: both record what a nurse holds.
+  beforeLoad: onlyFor(Role.cno, Role.deputy_cno),
   staticData: { title: "Import skills" },
   component: ImportSkillsPage,
 })
@@ -174,6 +175,9 @@ function Preview({ file, changed, saving, checking, refusal, onSave }: {
 }
 
 function ImportSkillsPage() {
+  const { user } = useRouteContext({ from: "/_signed-in" })
+  // Where each reads hospital IDs and records by hand: the Deputy CNO has no Nurses page.
+  const isCno = user.role === Role.cno
   const [file, setFile] = useState<CheckedFile<SkillImportPreview> | null>(null)
   const [changed, setChanged] = useState(false)
   const [checking, setChecking] = useState(false)
@@ -214,11 +218,13 @@ function ImportSkillsPage() {
           <p>
             <a href={getDownloadSkillsImportTemplateUrl()} download className="underline underline-offset-4">Download the template</a>,
             {" "}fill in one skill of one nurse per line, up to {MAX_ROWS} in a file, and save it as CSV UTF-8.
-            Or go back to <Link to="/nurses" className="underline underline-offset-4">Nurses</Link>.
+            Or go back to {isCno
+              ? <Link to="/nurses" className="underline underline-offset-4">Nurses</Link>
+              : <Link to="/rostering-attributes" className="underline underline-offset-4">Rostering attributes</Link>}.
           </p>
           <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
             <dt className="font-medium">Hospital ID</dt>
-            <dd className="mb-2 text-muted-foreground sm:mb-0">As on the Nurses page.</dd>
+            <dd className="mb-2 text-muted-foreground sm:mb-0">{isCno ? "As on the Nurses page." : "As on Rostering attributes."}</dd>
             <dt className="font-medium">Skill</dt>
             <dd className="mb-2 text-muted-foreground sm:mb-0">Its name on the Skills page, a certificate or a licence among them. For one the nurse already holds, the line is her record as it should now read, and saving renews it.</dd>
             <dt className="font-medium">Expiry</dt>

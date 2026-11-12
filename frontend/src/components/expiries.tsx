@@ -60,7 +60,7 @@ function ExpiriesTable({ rows, label, showUnit }: { rows: ExpiryRow[]; label: st
 }
 
 /** The list as the reader may see it: every unit's for the CNO and the Deputy CNO, a manager's own unit's. Oldest date first,
- *  then the skills nobody has recorded, as the API orders them. `who` says who records skills, in the reader's words. */
+ *  then the skills nobody has recorded, as the API orders them. `who` says who records skills and where, in the reader's words: a sentence. */
 export function ExpiriesList({ label, showUnit, who }: { label: string; showUnit: boolean; who: string }) {
   const expiries = useListExpiries()
   if (expiries.isPending) return <p>Loading the expiries…</p>
@@ -70,7 +70,7 @@ export function ExpiriesList({ label, showUnit, who }: { label: string; showUnit
   return (
     <>
       <p className="text-muted-foreground">
-        {words[0].toUpperCase() + words.slice(1)}. Deactivated nurses and those past their end date are left out. {who} skills on the Nurses page.
+        {words[0].toUpperCase() + words.slice(1)}. Deactivated nurses and those past their end date are left out. {who}
       </p>
       {rows.length === 0
         ? <p>Nothing to list: {nothingListed(days)}.</p>

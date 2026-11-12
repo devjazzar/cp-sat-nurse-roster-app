@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/react-router"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useController, useForm, type FieldError, type UseFormReturn } from "react-hook-form"
 import { z } from "zod"
 
@@ -22,6 +22,7 @@ import { CodeCheckboxes } from "@/components/code-checkboxes"
 import { CheckboxField, FormField } from "@/components/form-field"
 import { RecordsTable, SkillList } from "@/components/nurse-skills"
 import { ProbationCell, useProbationQuestions, type ProbationAction } from "@/components/probation"
+import { SkillsPanel } from "@/components/skill-records"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -210,20 +211,24 @@ function Status({ nurse }: { nurse: NurseAttributesRow }) {
 
 const editButtonId = (nurse: NurseAttributesRow) => `attributes-${nurse.id}`
 
-function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
+function NurseTable({ nurses, unitName, mayChange, mayRecord, onEdit, onRecord, onAskProbation }: {
   nurses: NurseAttributesRow[]
   unitName: string
   mayChange: boolean
+  mayRecord: boolean
   onEdit: (nurse: NurseAttributesRow, button: HTMLElement) => void
+  onRecord: (nurse: NurseAttributesRow, button: HTMLElement) => void
   onAskProbation: (action: ProbationAction, nurse: NurseAttributesRow) => void
 }) {
+  // A region a keyboard scrolls only when nothing in it takes focus: a row's buttons scroll it otherwise.
+  const hasActions = mayChange || mayRecord
   return (
-    <Table container={mayChange ? undefined : scrollableRegion(`Rostering attributes of ${unitName}`)}>
+    <Table container={hasActions ? undefined : scrollableRegion(`Rostering attributes of ${unitName}`)}>
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
           {/* Beside the name, since a row this long would otherwise put its one action out of reach on a phone. */}
-          {mayChange && <TableHead><span className="sr-only">Actions</span></TableHead>}
+          {hasActions && <TableHead><span className="sr-only">Actions</span></TableHead>}
           <TableHead>Hospital ID</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>On probation</TableHead>
@@ -245,6 +250,14 @@ function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
         {nurses.map((nurse) => (
           <TableRow key={nurse.id}>
             <TableCell>{nurse.full_name}</TableCell>
+            {mayRecord && (
+              <TableCell>
+                <Button variant="outline" size="sm" aria-label={`Skills of ${nurse.full_name}`}
+                  onClick={(event) => onRecord(nurse, event.currentTarget)}>
+                  Skills
+                </Button>
+              </TableCell>
+            )}
             {mayChange && (
               <TableCell>
                 <Button id={editButtonId(nurse)} variant="outline" size="sm" aria-label={`${nurse.joins_from ? "Set allowed shifts of" : "Set attributes of"} ${nurse.full_name}`}
@@ -285,10 +298,35 @@ function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
   )
 }
 
-function ChosenUnitAttributes({ unit, mayChange, username }: { unit: { id: string; name: string }; mayChange: boolean; username: string }) {
+/** The Deputy CNO's record, renew and take off (ticket 61), in a panel above the list as the CNO's are on the Nurses page:
+ *  a form in a row as wide as this table would scroll away on a phone. Reads her records from the list as it refreshes. */
+function RecordsPanel({ nurse, refresh, onSaid, onClose }: {
+  nurse: NurseAttributesRow; refresh: () => void; onSaid: (message: string) => void; onClose: () => void
+}) {
+  const heading = useRef<HTMLHeadingElement>(null)
+  useFocusOnOpen(() => heading.current?.focus(), [])
+  return (
+    <Card className="max-w-xl">
+      <CardHeader>
+        <CardTitle><h2 ref={heading} tabIndex={-1} className="outline-none">Skills of {nurse.full_name}</h2></CardTitle>
+        <CardDescription translate="no">{nurse.hospital_id}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <SkillsPanel nurse={nurse} refresh={refresh} keepsCatalogue={false} onSaid={onSaid} onClose={onClose} />
+      </CardContent>
+    </Card>
+  )
+}
+
+function ChosenUnitAttributes({ unit, mayChange, mayRecord, username }: {
+  unit: { id: string; name: string }; mayChange: boolean; mayRecord: boolean; username: string
+}) {
   const nurses = useListNurseAttributes(unit.id)
   const rules = useGetUnitRules(unit.id)
+  const refresh = useRefreshList(unit.id)
   const { editing, start, finish } = useEditing<NurseAttributesRow>()
+  const recordsOf = useEditing<NurseAttributesRow>()
+  const recording = recordsOf.editing && (nurses.data?.find((nurse) => nurse.id === recordsOf.editing?.id) ?? recordsOf.editing)
   const [done, setDone] = useState("")
   const state = rules.data
   const shifts = state?.rules.shifts ?? []
@@ -325,14 +363,18 @@ function ChosenUnitAttributes({ unit, mayChange, username }: { unit: { id: strin
           </CardContent>
         </Card>
       )}
+      {recording && (
+        <RecordsPanel key={recording.id} nurse={recording} refresh={refresh} onSaid={setDone} onClose={recordsOf.finish} />
+      )}
       {mayChange && questions.dialogs}
       {nurses.data && state && (
         <Card>
           <CardContent>
             {nurses.data.length === 0
               ? <p>{unit.name} has no nurses yet. The CNO adds them.</p>
-              : <NurseTable nurses={nurses.data} unitName={unit.name} mayChange={mayChange}
+              : <NurseTable nurses={nurses.data} unitName={unit.name} mayChange={mayChange} mayRecord={mayRecord}
                   onEdit={(nurse, button) => { setDone(""); start(nurse, button) }}
+                  onRecord={(nurse, button) => { setDone(""); recordsOf.start(nurse, button) }}
                   onAskProbation={(action, nurse) => { setDone(""); questions.ask(action, nurse) }} />}
           </CardContent>
         </Card>
@@ -346,16 +388,19 @@ function RosteringAttributesPage() {
   const { unit: inAddress } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const { units, chosen } = useChosenUnit(user, inAddress)
+  const { role } = user
   const mayChange = user.role === Role.unit_manager
+  // The Deputy CNO's own flag, never `mayChange`: the probation's actions are the unit manager's alone (tickets 54 and 55).
+  const mayRecord = user.role === Role.deputy_cno
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <h1 className="text-xl font-medium">{mayChange && chosen ? `Rostering attributes of ${chosen.name}` : "Rostering attributes"}</h1>
       <p className="text-muted-foreground">
         What the solver needs to know about each nurse, and where each one stands when they are added.
-        {!mayChange && " Only the unit's manager can change these."}
-        {mayChange && " Gender, skills and whether a nurse is on probation are the CNO's to set; you set how long it lasts. Of all this, nurses see only their own skills."}
-        {!mayChange && " The CNO sets skills on the Nurses page."}
+        {role === Role.cno && " Only the unit's manager can change these. You record skills, certificates and licences on the Nurses page, and the Deputy CNO records them here."}
+        {mayRecord && " Only the unit's manager can change these, but for skills, certificates and licences, which you record here and the CNO on the Nurses page."}
+        {mayChange && " Gender and whether a nurse is on probation are the CNO's to set, and skills the CNO's and the Deputy CNO's to record; you set how long a probation lasts. Of all this, nurses see only their own skills."}
       </p>
       {units.isPending && <p>Loading…</p>}
       {units.isError && <p role="alert">The units could not be read. Reload the page to try again.</p>}
@@ -363,7 +408,7 @@ function RosteringAttributesPage() {
       {!mayChange && units.data && chosen && (
         <UnitPicker units={units.data} value={chosen.id} onChange={(unit) => void navigate({ search: { unit } })} />
       )}
-      {chosen && <ChosenUnitAttributes key={chosen.id} unit={chosen} mayChange={mayChange} username={user.username} />}
+      {chosen && <ChosenUnitAttributes key={chosen.id} unit={chosen} mayChange={mayChange} mayRecord={mayRecord} username={user.username} />}
     </div>
   )
 }
