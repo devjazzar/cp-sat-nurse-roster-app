@@ -187,3 +187,12 @@ Codex review, by the brief.
 and this comment; both workflows green on it (solver, backend, frontend, image, browser checks). The local suites ran on
 `3eeb14c`, before the review's small fixes and that merge, which touched nothing of this ticket's files but the regenerated
 OpenAPI document and client, exported again and matching.
+
+**Reviewed by the user (2026-11-12):** points 1, 2, 4 and 5 kept as built; point 3 goes to ticket 57.
+- The weight's description and refusal as built.
+- The weight's migration writes 1, or Nurse overtime's weight where that is below 1.
+- The explanation line repeats the nurse's name ("Amal Saleh: Amal: …"): ticket 57 drops the repetition.
+- The spec's defaults stay (12 h tolerance, 12 h carry limit): at those a month like ER's December prices nothing and the
+  carry rotates the extra shifts.
+- January cannot rotate through the carry, since the balance resets each January (ticket 50); the spec's January example
+  does not hold, and November into December was driven instead.

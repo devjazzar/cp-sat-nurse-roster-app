@@ -162,3 +162,10 @@ spec using the suite's `signIn`, deleted after; the stack taken down. As Carla, 
 - **61:** noted on 61. The import is the CNO's alone in four places (`auth=cno` and `cno_for_files`, the `Role.CNO` re-check in
   `_save_skills`, `onlyFor(Role.cno)`, and the role tests); the preview's `held_identifier` and `held_issue_date` are fine for the
   Deputy, who reads them.
+
+**Reviewed by the user (2026-11-12):** all four points kept as built.
+- A row states the whole record: a blank Identifier or Issue date cell takes off the one recorded, and a three-column file
+  so renews (and clears) every record holding one, each named in the preview before Save.
+- A renewal changing the identifier alone reads "Renewal, identifier was …", the new number in its column.
+- The problems' words as built.
+- "Other lines" heads the lines whose skill is not in the catalogue or cannot be read.
