@@ -6,21 +6,25 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 
 import {
+  getListHolidayProposalsQueryKey,
   getListPublicHolidaysQueryKey,
   getListRamadanMonthsQueryKey,
   getListRamadansQueryKey,
+  useAddProposedHolidays,
   useConfirmRamadan,
   useCreatePublicHoliday,
   useDeletePublicHoliday,
   useFixRamadanMonth,
+  useListHolidayProposals,
   useListPublicHolidays,
   useListRamadanMonths,
   useListRamadans,
   useUnfixRamadanMonth,
   useUpdatePublicHoliday,
 } from "@/api/generated/endpoints"
-import { Role, RamadanCardSource, RamadanMonthSource, type PublicHolidayBody, type PublicHolidaySchema, type RamadanCard, type RamadanConfirm, type RamadanMonth } from "@/api/generated/model"
+import { Role, RamadanCardSource, RamadanMonthSource, type HolidayProposal, type PublicHolidayBody, type PublicHolidaySchema, type RamadanCard, type RamadanConfirm, type RamadanMonth } from "@/api/generated/model"
 import {
+  addProposedHolidaysBodyLengthMax as LENGTH_MAX,
   createPublicHolidayBodyNameMax as NAME_MAX,
   listRamadanMonthsQueryYearMax as LAST_YEAR,
   listRamadanMonthsQueryYearMin as FIRST_YEAR,
@@ -30,7 +34,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FieldError, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field"
+import { FieldDescription, FieldError, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { serverErrors, showServerErrors } from "@/lib/server-errors"
 import { useEditing } from "@/lib/use-editing"
@@ -66,6 +70,11 @@ const isOneRun = (dates: string[]) => dates.length > 0 && dates.every((day, inde
 // Unlike the shifts' table, a row's actions here do not stay in view on a narrow screen: two buttons
 // would cover the dates, which are what the row is for.
 
+/** The proposals follow the holidays entered and the Ramadan in force, so every write to either reads them again, in
+ *  every year: a Ramadan can end in the next year, and Eid al-Fitr with it. */
+const readProposalsAgain = (queryClient: ReturnType<typeof useQueryClient>) =>
+  queryClient.invalidateQueries({ queryKey: [getListHolidayProposalsQueryKey()[0]] })
+
 // ---- public holidays ------------------------------------------------------------------------------
 function HolidayForm({ year, row, onDone, onCancel }: { year: number; row: PublicHolidaySchema | null; onDone: (message: string) => void; onCancel: () => void }) {
   const queryClient = useQueryClient()
@@ -85,6 +94,7 @@ function HolidayForm({ year, row, onDone, onCancel }: { year: number; row: Publi
 
   const saved = (message: string) => {
     void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year }) })
+    void readProposalsAgain(queryClient)
     onDone(message)
   }
   const refused = (error: unknown) => showServerErrors(form, error)
@@ -132,6 +142,7 @@ function Holidays({ year, mayChange }: { year: number; mayChange: boolean }) {
     remove.mutate({ holidayId: row.id }, {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year }) })
+        void readProposalsAgain(queryClient)
         setDone(`${row.name} is removed.`)
         if (editing?.id === row.id) drop()
         focusAfter.current = "field-date" // Where the next holiday would be entered.
@@ -187,6 +198,7 @@ function Holidays({ year, mayChange }: { year: number; mayChange: boolean }) {
           </CardContent>
         </Card>
       )}
+      {mayChange && <HolidayProposals year={year} onStart={() => setDone("")} onDone={(message) => { drop(); setDone(message) }} />}
       {mayChange && holidays.data && (
         <Card className="max-w-xl">
           <CardHeader><CardTitle><h3>{editing ? `Edit ${editing.name}` : "Add a public holiday"}</h3></CardTitle></CardHeader>
@@ -204,6 +216,128 @@ function Holidays({ year, mayChange }: { year: number; mayChange: boolean }) {
         }}
         onCancel={() => setAsked(null)} onConfirm={() => { if (asked) removeHoliday(asked) }} />
     </section>
+  )
+}
+
+// ---- the holidays card: what the calendar proposes -----------------------------------------------
+const fullDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+const listed = new Intl.ListFormat("en-GB", { type: "conjunction" })
+const dates = (days: string[]) => listed.format(days.map((day) => fullDate.format(asDate(day))))
+const lineId = (proposal: HolidayProposal) => `proposal-${proposal.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${proposal.first}`
+
+/** What Add did, in the section's status line: the days added, by name when a skipped one breaks them, and the days left
+ *  as they were. */
+function addedWords(name: string, added: string[], skipped: string[]): string {
+  const one = skipped.length === 1
+  if (added.length === 0) return `${name} is not added: ${dates(skipped)} ${one ? "is already a holiday" : "are already holidays"}.`
+  if (skipped.length === 0) {
+    const days = added.length === 1 ? fullDate.format(asDate(added[0])) : `${dateRange(added[0], added.at(-1) as string)}, ${dayCount(added.length)}`
+    return `${name} is added: ${days}.`
+  }
+  return `${name} is added on ${dates(added)}. ${dates(skipped)} ${one ? "was already a holiday and is unchanged" : "were already holidays and are unchanged"}.`
+}
+
+type ProposalFields = { first: string; length: number }
+
+function ProposalLine({ proposal, title, year, onStart, onAdded }: {
+  proposal: HolidayProposal; title: string; year: number; onStart: () => void; onAdded: (message: string, gone: boolean) => void
+}) {
+  const add = useAddProposedHolidays()
+  const notALength = `Enter a number of days from 1 to ${LENGTH_MAX}.`
+  const schema = z.object({
+    first: z.iso.date("Enter a date.").refine((date) => date.startsWith(`${year}-`), `This is not in ${year}. Go to that year to add it.`),
+    length: z.number({ error: notALength }).int(notALength).min(1, notALength).max(LENGTH_MAX, notALength),
+  })
+  const form = useForm<ProposalFields>({ resolver: zodResolver(schema), defaultValues: { first: proposal.first, length: proposal.length } })
+  const { errors } = form.formState
+  const id = lineId(proposal)
+
+  const submit = form.handleSubmit((data) => {
+    if (add.isPending) return
+    onStart()
+    add.mutate({ params: { year }, data: { name: proposal.name, ...data } }, {
+      onSuccess: ({ added, skipped }) => {
+        // A line whose first day was changed stays, as the calendar gives it, for the next year's circular to differ.
+        form.reset({ first: proposal.first, length: proposal.length })
+        onAdded(addedWords(proposal.name, added, skipped), [...added, ...skipped].includes(proposal.first))
+      },
+      onError: (error) => showServerErrors(form, error),
+    })
+  })
+  const unexpected = add.isError && serverErrors(add.error).length === 0
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <FieldSet>
+        <FieldLegend>{title}</FieldLegend>
+        <FieldDescription>From {longDate.format(asDate(proposal.first))}, {dayCount(proposal.length)}.</FieldDescription>
+        <FieldGroup>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField id={`${id}-first`} label="First day" aria-label={`First day of ${title}`} type="date"
+              min={`${year}-01-01`} max={`${year}-12-31`} registration={form.register("first")} error={errors.first} />
+            <FormField id={`${id}-length`} label="Days" aria-label={`Days of ${title}`} type="number" inputMode="numeric"
+              min={1} max={LENGTH_MAX} registration={form.register("length", { valueAsNumber: true })} error={errors.length} />
+          </div>
+          {unexpected && <p role="alert" className="text-sm text-destructive">{title} could not be added. Check your connection and try again.</p>}
+          <div>
+            {/* Not disabled while it is sent: the button keeps focus, and a second press is ignored instead. */}
+            <Button type="submit" variant="outline" aria-label={`Add ${title}`}>Add</Button>
+          </div>
+        </FieldGroup>
+      </FieldSet>
+    </form>
+  )
+}
+
+/** The CNO's alone. Nothing is stored for a proposal: a line shows while its first day is not a public holiday. */
+function HolidayProposals({ year, onStart, onDone }: { year: number; onStart: () => void; onDone: (message: string) => void }) {
+  const queryClient = useQueryClient()
+  const proposals = useListHolidayProposals({ year })
+  const heading = useRef<HTMLHeadingElement>(null)
+
+  async function added(proposal: HolidayProposal, message: string, gone: boolean) {
+    onDone(message)
+    // An Eid's last days can fall in the next year.
+    void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year }) })
+    void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year: year + 1 }) })
+    await readProposalsAgain(queryClient)
+    if (!gone) return // Focus stays on Add.
+    // The line has gone: on to the next one, as a CNO adding them in turn would go, or to the card when none is left.
+    const left = queryClient.getQueryData<HolidayProposal[]>(getListHolidayProposalsQueryKey({ year })) ?? []
+    const next = left.find((other) => other.first > proposal.first) ?? left.at(-1)
+    ;(next ? document.getElementById(`${lineId(next)}-first`) : heading.current)?.focus()
+  }
+
+  if (proposals.isError) return <p role="alert">The proposed holidays could not be read. Reload the page to try again.</p>
+  if (!proposals.data) return null
+  const titleOf = (proposal: HolidayProposal) =>
+    // Two of one Eid in a year, as in 2033, are told apart by their month.
+    proposals.data.filter((other) => other.name === proposal.name).length > 1 ? `${proposal.name} in ${monthName(proposal.first.slice(0, 7))}` : proposal.name
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle><h3 ref={heading} tabIndex={-1} className="outline-none">Proposed by the calendar</h3></CardTitle>
+        <CardDescription>
+          The Eids by the Umm al-Qura calendar and the Ramadan in force, and the national days, each until its first day is a
+          holiday. Change the first day or the number of days to match this year's circular.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {proposals.data.length === 0
+          ? <p className="text-sm text-muted-foreground">Every holiday the calendar proposes for {year} is entered.</p>
+          : (
+            <ul className="flex flex-col gap-6">
+              {proposals.data.map((proposal) => (
+                <li key={lineId(proposal)}>
+                  <ProposalLine proposal={proposal} title={titleOf(proposal)} year={year} onStart={onStart}
+                    onAdded={(message, gone) => void added(proposal, message, gone)} />
+                </li>
+              ))}
+            </ul>
+          )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -248,6 +382,7 @@ function RamadanForm({ state, onDone, onCancel }: { state: RamadanMonth; onDone:
       {
         onSuccess: () => {
           void queryClient.invalidateQueries({ queryKey: getListRamadanMonthsQueryKey({ year }) })
+          void readProposalsAgain(queryClient)
           onDone(`The Ramadan dates of ${name} are fixed.`)
         },
         onError: (error) => showServerErrors(form, error, ([field]) => (field === "dates" ? "days" : String(field))),
@@ -358,6 +493,7 @@ function RamadanCardForm({ card, onStart, onDone }: { card: RamadanCard; onStart
         // A confirmation can write into the next or the previous year, so every year's lists are read again.
         void queryClient.invalidateQueries({ queryKey: [getListRamadanMonthsQueryKey()[0]] })
         void queryClient.invalidateQueries({ queryKey: [getListRamadansQueryKey()[0]] })
+        void readProposalsAgain(queryClient)
         onDone(next.first && next.last ? `${name} is confirmed: ${dateRange(next.first, next.last)}.` : `${name} is confirmed.`)
       },
       onError: (error) => showServerErrors(form, error),
@@ -418,6 +554,7 @@ function Ramadan({ year, mayChange }: { year: number; mayChange: boolean }) {
     unfix.mutate({ month: state.month }, {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getListRamadanMonthsQueryKey({ year }) })
+        void readProposalsAgain(queryClient)
         setDone(`${monthName(state.month)} follows the calendar again.`)
         if (editing?.month === state.month) drop()
         focusAfter.current = `fix-${state.month}` // The button that opened the question goes with the fixed dates.

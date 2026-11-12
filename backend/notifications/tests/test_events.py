@@ -287,6 +287,33 @@ class TestMonthDatesChanged:
 
         assert [note["link"]["month"] for note in told(mona, "month_dates_changed")] == ["2026-07", "2026-06", "2026-06"]
 
+    def test_a_proposal_added_on_several_days_tells_each_month_once(self, mona, er, solver, carla):
+        """Ticket 45's Add creates a holiday a day through the holiday create, and tells the managers once for them all: six
+        days across June and July, one of them a holiday already, are one note for each month."""
+        solved(mona, er, solver)
+        solved(mona, er, solver, month="2026-07")
+        add_holiday(carla, "2026-06", 29)
+        Notification.objects.all().delete()
+
+        added = carla.post("/api/hospital/holiday-proposals?year=2026",
+                           {"name": "A long Eid", "first": "2026-06-28", "length": 6}, content_type="application/json")
+        assert added.status_code == 200, added.content
+        assert added.json()["skipped"] == ["2026-06-29"]
+
+        assert sorted(note["link"]["month"] for note in told(mona, "month_dates_changed")) == ["2026-06", "2026-07"]
+        assert told(carla) == []
+
+    def test_a_proposal_whose_days_are_all_holidays_tells_nobody(self, mona, er, solver, carla):
+        solved(mona, er, solver)
+        add_holiday(carla, "2026-06", 29)
+        Notification.objects.all().delete()
+
+        added = carla.post("/api/hospital/holiday-proposals?year=2026",
+                           {"name": "A holiday", "first": "2026-06-29", "length": 1}, content_type="application/json")
+        assert added.json() == {"added": [], "skipped": ["2026-06-29"]}
+
+        assert not Notification.objects.exists()
+
     def test_a_confirmation_across_two_months_tells_each_once(self, mona, er, solver, carla):
         """Ramadan 1448 runs from February into March 2027. The scene's sound rosters are of June and July 2026, so its two
         rosters are moved to those months, which is all this asks of them."""

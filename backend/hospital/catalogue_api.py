@@ -13,7 +13,7 @@ from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import Path, Query, Router, Schema
-from ninja.errors import HttpError
+from ninja.errors import HttpError, ValidationError
 from nurse_roster.calendar import GREGORIAN_RANGE
 from pydantic import AfterValidator, BeforeValidator, Field, StringConstraints, field_validator
 
@@ -21,8 +21,8 @@ from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
 from hospital.api import StrictSchema, differing, refuse, save_unless_taken
-from hospital.catalogue import (CalendarRamadan, calendar_ramadan, calendar_ramadans, derived_ramadan_dates, month_of,
-                                shift_month)
+from hospital.catalogue import (CalendarRamadan, calendar_arafat_days, calendar_ramadan, calendar_ramadans,
+                                derived_ramadan_dates, month_of, shift_month)
 from hospital.models import (FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename, Skill,
                              SkillRename)
 from hospital.rules import changes
@@ -450,9 +450,13 @@ def _holiday_fields(row: PublicHoliday) -> dict:
     return {"date": row.date.isoformat(), "name": row.name}
 
 
+def _save_holiday(row: PublicHoliday) -> None:
+    save_unless_taken(row, "date", f"{row.date.isoformat()} is already a public holiday")
+
+
 def _write_holiday(row: PublicHoliday, body: PublicHolidayBody) -> None:
     row.date, row.name = body.date, body.name
-    save_unless_taken(row, "date", f"{body.date.isoformat()} is already a public holiday")
+    _save_holiday(row)
 
 
 def _holidays_changed(request, *days: dt.date) -> None:
@@ -469,12 +473,19 @@ def list_public_holidays(request, filters: Query[YearFilter]) -> list[PublicHoli
 @router.post("/public-holidays", response={201: PublicHolidaySchema}, auth=cno, operation_id="createPublicHoliday")
 def create_public_holiday(request, body: PublicHolidayBody) -> tuple[int, PublicHoliday]:
     with transaction.atomic():
-        row = PublicHoliday()
-        _write_holiday(row, body)
-        record("public_holiday.created", actor=request.user, target=row.date.isoformat(),
-               after=_holiday_fields(row), request=request)
+        row = _create_holiday(request, body.date, body.name)
         _holidays_changed(request, row.date)
     return 201, row
+
+
+def _create_holiday(request, day: dt.date, name: str) -> PublicHoliday:
+    """The one way a holiday is created, by hand or from a proposal: refused on `date` when the day is one already.
+    The caller holds the transaction, and tells the managers once for all it creates (`_holidays_changed`)."""
+    row = PublicHoliday(date=day, name=name)
+    _save_holiday(row)
+    record("public_holiday.created", actor=request.user, target=row.date.isoformat(),
+           after=_holiday_fields(row), request=request)
+    return row
 
 
 @router.put("/public-holidays/{holiday_id}", response=PublicHolidaySchema, auth=cno,
@@ -663,10 +674,15 @@ def _card_months(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> l
     return months
 
 
+def _days_in_force(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> list[dt.date]:
+    """In order. A list entered by hand may leave gaps, so the nth day is the nth of these, not the first plus n - 1."""
+    return sorted(day for month in _card_months(ramadan, fixed)
+                  for day in (fixed[month] if month in fixed else derived_ramadan_dates(month)))
+
+
 def _card(ramadan: CalendarRamadan, fixed: dict[str, list[dt.date]]) -> dict:
     months = _card_months(ramadan, fixed)
-    days = sorted(day for month in months
-                  for day in (fixed[month] if month in fixed else derived_ramadan_dates(month)))
+    days = _days_in_force(ramadan, fixed)
     return {"hijri_year": ramadan.hijri_year, "first": days[0] if days else None, "last": days[-1] if days else None,
             "days": len(days), "source": "fixed" if any(month in fixed for month in months) else "derived",
             "calendar_first": ramadan.days[0], "calendar_last": ramadan.days[-1]}
@@ -710,3 +726,82 @@ def confirm_ramadan(request, hijri_year: int, body: RamadanConfirm) -> dict:
         for month in months:  # In order, so two confirmations lock the rows in the same order.
             _fix_month(request, month, [day for day in confirmed if month_of(day) == month])
         return _card(ramadan, _fixed_around(ramadan.days[0].year))
+
+
+# ---- the holidays card: what the calendar proposes ------------------------------------------------
+# The Labour Law's implementing regulation: Eid al-Fitr four days from the day after 29 Ramadan, Eid al-Adha four days
+# from Arafat Day. The public sector's dates come by circular each year, so the CNO may change both before adding.
+EID_DAYS = 4
+LONGEST_HOLIDAY = 14
+FIXED_HOLIDAYS = {"Founding Day": (2, 22), "National Day": (9, 23)}
+
+
+class HolidayProposal(Schema):
+    name: str
+    first: dt.date = Field(description="Shown while this day is not a public holiday.")
+    length: int = Field(description="How many days, from the first.")
+
+
+class HolidayAdd(StrictSchema):
+    name: Name
+    first: IsoDate = Field(description="A day in the year asked for.")
+    length: int = Field(ge=1, le=LONGEST_HOLIDAY, description="Days running into January are added in the next year.")
+
+
+class HolidaysAdded(Schema):
+    added: list[dt.date]
+    skipped: list[dt.date] = Field(description="Holidays already, so left as they were.")
+
+
+def _eid_al_fitr_days(year: int) -> list[dt.date]:
+    """The day after each 29th Ramadan day in force that falls in `year`. A Ramadan of the year before can end on 31
+    December, so its Ramadans are read too; one with fewer than 29 days in force has no Eid here."""
+    ramadans = {ramadan.hijri_year: ramadan
+                for of_year in range(max(year - 1, FIRST_YEAR), year + 1) for ramadan in calendar_ramadans(of_year)}
+    days = []
+    for ramadan in ramadans.values():
+        in_force = _days_in_force(ramadan, _fixed_around(ramadan.days[0].year))
+        if len(in_force) >= 29 and (eid := in_force[28] + dt.timedelta(days=1)).year == year:
+            days.append(eid)
+    return days
+
+
+@router.get("/holiday-proposals", response=list[HolidayProposal], auth=cno, operation_id="listHolidayProposals")
+def list_holiday_proposals(request, filters: Query[YearFilter]) -> list[HolidayProposal]:
+    """The Eids and the national days of the year, in date order, each while its first day is not a public holiday.
+    Nothing is stored for one: a proposal nobody adds stays."""
+    year = filters.year
+    proposals = ([HolidayProposal(name="Eid al-Fitr", first=day, length=EID_DAYS) for day in _eid_al_fitr_days(year)]
+                 + [HolidayProposal(name="Eid al-Adha", first=day, length=EID_DAYS) for day in calendar_arafat_days(year)]
+                 + [HolidayProposal(name=name, first=dt.date(year, month, day), length=1)
+                    for name, (month, day) in FIXED_HOLIDAYS.items()])
+    entered = set(PublicHoliday.objects.filter(date__year=year).values_list("date", flat=True))
+    return sorted((proposal for proposal in proposals if proposal.first not in entered),
+                  key=lambda proposal: proposal.first)
+
+
+@router.post("/holiday-proposals", response=HolidaysAdded, auth=cno, operation_id="addProposedHolidays")
+def add_proposed_holidays(request, filters: Query[YearFilter], body: HolidayAdd) -> dict:
+    """One public holiday a day under the name, through the holiday create, so each reads and is audited as one entered
+    by hand. A day that is a holiday already is skipped, not refused."""
+    if body.first.year != filters.year:
+        refuse((("first",), f"This is not in {filters.year}. Go to that year to add it."))
+    days = [body.first + dt.timedelta(days=offset) for offset in range(body.length)]
+    if days[-1].year > LAST_YEAR:
+        refuse((("length",), f"This runs past {LAST_YEAR}, the last year the calendar covers."))
+    added, skipped = [], []
+    with transaction.atomic():
+        entered = set(PublicHoliday.objects.filter(date__in=days).values_list("date", flat=True))
+        for day in days:
+            if day in entered:
+                skipped.append(day)
+                continue
+            try:
+                _create_holiday(request, day, body.name)
+            except ValidationError:  # Entered by someone else in the meantime: a holiday already, so skipped.
+                skipped.append(day)
+            else:
+                added.append(day)
+        if added:  # Once for them all: a four-day Eid tells a manager once a month, not once a day.
+            _holidays_changed(request, *added)
+    return {"added": added, "skipped": skipped}

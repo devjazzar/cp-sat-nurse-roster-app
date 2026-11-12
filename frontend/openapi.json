@@ -1526,6 +1526,98 @@
         ]
       }
     },
+    "/api/hospital/holiday-proposals": {
+      "get": {
+        "operationId": "listHolidayProposals",
+        "summary": "List Holiday Proposals",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "schema": {
+              "maximum": 2076,
+              "minimum": 1925,
+              "title": "Year",
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HolidayProposal"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "description": "The Eids and the national days of the year, in date order, each while its first day is not a public holiday.\nNothing is stored for one: a proposal nobody adds stays.",
+        "tags": [
+          "hospital"
+        ],
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "addProposedHolidays",
+        "summary": "Add Proposed Holidays",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "schema": {
+              "maximum": 2076,
+              "minimum": 1925,
+              "title": "Year",
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidaysAdded"
+                }
+              }
+            }
+          }
+        },
+        "description": "One public holiday a day under the name, through the holiday create, so each reads and is audited as one entered\nby hand. A day that is a holiday already is skipped, not refused.",
+        "tags": [
+          "hospital"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidayAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "SignedIn": []
+          }
+        ]
+      }
+    },
     "/api/units": {
       "get": {
         "operationId": "listUnits",
@@ -8577,6 +8669,90 @@
           "last"
         ],
         "title": "RamadanConfirm",
+        "type": "object"
+      },
+      "HolidayProposal": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "first": {
+            "description": "Shown while this day is not a public holiday.",
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "length": {
+            "description": "How many days, from the first.",
+            "title": "Length",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "first",
+          "length"
+        ],
+        "title": "HolidayProposal",
+        "type": "object"
+      },
+      "HolidaysAdded": {
+        "properties": {
+          "added": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Added",
+            "type": "array"
+          },
+          "skipped": {
+            "description": "Holidays already, so left as they were.",
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "added",
+          "skipped"
+        ],
+        "title": "HolidaysAdded",
+        "type": "object"
+      },
+      "HolidayAdd": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "first": {
+            "description": "A day in the year asked for.",
+            "format": "date",
+            "title": "First",
+            "type": "string"
+          },
+          "length": {
+            "description": "Days running into January are added in the next year.",
+            "maximum": 14,
+            "minimum": 1,
+            "title": "Length",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "first",
+          "length"
+        ],
+        "title": "HolidayAdd",
         "type": "object"
       },
       "UnitManagerSchema": {

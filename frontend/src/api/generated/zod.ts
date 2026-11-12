@@ -1160,6 +1160,60 @@ export const ConfirmRamadanResponse = zod.object({
 
 
 /**
+ * The Eids and the national days of the year, in date order, each while its first day is not a public holiday.
+ * Nothing is stored for one: a proposal nobody adds stays.
+ * @summary List Holiday Proposals
+ */
+export const listHolidayProposalsQueryYearMin = 1925;
+export const listHolidayProposalsQueryYearMax = 2076;
+
+
+
+export const ListHolidayProposalsQueryParams = zod.object({
+  "year": zod.int().min(listHolidayProposalsQueryYearMin).max(listHolidayProposalsQueryYearMax)
+})
+
+export const ListHolidayProposalsResponseItem = zod.object({
+  "name": zod.string(),
+  "first": zod.iso.date().describe('Shown while this day is not a public holiday.'),
+  "length": zod.int().describe('How many days, from the first.')
+})
+export const ListHolidayProposalsResponse = zod.array(ListHolidayProposalsResponseItem)
+
+
+/**
+ * One public holiday a day under the name, through the holiday create, so each reads and is audited as one entered
+ * by hand. A day that is a holiday already is skipped, not refused.
+ * @summary Add Proposed Holidays
+ */
+export const addProposedHolidaysQueryYearMin = 1925;
+export const addProposedHolidaysQueryYearMax = 2076;
+
+
+
+export const AddProposedHolidaysQueryParams = zod.object({
+  "year": zod.int().min(addProposedHolidaysQueryYearMin).max(addProposedHolidaysQueryYearMax)
+})
+
+export const addProposedHolidaysBodyNameMax = 100;
+
+export const addProposedHolidaysBodyLengthMax = 14;
+
+
+
+export const AddProposedHolidaysBody = zod.object({
+  "name": zod.string().min(1).max(addProposedHolidaysBodyNameMax),
+  "first": zod.iso.date().describe('A day in the year asked for.'),
+  "length": zod.int().min(1).max(addProposedHolidaysBodyLengthMax).describe('Days running into January are added in the next year.')
+})
+
+export const AddProposedHolidaysResponse = zod.object({
+  "added": zod.array(zod.iso.date()),
+  "skipped": zod.array(zod.iso.date()).describe('Holidays already, so left as they were.')
+})
+
+
+/**
  * A manager's list is the unit he holds, or empty. Archived units too, for those who see them all.
  * @summary List Units
  */
