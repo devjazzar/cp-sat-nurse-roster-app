@@ -2,12 +2,8 @@ import { createContext, useContext, type ReactNode } from "react"
 
 import type { Following as FollowingRow, GridShift, MissedDayWhy, NurseAccounting, ReplanComparison, RuleMatch, RuleResult, SolveResult, SolverStatistics, Violation } from "@/api/generated/model"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ruleName, signed, stoppedBy } from "@/lib/solve-words"
-import { longDay, scrollableRegion, shortDay } from "@/lib/utils"
-
-/** Who a line of the solver's is about, and when if its words do not say: most of them hold the date already. */
-const whose = (row: { full_name: string; hospital_id?: string | null; date?: string | null; text: string }) =>
-  `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}`
+import { ruleName, signed, solverLine, stoppedBy } from "@/lib/solve-words"
+import { longDay, scrollableRegion } from "@/lib/utils"
 
 /** The level their heading takes depends on what is above: the roster page has the draft's heading and the result's page only its title. */
 const HeadingLevel = createContext<"h2" | "h4">("h4")
@@ -99,7 +95,7 @@ function Following({ rows }: { rows: FollowingRow[] }) {
 }
 
 function Occurrence({ match }: { match: RuleMatch }) {
-  return <li className="wrap-anywhere">{whose(match)}: {match.text}</li>
+  return <li className="wrap-anywhere">{solverLine(match)}</li>
 }
 
 function Rule({ rule }: { rule: RuleResult }) {
@@ -136,7 +132,7 @@ function Violations({ id, title, rows, note }: { id: string; title: string; rows
   return (
     <Panel id={id} title={title}>
       <p className="text-sm text-muted-foreground">{note}</p>
-      <ul className="list-disc ps-5 text-sm">{rows.map((row, index) => <li key={index} className="wrap-anywhere">{whose(row)}: {row.text}</li>)}</ul>
+      <ul className="list-disc ps-5 text-sm">{rows.map((row, index) => <li key={index} className="wrap-anywhere">{solverLine(row)}</li>)}</ul>
     </Panel>
   )
 }

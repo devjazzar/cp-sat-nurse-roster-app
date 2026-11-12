@@ -1,6 +1,7 @@
 import { useGetSolveResult } from "@/api/generated/endpoints"
 import type { Draft, DraftChange, DraftPin, GridCheck, RosterMonth } from "@/api/generated/model"
 import { SolveResultPanels } from "@/components/solve-result"
+import { ownWords } from "@/lib/solve-words"
 import { hospitalTime, longDay, monthName } from "@/lib/utils"
 
 /** What the roster pages say beside a grid: what changed since its solve, what it breaks, and the pins leave ended or that
@@ -60,7 +61,7 @@ export function Violations({ check, what }: { check: GridCheck; what: string }) 
       <p className="font-medium">{what[0].toUpperCase() + what.slice(1)} breaks {plural(check.violations.length, "hard rule")}:</p>
       <ul className="list-disc ps-5">
         {check.violations.map((violation, index) => (
-          <li key={index}>{[violation.full_name, violation.date && longDay(violation.date)].filter(Boolean).join(", ")}{violation.full_name || violation.date ? ": " : ""}{violation.text}</li>
+          <li key={index}>{[violation.full_name, violation.date && longDay(violation.date)].filter(Boolean).join(", ")}{violation.full_name || violation.date ? ": " : ""}{violation.full_name ? ownWords(violation) : violation.text}</li>
         ))}
       </ul>
     </div>

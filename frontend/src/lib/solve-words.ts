@@ -1,6 +1,6 @@
 import type { UnitSolveRow } from "@/api/generated/model"
 
-import { longDay } from "@/lib/utils"
+import { longDay, shortDay } from "@/lib/utils"
 import { WEIGHTS } from "@/lib/weights"
 
 /** What the unit's history and the System Admin's both say of a solve. The System Admin's row has nothing of a re-plan. */
@@ -68,3 +68,17 @@ export const ruleName = (rule: string) => RULE_LABELS.get(rule) ?? rule
 
 /** A difference with its sign, a true minus for a fall. */
 export const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "0")
+
+/** The solver's own words on a line about a nurse. Those about her begin with her id, which the name before them already says,
+ * so that is left out (the user's decision, ticket 51's review): "Amal Saleh: 20 h overtime", not "Amal Saleh: Amal: 20 h
+ * overtime". Only her own id is, so words that begin with another's stay whole. */
+export function ownWords(row: { hospital_id?: string | null; text: string }): string {
+  const own = row.hospital_id ? `${row.hospital_id}: ` : null
+  return own && row.text.startsWith(own) ? row.text.slice(own.length) : row.text
+}
+
+/** A line of the solver's about a nurse, or the unit when it names none: who, and when if its words do not say (most hold the
+ * date already), then its own words (`ownWords`). */
+export function solverLine(row: { full_name: string; hospital_id?: string | null; date?: string | null; text: string }): string {
+  return `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}: ${ownWords(row)}`
+}

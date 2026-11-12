@@ -16,7 +16,7 @@ from solver_service.grid import month_facts, nurses_of
 from accounts.models import Role
 from audit.models import AuditEntry
 from closes import making
-from closes.chain import CARRIED, NEW_YEAR, NO_HISTORY, Chain
+from closes.chain import CARRIED, CARRIED_SINCE, NEW_YEAR, NO_HISTORY, Carried, Chain, month_before, next_month, opening
 from closes.models import CarryOver, CarrySource, MonthClose
 from conftest import post
 from hospital.models import HospitalSettings, Shift
@@ -25,12 +25,12 @@ from nurses import membership
 from nurses.models import NurseProfile
 from ops import solver_client
 from requesting.models import PreferenceKind
-from rosters.models import PinnedCell, Roster
+from rosters.models import PinnedCell, Roster, RosterState
 from rosters.tests.test_pins import change_shift
 from rosters.tests.test_review import (SOUND, approve, carla, nurses_of_er, ok, record_leave, refused, solved,  # noqa: F401
                                       submit, url)
 from solves.input import assemble
-from solves.tests.conftest import MONTH
+from solves.tests.conftest import MONTH, nurse_in
 from solves.tests.test_input import full_runs_capped, preference
 
 pytestmark = pytest.mark.django_db
@@ -42,6 +42,38 @@ IN_FORCE = SOUND[MONTH]["roster"]
 @pytest.fixture(autouse=True)
 def _scene(before_june, solver):
     pass
+
+
+@pytest.fixture
+def queries_counted(django_assert_max_num_queries):
+    """A test counting queries, which `every_batched_read_is_the_one_at_a_time_read` leaves unchecked: the reference's own
+    reads would be counted with the batch's."""
+    return django_assert_max_num_queries
+
+
+@pytest.fixture(autouse=True)
+def every_batched_read_is_the_one_at_a_time_read(request, monkeypatch):
+    """Ticket 57: every batched read of the chain in these tests, of any month a test or the months before it ask, answers for
+    each nurse exactly what the chain read one nurse at a time answered (`one_at_a_time`), source, month and year included, on
+    a reading of its own. Inside the reference, the months a projection steps through are read one nurse at a time too."""
+    if "queries_counted" in request.fixturenames:
+        return
+    batched, checking = Chain.carry_ins, []
+
+    def checked(self, nurses, month):
+        nurses = list(nurses)
+        if checking:
+            return {nurse.user.username: one_at_a_time(self, nurse, month) for nurse in nurses}
+        answer = batched(self, nurses, month)
+        checking.append(True)
+        try:
+            reference = Chain(project=self.project)
+            for nurse in nurses:
+                assert answer[nurse.user.username] == one_at_a_time(reference, nurse, month), (nurse.user.username, month)
+        finally:
+            checking.pop()
+        return answer
+    monkeypatch.setattr(Chain, "carry_ins", checked)
 
 
 def at(day: dt.date, hour: int, minute: int = 0) -> dt.datetime:
@@ -543,19 +575,154 @@ class TestAFarMonth:
         assert (response.status_code, response.json()["detail"]) == (409, "A solve of this month is already queued or running.")
 
 
+class TestTheBatchedRead:
+    """Ticket 57: a unit's month reads every nurse's carry-over in a fixed number of queries, whatever the count of its nurses;
+    the per-nurse answers are held to the one-at-a-time read by `every_batched_read_is_the_one_at_a_time_read`. ER's four
+    nurses and one joining it from January, then four more: those joining are in June's and July's months, with nothing worked
+    in June and no closed month, so each count is of the same kinds of nurse."""
+
+    @staticmethod
+    def joining(er, make_user, numbers):
+        """Each with a skill, and every other one on probation from June, precepted by Amal: each per-nurse read of an assembly
+        is asked of them."""
+        from hospital.models import Skill
+        from nurses.models import NurseSkill, PreceptorAssignment
+        skill = Skill.objects.get_or_create(name="Preceptorship", defaults={"expires": True, "required_to_work": False,
+                                                                             "lets_a_nurse_precept": True})[0]
+        amal = NurseProfile.objects.get(user__username="Amal")
+        for number in numbers:
+            probation = number % 2 == 1
+            nurse = nurse_in(er, make_user, f"Nurse{number}", night_balance=number / 4, overtime_balance=-number / 2,
+                             start=JUNE if probation else dt.date(2026, 1, 1), on_probation=probation, probation_months=3)
+            NurseSkill.objects.create(nurse=nurse, skill=skill, expiry=dt.date(2026, 7, 20), recorded_by=amal.user)
+            if probation:
+                PreceptorAssignment.objects.create(nurse=nurse, preceptor=amal, unit=er, from_month=JUNE, assigned_by=amal.user)
+
+    @staticmethod
+    def sources(carried: dict) -> dict[str, CarrySource]:
+        """ER's four's source, and the newcomers': opening, as none is in a roster or a close."""
+        return {"four": {carried[hospital_id].source for hospital_id in ("Amal", "Badr", "Dana", "Emad")},
+                "joining": {value.source for hospital_id, value in carried.items() if hospital_id.startswith("Nurse")}}
+
+    @staticmethod
+    def statements(read) -> int:
+        with CaptureQueriesContext(connection) as queries:
+            read()
+        return len(queries)
+
+    @pytest.mark.parametrize("scene", ["opening", "projected", "closed", "projected_and_closed"])
+    @pytest.mark.parametrize("project", [True, False])
+    def test_the_chains_queries_for_a_units_month_do_not_grow_with_its_nurses(self, er, mona, carla, solver, on, make_user,
+                                                                               queries_counted, scene, project):  # noqa: F811
+        if scene != "opening":
+            approved(mona, carla, er, solver)
+        if scene in ("closed", "projected_and_closed"):
+            on(dt.date(2026, 7, 1))
+            making.catch_up(at(dt.date(2026, 7, 1), 1))
+        if scene == "projected_and_closed":
+            approved(mona, carla, er, solver, "2026-07")
+        month = AUGUST if scene == "projected_and_closed" else JULY
+
+        def read():
+            nurses = list(membership.rostered_in(er, month).select_related("user"))
+            return Chain(project=project).carry_ins(nurses, month)
+
+        self.joining(er, make_user, [5])
+        five = self.statements(read)
+        self.joining(er, make_user, range(6, 10))
+        with queries_counted(five):
+            carried = read()
+
+        four = {"opening": CarrySource.OPENING, "closed": CarrySource.CLOSED,
+                "projected": CarrySource.PROJECTED if project else CarrySource.OPENING,
+                "projected_and_closed": CarrySource.PROJECTED if project else CarrySource.CLOSED}[scene]
+        assert len(carried) == 9 and self.sources(carried) == {"four": {four}, "joining": {CarrySource.OPENING}}
+
+    @pytest.mark.parametrize("scene", ["opening", "projected", "closed"])
+    def test_a_months_assembly_does_not_grow_with_its_nurses_either(self, er, mona, carla, solver, on, make_user,
+                                                                    queries_counted, scene):  # noqa: F811
+        if scene != "opening":
+            approved(mona, carla, er, solver)
+        if scene == "closed":
+            on(dt.date(2026, 7, 1))
+            making.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        self.joining(er, make_user, [5])
+        five = self.statements(lambda: assemble(er, JULY))
+        self.joining(er, make_user, range(6, 10))
+        with queries_counted(five):
+            july = assemble(er, JULY)
+
+        four = {"opening": CarrySource.OPENING, "projected": CarrySource.PROJECTED, "closed": CarrySource.CLOSED}[scene]
+        assert len(july.nurses) == 9 and self.sources(july.carried) == {"four": {four}, "joining": {CarrySource.OPENING}}
+        rows = {row["id"]: row for row in july.nurses}
+        assert [hospital_id for hospital_id, row in rows.items() if row.get("on_probation")] == ["Nurse5", "Nurse7", "Nurse9"]
+        assert {rows[hospital_id].get("preceptor") for hospital_id in ("Nurse5", "Nurse7", "Nurse9")} <= {"Amal", None}
+        assert all(rows[f"Nurse{number}"]["skills"] for number in range(5, 10))
+
+    def test_a_close_reads_each_nurses_carry_over_once_for_both_columns(self, june, er, mona, monkeypatch):
+        """June approved and not closed: the projection's assembly of June and the `into` column share one reading, so where
+        each nurse's chain into June starts is read once."""
+        from closes import chain
+        reads = []
+        read = chain.latest_closed
+
+        def counted(nurses, before):
+            reads.extend((nurse.user.username, before) for nurse in nurses)
+            return read(nurses, before)
+        monkeypatch.setattr(chain, "latest_closed", counted)
+
+        view = close_view(mona, er, "2026-06")
+
+        assert {row["out"]["source"] for row in view["carry_over"]} == {"projected"}
+        assert sorted(reads) == [(hospital_id, JUNE) for hospital_id in ("Amal", "Badr", "Dana", "Emad")]
+
+
 def walked(chain: Chain, nurse: NurseProfile, month: dt.date):
     """`Chain.carry_in` as it was until a far month stopped stepping through every month: one `_through` a month."""
-    from closes.chain import CARRIED_SINCE, Carried, _added, latest_closed, next_month, opening
-    closed = latest_closed(nurse, month)
-    if closed is not None:
-        carried = Carried(CARRIED_SINCE | closed.values, CarrySource.CLOSED, closed.month, closed.month.year)
-        step = next_month(closed.month)
-    else:
-        carried, step = Carried(opening(nurse), CarrySource.OPENING, None, _added(nurse).year), chain._first_roster(nurse, month)
+    carried, step = where_she_starts(chain, nurse, month)
     while step is not None and step < month:
         carried = chain._through(nurse, step, carried)
         step = next_month(step)
     return carried
+
+
+def one_at_a_time(chain: Chain, nurse: NurseProfile, month: dt.date) -> Carried:
+    """`Chain.carry_in` as it was before ticket 57 batched it: her latest closed month, her first month and her first approved
+    roster each read for her alone, then a run of months with no roster as one step."""
+    carried, step = where_she_starts(chain, nurse, month)
+    while step is not None and step < month:
+        ahead = chain._next_roster_month(step, month)
+        last = month_before(ahead or month)
+        if step <= last:
+            carried = Carried(carried.into(last) | NO_HISTORY, carried.source, last, last.year)
+        if ahead is None:
+            return carried
+        carried = chain._through(nurse, ahead, carried)
+        step = next_month(ahead)
+    return carried
+
+
+def where_she_starts(chain: Chain, nurse: NurseProfile, month: dt.date) -> tuple[Carried, dt.date | None]:
+    """What the chain starts from for her, and the first month it steps through: the latest month before `month` closed with
+    her in it, from that month's close in force; else her opening values, at the first approved roster of any unit that holds
+    her from her start, if a chain that projects has one."""
+    rows = list(CarryOver.objects.filter(nurse=nurse, source=CarrySource.CLOSED, month__lt=month)
+                .select_related("close").order_by("-month", "-close__closed_at"))
+    latest = {}  # Each unit's month's close in force: the latest.
+    for close in MonthClose.objects.filter(unit_id__in={row.unit_id for row in rows}, month__in={row.month for row in rows}
+                                           ).order_by("unit_id", "month", "-closed_at", "-id"):
+        latest.setdefault((close.unit_id, close.month), close.pk)
+    closed = next((row for row in rows if row.close_id in set(latest.values())), None)
+    if closed is not None:
+        return (Carried(CARRIED_SINCE | closed.values, CarrySource.CLOSED, closed.month, closed.month.year),
+                next_month(closed.month))
+    first = nurse.placements.order_by("from_month").first()
+    added = first.from_month if first else nurse.start_date.replace(day=1)
+    roster = (Roster.objects.filter(state=RosterState.APPROVED, month__lt=month, month__gte=nurse.start_date.replace(day=1),
+                                    grid__has_key=nurse.user.username).order_by("month").values_list("month", flat=True).first()
+              if chain.project else None)
+    return Carried(opening(nurse), CarrySource.OPENING, None, added.year), roster
 
 
 def mona_user():

@@ -6902,7 +6902,7 @@ describe("the roster page", () => {
     const region = within(await screen.findByRole("region", { name: "Penalties per rule" }))
     expect(region.getByText("Full run above the most").parentElement).toHaveTextContent("8")
     expect(region.getByText(/2 × 4/)).toHaveTextContent("full run above the maximum")
-    expect(region.getByText("Amal Saleh: h1: 5 full runs of 3 shifts, max 3")).toBeInTheDocument()
+    expect(region.getByText("Amal Saleh: 5 full runs of 3 shifts, max 3")).toBeInTheDocument()
   })
 
   it("names overtime above a fair share by its weight, with each nurse's overtime, share and hours priced in the solver's words", async () => {
@@ -6915,7 +6915,21 @@ describe("the roster page", () => {
     const region = within(await screen.findByRole("region", { name: "Penalties per rule" }))
     expect(region.getByText("Overtime away from the fair share").parentElement).toHaveTextContent("3")
     expect(region.getByText(/3 × 1/)).toHaveTextContent("hour of overtime above the share")
-    expect(region.getByText("Amal Saleh: h1: 20 h overtime, share 4.7 h, 3 h priced")).toBeInTheDocument()
+    expect(region.getByText("Amal Saleh: 20 h overtime, share 4.7 h, 3 h priced")).toBeInTheDocument()
+  })
+
+  it("says the nurse's name once on each line of the solver's, leaving words that begin with another id as they are", async () => {
+    const facts = [
+      { rule: "consecutive", hospital_id: "h1", full_name: "Amal Saleh", date: null, text: "h1: 6 shifts in a row" },
+      { rule: "consecutive", hospital_id: "h1", full_name: "Amal Saleh", date: null, text: "h10: 7 shifts in a row" },
+      { rule: "consecutive", hospital_id: "h2", full_name: "", date: null, text: "h2: 8 shifts in a row" },
+    ]
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, elapsed_violations: facts } } }))
+
+    const region = within(await screen.findByRole("region", { name: "Recorded facts that broke rules" }))
+    expect(region.getByText("Amal Saleh: 6 shifts in a row")).toBeInTheDocument()
+    expect(region.getByText("Amal Saleh: h10: 7 shifts in a row")).toBeInTheDocument()
+    expect(region.getByText("h2: 8 shifts in a row")).toBeInTheDocument()
   })
 
   it("does not repeat a date the solver's words already hold", async () => {
@@ -7322,7 +7336,10 @@ describe("the roster page", () => {
     it("says what pins leave replaced, which pins count for nothing, and what the edited draft breaks", async () => {
       const draft = {
         ...DRAFT, edited: true, cost: null,
-        check: { reason: null, ok: false, violations: [{ rule: "unavailable", hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-06", text: "h1 works on a leave day" }], cost: 40 },
+        check: { reason: null, ok: false, violations: [
+          { rule: "unavailable", hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-06", text: "h1 works on a leave day" },
+          { rule: "max_hours", hospital_id: "h2", full_name: "Badr Noor", date: null, text: "h2: 300 h in the month, max 240" },
+        ], cost: 40 },
         pins: [{ hospital_id: "h2", full_name: "Badr Noor", date: "2026-06-07", shift: "N", origin: "manager", set_aside: "outside_dates" }],
         pins_lost_to_leave: [{ hospital_id: "h1", full_name: "Amal Saleh", date: "2026-06-06", shift: "D", by: "Omar Said" }],
         changes: [{ hospital_id: "h1", full_name: "Amal Saleh", what: "pins" }],
@@ -7332,8 +7349,9 @@ describe("the roster page", () => {
       expect(await screen.findByText(/Leave recorded since this solve replaced these pins/)).toBeInTheDocument()
       expect(screen.getByText("Amal Saleh, 6 June: D, by the leave Omar Said recorded")).toBeInTheDocument()
       expect(screen.getByText("Badr Noor, 7 June: N, outside their start and end dates")).toBeInTheDocument()
-      expect(screen.getByText("The draft as it stands breaks 1 hard rule:")).toBeInTheDocument()
+      expect(screen.getByText("The draft as it stands breaks 2 hard rules:")).toBeInTheDocument()
       expect(screen.getByText("Amal Saleh, 6 June: h1 works on a leave day")).toBeInTheDocument()
+      expect(screen.getByText("Badr Noor: 300 h in the month, max 240")).toBeInTheDocument()
       expect(screen.getByText(/Cost not known on the month as it stands, against 12 as solved/)).toBeInTheDocument()
       expect(screen.getByRole("alert")).toHaveTextContent("Amal Saleh: pinned cells changed")
     })
@@ -8725,6 +8743,14 @@ describe("the roster page", () => {
       expect(within(table).getByRole("columnheader", { name: "It hands to July 2026" })).toBeInTheDocument()
       expect(within(card).queryByRole("button")).not.toBeInTheDocument()
       expect(within(card).queryByText(/not over yet/)).not.toBeInTheDocument()
+    })
+
+    it("names the nurse once on a fact the close says broke a rule", async () => {
+      const fact = { rule: "consecutive", hospital_id: "h1", full_name: "Amal Saleh", date: null, text: "h1: 6 shifts in a row" }
+      start("/roster", manager({ [`GET ${UNIT}/close`]: { body: { ...CLOSED, closed: { ...CLOSED.closed, facts_broke: [fact] } } } }))
+
+      const card = await screen.findByRole("region", { name: "Carry-over and month close" })
+      expect(await within(card).findByRole("listitem")).toHaveTextContent(/^Amal Saleh: 6 shifts in a row$/)
     })
 
     it("says what a closed month's facts broke, that they changed since, and closes it again", async () => {
