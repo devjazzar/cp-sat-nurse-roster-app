@@ -114,9 +114,9 @@ function RowsTable({ rows, label }: { rows: SkillImportRow[]; label: string }) {
               )}
               <TableCell translate="no" className={CELL}>{row.hospital_id}</TableCell>
               <TableCell className={cn(CELL, "min-w-32")}>{row.full_name}</TableCell>
-              <TableCell className={CELL}>{row.skill}</TableCell>
+              <TableCell className={cn(CELL, "min-w-24")}>{row.skill}</TableCell>
               <TableCell className={cn(CELL, "min-w-24 tabular-nums")}>{row.expiry}</TableCell>
-              <TableCell translate="no" className={CELL}>{row.identifier}</TableCell>
+              <TableCell translate="no" className={cn(CELL, "min-w-28")}>{row.identifier}</TableCell>
               <TableCell className={cn(CELL, "min-w-24 tabular-nums")}>{row.issue_date}</TableCell>
             </TableRow>
           ))}
