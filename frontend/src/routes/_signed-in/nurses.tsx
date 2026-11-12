@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/react-router"
 import { useMemo, useRef, useState } from "react"
-import { useForm } from "react-hook-form"
+import { type FieldErrors, type UseFormRegister, useForm } from "react-hook-form"
 import { z } from "zod"
 
 import {
@@ -31,7 +31,7 @@ import {
 } from "@/api/generated/zod"
 import { CheckboxField, FormField, SelectField } from "@/components/form-field"
 import { ExpiriesList } from "@/components/expiries"
-import { SkillList, untilWords } from "@/components/nurse-skills"
+import { RecordsTable, SkillList } from "@/components/nurse-skills"
 import { LeavePageGuard, PasswordDialog, type Shown } from "@/components/password-dialog"
 import {
   AlertDialog,
@@ -46,10 +46,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAwaitingPassword } from "@/lib/use-awaiting-password"
 import { plainRefusal, serverErrors, showServerErrors } from "@/lib/server-errors"
+import { byKind, Kind } from "@/lib/skill-kinds"
 import { useEditing } from "@/lib/use-editing"
 import { cn, monthName, scrollableRegion, shortDay } from "@/lib/utils"
 import { useFocusOnOpen } from "@/lib/use-focus-on-open"
@@ -423,89 +424,166 @@ function ResetDialog({ nurse, onCancel, onReset }: { nurse: NurseRow | null; onC
 }
 
 const EXPIRY_HINT = "The last day it counts."
+const IDENTIFIER_HINT = "The number or code the issuing body gave it."
+const LICENCE_HINT = "A licence needs its identifier, the number or code the issuing body gave it."
+const ISSUE_DATE_HINT = "When it was issued. Nothing reads it: the expiry is what a roster reads."
 
 const needsExpiry = (name: string) => `${name} expires. Enter the last day it counts.`
+const needsIdentifier = (name: string) => `${name} is a licence, so it needs its identifier.`
 
-const heldSchema = z.object({ expiry: z.string() })
-type Held = z.infer<typeof heldSchema>
+/** The identifier and the issue date, as the record and the renew forms both ask for them. `of` names the entry, for a form
+ *  that sits among others; `licence` marks the identifier required. */
+function PaperFields({ register, errors, licence, of, id }: {
+  register: UseFormRegister<Papers>; errors: FieldErrors<Papers>; licence: boolean; of?: string; id?: string
+}) {
+  const suffix = of ? ` of ${of}` : ""
+  return (
+    <>
+      <FormField id={id && `identifier-${id}`} label={`Identifier${suffix}${licence ? "" : " (optional)"}`} autoComplete="off"
+        aria-required={licence || undefined} translate="no" description={licence ? LICENCE_HINT : IDENTIFIER_HINT}
+        registration={register("identifier")} error={errors.identifier} />
+      <FormField id={id && `issue-date-${id}`} label={`Issue date${suffix} (optional)`} type="date" description={ISSUE_DATE_HINT}
+        registration={register("issue_date")} error={errors.issue_date} />
+    </>
+  )
+}
 
-/** One skill she holds: a new expiry renews it, and it can come off. A retired skill only comes off. */
-function HeldSkill({ nurse, skill, onSaid, onGone }: { nurse: NurseRow; skill: NurseSkillRow; onSaid: (message: string) => void; onGone: () => void }) {
+const papersSchema = z.object({ expiry: z.string(), identifier: z.string().max(100, "At most 100 characters."), issue_date: z.string() })
+type Papers = z.infer<typeof papersSchema>
+
+/** What a form's fields say, as the API takes them: an empty field is none. */
+const asSent = ({ identifier, issue_date }: Papers) => ({ identifier: identifier.trim() || null, issue_date: issue_date || null })
+
+/** The form that renews one record, under its row: a new expiry, identifier or issue date, or all three, as the body gave
+ *  them. What it says already is sent as it is, and the API changes nothing then. */
+function RenewForm({ nurse, skill, onSaid, onDone }: {
+  nurse: NurseRow; skill: NurseSkillRow; onSaid: (message: string) => void; onDone: () => void
+}) {
   const refresh = useRefreshNurses()
   const renew = useRenewNurseSkill()
-  const remove = useRemoveNurseSkill()
-  const form = useForm<Held>({ resolver: zodResolver(heldSchema), defaultValues: { expiry: skill.expiry ?? "" } })
+  const form = useForm<Papers>({ resolver: zodResolver(papersSchema), defaultValues: {
+    expiry: skill.expiry ?? "", identifier: skill.details?.identifier ?? "", issue_date: skill.details?.issue_date ?? "",
+  } })
   const { errors } = form.formState
-  const pending = renew.isPending || remove.isPending
-  const mayRenew = skill.expires && skill.active
-  const ids = { nurseId: nurse.id, skillId: skill.skill_id }
+  const licence = skill.kind === Kind.licence
+  useFocusOnOpen(() => form.setFocus(skill.expires ? "expiry" : "identifier"), [])
 
-  const submit = form.handleSubmit(({ expiry }) => {
-    if (!expiry) {
+  const submit = form.handleSubmit((values) => {
+    if (skill.expires && !values.expiry) {
       form.setError("expiry", { message: needsExpiry(skill.name) }, { shouldFocus: true })
       return
     }
-    remove.reset()
-    renew.mutate({ ...ids, data: { expiry } }, {
+    const sent = asSent(values)
+    if (licence && !sent.identifier) {
+      form.setError("identifier", { message: needsIdentifier(skill.name) }, { shouldFocus: true })
+      return
+    }
+    const expiry = skill.expires ? values.expiry : null
+    const same = expiry === skill.expiry && sent.identifier === (skill.details?.identifier ?? null)
+      && sent.issue_date === (skill.details?.issue_date ?? null)
+    renew.mutate({ nurseId: nurse.id, skillId: skill.skill_id, data: { expiry, ...sent } }, {
       onSuccess: () => {
         refresh()
-        onSaid(expiry === skill.expiry ? `Nothing changed for ${skill.name}.` : `${skill.name} of ${nurse.full_name} now counts until ${shortDay(expiry)}.`)
+        onSaid(same ? `Nothing changed for ${skill.name}.`
+          : expiry && expiry !== skill.expiry ? `${skill.name} of ${nurse.full_name} now counts until ${shortDay(expiry)}.`
+          : `${skill.name} of ${nurse.full_name} is renewed.`)
+        onDone()
       },
       onError: (error) => { refresh(); showServerErrors(form, error) },
     })
   })
 
-  function takeOff() {
-    renew.reset()
-    remove.mutate(ids, {
+  return (
+    <form onSubmit={submit} noValidate aria-label={`Renew ${skill.name}`} className="flex max-w-md flex-col gap-3 py-2">
+      <FieldGroup>
+        {skill.expires && (
+          <FormField id={`expiry-${skill.skill_id}`} label={`Expiry of ${skill.name}`} type="date" description={EXPIRY_HINT}
+            registration={form.register("expiry")} error={errors.expiry} />
+        )}
+        <PaperFields register={form.register} errors={errors} licence={licence} of={skill.name} id={skill.skill_id} />
+        <Unexpected error={renew.error} />
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" size="sm" disabled={renew.isPending} aria-label={`Save ${skill.name}`}>Save</Button>
+          <Button type="button" size="sm" variant="outline" disabled={renew.isPending} aria-label={`Cancel renewing ${skill.name}`}
+            onClick={onDone}>Cancel</Button>
+        </div>
+      </FieldGroup>
+    </form>
+  )
+}
+
+/** Her records, each to renew or take off. A retired skill only comes off. */
+function HeldSkills({ nurse, onSaid, onGone }: { nurse: NurseRow; onSaid: (message: string) => void; onGone: () => void }) {
+  const refresh = useRefreshNurses()
+  const remove = useRemoveNurseSkill()
+  const [renewing, setRenewing] = useState<string | null>(null)
+  const renewButton = (skillId: string) => `renew-${nurse.id}-${skillId}`
+
+  function takeOff(skill: NurseSkillRow) {
+    remove.mutate({ nurseId: nurse.id, skillId: skill.skill_id }, {
       onSuccess: () => { refresh(); onSaid(`${skill.name} is taken off ${nurse.full_name}.`); onGone() },
       onError: () => refresh(),
     })
   }
+  function closeRenewal(skillId: string) {
+    setRenewing(null)
+    // Its row's own button, which the form was opened with.
+    requestAnimationFrame(() => document.getElementById(renewButton(skillId))?.focus())
+  }
 
   return (
-    <li className="flex flex-col gap-2 border-b pb-4 last:border-b-0 last:pb-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-medium">{skill.name}</h3>
-        {!skill.expires && <span className="text-sm text-muted-foreground">Does not expire</span>}
-        {!skill.active && <Badge variant="outline">Retired</Badge>}
-        {!mayRenew && skill.expiry && <span className="text-sm tabular-nums text-muted-foreground">{untilWords(skill)}</span>}
-      </div>
-      {!skill.active && <p className="text-sm text-muted-foreground">A retired skill can no longer be renewed. The record stays until you take it off.</p>}
-      <form onSubmit={submit} noValidate className="flex flex-col gap-2">
-        {mayRenew && (
-          <FormField id={`expiry-${skill.skill_id}`} label={`Expiry of ${skill.name}`} type="date" description={EXPIRY_HINT}
-            registration={form.register("expiry")} error={errors.expiry} />
+    <div className="flex flex-col gap-2">
+      <RecordsTable skills={nurse.skills} label={`Skills of ${nurse.full_name}`} details
+        actions={(skill) => (
+          <>
+            {skill.active && (
+              <Button id={renewButton(skill.skill_id)} type="button" size="sm" variant="outline" disabled={remove.isPending}
+                aria-expanded={renewing === skill.skill_id} aria-label={`Renew ${skill.name}`}
+                onClick={() => { remove.reset(); setRenewing(renewing === skill.skill_id ? null : skill.skill_id) }}>
+                Renew
+              </Button>
+            )}
+            <Button type="button" size="sm" variant="outline" disabled={remove.isPending} aria-label={`Take off ${skill.name}`}
+              onClick={() => takeOff(skill)}>Take off</Button>
+          </>
         )}
-        <Unexpected error={renew.error ?? remove.error} />
-        <div className="flex flex-wrap gap-2">
-          {mayRenew && <Button type="submit" size="sm" disabled={pending} aria-label={`Save expiry of ${skill.name}`}>Save expiry</Button>}
-          <Button type="button" size="sm" variant="outline" disabled={pending} aria-label={`Take off ${skill.name}`} onClick={takeOff}>Take off</Button>
-        </div>
-      </form>
-    </li>
+        below={(skill) => renewing === skill.skill_id && skill.active
+          ? <RenewForm nurse={nurse} skill={skill} onSaid={onSaid} onDone={() => closeRenewal(skill.skill_id)} />
+          : null} />
+      <Unexpected error={remove.error} />
+      {nurse.skills.some((skill) => !skill.active) && (
+        <p className="text-sm text-muted-foreground">A retired skill can no longer be renewed. The record stays until you take it off.</p>
+      )}
+    </div>
   )
 }
 
-const newSkillSchema = z.object({ skill_id: required("Choose a skill."), expiry: z.string() })
+const newSkillSchema = papersSchema.extend({ skill_id: required("Choose a skill.") })
 type NewSkill = z.infer<typeof newSkillSchema>
 
 function RecordSkillForm({ nurse, onSaid }: { nurse: NurseRow; onSaid: (message: string) => void }) {
   const refresh = useRefreshNurses()
   const catalogue = useListSkills()
   const record = useRecordNurseSkill()
-  const form = useForm<NewSkill>({ resolver: zodResolver(newSkillSchema), defaultValues: { skill_id: "", expiry: "" } })
+  const form = useForm<NewSkill>({ resolver: zodResolver(newSkillSchema),
+    defaultValues: { skill_id: "", expiry: "", identifier: "", issue_date: "" } })
   const { errors } = form.formState
   const held = new Set(nurse.skills.map((skill) => skill.skill_id))
   const choices = (catalogue.data ?? []).filter((skill) => skill.active && !held.has(skill.id))
   const chosen = choices.find((skill) => skill.id === form.watch("skill_id"))
+  const licence = chosen?.kind === Kind.licence
 
-  const submit = form.handleSubmit(({ skill_id, expiry }) => {
-    if (chosen?.expires && !expiry) {
+  const submit = form.handleSubmit((values) => {
+    if (chosen?.expires && !values.expiry) {
       form.setError("expiry", { message: needsExpiry(chosen.name) }, { shouldFocus: true })
       return
     }
-    record.mutate({ nurseId: nurse.id, data: { skill_id, expiry: chosen?.expires ? expiry : null } }, {
+    const sent = asSent(values)
+    if (chosen && licence && !sent.identifier) {
+      form.setError("identifier", { message: needsIdentifier(chosen.name) }, { shouldFocus: true })
+      return
+    }
+    record.mutate({ nurseId: nurse.id, data: { skill_id: values.skill_id, expiry: chosen?.expires ? values.expiry : null, ...sent } }, {
       onSuccess: () => {
         refresh()
         form.reset()
@@ -526,11 +604,16 @@ function RecordSkillForm({ nurse, onSaid }: { nurse: NurseRow; onSaid: (message:
       <FieldGroup>
         <SelectField label="Skill" registration={form.register("skill_id")} error={errors.skill_id}>
           <NativeSelectOption value="">Choose a skill</NativeSelectOption>
-          {choices.map((skill) => <NativeSelectOption key={skill.id} value={skill.id}>{skill.name}</NativeSelectOption>)}
+          {byKind(choices, (skill) => skill.kind).map((group) => (
+            <NativeSelectOptGroup key={group.kind} label={group.heading}>
+              {group.rows.map((skill) => <NativeSelectOption key={skill.id} value={skill.id}>{skill.name}</NativeSelectOption>)}
+            </NativeSelectOptGroup>
+          ))}
         </SelectField>
         {chosen?.expires && (
           <FormField label="Expiry" type="date" description={EXPIRY_HINT} registration={form.register("expiry")} error={errors.expiry} />
         )}
+        {chosen && <PaperFields register={form.register} errors={errors} licence={licence} />}
         <Unexpected error={record.error} />
         <div><Button type="submit" disabled={record.isPending}>Record skill</Button></div>
       </FieldGroup>
@@ -547,12 +630,7 @@ function SkillsPanel({ nurse, onSaid, onClose }: { nurse: NurseRow; onSaid: (mes
     <div className="flex flex-col gap-6">
       {nurse.skills.length === 0
         ? <p>No skills are recorded for {nurse.full_name}.</p>
-        : (
-          <ul className="flex flex-col gap-4" aria-label={`Skills of ${nurse.full_name}`}>
-            {nurse.skills.map((skill) => <HeldSkill key={`${skill.skill_id}-${skill.expiry}`} nurse={nurse} skill={skill} onSaid={onSaid}
-              onGone={() => recordHeading.current?.focus()} />)}
-          </ul>
-        )}
+        : <HeldSkills nurse={nurse} onSaid={onSaid} onGone={() => recordHeading.current?.focus()} />}
       <section className="flex flex-col gap-3" aria-labelledby="record-skill">
         <h3 id="record-skill" ref={recordHeading} tabIndex={-1} className="font-medium outline-none">Record a skill</h3>
         <RecordSkillForm nurse={nurse} onSaid={onSaid} />

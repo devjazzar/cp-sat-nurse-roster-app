@@ -141,15 +141,22 @@ const onChangePassword = async (router: ReturnType<typeof start>["router"]) => {
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
 }
 
-/** A nurse's skills as the API reads them (ticket 33). */
-const BLS_HELD = { skill_id: "s1", name: "BLS", expires: true, required_to_work: true, active: true, expiry: "2027-06-30" }
-const ICU_HELD = { skill_id: "s2", name: "ICU", expires: false, required_to_work: false, active: true, expiry: null }
+/** A nurse's skills as the API reads them (ticket 33), to a reader who reads their details (ticket 59): the CNO, the Deputy
+ *  CNO and the nurse herself. A unit manager reads them with `details` empty (`asManagers`). */
+const NO_DETAILS = { issuing_body: "", identifier: null, issue_date: null }
+const BLS_HELD = { skill_id: "s1", name: "BLS", kind: "skill", expires: true, required_to_work: true, active: true, expiry: "2027-06-30", details: NO_DETAILS }
+const ICU_HELD = { skill_id: "s2", name: "ICU", kind: "skill", expires: false, required_to_work: false, active: true, expiry: null, details: NO_DETAILS }
+const SCFHS_HELD = { skill_id: "s4", name: "SCFHS", kind: "licence", expires: true, required_to_work: true, active: true, expiry: "2028-03-31",
+  details: { issuing_body: "Saudi Commission for Health Specialties", identifier: "21-RN-0412", issue_date: "2026-04-01" } }
+const BSN_HELD = { skill_id: "s5", name: "BSN", kind: "certificate", expires: false, required_to_work: false, active: true, expiry: null,
+  details: { issuing_body: "King Saud University", identifier: null, issue_date: "2019-06-15" } }
+const asManagers = <Row extends { details: unknown }>(rows: Row[]) => rows.map((row) => ({ ...row, details: null }))
 /** The expiries list as the API reads it (ticket 37): oldest date first, then the skills nobody has recorded. */
 const NO_EXPIRIES = { horizon_days: 90, count: 0, rows: [] }
-const EXPIRY = { nurse_id: "n1", hospital_id: "h123", full_name: "Amal Saleh", unit: { id: "u1", name: "ER" }, skill: "BLS", state: "expired", expiry: "2026-10-31" }
+const EXPIRY = { nurse_id: "n1", hospital_id: "h123", full_name: "Amal Saleh", unit: { id: "u1", name: "ER" }, skill: "BLS", kind: "skill", state: "expired", expiry: "2026-10-31" }
 const EXPIRIES = { horizon_days: 90, count: 3, rows: [
   EXPIRY,
-  { ...EXPIRY, nurse_id: "n2", hospital_id: "h124", full_name: "Badr Omar", unit: { id: "u2", name: "ICU" }, skill: "ACLS", state: "expiring", expiry: "2027-01-15" },
+  { ...EXPIRY, nurse_id: "n2", hospital_id: "h124", full_name: "Badr Omar", unit: { id: "u2", name: "ICU" }, skill: "SCFHS", kind: "licence", state: "expiring", expiry: "2027-01-15" },
   { ...EXPIRY, nurse_id: "n3", hospital_id: "h125", full_name: "Dana Ali", state: "no_record", expiry: null },
 ] }
 
@@ -2812,17 +2819,17 @@ describe("the expiries page", () => {
   const rowOf = (name: string) => screen.getByRole("cell", { name }).closest("tr") as HTMLElement
   const cells = (row: HTMLElement) => within(row).getAllByRole("cell").map((cell) => cell.textContent)
 
-  it("lists each kind of row for the CNO, with the nurse, her unit, the skill, its state and date, in the API's order", async () => {
+  it("lists each kind of row for the CNO, with the nurse, her unit, the skill, its kind, state and date, in the API's order", async () => {
     start("/expiries", asCno({ "GET /api/nurses/expiries": { body: EXPIRIES } }))
 
     expect(await screen.findByRole("heading", { level: 1, name: "Expiries" })).toBeInTheDocument()
     await screen.findByRole("cell", { name: "Amal Saleh" })
     expect(document.title).toBe("Expiries · Nurse roster")
     expect(within(screen.getByRole("table")).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(
-      ["Name", "Hospital ID", "Unit", "Skill", "State", "Expiry"])
-    expect(cells(rowOf("Amal Saleh"))).toEqual(["Amal Saleh", "h123", "ER", "BLS", "Expired", "31 Oct 2026"])
-    expect(cells(rowOf("Badr Omar"))).toEqual(["Badr Omar", "h124", "ICU", "ACLS", "Expiring", "15 Jan 2027"])
-    expect(cells(rowOf("Dana Ali"))).toEqual(["Dana Ali", "h125", "ER", "BLS", "No record", "Required to work"])
+      ["Name", "Hospital ID", "Unit", "Skill", "Kind", "State", "Expiry"])
+    expect(cells(rowOf("Amal Saleh"))).toEqual(["Amal Saleh", "h123", "ER", "BLS", "Skill", "Expired", "31 Oct 2026"])
+    expect(cells(rowOf("Badr Omar"))).toEqual(["Badr Omar", "h124", "ICU", "SCFHS", "Licence", "Expiring", "15 Jan 2027"])
+    expect(cells(rowOf("Dana Ali"))).toEqual(["Dana Ali", "h125", "ER", "BLS", "Skill", "No record", "Required to work"])
     expect(within(screen.getByRole("table")).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[0].textContent))
       .toEqual(["Amal Saleh", "Badr Omar", "Dana Ali"])
     expect(screen.getByText(/Deactivated nurses and those past their end date are left out/)).toHaveTextContent(/You record and renew skills on the Nurses page\.$/)
@@ -3126,7 +3133,7 @@ describe("the nurses page", () => {
       expect(await screen.findByRole("heading", { level: 2, name: "Expiries" })).toBeInTheDocument()
       const row = (await within(await screen.findByRole("region", { name: "Expiries of ER" })).findByRole("cell", { name: "Dana Ali" })).closest("tr") as HTMLElement
       expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Dana Ali", "h125", "BLS", "No record", "Required to work"])
-      expect(within(expiries()).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(["Name", "Hospital ID", "Skill", "State", "Expiry"])
+      expect(within(expiries()).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(["Name", "Hospital ID", "Skill", "Kind", "State", "Expiry"])
       expect(within(expiries()).getByRole("cell", { name: "31 Oct 2026" })).toBeInTheDocument()
       // Above the list, which can be sixty nurses long, so it is seen before a solve.
       const nurseRow = screen.getByRole("cell", { name: "Female" })
@@ -3838,9 +3845,9 @@ describe("the nurses page", () => {
 
   describe("a nurse's skills", () => {
     const CATALOGUE = [
-      { id: "s3", name: "ACLS", expires: true, required_to_work: false, lets_a_nurse_precept: false, active: false, renames: [] },
-      { id: "s1", name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] },
-      { id: "s2", name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] },
+      { id: "s3", name: "ACLS", kind: "skill", issuing_body: "", expires: true, required_to_work: false, lets_a_nurse_precept: false, active: false, renames: [] },
+      { id: "s1", name: "BLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] },
+      { id: "s2", name: "ICU", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] },
     ]
     /** The list as the API reads it after each write, so the page is seen to take the fresh one. */
     function withSkills(first: unknown[], extra: Record<string, Handler | Answer> = {}) {
@@ -3900,8 +3907,8 @@ describe("the nurses page", () => {
       await user.click(screen.getByRole("button", { name: "Record skill" }))
 
       await waitFor(() => expect(status()).toHaveTextContent("BLS is recorded for Amal Saleh."))
-      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ skill_id: "s1", expiry: "2027-06-30" })
-      expect(await screen.findByLabelText("Expiry of BLS")).toHaveValue("2027-06-30")
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ skill_id: "s1", expiry: "2027-06-30", identifier: null, issue_date: null })
+      expect(within(await screen.findByRole("table", { name: "Skills of Amal Saleh" })).getByRole("cell", { name: "30 Jun 2027" })).toBeInTheDocument()
       expect(screen.getByText("Amal Saleh holds every skill in the catalogue.")).toBeInTheDocument()
     })
 
@@ -3916,8 +3923,8 @@ describe("the nurses page", () => {
       await user.click(screen.getByRole("button", { name: "Record skill" }))
 
       await waitFor(() => expect(status()).toHaveTextContent("ICU is recorded for Amal Saleh."))
-      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ skill_id: "s2", expiry: null })
-      expect(await screen.findByRole("list", { name: "Skills of Amal Saleh" })).toHaveTextContent("Does not expire")
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ skill_id: "s2", expiry: null, identifier: null, issue_date: null })
+      expect(await screen.findByRole("table", { name: "Skills of Amal Saleh" })).toHaveTextContent("Does not expire")
     })
 
     it("shows the API's refusal beside its field", async () => {
@@ -3938,13 +3945,14 @@ describe("the nurses page", () => {
       const { user, calls } = start("/nurses", handlers)
       await openSkills(user)
       const renewing = hold("PUT /api/nurses/n1/skills/s1")
+      await user.click(screen.getByRole("button", { name: "Renew BLS" }))
 
       await user.clear(screen.getByLabelText("Expiry of BLS"))
       await user.type(screen.getByLabelText("Expiry of BLS"), "2029-06-30")
-      await user.click(screen.getByRole("button", { name: "Save expiry of BLS" }))
+      await user.click(screen.getByRole("button", { name: "Save BLS" }))
 
-      await waitFor(() => expect(screen.getByRole("button", { name: "Take off BLS" })).toHaveAttribute("aria-disabled", "true"))
-      expect(screen.getByRole("button", { name: "Save expiry of BLS" })).toHaveAttribute("aria-disabled", "true")
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save BLS" })).toHaveAttribute("aria-disabled", "true"))
+      expect(screen.getByRole("button", { name: "Cancel renewing BLS" })).toHaveAttribute("aria-disabled", "true")
       calls.length = 0
       await renewing.answer({ body: [renewed] })
 
@@ -3952,26 +3960,31 @@ describe("the nurses page", () => {
       await waitFor(() => expect(calls.some((call) => call.url === "/api/nurses")).toBe(true))
     })
 
-    it("sends the new expiry alone", async () => {
+    it("sends what the renewal form says, closes it and puts focus back on its row's button", async () => {
       const { handlers, after } = withSkills([BLS_HELD])
       const { user, calls } = start("/nurses", { ...handlers, "PUT /api/nurses/n1/skills/s1": after([{ ...BLS_HELD, expiry: "2029-06-30" }]) })
       await openSkills(user)
+      await user.click(screen.getByRole("button", { name: "Renew BLS" }))
+      expect(screen.getByLabelText("Expiry of BLS")).toHaveFocus()
 
       await user.clear(screen.getByLabelText("Expiry of BLS"))
       await user.type(screen.getByLabelText("Expiry of BLS"), "2029-06-30")
-      await user.click(screen.getByRole("button", { name: "Save expiry of BLS" }))
+      await user.click(screen.getByRole("button", { name: "Save BLS" }))
 
-      await waitFor(() => expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ expiry: "2029-06-30" }))
-      expect(await screen.findByLabelText("Expiry of BLS")).toHaveValue("2029-06-30")
+      await waitFor(() => expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ expiry: "2029-06-30", identifier: null, issue_date: null }))
+      expect(within(await screen.findByRole("table", { name: "Skills of Amal Saleh" })).findByRole("cell", { name: "30 Jun 2029" })).toBeTruthy()
+      await waitFor(() => expect(screen.getByRole("button", { name: "Renew BLS" })).toHaveFocus())
+      expect(screen.queryByLabelText("Expiry of BLS")).not.toBeInTheDocument()
     })
 
     it("asks for an expiry before renewing to none", async () => {
       const { handlers } = withSkills([BLS_HELD])
       const { user, calls } = start("/nurses", handlers)
       await openSkills(user)
+      await user.click(screen.getByRole("button", { name: "Renew BLS" }))
 
       await user.clear(screen.getByLabelText("Expiry of BLS"))
-      await user.click(screen.getByRole("button", { name: "Save expiry of BLS" }))
+      await user.click(screen.getByRole("button", { name: "Save BLS" }))
 
       expect(screen.getByLabelText("Expiry of BLS")).toHaveAccessibleDescription(/BLS expires. Enter the last day it counts./)
       expect(calls.some((call) => call.method === "PUT")).toBe(false)
@@ -4006,13 +4019,145 @@ describe("the nurses page", () => {
       const { user } = start("/nurses", handlers)
       await openSkills(user)
 
-      const list = screen.getByRole("list", { name: "Skills of Amal Saleh" })
-      expect(within(list).getByText("Retired")).toBeInTheDocument()
-      expect(within(list).getByText("until 30 Jun 2027")).toBeInTheDocument()
-      expect(within(list).getByText(/can no longer be renewed/)).toBeInTheDocument()
-      expect(screen.queryByLabelText(/Expiry of/)).not.toBeInTheDocument()
+      const table = screen.getByRole("table", { name: "Skills of Amal Saleh" })
+      expect(within(table).getByText("Retired")).toBeInTheDocument()
+      expect(within(table).getByRole("cell", { name: "30 Jun 2027" })).toBeInTheDocument()
+      expect(screen.getByText(/can no longer be renewed/)).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Renew BLS" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Renew ICU" })).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Take off BLS" })).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Take off ICU" })).toBeInTheDocument()
+    })
+
+    describe("a record's identifier and issue date (ticket 59)", () => {
+      const LICENCE = { id: "s4", name: "SCFHS", kind: "licence", issuing_body: "Saudi Commission for Health Specialties", expires: true,
+        required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
+      const DEGREE = { id: "s5", name: "BSN", kind: "certificate", issuing_body: "King Saud University", expires: false,
+        required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
+      const withPapers = (first: unknown[], extra: Record<string, Handler | Answer> = {}) =>
+        withSkills(first, { "GET /api/hospital/skills": { body: [...CATALOGUE, LICENCE, DEGREE] }, ...extra })
+
+      it("lists her records under Skills, Certificates and Licences, with the identifier and the issue date", async () => {
+        const { handlers } = withPapers([BLS_HELD, SCFHS_HELD, BSN_HELD])
+        const { user } = start("/nurses", handlers)
+        await openSkills(user)
+
+        const table = screen.getByRole("table", { name: "Skills of Amal Saleh" })
+        expect(within(table).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(["Name", "Expiry", "Identifier", "Issue date", "Actions"])
+        expect(within(table).getAllByRole("rowheader").map((head) => head.textContent)).toEqual(["Skills", "Certificates", "Licences"])
+        expect(within(within(table).getByRole("rowgroup", { name: "Licences" })).getAllByRole("cell").map((cell) => cell.textContent).slice(0, 4))
+          .toEqual(["SCFHS", "31 Mar 2028", "21-RN-0412", "1 Apr 2026"])
+        expect(within(table).getByRole("rowgroup", { name: "Certificates" })).toHaveTextContent("BSNDoes not expireNone15 Jun 2019")
+        expect(table.closest("[role=region]")).toBeNull()
+        const row = within((await screen.findAllByText("Amal Saleh"))[0].closest("tr") as HTMLElement)
+        expect(row.queryByText("21-RN-0412")).not.toBeInTheDocument()
+      })
+
+      it("marks the identifier required for a licence and asks for it before recording", async () => {
+        const { handlers, after } = withPapers([])
+        const { user, calls } = start("/nurses", { ...handlers, "POST /api/nurses/n1/skills": after([SCFHS_HELD], { status: 201 }) })
+        await openSkills(user)
+
+        const skill = await screen.findByLabelText("Skill")
+        expect(within(skill).getAllByRole("group").map((group) => group.getAttribute("label"))).toEqual(["Skills", "Certificates", "Licences"])
+        await user.selectOptions(skill, "BSN")
+        expect(screen.getByLabelText("Identifier (optional)")).not.toHaveAttribute("aria-required")
+        await user.selectOptions(skill, "SCFHS")
+        expect(screen.getByLabelText("Identifier")).toHaveAttribute("aria-required", "true")
+        expect(screen.getByLabelText("Identifier")).toHaveAccessibleDescription(/A licence needs its identifier/)
+        await user.type(screen.getByLabelText("Expiry"), "2028-03-31")
+        await user.type(screen.getByLabelText("Identifier"), "   ")
+        await user.click(screen.getByRole("button", { name: "Record skill" }))
+        expect(screen.getByLabelText("Identifier")).toHaveAccessibleDescription(/SCFHS is a licence, so it needs its identifier./)
+        expect(screen.getByLabelText("Identifier")).toHaveFocus()
+        expect(calls.some((call) => call.method === "POST")).toBe(false)
+
+        await user.type(screen.getByLabelText("Identifier"), "21-RN-0412 ")
+        await user.type(screen.getByLabelText("Issue date (optional)"), "2026-04-01")
+        await user.click(screen.getByRole("button", { name: "Record skill" }))
+
+        await waitFor(() => expect(status()).toHaveTextContent("SCFHS is recorded for Amal Saleh."))
+        expect(calls.find((call) => call.method === "POST")?.body).toEqual(
+          { skill_id: "s4", expiry: "2028-03-31", identifier: "21-RN-0412", issue_date: "2026-04-01" })
+      })
+
+      it("shows the API's refusals beside the identifier and the issue date", async () => {
+        const { handlers } = withPapers([], { "POST /api/nurses/n1/skills": { status: 422, body: { detail: [
+          { type: "value_error", loc: ["body", "body", "identifier"], msg: "Badr Omar already holds BSN with this identifier. Check the number: each one is one nurse's." },
+          { type: "value_error", loc: ["body", "body", "issue_date"], msg: "The issue date cannot be after today." },
+        ] } } })
+        const { user } = start("/nurses", handlers)
+        await openSkills(user)
+
+        await user.selectOptions(await screen.findByLabelText("Skill"), "BSN")
+        await user.type(screen.getByLabelText("Identifier (optional)"), "77")
+        await user.type(screen.getByLabelText("Issue date (optional)"), "2030-01-01")
+        await user.click(screen.getByRole("button", { name: "Record skill" }))
+
+        await waitFor(() => expect(screen.getByLabelText("Identifier (optional)")).toHaveAccessibleDescription(/Badr Omar already holds BSN with this identifier/))
+        expect(screen.getByLabelText("Issue date (optional)")).toHaveAccessibleDescription(/The issue date cannot be after today./)
+      })
+
+      it("renews a licence with a new identifier and issue date, its fields filled with what is recorded", async () => {
+        const renewed = { ...SCFHS_HELD, details: { ...SCFHS_HELD.details, identifier: "26-RN-9001", issue_date: "2026-11-01" } }
+        const { handlers, after } = withPapers([SCFHS_HELD])
+        const { user, calls } = start("/nurses", { ...handlers, "PUT /api/nurses/n1/skills/s4": after([renewed]) })
+        await openSkills(user)
+
+        await user.click(screen.getByRole("button", { name: "Renew SCFHS" }))
+        expect(screen.getByRole("button", { name: "Renew SCFHS" })).toHaveAttribute("aria-expanded", "true")
+        expect(screen.getByLabelText("Expiry of SCFHS")).toHaveValue("2028-03-31")
+        expect(screen.getByLabelText("Identifier of SCFHS")).toHaveValue("21-RN-0412")
+        expect(screen.getByLabelText("Issue date of SCFHS (optional)")).toHaveValue("2026-04-01")
+        await user.clear(screen.getByLabelText("Identifier of SCFHS"))
+        await user.click(screen.getByRole("button", { name: "Save SCFHS" }))
+        expect(screen.getByLabelText("Identifier of SCFHS")).toHaveAccessibleDescription(/SCFHS is a licence, so it needs its identifier./)
+
+        await user.type(screen.getByLabelText("Identifier of SCFHS"), "26-RN-9001")
+        await user.clear(screen.getByLabelText("Issue date of SCFHS (optional)"))
+        await user.type(screen.getByLabelText("Issue date of SCFHS (optional)"), "2026-11-01")
+        await user.click(screen.getByRole("button", { name: "Save SCFHS" }))
+
+        await waitFor(() => expect(status()).toHaveTextContent("SCFHS of Amal Saleh is renewed."))
+        expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ expiry: "2028-03-31", identifier: "26-RN-9001", issue_date: "2026-11-01" })
+        expect(await within(screen.getByRole("table", { name: "Skills of Amal Saleh" })).findByText("26-RN-9001")).toBeInTheDocument()
+      })
+
+      it("corrects a certificate held for good through its renewal, which has no expiry", async () => {
+        const { handlers, after } = withPapers([BSN_HELD])
+        const { user, calls } = start("/nurses", { ...handlers, "PUT /api/nurses/n1/skills/s5": after([{ ...BSN_HELD, details: { ...BSN_HELD.details, identifier: "KSU-77" } }]) })
+        await openSkills(user)
+
+        await user.click(screen.getByRole("button", { name: "Renew BSN" }))
+        expect(screen.queryByLabelText(/Expiry of/)).not.toBeInTheDocument()
+        expect(screen.getByLabelText("Identifier of BSN (optional)")).toHaveFocus()
+        await user.type(screen.getByLabelText("Identifier of BSN (optional)"), "KSU-77")
+        await user.click(screen.getByRole("button", { name: "Save BSN" }))
+
+        await waitFor(() => expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ expiry: null, identifier: "KSU-77", issue_date: "2019-06-15" }))
+      })
+
+      it("closes a renewal on Cancel and puts focus back on its button", async () => {
+        const { handlers } = withPapers([SCFHS_HELD])
+        const { user, calls } = start("/nurses", handlers)
+        await openSkills(user)
+
+        await user.click(screen.getByRole("button", { name: "Renew SCFHS" }))
+        await user.click(screen.getByRole("button", { name: "Cancel renewing SCFHS" }))
+
+        await waitFor(() => expect(screen.getByRole("button", { name: "Renew SCFHS" })).toHaveFocus())
+        expect(screen.queryByLabelText("Identifier of SCFHS")).not.toBeInTheDocument()
+        expect(calls.some((call) => call.method === "PUT")).toBe(false)
+      })
+
+      it("shows a manager names and expiries by kind, and no identifier or issue date", async () => {
+        start("/nurses", asManagerHere([{ ...AMAL, skills: asManagers([SCFHS_HELD, BLS_HELD]) }]))
+
+        const row = within((await screen.findByText("Amal Saleh")).closest("tr") as HTMLElement)
+        expect(row.getByRole("list", { name: "Licences" })).toHaveTextContent("SCFHSuntil 31 Mar 2028")
+        expect(row.getByRole("list", { name: "Skills" })).toHaveTextContent("BLSuntil 30 Jun 2027")
+        expect(screen.queryByText("21-RN-0412")).not.toBeInTheDocument()
+      })
     })
 
     it("says where to add skills when the catalogue is empty", async () => {
@@ -5107,12 +5252,12 @@ describe("the rostering attributes page", () => {
   const put = (calls: { method: string; url: string; body: unknown }[]) => calls.find((call) => call.method === "PUT")!
 
   it("lists what the solver needs to know of each nurse", async () => {
-    start("/rostering-attributes", pageOf(ME_MANAGER, [{ ...AMAL, skills: [BLS_HELD] }, BADR]))
+    start("/rostering-attributes", pageOf(ME_MANAGER, [{ ...AMAL, skills: asManagers([BLS_HELD]) }, BADR]))
 
     const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
     expect(document.title).toBe("Rostering attributes · Nurse roster")
     expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(
-      ["Amal Saleh", "Set attributes", "h1", "In the unit", "No", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5", "BLSuntil 30 Jun 2027"])
+      ["Amal Saleh", "Set attributes", "h1", "In the unit", "No", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5", "SkillsBLSuntil 30 Jun 2027"])
     expect(within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!).getByText("None")).toBeInTheDocument()
     const badr = within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!)
     expect(badr.getByText("Joins from January 2030")).toBeInTheDocument()
@@ -5349,13 +5494,28 @@ describe("the rostering attributes page", () => {
     expect(screen.queryByText(/came with allowed shifts/)).not.toBeInTheDocument()
   })
 
-  it("shows the Deputy CNO each nurse's skills, set by the CNO", async () => {
-    start("/rostering-attributes", pageOf(ME_DEPUTY, [{ ...AMAL, skills: [BLS_HELD, ICU_HELD] }]))
+  it.each([["the Deputy CNO", ME_DEPUTY], ["the CNO", ME_CNO]])("shows %s each nurse's records under the three headings, with identifiers and issue dates", async (_name, me) => {
+    start("/rostering-attributes", pageOf(me, [{ ...AMAL, skills: [BLS_HELD, ICU_HELD, SCFHS_HELD, BSN_HELD] }]))
+
+    const records = await screen.findByRole("table", { name: "Skills of Amal Saleh" })
+    expect(within(records).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(["Name", "Expiry", "Identifier", "Issue date"])
+    expect(within(records).getAllByRole("rowgroup").slice(1).map((group) => group.getAttribute("aria-labelledby") && within(group).getAllByRole("rowheader")[0].textContent))
+      .toEqual(["Skills", "Certificates", "Licences"])
+    expect(within(records).getByRole("rowgroup", { name: "Licences" })).toHaveTextContent("SCFHS31 Mar 202821-RN-04121 Apr 2026")
+    expect(within(records).getByRole("rowgroup", { name: "Certificates" })).toHaveTextContent("BSNDoes not expireNone15 Jun 2019")
+    expect(within(records).getByRole("rowgroup", { name: "Skills" })).toHaveTextContent("BLS30 Jun 2027NoneNot recorded")
+    expect(records.closest("[tabindex]")).toBe(screen.getByRole("region", { name: "Rostering attributes of ER" }))
+    expect(screen.getByText(/The CNO sets skills on the Nurses page/)).toBeInTheDocument()
+  })
+
+  it("shows a manager his nurses' records by kind, name and expiry, and no identifier", async () => {
+    start("/rostering-attributes", pageOf(ME_MANAGER, [{ ...AMAL, skills: asManagers([SCFHS_HELD, BLS_HELD]) }]))
 
     const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
-    expect(row.getByText("until 30 Jun 2027")).toBeInTheDocument()
-    expect(row.getByText("ICU")).toBeInTheDocument()
-    expect(screen.getByText(/The CNO sets skills on the Nurses page/)).toBeInTheDocument()
+    expect(row.getByRole("list", { name: "Licences" })).toHaveTextContent("SCFHSuntil 31 Mar 2028")
+    expect(row.getByRole("list", { name: "Skills" })).toHaveTextContent("BLSuntil 30 Jun 2027")
+    expect(screen.queryByRole("table", { name: "Skills of Amal Saleh" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("columnheader", { name: "Identifier" })).not.toBeInTheDocument()
   })
 
   it("a staff nurse has no way in", async () => {
@@ -8330,12 +8490,17 @@ describe("a nurse's own month", () => {
   })
 
   it("shows the nurse's own skills with the last day each counts", async () => {
-    start("/my-month", { ...mine(IN_FORCE), "GET /api/nurses/my-skills": { body: [BLS_HELD, { ...ICU_HELD, active: false }] } })
+    start("/my-month", { ...mine(IN_FORCE), "GET /api/nurses/my-skills": { body: [BLS_HELD, { ...ICU_HELD, active: false }, SCFHS_HELD, BSN_HELD] } })
 
     const table = await screen.findByRole("region", { name: "Your skills" })
-    expect(within(table).getAllByRole("row").map((row) => row.textContent)).toEqual(
-      ["SkillCounts until", "BLS30 Jun 2027", "ICURetiredDoes not expire"])
-    expect(screen.getByText(/The CNO records your skills/)).toBeInTheDocument()
+    expect(within(table).getAllByRole("row").map((row) => row.textContent)).toEqual([
+      "NameExpiryIdentifierIssue date",
+      "Skills", "BLS30 Jun 2027NoneNot recorded", "ICURetiredDoes not expireNoneNot recorded",
+      "Certificates", "BSNDoes not expireNone15 Jun 2019",
+      "Licences", "SCFHS31 Mar 202821-RN-04121 Apr 2026"])
+    expect(within(table).getByRole("rowgroup", { name: "Licences" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 3, name: "Skills, certificates and licences" })).toBeInTheDocument()
+    expect(screen.getByText(/your manager sees no identifier or issue date/)).toBeInTheDocument()
   })
 
   it("says so when no skill is recorded, or they cannot be read", async () => {

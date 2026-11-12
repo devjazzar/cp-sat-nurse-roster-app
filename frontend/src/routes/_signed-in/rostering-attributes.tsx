@@ -19,7 +19,7 @@ import {
 } from "@/api/generated/zod"
 import { CodeCheckboxes } from "@/components/code-checkboxes"
 import { CheckboxField, FormField } from "@/components/form-field"
-import { SkillList } from "@/components/nurse-skills"
+import { RecordsTable, SkillList } from "@/components/nurse-skills"
 import { ProbationCell, useProbationQuestions, type ProbationAction } from "@/components/probation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -265,7 +265,12 @@ function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
             <TableCell className="tabular-nums">{nurse.hours_balance}</TableCell>
             <TableCell className="tabular-nums">{nurse.night_balance}</TableCell>
             <TableCell className="tabular-nums">{nurse.friday_balance}</TableCell>
-            <TableCell><SkillList skills={nurse.skills} /></TableCell>
+            <TableCell>
+              {/* The CNO and the Deputy CNO read the identifiers and issue dates; the unit's manager reads names and expiries. */}
+              {mayChange || nurse.skills.length === 0
+                ? <SkillList skills={nurse.skills} />
+                : <RecordsTable skills={nurse.skills} label={`Skills of ${nurse.full_name}`} details scrolls={false} />}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

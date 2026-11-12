@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router"
 
 import { useListExpiries } from "@/api/generated/endpoints"
-import { ExpiryState, type ExpiryRow } from "@/api/generated/model"
+import { ExpiryState, type ExpiryRow, type ExpiryRowKind } from "@/api/generated/model"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { KINDS } from "@/lib/skill-kinds"
 import { scrollableRegion, shortDay } from "@/lib/utils"
 
 const STATE_WORDS: Record<ExpiryState, string> = {
@@ -19,6 +20,8 @@ const listed = (days: number) =>
 const nothingListed = (days: number) =>
   `no skill has expired or expires within ${days} days, and every nurse has a record of each skill required to work`
 
+const KIND_WORDS = Object.fromEntries(KINDS.map(({ kind, one }) => [kind, one])) as Record<ExpiryRowKind, string>
+
 function State({ state }: { state: ExpiryState }) {
   return <Badge variant={state === ExpiryState.expired ? "destructive" : "outline"}>{STATE_WORDS[state]}</Badge>
 }
@@ -32,6 +35,7 @@ function ExpiriesTable({ rows, label, showUnit }: { rows: ExpiryRow[]; label: st
           <TableHead>Hospital ID</TableHead>
           {showUnit && <TableHead>Unit</TableHead>}
           <TableHead>Skill</TableHead>
+          <TableHead>Kind</TableHead>
           <TableHead>State</TableHead>
           <TableHead>Expiry</TableHead>
         </TableRow>
@@ -43,6 +47,7 @@ function ExpiriesTable({ rows, label, showUnit }: { rows: ExpiryRow[]; label: st
             <TableCell translate="no">{row.hospital_id}</TableCell>
             {showUnit && <TableCell>{row.unit.name}</TableCell>}
             <TableCell>{row.skill}</TableCell>
+            <TableCell>{KIND_WORDS[row.kind]}</TableCell>
             <TableCell><State state={row.state} /></TableCell>
             <TableCell className="tabular-nums">
               {row.expiry ? shortDay(row.expiry) : <span className="text-muted-foreground">Required to work</span>}

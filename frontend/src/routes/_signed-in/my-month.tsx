@@ -7,10 +7,10 @@ import { Role, type MyHours, type MyMonth } from "@/api/generated/model"
 import { MONTH_LINK, monthInAddress, MonthNav } from "@/components/month-nav"
 import { MyPreferencesCard } from "@/components/my-preferences"
 import { MyRequestsCard } from "@/components/my-requests"
-import { Badge } from "@/components/ui/badge"
+import { RecordsTable } from "@/components/nurse-skills"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { dayRange, hospitalTime, monthName, scrollableRegion, shortDay } from "@/lib/utils"
+import { dayRange, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress })
@@ -88,35 +88,15 @@ function MySkillsCard() {
   const skills = useGetMySkills()
   return (
     <Card>
-      <CardHeader><CardTitle><h3>Skills</h3></CardTitle></CardHeader>
+      <CardHeader><CardTitle><h3>Skills, certificates and licences</h3></CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-2">
         {skills.isPending && <p>Loading…</p>}
         {skills.isError && <p role="alert">Your skills could not be read. Reload the page to try again.</p>}
         {skills.data && skills.data.length === 0 && <p>No skills are recorded for you.</p>}
         {skills.data && skills.data.length > 0 && (
-          <Table container={scrollableRegion("Your skills")}>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Skill</TableHead>
-                <TableHead>Counts until</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {skills.data.map((skill) => (
-                <TableRow key={skill.skill_id}>
-                  <TableCell>
-                    <span className="flex flex-wrap items-center gap-1">
-                      {skill.name}
-                      {!skill.active && <Badge variant="outline">Retired</Badge>}
-                    </span>
-                  </TableCell>
-                  <TableCell className="tabular-nums">{skill.expiry ? shortDay(skill.expiry) : "Does not expire"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <RecordsTable skills={skills.data} label="Your skills" details />
         )}
-        <p className="text-sm text-muted-foreground">The CNO records your skills and changes an expiry when you renew one. Colleagues cannot see them.</p>
+        <p className="text-sm text-muted-foreground">The CNO records them and changes one when you renew it. Colleagues cannot see them, and your manager sees no identifier or issue date.</p>
       </CardContent>
     </Card>
   )
