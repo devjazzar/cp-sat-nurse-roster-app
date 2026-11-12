@@ -183,3 +183,9 @@ The fixes were small; no second run. No Codex review, by the brief.
 - `nurses.rostering.leave_of` is the month's recorded leave for many nurses in one query.
 - `lib/solve-words.ts`'s `solverLine` / `ownWords` are how a page puts a nurse's name before the solver's words.
 - `closes_in_force` is gone (`_closes_in_force` returns ids only); `latest_closed` takes a list and answers by nurse id.
+
+**Merged on 2026-11-12:** `main` fast-forwarded to `6cc6ed8`: the branch's head `5158fcd` (after merging `main` with ticket 61,
+`3909f6b`), green on both workflows (solver, backend, frontend, image, browser checks), then a merge of two `[skip ci]` markdown
+commits (ticket 61's review, the index's wording). The local suites ran on `6b950fe`, before ticket 61's merge; after it,
+`app.test.tsx` (825 passed), `closes/tests/test_close.py`, `nurses/tests/test_skills.py` and `test_attributes.py` (217 passed)
+ran again here. Ticket 61 touched the nurses' skills endpoints and pages, nothing the chain or `assemble` reads.
