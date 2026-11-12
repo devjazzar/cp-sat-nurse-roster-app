@@ -1,14 +1,19 @@
 import { useGetSolveResult } from "@/api/generated/endpoints"
 import type { Draft, DraftChange, DraftPin, GridCheck, RosterMonth } from "@/api/generated/model"
 import { SolveResultPanels } from "@/components/solve-result"
-import { hospitalTime, longDay } from "@/lib/utils"
+import { hospitalTime, longDay, monthName } from "@/lib/utils"
 
 /** What the roster pages say beside a grid: what changed since its solve, what it breaks, and the pins leave ended or that
  *  count for nothing. The manager's page and the approvers' read the same words. */
 
 export const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
 
-export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
+type MonthDates = "ramadan_days" | "public_holidays"
+
+/** The month's own changes, which come with no hospital ID (ticket 46). */
+const MONTH_DATES_SAY: Record<MonthDates, string> = { ramadan_days: "Ramadan days", public_holidays: "public holidays" }
+
+export const CHANGE_SAYS: Record<Exclude<DraftChange["what"], MonthDates>, string> = {
   gender: "gender was corrected",
   leave: "leave or dates changed",
   joined: "is now in this month but not in this draft",
@@ -19,10 +24,17 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   closed: "the month before has closed since, so this month starts from its closed carry-over, not the projected one",
 }
 
-/** One line of a draft's changes since its solve. A change with no hospital ID is the unit's own: only `skills` is so far. */
-export function changeSays(change: DraftChange): string {
+/** One line of a draft's changes since its solve, under "This draft was solved before these changes". A change with no
+ *  hospital ID is the unit's own (`skills`) or the month's (its Ramadan days or public holidays, ticket 46), which the
+ *  manager's page words in full with `since` ("since this draft was solved", the spec's sentence); the approvers' page adds
+ *  its own ", since it was submitted" instead. */
+export function changeSays(change: DraftChange, month: string, since = ""): string {
+  const what = change.what
+  if (what === "ramadan_days" || what === "public_holidays") {
+    return `The ${MONTH_DATES_SAY[what]} of ${monthName(month)} changed${since ? ` ${since}` : ""}`
+  }
   if (!change.hospital_id) return "The skill needs, the skills required to work or the skill shortfall weight changed"
-  return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[change.what]}`
+  return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[what]}`
 }
 
 const shiftWord = (code: string) => (code ? code : "a day off")

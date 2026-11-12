@@ -2300,8 +2300,8 @@ export const GetRosterMonthResponse = zod.object({
   "submitted_by": zod.string(),
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -2430,8 +2430,8 @@ export const GetRosterMonthResponse = zod.object({
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -2524,8 +2524,8 @@ export const SaveDraftPinsResponse = zod.object({
   "submitted_by": zod.string(),
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -2654,8 +2654,8 @@ export const SaveDraftPinsResponse = zod.object({
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -2704,8 +2704,8 @@ export const SaveRosterVersionResponse = zod.object({
   "submitted_by": zod.string(),
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -2834,8 +2834,8 @@ export const SaveRosterVersionResponse = zod.object({
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -2926,8 +2926,8 @@ export const SubmitRosterResponse = zod.object({
   "submitted_by": zod.string(),
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -3056,8 +3056,8 @@ export const SubmitRosterResponse = zod.object({
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -3088,8 +3088,8 @@ export const ApproveRosterResponse = zod.object({
   "submitted_by": zod.string(),
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -3218,8 +3218,8 @@ export const ApproveRosterResponse = zod.object({
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')
@@ -3252,8 +3252,8 @@ export const RejectRosterResponse = zod.object({
   "submitted_by": zod.string(),
   "submitted_at": zod.iso.datetime({"offset":true}),
   "new_since": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('Those of `changes` that have come since it was submitted, such as leave recorded while it waits: the manager was not warned of these.')
 }),zod.null()]).describe('While it waits for a decision.'),
@@ -3382,8 +3382,8 @@ export const RejectRosterResponse = zod.object({
 }),
   "stopped_early": zod.boolean(),
   "changes": zod.array(zod.object({
-  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own, `skills` alone so far.'),
-  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21).'),
+  "hospital_id": zod.string().describe('Empty for a change of the unit\'s own (`skills`) or of the month\'s (`ramadan_days`, `public_holidays`).'),
+  "what": zod.enum(['gender', 'leave', 'joined', 'left', 'pins', 'preferences', 'skills', 'closed', 'ramadan_days', 'public_holidays']).describe('`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit\'s skill needs or their flag, the skills required to work or the skill shortfall\'s price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close\'s is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month\'s Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).'),
   "full_name": zod.string()
 })).describe('What has changed since this draft was solved. Warned of here, and checked again at submit and at approval.')
 }),zod.null()]).describe('The roster\'s grid and what it answered, whatever its state. Null for the CNO and the Deputy CNO while it is a draft.')

@@ -26,6 +26,7 @@ from hospital.catalogue import (CalendarRamadan, calendar_ramadan, calendar_rama
 from hospital.models import (FixedRamadanMonth, HospitalSettings, LeaveType, PublicHoliday, Shift, ShiftRename, Skill,
                              SkillRename)
 from hospital.rules import changes
+from notifications.sending import MonthDates, month_dates_changed
 from nurses.membership import carry_rename_through_allowed_shifts, this_month
 from nurses.models import NurseSkill
 from ops.api import ClockTime
@@ -454,6 +455,12 @@ def _write_holiday(row: PublicHoliday, body: PublicHolidayBody) -> None:
     save_unless_taken(row, "date", f"{body.date.isoformat()} is already a public holiday")
 
 
+def _holidays_changed(request, *days: dt.date) -> None:
+    """Tells the managers with a roster in each month these days fall in (ticket 46): a holiday moved to another month changes
+    both. A write that adds several days calls this once, with all of them, so a month is told once."""
+    month_dates_changed({day.replace(day=1) for day in days}, MonthDates.PUBLIC_HOLIDAYS, request.user)
+
+
 @router.get("/public-holidays", response=list[PublicHolidaySchema], operation_id="listPublicHolidays")
 def list_public_holidays(request, filters: Query[YearFilter]) -> list[PublicHoliday]:
     return list(PublicHoliday.objects.filter(date__year=filters.year))
@@ -466,6 +473,7 @@ def create_public_holiday(request, body: PublicHolidayBody) -> tuple[int, Public
         _write_holiday(row, body)
         record("public_holiday.created", actor=request.user, target=row.date.isoformat(),
                after=_holiday_fields(row), request=request)
+        _holidays_changed(request, row.date)
     return 201, row
 
 
@@ -476,9 +484,12 @@ def update_public_holiday(request, holiday_id: UUID, body: PublicHolidayBody) ->
         row = get_object_or_404(PublicHoliday.objects.select_for_update(), pk=holiday_id)
         old, new = differing(_holiday_fields(row), body.model_dump(mode="json"))
         if new:
+            moved_from = row.date
             _write_holiday(row, body)
             record("public_holiday.changed", actor=request.user, target=row.date.isoformat(),
                    before=old, after=new, request=request)
+            if row.date != moved_from:  # A new name moves no date.
+                _holidays_changed(request, moved_from, row.date)
     return row
 
 
@@ -490,6 +501,7 @@ def delete_public_holiday(request, holiday_id: UUID) -> tuple[int, None]:
         record("public_holiday.removed", actor=request.user, target=row.date.isoformat(),
                before=_holiday_fields(row), request=request)
         row.delete()
+        _holidays_changed(request, row.date)
     return 204, None
 
 
@@ -568,9 +580,16 @@ def list_ramadan_months(request, filters: Query[YearFilter]) -> list[dict]:
     return [_ramadan_month(month, fixed.get(month)) for month in months]
 
 
+def _ramadan_changed(request, month: str, before: dict, after: dict) -> None:
+    """Tells the managers with a roster in the month when its Ramadan days moved (ticket 46). Fixing a month to the calendar's
+    own days, or returning one so fixed to the calendar, is audited, since who decides changed, but moves no day."""
+    if before["dates"] != after["dates"]:
+        month_dates_changed([dt.date.fromisoformat(f"{month}-01")], MonthDates.RAMADAN_DAYS, request.user)
+
+
 def _fix_month(request, month: str, dates: list[dt.date]) -> dict:
     """The one way a month's dates are fixed, by hand or by confirming a Ramadan: under the row's lock, audited only
-    when what is in force changes. The caller holds the transaction."""
+    when what is in force changes, and its managers told when its days do. The caller holds the transaction."""
     row = _fixed_row(month)
     before = _ramadan_month(month, row.dates if row else None)
     after = _ramadan_month(month, dates)
@@ -578,6 +597,7 @@ def _fix_month(request, month: str, dates: list[dt.date]) -> dict:
         FixedRamadanMonth.objects.update_or_create(month=month, defaults={"dates": dates})
         record("ramadan_dates.changed", actor=request.user, target=month, before=_audited_ramadan(before),
                after=_audited_ramadan(after), request=request)
+        _ramadan_changed(request, month, before, after)
     return after
 
 
@@ -600,6 +620,7 @@ def unfix_ramadan_month(request, month: Month) -> dict:
             row.delete()
             record("ramadan_dates.changed", actor=request.user, target=month, before=_audited_ramadan(before),
                    after=_audited_ramadan(after), request=request)
+            _ramadan_changed(request, month, before, after)
     return after
 
 
