@@ -37,9 +37,8 @@ then this comment), from `main` at `d759f0d`, with `main`'s `5b54f97` (ticket 52
     stack's own leftovers: the first run, which the zod probe failed, left a leave for ICU Nurse 01. Its "Remove leave of
     ICU Nurse 01" button then matches `getByLabel('Nurse')` beside the form's select. GitHub's fresh stack passed it.
   - the frontend's new `src/lib/zod.test.ts`, and both typechecks (`tsc -b`, the checks' `tsc --noEmit`).
-- **Not run locally:** the full frontend `npm test` and `npm run build`. My run waited on the heavy-run lock, which ticket 50
-  held from 10:01, so they are GitHub's frontend job's (green on `c38014a`). `backend/` and `solver/` are untouched, so their
-  suites are GitHub's too. No migration, no API change.
+- The frontend's `npm test` on the code of `e841bde` (after the merge of `main`), under the lock: 814 passed; `npm run
+  build`: built. `backend/` and `solver/` are untouched, so their suites are GitHub's. No migration, no API change.
 
 **What the dev stack needs:** `deploy/Caddyfile` changed, so `docker compose restart caddy` (ticket 62's finding: a
 Caddyfile-only change does not recreate it). The frontend changed (`vite.config.ts`, `src/lib/zod.ts`), so
@@ -133,7 +132,6 @@ ICU Nurse 01" button. `{ exact: true }` there would end it; it belongs to the co
   and imports nothing.
 - **Other browsers:** Chromium only. The install checklist asks for the hospital's own.
 - **Caddy's own error pages** (the 502 while `web` restarts) carry neither header, as the spec accepts; not driven.
-- **The full frontend suite locally** (above).
 
 **Decisions taken here.**
 - **The checks' origin is Caddy over plain HTTP,** not `web` sending a copy of the policy. With a copy in Django, the checks
