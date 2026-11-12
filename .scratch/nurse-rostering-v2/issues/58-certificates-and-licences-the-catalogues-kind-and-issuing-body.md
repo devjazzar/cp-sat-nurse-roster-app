@@ -166,3 +166,11 @@ by a throwaway Playwright file, since deleted:
   needs it. Noted on 59.
 - **60 and 61:** `byKind` in `frontend/src/lib/skill-kinds.ts` groups any rows by kind. The catalogue's writes stay the
   CNO's. Noted on 60 and 61.
+
+**Reviewed by the user (2026-11-12):** all six points kept as built.
+- Kind and issuing body are required in the API body, with no default, like ticket 53's marks.
+- Kind is a select with one description for the three kinds.
+- No Kind column: the group heading names the kind.
+- The headings Skills, Certificates, Licences in that order, each a shaded row across the table, one with no rows left out.
+- The refusal of a change to licence sits beside Kind, since Expires is disabled for a licence.
+- The database check `hospital_skill_a_licence_expires` stays, beside the API's refusal.

@@ -45,7 +45,8 @@ as older than the close, as for a correction to leave, and is validated again be
 ## Consequences
 
 - Database connections: the worker holds a pool of 4, one listener and one per running job, at
-  most 9, beside `web`'s three, against PostgreSQL's default limit of 100.
+  most 9, beside `web`'s three, against PostgreSQL's default limit of 100. Since ticket 71 (2026-11-12) `web` runs three
+  gunicorn workers of four threads, at most 12 connections, so 21 in all; the decision is unchanged.
 - `recover_lost_jobs` now runs during a solve rather than between solves. It holds: it requeues
   only the jobs of a worker silent for 30 s, and fails a solve only when its queue job is neither
   waiting nor running; a solve's row is ended before its job is.

@@ -54,5 +54,12 @@
 		# The whole body, held before the request is opened to web. Larger than the cap: a body that fills the buffers
 		# exactly is passed on with the rest still to come from the client, so this one never fills them.
 		request_buffers 2MiB
+		# An idle connection to web is closed after 2 s (ticket 71). gunicorn keeps one open 10 s after an answer
+		# (--keep-alive in compose.yaml) and closes it then, so Caddy, letting go first, never sends a request down a
+		# connection gunicorn has just closed, which would answer a POST with 502. The 8 s between them leave room for an
+		# answer Caddy is still reading from the socket after gunicorn finished writing it, as for a slow client's download.
+		transport http {
+			keepalive 2s
+		}
 	}
 }

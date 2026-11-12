@@ -48,13 +48,18 @@ services:
 
   web:
     <<: *app
-    # The timeout has to outlast confirming the largest nurse import on one core: 500 password hashes at about half a
-    # second each. See nurses/importing.py. Gunicorn's default of 30 s would kill that request. `prepare` migrates and seeds;
-    # config/gunicorn.py makes gunicorn's lines and one a request JSON on standard output.
+    # Three workers of four threads (ticket 71): a slow request, a login's hash or a nurse import's confirmation holds one
+    # thread of twelve, not one worker of three. Under gthread, gunicorn's timeout (left at its default) is only how long a
+    # worker's main loop may go silent, so no request is killed for its length: confirming 500 nurses takes as long as its
+    # hashes do (nurses/importing.py). Each thread holds at most one database connection, so web at most 12 (ADR 0009). A
+    # connection stays open 10 s after an answer (--keep-alive); Caddy forgets an idle one to web after 2 s (Caddyfile), so it
+    # never sends a request down one gunicorn has just closed. `prepare` migrates and seeds; config/gunicorn.py makes
+    # gunicorn's lines and one a request JSON on standard output.
     command: >-
       sh -c "python manage.py prepare
       && unset INITIAL_ADMIN_PASSWORD
-      && exec gunicorn config.wsgi -c config/gunicorn.py --bind 0.0.0.0:8000 --workers 3 --timeout 300"
+      && exec gunicorn config.wsgi -c config/gunicorn.py --bind 0.0.0.0:8000
+      --worker-class gthread --workers 3 --threads 4 --keep-alive 10"
     environment:
       <<: *django-env
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?set INITIAL_ADMIN_PASSWORD in .env, see .env.example}

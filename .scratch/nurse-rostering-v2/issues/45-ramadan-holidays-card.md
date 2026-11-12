@@ -249,3 +249,12 @@ The stack, its volumes and its image are gone, and the lock is released.
   read it there.
 - **`calendar_arafat_days(year)`** gives the Arafat Days in a Gregorian year.
 - **The page's `readProposalsAgain`** must be called by any new write to the holidays or the Ramadan days.
+
+**Reviewed by the user (2026-11-12):** all seven points kept as built.
+- The card sits with the public holidays, between their table and "Add a public holiday".
+- A line whose first day was changed before adding stays, as the spec hides a line only once its own first day is a holiday.
+- The words of the card, the status line and the refusals as built.
+- A year with nothing left to propose keeps the card with its "Every holiday … is entered" line.
+- Focus after Add as built.
+- "Proposal" stays in the API's names.
+- Founding Day is proposed for every year the calendar covers.
