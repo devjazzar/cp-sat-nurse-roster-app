@@ -49,12 +49,17 @@ def version_2(request: dict) -> dict:
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
+# The solver's overtime-share weight (ticket 49) that the app's weights do not carry yet: ticket 51 adds it to the weights and
+# deletes this set and its subtraction below.
+OVERTIME_SHARE_FIELDS = {"overtime_above_share"}
+
+
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_catalogues():
     """The shift catalogue gives `shift_hours`, the skill catalogue `required_skills`."""
     fields = {field.name for field in dataclasses.fields(GeneralRules)}
 
     assert set(DEFAULT_RULES) == fields - {"shift_hours", "required_skills"}
-    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)}
+    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)} - OVERTIME_SHARE_FIELDS
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():

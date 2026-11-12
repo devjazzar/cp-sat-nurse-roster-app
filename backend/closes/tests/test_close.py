@@ -390,7 +390,21 @@ class TestTheChain:
 
         row = next(row for row in assemble(er, dt.date(2027, 1, 1)).nurses if row["id"] == "Amal")
 
-        assert {key: row[key] for key in CARRIED} == values | {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0}
+        # A close stored before the overtime balance (ticket 49) hands on 0.
+        assert {key: row[key] for key in CARRIED} == values | {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0,
+                                                               "overtime_balance": 0.0}
+
+    def test_a_closed_months_overtime_balance_reaches_the_next_months_input(self, er):
+        """Passed through as is (ticket 49): the solver hands it on unchanged until a unit shares its overtime (ticket 51)."""
+        amal = NurseProfile.objects.get(user__username="Amal")
+        close = MonthClose.objects.create(unit=er, month=dt.date(2026, 10, 1), version=1, input={}, result={})
+        values = {"ytd_overtime": 40, "hours_balance": 6, "night_balance": 1.5, "friday_balance": -0.5, "previous": [],
+                  "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": 0, "overtime_balance": -7.25}
+        CarryOver.objects.create(nurse=amal, unit=er, month=close.month, source=CarrySource.CLOSED, close=close, values=values)
+
+        row = next(row for row in assemble(er, dt.date(2026, 11, 1)).nurses if row["id"] == "Amal")
+
+        assert row["overtime_balance"] == -7.25
 
     def test_opening_values_entered_the_year_before_reset_in_january(self, er):
         """A nurse added in December whose first month in this application is January: her opening values were last year's."""

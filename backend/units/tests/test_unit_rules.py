@@ -60,10 +60,15 @@ def solve_input(unit: Unit) -> dict:
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
+# The solver's overtime-share fields (ticket 49) that the app's unit rules do not carry yet: ticket 51 adds them to the blocks and
+# deletes this set and its subtraction below.
+OVERTIME_SHARE_FIELDS = {"share_overtime", "overtime_tolerance", "overtime_carry_cap"}
+
+
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_units_name():
     fields = {field.name for field in dataclasses.fields(DepartmentRules)}
 
-    assert set(DEFAULT_UNIT_RULES) == fields - {"name"}
+    assert set(DEFAULT_UNIT_RULES) == fields - {"name"} - OVERTIME_SHARE_FIELDS
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():

@@ -83,9 +83,15 @@ def ccu(omar):
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
+# The solver's overtime-share fields (ticket 49) that the app's unit rules do not carry yet: ticket 51 adds them to the blocks and
+# deletes this set and its subtraction below.
+OVERTIME_SHARE_FIELDS = {"share_overtime", "overtime_tolerance", "overtime_carry_cap"}
+
+
 @pytest.mark.parametrize("schema", [UnitRules, UnitRulesAnswer])
 def test_both_schemas_are_every_field_of_the_solvers_block_but_its_name(schema):
-    assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"}
+    assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"} \
+        - OVERTIME_SHARE_FIELDS
 
 
 @pytest.mark.parametrize("schema", [HeadcountRule, HeadcountAnswer])

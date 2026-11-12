@@ -76,6 +76,8 @@ def test_the_solvers_own_sample_as_this_app_holds_it_comes_out_as_the_sample(er,
         row.pop("pinned", None)
         # The chain carries the count of preferences not kept (ticket 28): 0, since none were ever priced.
         row["preferences_not_kept"] = 0
+        # And the overtime balance (ticket 49): 0, her opening values have none until ticket 50.
+        row["overtime_balance"] = 0.0
     assert solve_input["nurses"] == expected["nurses"]
     assert (solve_input["version"], solve_input["month"], solve_input["ramadan_days"]) == (2, MONTH, [])
     assert solve_input["solver"] == SAMPLE["solver"]

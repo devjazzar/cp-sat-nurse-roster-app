@@ -20,7 +20,7 @@ from solves.models import Solve
 from units.rules import with_shift_codes
 
 # The solver's own reading of a field a stored input has none of, so an input from before it is no change of its own.
-_CARRIED_BEFORE = {"previous": [], "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": 0}
+_CARRIED_BEFORE = {"previous": [], "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": 0, "overtime_balance": 0.0}
 _ATTRIBUTES = ("gender", "team_leader", "score", "ramadan_reduced", "breastfeeding", "allowed_shifts")
 # Every shift-naming field of the department block, read as a block with none of them would be, so a version 1 input maps.
 _SHIFT_FIELDS = {"shifts": [], "fair_shifts": [], "night_shift": "", "day_shift": "", "headcounts": [], "skill_needs": []}

@@ -24,11 +24,14 @@ logger = logging.getLogger(__name__)
 
 # A solve input's nurse fields that one month hands to the next: a result's `carry_over` block, field for field.
 # `preferences_not_kept` (ticket 28) is passed through as is: 0 until the app feeds preferences (tickets 29 and 30).
+# `overtime_balance` (ticket 49) likewise: the solver hands it on unchanged until a unit shares its overtime (ticket 51); its opening
+# value and its January reset are ticket 50's.
 CARRIED = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance", "previous", "last_shift_kind", "rest_owed",
-           "preferences_not_kept")
+           "preferences_not_kept", "overtime_balance")
 NO_HISTORY = {"previous": [], "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": 0}
-# A close stored before the solver carried the count (ticket 28) has none: it hands on 0, as nothing was priced then.
-BEFORE_PREFERENCES = {"preferences_not_kept": 0}
+# A close stored before the solver carried the count (ticket 28), or the overtime balance (ticket 49), has none: it hands on 0, as
+# nothing was priced then.
+BEFORE_PREFERENCES = {"preferences_not_kept": 0, "overtime_balance": 0.0}
 NEW_YEAR = {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0}
 
 
@@ -66,7 +69,7 @@ def _added(nurse: NurseProfile) -> dt.date:
 
 def opening(nurse: NurseProfile) -> dict:
     return {"ytd_overtime": nurse.ytd_overtime, "hours_balance": nurse.hours_balance, "night_balance": nurse.night_balance,
-            "friday_balance": nurse.friday_balance, **NO_HISTORY}
+            "friday_balance": nurse.friday_balance, "overtime_balance": 0.0, **NO_HISTORY}
 
 
 def closes_in_force(**filters) -> dict[tuple, MonthClose]:
