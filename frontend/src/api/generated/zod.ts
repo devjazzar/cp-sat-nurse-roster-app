@@ -1658,7 +1658,7 @@ export const ListNurseAttributesResponseItem = zod.object({
   "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
   "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
 }).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+})).describe('Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1760,7 +1760,7 @@ export const UpdateNurseAttributesResponse = zod.object({
   "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
   "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
 }).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+})).describe('Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1833,7 +1833,7 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
   "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
 }).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+})).describe('Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1906,7 +1906,7 @@ export const SetProbationLengthResponse = zod.object({
   "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
   "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
 }).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+})).describe('Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1971,7 +1971,7 @@ export const ExtendProbationResponse = zod.object({
   "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
   "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
 }).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+})).describe('Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -2037,7 +2037,7 @@ export const EndProbationResponse = zod.object({
   "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
   "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
 }).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+})).describe('Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -2138,7 +2138,7 @@ export const SetPreceptorResponse = zod.object({
   "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
   "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
 }).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
+})).describe('Their current skills, to read: the CNO records them on the Nurses page, the Deputy CNO on this page (ticket 61). Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),

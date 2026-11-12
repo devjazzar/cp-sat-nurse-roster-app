@@ -131,7 +131,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | See on a roster (grid, print page, files) who was on probation in its month, under its "On probation" heading, with her preceptor's name (ticket 56) | | yes | yes | own unit | own unit's roster in force |
 | Read own probation's last day and preceptor, or the nurse on probation one precepts, on My month (ticket 56) | | | | a manager with a nurse profile | yes |
 | Read nurses | | yes | | own unit | |
-| Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | yes (from ticket 61) | | |
+| Record, renew and take off a nurse's skills, certificates and licences (a manager with a nurse profile's too), by hand or from the skills import | | yes | yes | | |
 | Read a nurse's skills, certificates and licences with their kinds and expiries | | yes | yes | own unit | |
 | Read a record's identifier and issue date, with the issuing body (ticket 59) | | yes | yes | | |
 | Read the expiries: skills expired or expiring within 90 days, and skills required to work with no record, each with its kind and no identifier | | yes | yes | own unit | |
@@ -159,6 +159,9 @@ takes them off their unit at once, because ending an account cannot wait for the
 reactivating does not give it back; the CNO's home names every unit with no manager. A unit
 manager sees nothing of other units. The System Admin sees no roster and no rostering attribute; of a probation, only what
 the audit log's entries carry, with their values, as the user decided on 2026-11-11 (ticket 54).
+The Deputy CNO writes nurses' records of their skills, certificates and licences (ticket 61), by hand on Rostering attributes
+and from the skills import, and nothing else about a nurse: not her profile, her placement, her attributes or her probation,
+and nothing in the catalogue, which stays the CNO's. Each write's audit entry names the Deputy as its actor.
 A manager's nurse profile is in the unit they hold, if they hold one, because that unit is all they
 reach: moving one means taking them off, transferring the profile from this month, and assigning them.
 The CNO corrects a manager's gender and start date on their nurse profile. Their name is on the account,
@@ -255,7 +258,7 @@ the issuing body; a unit manager's reads and the expiries carry kind, name and e
 most one current row a nurse and skill; a renewal or removal ends the row rather than rewriting it, as leave's does, because
 the audit log says only whose skills changed and by whom (`nurse.skills_changed`), never which skill or date, since a lapse
 says something about a person. The CNO records, renews and takes them off on the nurse's row of the Nurses page, a manager
-with a nurse profile's too, and so does the Deputy CNO, on her row of Rostering attributes (ticket 61); her unit's manager (and the manager of a unit she is due to join) reads them on the Nurses page
+with a nurse profile's too, and so does the Deputy CNO, from her row of Rostering attributes, with the same forms (ticket 61); her unit's manager (and the manager of a unit she is due to join) reads them on the Nurses page
 and Rostering attributes, the Deputy CNO on Rostering attributes for any unit, and she reads her own on My month. The System
 Admin reads none. On the profile, not a placement, so they follow her across a transfer and stay when she is deactivated or
 ends. A retired skill can be neither recorded nor renewed, and a record of it stays until the CNO takes it off. The
@@ -887,7 +890,8 @@ Screens per role, in outline: System Admin (accounts, technical settings, audit 
 history, health and backups); CNO (hospital rules and weights, shift catalogue, leave types, skills,
 holidays and Ramadan, units and managers, nurses with import and export and their skills, the expiries, each unit's rules, rostering attributes and leave
 to read, roster overview, the Day view and approvals); Deputy CNO (roster overview, the Day view, approvals, hospital rules and each unit's rules,
-rostering attributes with nurses' skills, the expiries, and leave, to read); Unit Manager (unit rules, rostering attributes, nurses with the unit's expiries, request
+rostering attributes with nurses' skills, the expiries, and leave, to read; on each nurse's row of Rostering attributes, a
+Skills button that opens the Nurses page's record, renew and take off forms above the list, and the Import skills page beside it); Unit Manager (unit rules, rostering attributes, nurses with the unit's expiries, request
 windows, requests and the unit's preferences (read-only), swaps, covers, leave, the roster grid with solve, progress, results and
 explanations, submit, versions, exports, month close; with a nurse profile, also their own roster and month, as a Staff
 Nurse reads them, but no requests, swaps or covers of their own); Staff Nurse (unit roster, own month: hours, overtime, what
@@ -1009,7 +1013,8 @@ import's, the probation's last day (both empty unless a probation is not over), 
 to come.
 
 The skills CSV is the same kind of file (`nurses.importing.read_file`: the encodings, 500 lines and 1 MB, in memory),
-of hospital ID, skill, expiry, identifier and issue date, on its own Import skills page beside the nurse import's: a
+of hospital ID, skill, expiry, identifier and issue date, on its own Import skills page beside the nurse import's, the CNO's
+and the Deputy CNO's (ticket 61; the Deputy reaches it from the header, beside Rostering attributes): a
 template, a preview that judges every row and says what saving would do with it, and a confirm that sends the file again.
 A file of last month's three columns (no identifier, no issue date) is still read, the two empty on every row; a header of
 four is not. A row names a nurse by hospital ID, an active one, and a skill by its current name in any case of letters,

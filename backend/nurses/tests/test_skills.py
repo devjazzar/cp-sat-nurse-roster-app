@@ -268,15 +268,52 @@ def test_what_is_not_a_date_is_refused_beside_its_field(cno, amal, catalogue):
 
 
 # ---- who writes -----------------------------------------------------------------------------------
-def test_only_the_cno_writes(cno, mona, deputy, admin, amal, catalogue):
+def test_only_the_cno_and_the_deputy_cno_write(cno, mona, deputy, admin, amal, catalogue):
     recorded(cno, amal, catalogue["ICU"])
     nurse = signed_in_as()
 
-    for client in (mona, deputy, admin, nurse):
+    for client in (mona, admin, nurse):
         assert record(client, amal, catalogue["BLS"], "2027-01-01").status_code == 403
         assert renew(client, amal, catalogue["ICU"], None).status_code == 403
         assert remove(client, amal, catalogue["ICU"]).status_code == 403
     assert on_nurses_page(cno) == {"ICU": None}
+
+
+def test_the_deputy_cno_records_renews_and_takes_off_as_the_cno_does(cno, deputy, er, amal, catalogue):
+    """Ticket 61: on her row of Rostering attributes, the answer the CNO's Nurses page has (`skills_of(details=True)`)."""
+    rows = recorded(deputy, amal, catalogue["BLS"], "2027-06-30", "AHA-1", "2025-06-30")
+    assert [(row["name"], row["expiry"], row["details"]["identifier"]) for row in rows] == [("BLS", "2027-06-30", "AHA-1")]
+
+    response = renew(deputy, amal, catalogue["BLS"], "2029-06-30")
+    assert response.status_code == 200, response.content
+    assert details(response.json()) == {"BLS": ("AHA-1", "2025-06-30")}, "Carried forward, as for the CNO."
+    assert on_attributes_page(deputy, er) == {"BLS": "2029-06-30"}
+
+    response = remove(deputy, amal, catalogue["BLS"])
+    assert (response.status_code, response.json()) == (200, [])
+    assert [(row.expiry.isoformat(), row.recorded_by.username, row.removed_by.username)
+            for row in NurseSkill.objects.order_by("recorded_at")] == [
+        ("2027-06-30", "hala", "hala"), ("2029-06-30", "hala", "hala")], "Ended rather than rewritten, by the Deputy's hand."
+    assert on_nurses_page(cno) == {}
+
+
+def test_the_deputy_cno_meets_the_cnos_refusals(cno, deputy, amal, catalogue, entries):
+    assert refusal(record(deputy, amal, entries["SCFHS"], "2028-03-31")) == (
+        "identifier", "SCFHS is a licence, so it needs its identifier.")
+    assert refusal(record(deputy, amal, catalogue["BLS"])) == ("expiry", "BLS expires. Enter the last day it counts.")
+    assert refusal(record(deputy, amal, catalogue["ICU"], None, None, "2026-11-06"))[0] == "issue_date"
+    recorded(cno, amal, catalogue["ICU"])
+    assert refusal(record(deputy, amal, catalogue["ICU"])) == (
+        "skill_id", "Amal Saleh already holds ICU. Change or take off the one recorded.")
+    assert renew(deputy, amal, catalogue["BLS"], "2027-01-01").status_code == 409
+
+
+def test_the_deputy_cno_writes_nothing_to_the_catalogue(deputy, catalogue):
+    body = {"name": "ACLS", "kind": "skill", "issuing_body": "", "expires": False, "required_to_work": False,
+            "lets_a_nurse_precept": False, "active": True}
+    assert post(deputy, SKILLS, body | {"name": "PALS"}).status_code == 403
+    assert change_skill(deputy, "ACLS", expires=False).status_code == 403
+    assert Skill.objects.get(name="ACLS").expires
 
 
 def test_a_manager_with_a_nurse_profile_has_skills_the_cno_sets(cno, mona, er, catalogue):
@@ -454,6 +491,21 @@ def test_the_log_says_whose_and_by_whom_and_nothing_more(cno, admin, amal, catal
     text = response.content.decode()
     assert text.count('"nurse.skills_changed"') == 3
     for leaked in ("BLS", "2027-06-30", "2028-06-30", '"expiry"', '"skill'):
+        assert leaked not in text, leaked
+
+
+def test_the_deputy_cnos_changes_are_logged_with_the_deputy_as_actor(cno, deputy, admin, amal, catalogue):
+    """Whose record and by whom, as the CNO's are (ticket 61), and nothing more."""
+    recorded(deputy, amal, catalogue["BLS"], "2027-06-30", "AHA-1")
+    renew(deputy, amal, catalogue["BLS"], "2028-06-30")
+    remove(deputy, amal, catalogue["BLS"])
+
+    entries = AuditEntry.objects.filter(action="nurse.skills_changed").order_by("id")
+
+    assert [(entry.actor.username, entry.target, entry.before, entry.after) for entry in entries] == [
+        ("hala", "h123", None, None)] * 3
+    text = admin.get("/api/audit/entries", {"action": "nurse.skills_changed"}).content.decode()
+    for leaked in ("BLS", "AHA-1", "2027-06-30", "2028-06-30"):
         assert leaked not in text, leaked
 
 

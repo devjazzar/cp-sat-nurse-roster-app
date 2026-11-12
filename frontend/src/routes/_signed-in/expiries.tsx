@@ -15,7 +15,9 @@ export const Route = createFileRoute("/_signed-in/expiries")({
 
 function ExpiriesPage() {
   const { user } = useRouteContext({ from: "/_signed-in" })
-  const who = user.role === Role.cno ? "You record and renew" : "The CNO records and renews"
+  const who = user.role === Role.cno
+    ? "You record and renew skills on the Nurses page, and the Deputy CNO on Rostering attributes."
+    : "You record and renew skills on Rostering attributes, and the CNO on the Nurses page."
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-medium">Expiries</h1>

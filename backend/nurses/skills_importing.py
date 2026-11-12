@@ -147,7 +147,7 @@ def _judged(line: Line, standing: _Standing) -> Row:
     else:
         nurse = standing.nurses.get(hospital_id.lower())
         if nurse is None:
-            row.problems.append(Problem("hospital_id", "No nurse has this hospital ID. Use the one on the Nurses page."))
+            row.problems.append(Problem("hospital_id", "No nurse has this hospital ID. Use the one the Nurses page or Rostering attributes shows."))
         else:
             row.hospital_id, row.full_name = nurse.user.username, nurse.user.full_name
             if not nurse.user.is_active:

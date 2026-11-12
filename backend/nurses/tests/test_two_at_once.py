@@ -216,3 +216,19 @@ def test_two_records_of_one_identifier_on_one_entry_at_once_the_second_waits_and
     response = second.result(timeout=WAIT_SECONDS)
     assert response.status_code == 422, response.content
     assert response.json()["detail"][0]["msg"].startswith("Amal Saleh already holds SCFHS with this identifier.")
+
+
+def test_the_deputy_cnos_record_takes_the_cnos_locks_and_waits_for_her_record_of_the_same_identifier(
+        cno, client_of, monas_unit, nurse, licence, pool):
+    """Ticket 61: the Deputy CNO's writes take the hospital settings' lock and then the nurse's, as the CNO's do."""
+    deputy = client_of("hala", Role.DEPUTY_CNO)
+    badr = added(cno, monas_unit, "h456", full_name="Badr Ali")["nurse"]["id"]
+
+    with transaction.atomic():
+        assert recorded_skill(cno, nurse, licence, "2028-03-31", "21-RN-0412").status_code == 201
+        second = alongside(pool, lambda: recorded_skill(deputy, badr, licence, "2028-03-31", "21-RN-0412"))
+        assert not second.done()
+
+    response = second.result(timeout=WAIT_SECONDS)
+    assert response.status_code == 422, response.content
+    assert response.json()["detail"][0]["msg"].startswith("Amal Saleh already holds SCFHS with this identifier.")
