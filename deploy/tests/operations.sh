@@ -17,7 +17,7 @@
 # the one a restore took, saying so when there is nothing to list, and finishing when the list cannot be printed; a backup
 # without the throttle's table restored; deploy/reset-admin-password.sh lifting a lockout; the System Admin's health answer
 # and /metrics counting pushes sent and failed; a 1 MiB nurse import file previewed and confirmed through Caddy; a
-# confirmation of 100 nurses on one CPU running past gunicorn's timeout and ending (ticket 71). Then it
+# confirmation of 300 nurses on one CPU running past gunicorn's timeout and ending (ticket 71). Then it
 # removes everything it made, unless --keep (the stack stays up, and the line to remove it is printed).
 # TEST_HTTPS_PORT (default 18443) is where Caddy answers on 127.0.0.1. Needs docker, curl, openssl and python3.
 set -euo pipefail
@@ -544,28 +544,30 @@ saved=$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["ro
 
 # ---- a confirmation longer than gunicorn's timeout (ticket 71) ---------------------------------------------------------------
 # Under gthread, gunicorn's timeout is only how long a worker's main loop may go silent: a request may take as long as it takes.
-# With web held to one CPU, 100 nurses' password hashes (about half a second each) keep one confirmation running past it, and
-# it ends with its password sheet. Last, since web stays at one CPU.
+# With web held to one CPU, 300 nurses' password hashes keep one confirmation running past it, and it ends with its password
+# sheet. 100 were too few: GitHub's runners hashed them in 27 to 29 s, inside the timeout, so the check showed nothing there
+# (2026-11-12); 300 take about 80 s on those runners and minutes on a slower machine, still within MAX_ROWS (500). Last, since
+# web stays at one CPU.
 docker update --cpus 1 "$(compose ps -q web)" >/dev/null || fail "web could not be held to one CPU"
 python3 - "$work/import.csv" <<'PY'
 import datetime, sys
 with open(sys.argv[1], "w", newline="") as file:
     file.write("Hospital ID,Full name,Gender,Unit,Start date\n" + "".join(
-        f"N71-{n},Long Nurse {n},F,Import Ward,{datetime.date.today().isoformat()}\n" for n in range(1, 101)))
+        f"N71-{n},Long Nurse {n},F,Import Ward,{datetime.date.today().isoformat()}\n" for n in range(1, 301)))
 PY
 preview_token=$(upload -f "$base/api/nurses/import/preview" | python3 -c 'import json, sys; print(json.load(sys.stdin)["token"] or "")') \
-  || fail "the preview of 100 nurses failed"
-[[ -n $preview_token ]] || fail "the preview of 100 nurses has problems"
+  || fail "the preview of 300 nurses failed"
+[[ -n $preview_token ]] || fail "the preview of 300 nurses has problems"
 rm -f "$work/sheet"
 confirmed=$(upload -o "$work/sheet" -w '%{http_code} %{time_total}' -F "token=$preview_token" "$base/api/nurses/import/confirm") || true
 read -r code seconds <<<"$confirmed"
 seconds=${seconds:-0}
 saved=$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["rows"]))' "$work/sheet" 2>/dev/null || echo none)
 killed=$(compose logs --no-log-prefix --no-color web | grep -c 'WORKER TIMEOUT' || true)
-[[ $code == 201 && $saved == 100 && $killed == 0 ]] \
+[[ $code == 201 && $saved == 300 && $killed == 0 ]] \
   || fail "the long confirmation answered $code in $seconds s, rows: $saved; web logged WORKER TIMEOUT $killed times"
 python3 -c 'import sys; sys.exit(float(sys.argv[1]) <= float(sys.argv[2]))' "$seconds" "$gunicorn_timeout" \
-  && pass "a confirmation of 100 nurses on one CPU took $seconds s, past gunicorn's $gunicorn_timeout s, and ended: 201, 100 passwords" \
-  || fail "the confirmation of 100 nurses on one CPU took $seconds s, inside gunicorn's $gunicorn_timeout s: it shows nothing"
+  && pass "a confirmation of 300 nurses on one CPU took $seconds s, past gunicorn's $gunicorn_timeout s, and ended: 201, 300 passwords" \
+  || fail "the confirmation of 300 nurses on one CPU took $seconds s, inside gunicorn's $gunicorn_timeout s: it shows nothing"
 
 echo "# All checks passed."
