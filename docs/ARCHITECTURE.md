@@ -686,6 +686,19 @@ hours rule are on and handed on unchanged otherwise. The chain passes it through
 and from a close stored before it; until the unit rules and the weight reach the solve input (ticket 51) the solver hands every
 balance on unchanged. Its opening value and its January reset are ticket 50's.
 
+Probation changed it again (ticket 52, ADR 0014; the solver's problem schema 8; the solve input's version unchanged). Each nurse
+gains `on_probation` (absent = false) and `preceptor`, the id of another nurse of the input she follows (absent or null = none),
+both optional in either version, so every stored solve input and close input still loads and gives what it gave. Refused with
+the field's path: a preceptor that is not another nurse of the input, one herself on probation, one named by two nurses, and a
+preceptor on a nurse not on probation. A nurse on probation counts toward nothing about a shift (headcount minimum and maximum,
+team leader, both genders, score target and balance, skill needs), is left out of the day and night fairness, the weekend
+fairness, the overtime share and the unit's overtime totals, with her three fairness balances 0 out; works no night shift (her
+allowed shifts narrowed by the unit's night shift, a night pin on a free day refused); and works less than what she owes plus
+her shortest allowed shift, the excess her own overtime for the month and the year. The hard rule `following`: on a free day her
+preceptor works a shift she is allowed, not on leave or pinned, she works that shift or is off, and once such a day is left off
+she works no other free day; its match names the nurse, the day, her preceptor's shift and hers. Precheck names a nurse on
+probation with no preceptor. The app writes neither field until ticket 55.
+
 ## 7. The worker and the queue (ADR 0006)
 
 Procrastinate, with its tables in the application database, run by the `worker` container at

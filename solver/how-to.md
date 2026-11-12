@@ -231,7 +231,8 @@ request is refused with a clear message otherwise.
 }
 ```
 
-The twelve scalars are required, `preferences_not_kept` and `overtime_balance` may be left out (absent = 0); the six
+The twelve scalars are required, `preferences_not_kept` and `overtime_balance` may be left out (absent = 0), as may
+`on_probation` (absent = false) and `preceptor` (absent = none); the six
 lists may be left out (absent = none).
 
 | Field | Meaning |
@@ -249,6 +250,8 @@ lists may be left out (absent = none).
 | `last_shift_kind` | `"night"`, `"day"` (any other work) or `null`: the kind of the last shift she worked *before* `previous` begins. The switch rule's memory across any number of off days. From the carry-over; `null` for a new nurse. |
 | `rest_owed` | Off days she still owes to her last night shift *before* `previous` begins; `0` when none. From the carry-over. |
 | `preferences_not_kept` | How many of her `undesired_days` and `desired_days` last month's roster did not keep (a whole number, 0 or more; absent = 0). Above 0, every one of hers this month costs **twice** its weight, whatever the count. From the carry-over; `0` for a new nurse. |
+| `on_probation` | A nurse on probation (true or false; absent = false). She counts toward no headcount, team leader, gender, score or skill need, takes no part in the fairness or the overtime share, works no night shift (her allowed shifts less `night_shift`), and works less than what she owes plus her shortest shift. Her three fairness balances go out at 0. |
+| `preceptor` | The `id` of the nurse she follows, another nurse of the request, not herself on probation, named by no other nurse; only on a nurse on probation (absent or null = none: precheck warns). On every free day her preceptor works a shift she is allowed, she works the same shift or is off; once such a day is left off, she works no other day. |
 | `leave` | Dates she is off (sick, educational, marriage, bereavement…). They are credited as worked at her regular daily rate, so leave never creates a debt. |
 | `undesired_days`, `desired_days` | Preferences: dates she would rather not work / would like to work (soft), priced by `undesired_day` / `desired_day`, twice that after an unkept month (`preferences_not_kept`). A date she is on leave is ignored; a date listed twice, or in both lists, is refused. |
 | `pinned` | `{date: shift}` cells fixed by the admin, or already worked (`""` = pinned off). Hard. |
