@@ -106,9 +106,9 @@ no change to `deploy/compose.yaml`, the `Dockerfile`, the solver or any dependen
     confirmation, fix or "Use the calendar". Eid al-Fitr follows the Ramadan.
   - Every other role sees the page as before, with no request for the proposals.
 - **Tests at the seams:**
-  - `backend/hospital/tests/test_holiday_proposals.py`: 40 tests;
+  - `backend/hospital/tests/test_holiday_proposals.py`: 39 tests, counting each parameter;
   - the solve input test, and the two notification tests;
-  - eleven new tests in the frontend's "holidays and Ramadan page" block, and the reader's test extended.
+  - twelve new tests (counting each case) in the frontend's "holidays and Ramadan page" block, and the reader's test extended.
 
 **What was driven, and how.** I used my own scratch stack, `e2e/stack.sh up nr-t45` (seeded) on port 18450, on
 2026-11-12, in the app's built-in Chromium, on `980879a`. As `carla`, the CNO, on Holidays and Ramadan:
