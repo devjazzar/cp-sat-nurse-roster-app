@@ -125,6 +125,8 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Add nurses (form or CSV import), give a unit manager a nurse profile, correct a nurse's gender and start date and a staff nurse's name, transfer, set end dates, export staff list | | yes | | | |
 | Put a staff nurse on probation, on adding her or later as a correction, and take her off it (ticket 54) | | yes | | | |
 | A nurse's probation: its length, Extend, End (ticket 54) | | | | own unit | |
+| Assign and change a nurse on probation's preceptor (ticket 55) | | | | own unit, or the unit she joins | |
+| Read who precepts whom | | yes | yes | own unit | |
 | Read who is on probation and until when | | yes | yes | own unit | |
 | Read nurses | | yes | | own unit | |
 | Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | yes (from ticket 61) | | |
@@ -279,7 +281,23 @@ March. Extend it or let it end."), and again in a new last month after an extens
 ended early. The CNO, the Deputy CNO and her unit's manager read it, on the Nurses list, Rostering attributes and the staff list;
 the System Admin reads none of it but the audit log, whose entries (`nurse.probation_ticked`, `nurse.probation_unticked`,
 `nurse.probation_length_set`, `nurse.probation_extended`, `nurse.probation_ended`) carry its values before and after, unlike
-every other rostering attribute: the user's decision of 2026-11-11. Tickets 55 and 56 bring it into a solve and onto the roster.
+every other rostering attribute: the user's decision of 2026-11-11. Ticket 55 brings it into a solve, ticket 56 onto the roster.
+
+**Preceptor assignment** (ticket 55; ADR 0014): a nurse on probation, the nurse who precepts her, the unit, the month it begins and,
+once a nurse's leaving ended it, its last month (`until`). The latest that has begun is in force, as a placement is, and only in
+the months she is on probation, so an end, an extension or an untick moves it with nothing written (`nurses.preceptors`). Her
+unit's manager assigns or changes it on her Rostering attributes row, behind its question, from a month he chooses: this month or
+later, while she is on probation and in his unit (the unit she joins chooses there, before she joins), and not a month whose
+roster is approved; a choice replaces any from that month on. The list offers, and the save checks again, the nurses of the unit
+that month (a manager with a nurse profile among them) who hold a live skill marked "Lets a nurse precept", unexpired on the day
+of assigning (a retired skill is tracked no more, so it lets no one precept), are not on probation in any of her months from
+then, and precept no other nurse in any of them; each refusal is said. The skill is read then only: its expiring later, its mark
+cleared or its record taken off ends nothing. It ends with her probation; with the preceptor's last month in the unit, a transfer
+or an end date, and her unit's manager is told to choose another; and with her own transfer. An ending by a leaving is for good:
+a transfer cancelled afterwards brings nothing back. Extend and Length are refused when her preceptor in her last month would go
+on into a month in which he precepts another nurse. Both nurses are told when it is assigned or changed, and a nurse who
+precepted her and no longer does, once each. Audit entries `nurse.preceptor_assigned` and `nurse.preceptor_ended` carry its
+values (`preceptor`, `from_month`, `until`) before and after, as her probation's do.
 
 **Placement**: nurse, unit, first month, allowed shifts. A nurse's allowed shifts are on the placement, not the
 profile, because a list means something only in a unit and two units can each roster their own months of one nurse at
@@ -416,7 +434,10 @@ chain out again; opening values are the nurse profile's and have no row.
 **Notification**: user, event, payload, when it was read. The payload holds identifiers only (a unit, a month, a solve, a
 version number), and the words are worked out as it is read, from what those name then: a rename or a corrected name leaves
 nothing stale, and nothing about a nurse, a leave or a rejection's comment is kept or said, but for a probation ending, which
-names the nurse to her unit's manager by her profile's identifier, with her last month as its month. **Audit entry**: actor, action, target,
+names the nurse to her unit's manager by her profile's identifier, with her last month as its month, and for a preceptor
+assigned, changed or leaving (ticket 55), which names both nurses by their profiles' identifiers: to the nurse on probation, to
+the nurse who precepts her from the month, to one who no longer does, and to her unit's manager when a preceptor's last month in
+the unit ends it. **Audit entry**: actor, action, target,
 before and after, IP, time. **Technical settings** (one row): time limit cap (default 300 s),
 backup time and retention, close time.
 
@@ -527,7 +548,10 @@ backup time and retention, close time.
    need, reads only that that day's shifts would break the unit's rules, and the proposer reads no rule, solver text or cost
    about anyone else. Her own reasons are said in full, her own expired skill among them (ticket 38), and so is
    anything My roster shows (a cell's shift, a date passed, a headcount). The manager reads every reason in full
-   (`swaps.judging`).
+   (`swaps.judging`). A nurse on probation in the month (ticket 55) proposes none and is no colleague in one, and is told why; a
+   swap that breaks the following rule is refused, the proposer reading only what My roster shows: that the nurse on probation
+   works beside her preceptor on their day shifts. A manager's edit that breaks it shows the violation like any hard rule, and a
+   night shift for her is refused as an edit, a pin or a request ("…works no N, the night shift").
 3. Every colleague whose cells change must accept; one rejection ends the proposal (kept,
    with who rejected). The proposer may withdraw while it waits for its colleagues or the manager. A withdrawal frees its
    cells, so a nurse who has withdrawn five of hers on one roster in the last day (`swaps.steps.WITHDRAWALS_A_DAY`) proposes no
@@ -556,7 +580,9 @@ backup time and retention, close time.
 2. Its page judges, each time it is read, who could take it: the month's staff nurses off that day (in the month, within their
    dates, not on leave or barred by an expired required skill, allowed the shift, no accepted request holding the day) whose grid with the shift, as a pin, newly
    breaks no hard rule on the month as it stands, with the solver's own code; a headcount already broken counts only when
-   broken further, as for a swap. Ranked furthest below owed hours first, then least overtime this year (`covers.judging`).
+   broken further, as for a swap. Ranked furthest below owed hours first, then least overtime this year (`covers.judging`). A
+   nurse on probation in the month is never listed or offered (ticket 55), and a nurse whose taking it would break the following
+   rule, her preceptor put on a day shift she could then not follow, is not listed either.
 3. The manager ticks any of them and offers it, with a note: it becomes `offered` and each nurse ticked is told. An add on an
    offered cover asks only those not yet in it; a nurse who declined is in it and is not asked again. A nurse not in the list
    as judged then is refused by name, if she is on the cover's roster; any other ID is said back as sent, the same for a nurse
@@ -708,7 +734,19 @@ allowed shifts narrowed by the unit's night shift, a night pin on a free day ref
 her shortest allowed shift, the excess her own overtime for the month and the year. The hard rule `following`: on a free day her
 preceptor works a shift she is allowed, not on leave or pinned, she works that shift or is off, and once such a day is left off
 she works no other free day; its match names the nurse, the day, her preceptor's shift and hers. Precheck names a nurse on
-probation with no preceptor. The app writes neither field until ticket 55.
+probation with no preceptor. The app writes both since ticket 55 (`solves.input`): `on_probation` on each nurse on probation in
+that month (`probation.on_probation_in`), and `preceptor` when an assignment is in force then and its preceptor is a nurse of the
+input, not herself on probation that month and named by no other nurse (of two, the assignment made first keeps him), so the
+input is never one the loader refuses; neither is written for anyone else, so a month with no probation is the input it always
+was. A re-plan's and a close's inputs are assembled the same way. "Changes since" reports a nurse now on probation
+(`on_probation`), no longer on it (`off_probation`) or with another preceptor (`preceptor`), so an end, an extension or an untick
+that touches an approved month changes nothing in it, and its roster page says how it was planned and offers the re-plan. A
+result keeps only priced soft rules, so the draft's explanation of which of her preceptor's day shifts she did not follow, and why
+(her leave, a bar, a day over, a pin or an accepted request, or her hours, which held no more), is worked out from the stored input
+and roster with the solver's own `Problem` (`solves.result.not_followed`). Every headcount the app works out itself (the cover
+list's "already full", the Day view's counts and its overtime totals) leaves her out, as `problem.counted` does; the sheets'
+totals are ticket 56's. A unit's rules that would leave a nurse on probation with the night shift alone are refused
+(`membership.left_night_alone`), and a transfer that would carry her that list empties it for the new unit's manager to look at.
 
 ## 7. The worker and the queue (ADR 0006)
 
