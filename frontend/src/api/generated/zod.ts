@@ -414,6 +414,9 @@ export const getHospitalRulesResponseRulesWeightsFairNightMax = 1000000;
 export const getHospitalRulesResponseRulesWeightsFairWeekendMin = 0;
 export const getHospitalRulesResponseRulesWeightsFairWeekendMax = 1000000;
 
+export const getHospitalRulesResponseRulesWeightsOvertimeAboveShareMin = 0;
+export const getHospitalRulesResponseRulesWeightsOvertimeAboveShareMax = 1000000;
+
 export const getHospitalRulesResponseRulesWeightsScoreDeficitMin = 0;
 export const getHospitalRulesResponseRulesWeightsScoreDeficitMax = 1000000;
 
@@ -465,6 +468,7 @@ export const GetHospitalRulesResponse = zod.object({
   "fair_day": zod.int().min(getHospitalRulesResponseRulesWeightsFairDayMin).max(getHospitalRulesResponseRulesWeightsFairDayMax),
   "fair_night": zod.int().min(getHospitalRulesResponseRulesWeightsFairNightMin).max(getHospitalRulesResponseRulesWeightsFairNightMax),
   "fair_weekend": zod.int().min(getHospitalRulesResponseRulesWeightsFairWeekendMin).max(getHospitalRulesResponseRulesWeightsFairWeekendMax),
+  "overtime_above_share": zod.int().min(getHospitalRulesResponseRulesWeightsOvertimeAboveShareMin).max(getHospitalRulesResponseRulesWeightsOvertimeAboveShareMax),
   "score_deficit": zod.int().min(getHospitalRulesResponseRulesWeightsScoreDeficitMin).max(getHospitalRulesResponseRulesWeightsScoreDeficitMax),
   "score_spread": zod.int().min(getHospitalRulesResponseRulesWeightsScoreSpreadMin).max(getHospitalRulesResponseRulesWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(getHospitalRulesResponseRulesWeightsExcessWeekendMin).max(getHospitalRulesResponseRulesWeightsExcessWeekendMax),
@@ -533,6 +537,9 @@ export const updateHospitalRulesBodyWeightsFairNightMax = 1000000;
 export const updateHospitalRulesBodyWeightsFairWeekendMin = 0;
 export const updateHospitalRulesBodyWeightsFairWeekendMax = 1000000;
 
+export const updateHospitalRulesBodyWeightsOvertimeAboveShareMin = 0;
+export const updateHospitalRulesBodyWeightsOvertimeAboveShareMax = 1000000;
+
 export const updateHospitalRulesBodyWeightsScoreDeficitMin = 0;
 export const updateHospitalRulesBodyWeightsScoreDeficitMax = 1000000;
 
@@ -583,6 +590,7 @@ export const UpdateHospitalRulesBody = zod.object({
   "fair_day": zod.int().min(updateHospitalRulesBodyWeightsFairDayMin).max(updateHospitalRulesBodyWeightsFairDayMax),
   "fair_night": zod.int().min(updateHospitalRulesBodyWeightsFairNightMin).max(updateHospitalRulesBodyWeightsFairNightMax),
   "fair_weekend": zod.int().min(updateHospitalRulesBodyWeightsFairWeekendMin).max(updateHospitalRulesBodyWeightsFairWeekendMax),
+  "overtime_above_share": zod.int().min(updateHospitalRulesBodyWeightsOvertimeAboveShareMin).max(updateHospitalRulesBodyWeightsOvertimeAboveShareMax),
   "score_deficit": zod.int().min(updateHospitalRulesBodyWeightsScoreDeficitMin).max(updateHospitalRulesBodyWeightsScoreDeficitMax),
   "score_spread": zod.int().min(updateHospitalRulesBodyWeightsScoreSpreadMin).max(updateHospitalRulesBodyWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(updateHospitalRulesBodyWeightsExcessWeekendMin).max(updateHospitalRulesBodyWeightsExcessWeekendMax),
@@ -643,6 +651,9 @@ export const updateHospitalRulesResponseRulesWeightsFairNightMax = 1000000;
 export const updateHospitalRulesResponseRulesWeightsFairWeekendMin = 0;
 export const updateHospitalRulesResponseRulesWeightsFairWeekendMax = 1000000;
 
+export const updateHospitalRulesResponseRulesWeightsOvertimeAboveShareMin = 0;
+export const updateHospitalRulesResponseRulesWeightsOvertimeAboveShareMax = 1000000;
+
 export const updateHospitalRulesResponseRulesWeightsScoreDeficitMin = 0;
 export const updateHospitalRulesResponseRulesWeightsScoreDeficitMax = 1000000;
 
@@ -694,6 +705,7 @@ export const UpdateHospitalRulesResponse = zod.object({
   "fair_day": zod.int().min(updateHospitalRulesResponseRulesWeightsFairDayMin).max(updateHospitalRulesResponseRulesWeightsFairDayMax),
   "fair_night": zod.int().min(updateHospitalRulesResponseRulesWeightsFairNightMin).max(updateHospitalRulesResponseRulesWeightsFairNightMax),
   "fair_weekend": zod.int().min(updateHospitalRulesResponseRulesWeightsFairWeekendMin).max(updateHospitalRulesResponseRulesWeightsFairWeekendMax),
+  "overtime_above_share": zod.int().min(updateHospitalRulesResponseRulesWeightsOvertimeAboveShareMin).max(updateHospitalRulesResponseRulesWeightsOvertimeAboveShareMax),
   "score_deficit": zod.int().min(updateHospitalRulesResponseRulesWeightsScoreDeficitMin).max(updateHospitalRulesResponseRulesWeightsScoreDeficitMax),
   "score_spread": zod.int().min(updateHospitalRulesResponseRulesWeightsScoreSpreadMin).max(updateHospitalRulesResponseRulesWeightsScoreSpreadMax),
   "excess_weekend": zod.int().min(updateHospitalRulesResponseRulesWeightsExcessWeekendMin).max(updateHospitalRulesResponseRulesWeightsExcessWeekendMax),
@@ -1378,6 +1390,9 @@ export const GetUnitRulesResponse = zod.object({
   "fair_weekends": zod.boolean(),
   "carry_fairness": zod.boolean(),
   "carry_cap": zod.number(),
+  "share_overtime": zod.boolean(),
+  "overtime_tolerance": zod.int(),
+  "overtime_carry_cap": zod.int(),
   "max_consecutive_shifts": zod.int(),
   "double_cycle_rest": zod.int(),
   "max_weekends": zod.int(),
@@ -1451,6 +1466,12 @@ export const updateUnitRulesBodyRulesFairToleranceMax = 1000;
 export const updateUnitRulesBodyRulesCarryCapMin = 0;
 export const updateUnitRulesBodyRulesCarryCapMax = 1000;
 
+export const updateUnitRulesBodyRulesOvertimeToleranceMin = 0;
+export const updateUnitRulesBodyRulesOvertimeToleranceMax = 744;
+
+export const updateUnitRulesBodyRulesOvertimeCarryCapMin = 0;
+export const updateUnitRulesBodyRulesOvertimeCarryCapMax = 744;
+
 export const updateUnitRulesBodyRulesMaxConsecutiveShiftsMin = 0;
 export const updateUnitRulesBodyRulesMaxConsecutiveShiftsMax = 1000;
 
@@ -1512,6 +1533,9 @@ export const UpdateUnitRulesBody = zod.object({
   "fair_weekends": zod.boolean(),
   "carry_fairness": zod.boolean(),
   "carry_cap": zod.number().min(updateUnitRulesBodyRulesCarryCapMin).max(updateUnitRulesBodyRulesCarryCapMax),
+  "share_overtime": zod.boolean(),
+  "overtime_tolerance": zod.int().min(updateUnitRulesBodyRulesOvertimeToleranceMin).max(updateUnitRulesBodyRulesOvertimeToleranceMax),
+  "overtime_carry_cap": zod.int().min(updateUnitRulesBodyRulesOvertimeCarryCapMin).max(updateUnitRulesBodyRulesOvertimeCarryCapMax),
   "max_consecutive_shifts": zod.int().min(updateUnitRulesBodyRulesMaxConsecutiveShiftsMin).max(updateUnitRulesBodyRulesMaxConsecutiveShiftsMax),
   "double_cycle_rest": zod.int().min(updateUnitRulesBodyRulesDoubleCycleRestMin).max(updateUnitRulesBodyRulesDoubleCycleRestMax),
   "max_weekends": zod.int().min(updateUnitRulesBodyRulesMaxWeekendsMin).max(updateUnitRulesBodyRulesMaxWeekendsMax),
@@ -1561,6 +1585,9 @@ export const UpdateUnitRulesResponse = zod.object({
   "fair_weekends": zod.boolean(),
   "carry_fairness": zod.boolean(),
   "carry_cap": zod.number(),
+  "share_overtime": zod.boolean(),
+  "overtime_tolerance": zod.int(),
+  "overtime_carry_cap": zod.int(),
   "max_consecutive_shifts": zod.int(),
   "double_cycle_rest": zod.int(),
   "max_weekends": zod.int(),
@@ -6468,9 +6495,14 @@ export const PreviewSkillsImportResponse = zod.object({
   "hospital_id": zod.string(),
   "skill": zod.string(),
   "expiry": zod.string().describe('As the file has it.'),
+  "identifier": zod.string().describe('As the file has it, trimmed when it is one; empty in a file of three columns.'),
+  "issue_date": zod.string().describe('As the file has it; empty in a file of three columns.'),
   "full_name": zod.string().describe('The nurse\'s, when the hospital ID is hers; empty otherwise.'),
-  "change": zod.union([zod.enum(['record', 'renew', 'none']).describe('What confirming does with a row that has no problem.'),zod.null()]).describe('What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded.'),
+  "kind": zod.union([zod.enum(['skill', 'certificate', 'licence']),zod.null()]).describe('The catalogue\'s, when the skill is one; the page groups the rows by it.'),
+  "change": zod.union([zod.enum(['record', 'renew', 'none']).describe('What confirming does with a row that has no problem.'),zod.null()]).describe('What confirming does with a row that has no problem: records the skill, renews the one she holds with the row\'s expiry, identifier and issue date, or nothing, since the file says what is already recorded.'),
   "held_expiry": zod.union([zod.iso.date(),zod.null()]).describe('The expiry a renewal replaces.'),
+  "held_identifier": zod.union([zod.string(),zod.null()]).describe('The identifier a renewal replaces, or the one recorded.'),
+  "held_issue_date": zod.union([zod.iso.date(),zod.null()]).describe('The issue date a renewal replaces, or the one recorded.'),
   "problems": zod.array(zod.object({
   "column": zod.union([zod.string(),zod.null()]),
   "message": zod.string()

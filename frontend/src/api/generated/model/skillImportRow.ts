@@ -6,6 +6,7 @@
  */
 import type { ImportProblem } from './importProblem';
 import type { SkillImportChange } from './skillImportChange';
+import type { SkillImportRowKind } from './skillImportRowKind';
 
 export interface SkillImportRow {
   line: number;
@@ -13,11 +14,21 @@ export interface SkillImportRow {
   skill: string;
   /** As the file has it. */
   expiry: string;
+  /** As the file has it, trimmed when it is one; empty in a file of three columns. */
+  identifier: string;
+  /** As the file has it; empty in a file of three columns. */
+  issue_date: string;
   /** The nurse's, when the hospital ID is hers; empty otherwise. */
   full_name: string;
-  /** What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded. */
+  /** The catalogue's, when the skill is one; the page groups the rows by it. */
+  kind: SkillImportRowKind;
+  /** What confirming does with a row that has no problem: records the skill, renews the one she holds with the row's expiry, identifier and issue date, or nothing, since the file says what is already recorded. */
   change: SkillImportChange | null;
   /** The expiry a renewal replaces. */
   held_expiry: string | null;
+  /** The identifier a renewal replaces, or the one recorded. */
+  held_identifier: string | null;
+  /** The issue date a renewal replaces, or the one recorded. */
+  held_issue_date: string | null;
   problems: ImportProblem[];
 }

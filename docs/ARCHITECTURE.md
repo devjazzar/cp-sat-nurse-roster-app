@@ -720,8 +720,17 @@ owing none, costs nothing. The rule, `overtime_above_share`, is soft only and ac
 hours rule are all on; its match names the nurse, her overtime, her share and the hours priced, and the per-nurse explanation
 carries it. A result's `carry_over` carries her balance for next month, in + overtime − share, moving while the switch and the
 hours rule are on and handed on unchanged otherwise. The chain carries it (`closes.chain.CARRIED`, ticket 50) from her opening
-value, 0 by default, and 0 out of a close stored before it; it resets in January with the other two balances. Until the unit
-rules and the weight reach the solve input (ticket 51) the solver hands every balance on unchanged.
+value, 0 by default, and 0 out of a close stored before it; it resets in January with the other two balances. In the app (ticket
+51) the three are unit rules among the fairness rules, beside the weekend spread: "Share overtime evenly" (on), "Overtime
+tolerance (hours)" (12) and "Most a month's overtime share can move (hours)" (12), every unit starting with them
+(`units.0006_overtime_share`), "Carry fairness between months" governing the carry for overtime too; the weight, "Overtime away
+from the fair share", is the CNO's beside the other weights, 1 by default, 0 switching it off hospital-wide, and refused above
+`nurse_overtime` (the user's decision on ticket 49's review: above it, the solver could lower the rule's cost by adding
+overtime), which is why an installation pricing an hour of overtime below 1 starts with the share weight at that price
+(`hospital.0008_overtime_above_share_weight`). The solver's sample (`four_nurses.json`) carries the three and the weight as a
+unit would. Every new solve, re-plan and close input carries them, as the unit rules and the weights are carried; a stored one
+without them reads as the rule off. Hand edits, swaps, covers and requests are never refused for it; the overtime they give
+enters her balance at the next projection, and no nurse page and no cover's ranking shows it.
 
 Probation changed it again (ticket 52, ADR 0014; the solver's problem schema 8; the solve input's version unchanged). Each nurse
 gains `on_probation` (absent = false) and `preceptor`, the id of another nurse of the input she follows (absent or null = none),
@@ -997,15 +1006,22 @@ import's, the probation's last day (both empty unless a probation is not over), 
 to come.
 
 The skills CSV is the same kind of file (`nurses.importing.read_file`: the encodings, 500 lines and 1 MB, in memory),
-of hospital ID, skill and expiry, on its own Import skills page beside the nurse import's: a template, a preview that
-judges every row and says what saving would do with it, and a confirm that sends the file again. A row names a nurse by
-hospital ID, an active one, and a skill by its current name in any case of letters, live; its expiry is a date for a kind
-that expires and empty for one that does not, a date already past accepted as a fact. A skill she does not hold is
-recorded; one she holds takes the row's expiry, ending the old row as a renewal by hand does; one that says what is
-already recorded changes nothing. A nurse and skill twice in a file is a problem on both lines. Confirming is one short
-transaction under the locks every skill write takes, the hospital settings' then the nurses', in which the file is
-judged again: the preview's token stands for each row's nurse, skill (its name and whether it expires), expiry and the
-record a renewal would end, so a renewal by hand since the preview is a different preview and nothing is saved. The audit
+of hospital ID, skill, expiry, identifier and issue date, on its own Import skills page beside the nurse import's: a
+template, a preview that judges every row and says what saving would do with it, and a confirm that sends the file again.
+A file of last month's three columns (no identifier, no issue date) is still read, the two empty on every row; a header of
+four is not. A row names a nurse by hospital ID, an active one, and a skill by its current name in any case of letters,
+live; its expiry is a date for a kind that expires and empty for one that does not, a date already past accepted as a
+fact. Its identifier and issue date keep the rules a record by hand keeps (`nurses.skills.problems_with`): the identifier
+required on a licence, so a licence row in a three-column file is a problem, and not another nurse's current one for the
+entry, among the records as they stand or on another line of the file; the issue date not after the expiry or today. A
+row says the whole record, an empty cell being none. A skill she does not hold is recorded; one she holds that differs
+from her record in the expiry, the identifier or the issue date is renewed, ending the old row as a renewal by hand does
+(a kind that no longer expires keeping its date); one that says what is already recorded changes nothing. A nurse and
+skill twice in a file is a problem on both lines. The preview's lines are grouped under Skills, Certificates and
+Licences. Confirming is one short transaction under the locks every skill write takes, the hospital settings' then the
+nurses', in which the file is judged again: the preview's token stands for each row's nurse, skill (its name, kind and
+whether it expires), expiry, identifier, issue date and the record a renewal would end, so a renewal by hand since the
+preview is a different preview and nothing is saved. The audit
 log has one `nurse.skills_imported` entry with the number of rows and nothing from the file, not even whose skills. The template is its header alone, so it names no skill;
 every cell of every CSV this application writes goes through the staff list's guard against a formula. Neither the nurse
 import's template nor the staff list holds skills.

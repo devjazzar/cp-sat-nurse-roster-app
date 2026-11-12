@@ -60,24 +60,21 @@ def solve_input(unit: Unit) -> dict:
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
-# The solver's overtime-share fields (ticket 49) that the app's unit rules do not carry yet: ticket 51 adds them to the blocks and
-# deletes this set and its subtraction below.
-OVERTIME_SHARE_FIELDS = {"share_overtime", "overtime_tolerance", "overtime_carry_cap"}
-
-
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_units_name():
     fields = {field.name for field in dataclasses.fields(DepartmentRules)}
 
-    assert set(DEFAULT_UNIT_RULES) == fields - {"name"} - OVERTIME_SHARE_FIELDS
+    assert set(DEFAULT_UNIT_RULES) == fields - {"name"}
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():
-    """The ER sample predates full runs and skills; their cap is the spec's (full-runs.md), 3, and a unit starts with
-    no skill needs and the needs hard (skills-per-shift-day.md)."""
+    """The ER sample predates full runs, skills and the overtime share; their cap is the spec's (full-runs.md), 3, a unit
+    starts with no skill needs and the needs hard (skills-per-shift-day.md), and shares its overtime with 12 hours free and
+    the carry moving a share by 12 hours at most (overtime-share.md)."""
     reviewed = er_request()["department"]
     del reviewed["name"]
 
-    assert DEFAULT_UNIT_RULES == reviewed | {"max_full_runs": 3, "skill_needs": [], "skill_needs_hard": True}
+    assert DEFAULT_UNIT_RULES == reviewed | {"max_full_runs": 3, "skill_needs": [], "skill_needs_hard": True,
+                                             "share_overtime": True, "overtime_tolerance": 12, "overtime_carry_cap": 12}
 
 
 # ---- seeding --------------------------------------------------------------------------------------
@@ -132,6 +129,38 @@ def test_a_unit_from_before_skill_needs_gets_none_and_the_needs_hard_and_keeps_t
 
     unit.refresh_from_db()
     assert unit.rules == DEFAULT_UNIT_RULES | {"max_weekends": 5} and unit.rules_need_review is False
+
+
+OVERTIME_SHARE = ("share_overtime", "overtime_tolerance", "overtime_carry_cap")
+
+
+def test_a_new_unit_shares_its_overtime_with_12_hours_free_and_its_block_carries_it(cno):
+    department = load_request(solve_input(new_unit(cno))).problem.department
+
+    assert (department.share_overtime, department.overtime_tolerance, department.overtime_carry_cap) == (True, 12, 12)
+
+
+def test_a_unit_from_before_the_overtime_share_gets_the_defaults_and_keeps_the_rest(cno):
+    unit = new_unit(cno)
+    unit.rules = {key: value for key, value in unit.rules.items() if key not in OVERTIME_SHARE} | {"max_weekends": 5}
+    unit.rules_need_review = False
+    unit.save()
+
+    migration("units", "0006_overtime_share").add(django_apps, None)
+
+    unit.refresh_from_db()
+    assert unit.rules == DEFAULT_UNIT_RULES | {"max_weekends": 5} and unit.rules_need_review is False
+
+
+def test_the_overtime_share_migration_leaves_a_unit_that_already_has_it_alone(cno):
+    unit = new_unit(cno)
+    unit.rules |= {"share_overtime": False, "overtime_tolerance": 8, "overtime_carry_cap": 0}
+    unit.save()
+
+    migration("units", "0006_overtime_share").add(django_apps, None)
+
+    unit.refresh_from_db()
+    assert [unit.rules[key] for key in OVERTIME_SHARE] == [False, 8, 0]
 
 
 def test_units_do_not_share_their_rules(cno):

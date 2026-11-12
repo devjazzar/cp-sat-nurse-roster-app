@@ -18,6 +18,7 @@ router = Router(tags=["hospital"])
 MAX_DAILY_HOURS = 24
 MAX_HOURS = 10 ** 6
 MAX_WEIGHT = 10 ** 6
+OVERTIME_SHARE_ABOVE_OVERTIME = "Cannot be above Nurse overtime, or the solver could lower this cost by adding overtime."
 
 
 def refuse(*errors: tuple[tuple, str]) -> None:
@@ -61,6 +62,7 @@ class Weights(StrictSchema):
     fair_day: Weight
     fair_night: Weight
     fair_weekend: Weight
+    overtime_above_share: Weight
     score_deficit: Weight
     score_spread: Weight
     excess_weekend: Weight
@@ -70,6 +72,15 @@ class Weights(StrictSchema):
     undesired_day: Weight
     desired_day: Weight
     change: Weight
+
+    @field_validator("overtime_above_share")
+    @classmethod
+    def not_above_an_hour_of_overtime(cls, value: int, info: ValidationInfo) -> int:
+        """The user's decision (ticket 49's review): a nurse's overtime share rises with the unit's overtime, so above the
+        price of an hour of overtime the solver could lower this rule's cost by adding overtime (solver/DESIGN.md)."""
+        if value > info.data.get("nurse_overtime", value):
+            raise ValueError(OVERTIME_SHARE_ABOVE_OVERTIME)
+        return value
 
 
 class HospitalRules(StrictSchema):

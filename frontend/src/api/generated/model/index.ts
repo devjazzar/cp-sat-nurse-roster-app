@@ -307,6 +307,7 @@ export * from './skillImportChange';
 export * from './skillImportDone';
 export * from './skillImportPreview';
 export * from './skillImportRow';
+export * from './skillImportRowKind';
 export * from './skillNeedAnswer';
 export * from './skillNeedRule';
 export * from './skillRenameSchema';

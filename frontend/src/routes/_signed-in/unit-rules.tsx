@@ -14,6 +14,7 @@ import {
   updateUnitRulesBodyRulesHeadcountsItemWeekdayMinMax as HEADCOUNT_MAX,
   updateUnitRulesBodyRulesMaxFullRunsMax as FULL_RUNS_MAX,
   updateUnitRulesBodyRulesNightRestDaysMax as REST_DAYS_MAX,
+  updateUnitRulesBodyRulesOvertimeToleranceMax as OVERTIME_HOURS_MAX,
   updateUnitRulesBodyRulesShiftsMax as SHIFTS_MAX,
   updateUnitRulesBodyRulesSkillNeedsMax as SKILL_NEEDS_MAX,
 } from "@/api/generated/zod"
@@ -52,8 +53,12 @@ import {
   MIXED_SWITCH,
   FAIR_SHIFTS_DESCRIPTION,
   FAIR_TOLERANCE,
-  FAIR_SWITCHES,
+  WEEKEND_SWITCH,
+  OVERTIME_SWITCH,
+  OVERTIME_TOLERANCE,
+  CARRY_SWITCH,
   CARRY_CAP,
+  OVERTIME_CARRY_CAP,
   LIMITS,
   SWITCHES_HARD,
   REQUEST_CAP_DESCRIPTION,
@@ -82,6 +87,8 @@ const scoreLevel = number(1)
 const shiftCount = number(PARAM_MAX)
 const people = wholeNumber(0, HEADCOUNT_MAX)
 const fullRuns = wholeNumber(0, FULL_RUNS_MAX)
+// The tolerance's and the carry's limit alike: the solver bounds both by the hours of a 31-day month (MAX_OVERTIME_HOURS).
+const overtimeHours = wholeNumber(0, OVERTIME_HOURS_MAX)
 
 function schemaFor(timeLimitCap: number) {
   return z
@@ -117,6 +124,9 @@ function schemaFor(timeLimitCap: number) {
         fair_weekends: z.boolean(),
         carry_fairness: z.boolean(),
         carry_cap: shiftCount,
+        share_overtime: z.boolean(),
+        overtime_tolerance: overtimeHours,
+        overtime_carry_cap: overtimeHours,
         max_consecutive_shifts: count,
         // Checked below, and only while the field shows: a hidden field cannot show its error. `withFullRunsKept` sends the
         // saved value instead of one left wrong behind it.
@@ -445,8 +455,12 @@ function RulesForm({ unitId, state }: { unitId: string; state: UnitRulesState })
           <CodesField form={form} name="rules.fair_shifts" legend={UNIT_RULE_LABELS.fair_shifts} description={FAIR_SHIFTS_DESCRIPTION}
             options={withHeadcount.map((code) => ({ code, label: code }))} error={ruleErrors?.fair_shifts as FieldError | undefined} />
           {numberField(FAIR_TOLERANCE, "any")}
-          {FAIR_SWITCHES.map(switchField)}
+          {switchField(WEEKEND_SWITCH)}
+          {switchField(OVERTIME_SWITCH)}
+          {numberField(OVERTIME_TOLERANCE)}
+          {switchField(CARRY_SWITCH)}
           {numberField(CARRY_CAP, "any")}
+          {numberField(OVERTIME_CARRY_CAP)}
         </FieldGroup>
       </Section>
       <Section title="Weekends and switches">
@@ -556,8 +570,10 @@ function RulesReadOnly({ state }: { state: UnitRulesState }) {
         <ReadOnlyList items={[
           { label: "Shifts to spread fairly", description: FAIR_SHIFTS_DESCRIPTION, value: named(rules.fair_shifts, "None") },
           ...numbers([FAIR_TOLERANCE]),
-          ...switches(FAIR_SWITCHES),
-          ...numbers([CARRY_CAP]),
+          ...switches([WEEKEND_SWITCH, OVERTIME_SWITCH]),
+          ...numbers([OVERTIME_TOLERANCE]),
+          ...switches([CARRY_SWITCH]),
+          ...numbers([CARRY_CAP, OVERTIME_CARRY_CAP]),
         ]} />
       </Section>
       <Section title="Weekends and switches"><ReadOnlyList items={[...numbers(LIMITS), ...switches([SWITCHES_HARD])]} /></Section>

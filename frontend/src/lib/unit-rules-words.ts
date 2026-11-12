@@ -1,8 +1,8 @@
 /** The unit rules page's words for each rule, which the comparison of two results reads its fields by too. */
 import type { Explained } from "@/lib/weights"
 
-export type NumberRule = "score_target" | "score_target_weekend" | "score_band_hi" | "score_band_hi_weekend" | "night_rest_days" | "fair_tolerance" | "carry_cap" | "max_consecutive_shifts" | "max_full_runs" | "double_cycle_rest" | "max_weekends" | "max_switches"
-export type SwitchRule = "headcount_enabled" | "require_team_leader" | "require_both_genders" | "score_balance" | "night_rest_hard" | "fair_weekends" | "carry_fairness" | "no_mixed_blocks" | "switches_hard" | "skill_needs_hard"
+export type NumberRule = "score_target" | "score_target_weekend" | "score_band_hi" | "score_band_hi_weekend" | "night_rest_days" | "fair_tolerance" | "carry_cap" | "overtime_tolerance" | "overtime_carry_cap" | "max_consecutive_shifts" | "max_full_runs" | "double_cycle_rest" | "max_weekends" | "max_switches"
+export type SwitchRule = "headcount_enabled" | "require_team_leader" | "require_both_genders" | "score_balance" | "night_rest_hard" | "fair_weekends" | "share_overtime" | "carry_fairness" | "no_mixed_blocks" | "switches_hard" | "skill_needs_hard"
 
 export const SHIFTS_DESCRIPTION = "Chosen from the hospital's shift catalogue. A nurse in this unit can only be given these."
 export const NIGHT_AND_DAY = [
@@ -87,14 +87,35 @@ export const FAIR_TOLERANCE: Explained<NumberRule> = {
   label: "Free difference from a fair share (shifts)",
   description: "How many shifts a nurse may stray from their fair share before it starts to cost.",
 }
-export const FAIR_SWITCHES: Explained<SwitchRule>[] = [
-  { name: "fair_weekends", label: "Spread weekend days fairly", description: "Weekend days worked are spread evenly among the unit's nurses." },
-  { name: "carry_fairness", label: "Carry fairness between months", description: "Nights and weekend days above or below a nurse's fair share so far move this month's fair share." },
-]
+export const WEEKEND_SWITCH: Explained<SwitchRule> = {
+  name: "fair_weekends",
+  label: "Spread weekend days fairly",
+  description: "Weekend days worked are spread evenly among the unit's nurses.",
+}
+export const OVERTIME_SWITCH: Explained<SwitchRule> = {
+  name: "share_overtime",
+  label: "Share overtime evenly",
+  description: "Overtime is spread among the unit's nurses in proportion to the hours each owes.",
+}
+export const OVERTIME_TOLERANCE: Explained<NumberRule> = {
+  name: "overtime_tolerance",
+  label: "Overtime tolerance (hours)",
+  description: "How many hours of overtime a nurse may work above their fair share before it starts to cost.",
+}
+export const CARRY_SWITCH: Explained<SwitchRule> = {
+  name: "carry_fairness",
+  label: "Carry fairness between months",
+  description: "Nights, weekend days and overtime above or below a nurse's fair share so far move this month's fair share.",
+}
 export const CARRY_CAP: Explained<NumberRule> = {
   name: "carry_cap",
   label: "Most a month's share can move (shifts)",
   description: "The limit on how far what is carried can move a fair share in one month.",
+}
+export const OVERTIME_CARRY_CAP: Explained<NumberRule> = {
+  name: "overtime_carry_cap",
+  label: "Most a month's overtime share can move (hours)",
+  description: "The limit on how far what is carried can move a nurse's overtime share in one month.",
 }
 export const LIMITS: Explained<NumberRule>[] = [
   { name: "max_weekends", label: "Weekend days a month", description: "How many weekend days a nurse may work in a month before each further one costs the hospital's weight." },
@@ -121,7 +142,8 @@ export const UNIT_RULE_LABELS: Record<string, string> = Object.fromEntries([
   ["shifts", "Shifts this unit works"],
   ...NIGHT_AND_DAY.map(({ name, label }) => [name, label]),
   ...[HEADCOUNT_SWITCH, ...WHO_SWITCHES, SKILL_NEEDS_SWITCH, ...SCORE_TARGETS, SCORE_SWITCH, ...SCORE_CEILINGS, NIGHT_REST_DAYS,
-    NIGHT_REST_SWITCH, LONGEST_RUN, FULL_RUNS, AFTER_TWO_RUNS, MIXED_SWITCH, FAIR_TOLERANCE, ...FAIR_SWITCHES, CARRY_CAP, ...LIMITS,
+    NIGHT_REST_SWITCH, LONGEST_RUN, FULL_RUNS, AFTER_TWO_RUNS, MIXED_SWITCH, FAIR_TOLERANCE, WEEKEND_SWITCH, OVERTIME_SWITCH,
+    OVERTIME_TOLERANCE, CARRY_SWITCH, CARRY_CAP, OVERTIME_CARRY_CAP, ...LIMITS,
     SWITCHES_HARD].map(({ name, label }) => [name, label]),
   ["headcounts", "Headcounts"],
   ["skill_needs", "Skill needs"],

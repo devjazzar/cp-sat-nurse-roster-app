@@ -273,6 +273,21 @@ class TestAccepting:
         assert latest_version().number == 2
 
 
+class TestOvertimeAboveAShare:
+    def test_a_cover_giving_a_nurse_overtime_above_her_share_is_offered_and_taken_and_july_carries_her_balance(self, in_force,
+                                                                                                               mona):
+        """Ticket 51: Amal, off on the 9th, takes a second Night there (`one_more_shift_past_her_share`)."""
+        from closes.tests.test_close import JULY, balances, one_more_shift_past_her_share
+        july = one_more_shift_past_her_share("Amal")
+        cover_id = opened(mona, in_force, 9, "N")["cover"]["id"]
+
+        offered(mona, in_force, cover_id, "Amal")
+        answered(as_user("Amal"), cover_id, "accept")
+
+        assert Roster.objects.get(unit=in_force).grid["Amal"]["2026-06-09"] == "N"
+        assert balances(in_force, JULY) == july
+
+
 class TestDeclining:
     def test_a_decline_is_her_answer_an_entry_and_the_manager_told_and_it_stays_offered(self, in_force, mona):
         cover_id = the_25th(mona, in_force)

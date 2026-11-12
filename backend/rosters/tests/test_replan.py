@@ -13,7 +13,7 @@ from audit.models import AuditEntry
 from conftest import post
 from notifications.models import Event, Notification, SolveOutcome
 from nurses import membership
-from hospital.models import Shift
+from hospital.models import HospitalSettings, Shift
 from nurses.models import Placement
 from rosters.drafts import FROZEN
 from rosters.models import PinnedCell, PinOrigin, Roster, RosterState, VersionOrigin
@@ -298,6 +298,21 @@ class TestFactsBeforeTheDate:
 
         problem = load_request(solve.input).problem
         assert (problem.department.max_full_runs, problem.general.weights.excess_full_run) == (1, 50)
+
+    def test_the_units_overtime_share_and_the_hospitals_weight_reach_a_re_plan_as_they_reach_a_solve(self, mona, er, in_force):
+        """Ticket 51: the solver prices overtime above a share in the days it plans again, the elapsed days counting."""
+        er.rules |= {"share_overtime": True, "overtime_tolerance": 6, "overtime_carry_cap": 20}
+        er.save()
+        settings = HospitalSettings.load()
+        settings.rules["weights"] |= {"nurse_overtime": 3, "overtime_above_share": 2}
+        settings.save()
+
+        solve = Solve.objects.get(pk=started(mona, er)["id"])
+
+        problem = load_request(solve.input).problem
+        department = problem.department
+        assert (department.share_overtime, department.overtime_tolerance, department.overtime_carry_cap) == (True, 6, 20)
+        assert problem.general.weights.overtime_above_share == 2
 
     def test_a_shift_pinned_on_a_barred_day_is_set_aside_before_the_date_too_and_the_day_is_the_roster_in_forces(
             self, mona, er, in_force):

@@ -37,7 +37,7 @@ import {
   HOSPITAL_RULE_LABELS,
   WEEKDAYS,
 } from "@/lib/hospital-rules-words"
-import { WEIGHTS } from "@/lib/weights"
+import { OVERTIME_SHARE_ABOVE_OVERTIME, WEIGHTS } from "@/lib/weights"
 import { onlyFor } from "@/session"
 
 export const Route = createFileRoute("/_signed-in/hospital-rules")({
@@ -70,6 +70,8 @@ const schema = z
     weights: z.object(Object.fromEntries(WEIGHTS.map(({ name }) => [name, weight])) as Record<keyof Weights, typeof weight>),
   })
   .superRefine((rules, context) => {
+    if (rules.weights.overtime_above_share > rules.weights.nurse_overtime)
+      context.addIssue({ code: "custom", path: ["weights", "overtime_above_share"], message: OVERTIME_SHARE_ABOVE_OVERTIME })
     if (rules.ramadan_hours_per_day > rules.hours_per_day)
       context.addIssue({ code: "custom", path: ["ramadan_hours_per_day"], message: "Cannot be more than the hours per day." })
     if (rules.breastfeeding_reduction > rules.ramadan_hours_per_day)

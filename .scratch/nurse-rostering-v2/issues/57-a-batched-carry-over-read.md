@@ -40,3 +40,8 @@ profile for a first month, carried unchanged through a month with no roster (it 
 of a close stored before it. The cases are `closes/tests/test_close.py`'s `TestTheOvertimeBalance`, beside
 `TestTheCountOfPreferencesNotKept`; its helper `shares_overtime` writes the unit's switch straight into `unit.rules` until
 ticket 51 makes it a unit rule.
+
+**From ticket 51's review (the user, 2026-11-12).** The draft's per-nurse explanation puts the nurse's name before the
+solver's own words, which already begin with her id, so a line reads "Amal Saleh: Amal: 20 h overtime, share 4.7 h, 3 h
+priced". Drop the repetition for every rule's line (the page's name, then the solver's words without their leading id), with
+its frontend test.

@@ -34,6 +34,9 @@ export interface UnitRulesAnswer {
   fair_weekends: boolean;
   carry_fairness: boolean;
   carry_cap: number;
+  share_overtime: boolean;
+  overtime_tolerance: number;
+  overtime_carry_cap: number;
   max_consecutive_shifts: number;
   double_cycle_rest: number;
   max_weekends: number;

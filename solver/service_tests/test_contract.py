@@ -341,12 +341,9 @@ def test_the_sample_carries_the_full_run_cap_and_validate_prices_each_run_above_
 
 # ---- overtime share ---------------------------------------------------------------------------
 def shared(sample: dict) -> dict:
-    """The sample with the unit sharing its overtime, 12 h free, the carry moving a share by 12 h at most, an hour above a share
-    at 1, and Amal carrying 2.5 h above hers. A copy: the file itself is also the backend's sample of a unit's rules, whose
-    schema has none of the fields until tickets 50 and 51."""
+    """The sample, whose unit shares its overtime with 12 h free, the carry moving a share by 12 h at most and an hour above a
+    share at 1, with Amal carrying 2.5 h above hers."""
     out = copy.deepcopy(sample)
-    out["department"].update(share_overtime=True, overtime_tolerance=12, overtime_carry_cap=12)
-    out["general"]["weights"]["overtime_above_share"] = 1
     out["nurses"][0]["overtime_balance"] = 2.5
     return out
 

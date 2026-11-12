@@ -26,6 +26,7 @@ DEFAULT_RULES = {
         "fair_day": 1,
         "fair_night": 1,
         "fair_weekend": 1,
+        "overtime_above_share": 1,
         "score_deficit": 2,
         "score_spread": 1,
         "excess_weekend": 6,

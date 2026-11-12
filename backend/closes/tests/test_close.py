@@ -19,7 +19,7 @@ from closes import making
 from closes.chain import CARRIED, NEW_YEAR, NO_HISTORY, Chain
 from closes.models import CarryOver, CarrySource, MonthClose
 from conftest import post
-from hospital.models import Shift
+from hospital.models import HospitalSettings, Shift
 from notifications.models import Event, Notification
 from nurses import membership
 from nurses.models import NurseProfile
@@ -247,6 +247,21 @@ class TestTheFacts:
 
         assert close.input["department"]["max_full_runs"] == 2
         assert close.input["general"]["weights"]["excess_full_run"] == 20
+
+    def test_the_close_input_carries_the_units_overtime_share_and_the_hospitals_weight(self, june, er, on):
+        """Ticket 51: as a solve's does, so that the close moves each balance as the solver would."""
+        er.rules |= {"share_overtime": False, "overtime_tolerance": 4, "overtime_carry_cap": 9}
+        er.save()
+        settings = HospitalSettings.load()
+        settings.rules["weights"]["overtime_above_share"] = 0
+        settings.save()
+        on(dt.date(2026, 7, 1))
+
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        assert {key: close.input["department"][key] for key in ("share_overtime", "overtime_tolerance", "overtime_carry_cap")} \
+            == {"share_overtime": False, "overtime_tolerance": 4, "overtime_carry_cap": 9}
+        assert close.input["general"]["weights"]["overtime_above_share"] == 0
 
     def test_a_shift_the_unit_dropped_after_its_month_counts_as_worked(self, june, er, on):
         """The user's decision (2026-11-06): the close does not refuse, and keeps the past roster as it stands."""
@@ -614,13 +629,6 @@ class TestTheCountOfPreferencesNotKept:
         assert not_kept(er, JULY) == 1
 
 
-def shares_overtime(unit) -> None:
-    """The unit shares its overtime. Its rules gain the field in ticket 51; until then only a test writes it, here straight into
-    the rules a solve input takes its `department` from, so the solver moves each balance."""
-    unit.rules |= {"share_overtime": True, "overtime_tolerance": 12, "overtime_carry_cap": 12}
-    unit.save(update_fields=["rules"])
-
-
 def amal_works_ahead(unit) -> None:
     """Amal comes into June 24 hours ahead, so SOUND's June, which leaves every nurse 4 hours short of what she owes (Dana 2),
     gives her overtime and no one else any.
@@ -632,12 +640,21 @@ def amal_works_ahead(unit) -> None:
     With a day of leave on the 1st, a Night she works, recorded late: she owes 184 - 8 = 176 (a day's credit of her 208 hours)
     and works 192, so 16 hours. The four owe 774. +16 - 16 x 176 / 774 = +12.36; Badr and Emad -16 x 208 / 774 = -4.30, Dana
     -16 x 182 / 774 = -3.76."""
-    shares_overtime(unit)
     NurseProfile.objects.filter(user__username="Amal").update(hours_balance=-24)
 
 
 JUNE_OUT = {"Amal": 15.29, "Badr": -5.32, "Dana": -4.65, "Emad": -5.32}
 JUNE_WITH_LEAVE_OUT = {"Amal": 12.36, "Badr": -4.3, "Dana": -3.76, "Emad": -4.3}
+
+
+def one_more_shift_past_her_share(hospital_id: str) -> dict[str, float]:
+    """Ticket 51: a hand edit, a swap or a cover giving a nurse who comes into June 24 hours ahead one more 12-hour shift in
+    SOUND's June. She owes 184 and works 216, so 32 hours of overtime, the unit's whole overtime, 12 of them priced (32 - 32 x
+    184 / 782 - 12 = 12.47, rounded down), and nothing refuses it. The four owe 782, so her balance moves by 32 - 7.53 =
+    +24.47, a colleague owing 208 by -32 x 208 / 782 = -8.51, Dana (182) by -7.45. What July's projected input carries."""
+    NurseProfile.objects.filter(user__username=hospital_id).update(hours_balance=-24)
+    owing = {"Amal": 208, "Badr": 208, "Dana": 182, "Emad": 208}
+    return {nurse: 24.47 if nurse == hospital_id else {208: -8.51, 182: -7.45}[owed] for nurse, owed in owing.items()}
 
 
 def balances(unit, month) -> dict[str, float]:
@@ -647,7 +664,8 @@ def balances(unit, month) -> dict[str, float]:
 
 class TestTheOvertimeBalance:
     """The chain carries each nurse's overtime balance as one more carried field (ticket 50), from the solver's own carry-over
-    block, with the unit sharing its overtime (`shares_overtime`). The expected balances are `amal_works_ahead`'s, by hand."""
+    block, with the unit sharing its overtime as the sample's rules do (ticket 51: 12 hours free, the carry moving a share by 12
+    hours at most). The expected balances are `amal_works_ahead`'s, by hand."""
 
     def test_her_first_month_takes_her_opening_value(self, er):
         NurseProfile.objects.filter(user__username="Dana").update(overtime_balance=-6.5)

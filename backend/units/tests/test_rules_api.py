@@ -83,15 +83,9 @@ def ccu(omar):
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
-# The solver's overtime-share fields (ticket 49) that the app's unit rules do not carry yet: ticket 51 adds them to the blocks and
-# deletes this set and its subtraction below.
-OVERTIME_SHARE_FIELDS = {"share_overtime", "overtime_tolerance", "overtime_carry_cap"}
-
-
 @pytest.mark.parametrize("schema", [UnitRules, UnitRulesAnswer])
 def test_both_schemas_are_every_field_of_the_solvers_block_but_its_name(schema):
-    assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"} \
-        - OVERTIME_SHARE_FIELDS
+    assert set(schema.model_fields) == {field.name for field in dataclasses.fields(DepartmentRules)} - {"name"}
 
 
 @pytest.mark.parametrize("schema", [HeadcountRule, HeadcountAnswer])
@@ -126,6 +120,9 @@ def test_what_the_form_saves_is_what_a_solve_input_receives(mona, er):
     {"max_full_runs": 31},
     {"max_full_runs": 31, "max_consecutive_shifts": 0},
     {"max_full_runs": 0, "max_consecutive_shifts": 1},
+    {"share_overtime": False, "overtime_tolerance": 0, "overtime_carry_cap": 0},
+    {"overtime_tolerance": 744, "overtime_carry_cap": 744},
+    {"share_overtime": True, "carry_fairness": False},
     {"fair_shifts": []},
     {"headcounts": [headcount("D", low=1000, high=1000), headcount("N", low=0, high=0)]},
     {"headcounts": [headcount("D", also=["N"]), headcount("N", also=["D"])]},
@@ -271,6 +268,43 @@ def test_the_cno_and_the_deputy_read_the_most_full_runs_but_only_the_manager_cha
     assert er.rules["max_full_runs"] == 1
 
 
+# ---- the overtime share (ticket 51) ---------------------------------------------------------------
+def test_the_manager_sets_the_overtime_share_audited_and_a_solve_input_carries_it(mona, er):
+    put(mona, er, body())
+
+    response = put(mona, er, body(share_overtime=False, overtime_tolerance=8, overtime_carry_cap=24))
+
+    assert response.status_code == 200
+    assert {key: response.json()["rules"][key] for key in ("share_overtime", "overtime_tolerance", "overtime_carry_cap")} \
+        == {"share_overtime": False, "overtime_tolerance": 8, "overtime_carry_cap": 24}
+    entry = AuditEntry.objects.filter(action="unit_rules.changed").latest("id")
+    assert (entry.before, entry.after, entry.actor.username) == (
+        {"share_overtime": True, "overtime_tolerance": 12, "overtime_carry_cap": 12},
+        {"share_overtime": False, "overtime_tolerance": 8, "overtime_carry_cap": 24}, "mona")
+    er.refresh_from_db()
+    department = load_request(solve_input(er)).problem.department
+    assert (department.share_overtime, department.overtime_tolerance, department.overtime_carry_cap) == (False, 8, 24)
+
+
+@pytest.mark.parametrize("field", ["share_overtime", "overtime_tolerance", "overtime_carry_cap"])
+def test_a_missing_overtime_share_field_is_refused_rather_than_defaulted(mona, er, field):
+    rules = {key: value for key, value in DEFAULT_UNIT_RULES.items() if key != field}
+
+    assert ("rules", field) in refused_fields(put(mona, er, body() | {"rules": rules}))
+
+
+@pytest.mark.parametrize("role", [Role.CNO, Role.DEPUTY_CNO])
+def test_the_cno_and_the_deputy_read_the_overtime_share_but_only_the_manager_changes_it(client_of, mona, er, role):
+    put(mona, er, body(share_overtime=False, overtime_tolerance=6, overtime_carry_cap=3))
+    reader = client_of("reader", role)
+
+    read = reader.get(rules_of(er)).json()["rules"]
+    assert (read["share_overtime"], read["overtime_tolerance"], read["overtime_carry_cap"]) == (False, 6, 3)
+    assert put(reader, er, body(share_overtime=True, overtime_tolerance=12)).status_code == 403
+    er.refresh_from_db()
+    assert (er.rules["share_overtime"], er.rules["overtime_tolerance"]) == (False, 6)
+
+
 # ---- refusals -------------------------------------------------------------------------------------
 @pytest.mark.parametrize("changes, field", [
     ({"shifts": []}, ("rules", "shifts")),
@@ -316,6 +350,21 @@ def test_the_cno_and_the_deputy_read_the_most_full_runs_but_only_the_manager_cha
     ({"max_full_runs": "3"}, ("rules", "max_full_runs")),
     ({"max_full_runs": True}, ("rules", "max_full_runs")),
     ({"max_full_runs": None}, ("rules", "max_full_runs")),
+    ({"share_overtime": "yes"}, ("rules", "share_overtime")),
+    ({"share_overtime": 1}, ("rules", "share_overtime")),
+    ({"share_overtime": None}, ("rules", "share_overtime")),
+    ({"overtime_tolerance": -1}, ("rules", "overtime_tolerance")),
+    ({"overtime_tolerance": 745}, ("rules", "overtime_tolerance")),
+    ({"overtime_tolerance": 2.5}, ("rules", "overtime_tolerance")),
+    ({"overtime_tolerance": 12.0}, ("rules", "overtime_tolerance")),
+    ({"overtime_tolerance": "12"}, ("rules", "overtime_tolerance")),
+    ({"overtime_tolerance": True}, ("rules", "overtime_tolerance")),
+    ({"overtime_tolerance": None}, ("rules", "overtime_tolerance")),
+    ({"overtime_carry_cap": -1}, ("rules", "overtime_carry_cap")),
+    ({"overtime_carry_cap": 745}, ("rules", "overtime_carry_cap")),
+    ({"overtime_carry_cap": 0.5}, ("rules", "overtime_carry_cap")),
+    ({"overtime_carry_cap": "12"}, ("rules", "overtime_carry_cap")),
+    ({"overtime_carry_cap": False}, ("rules", "overtime_carry_cap")),
     ({"max_switches": True}, ("rules", "max_switches")),
     ({"headcount_enabled": "yes"}, ("rules", "headcount_enabled")),
     ({"name": "Renamed"}, ("rules", "name")),

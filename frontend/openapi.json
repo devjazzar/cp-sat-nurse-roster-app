@@ -8139,6 +8139,12 @@
             "title": "Fair Weekend",
             "type": "integer"
           },
+          "overtime_above_share": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Overtime Above Share",
+            "type": "integer"
+          },
           "score_deficit": {
             "maximum": 1000000,
             "minimum": 0,
@@ -8203,6 +8209,7 @@
           "fair_day",
           "fair_night",
           "fair_weekend",
+          "overtime_above_share",
           "score_deficit",
           "score_spread",
           "excess_weekend",
@@ -9202,6 +9209,18 @@
             "title": "Carry Cap",
             "type": "number"
           },
+          "share_overtime": {
+            "title": "Share Overtime",
+            "type": "boolean"
+          },
+          "overtime_tolerance": {
+            "title": "Overtime Tolerance",
+            "type": "integer"
+          },
+          "overtime_carry_cap": {
+            "title": "Overtime Carry Cap",
+            "type": "integer"
+          },
           "max_consecutive_shifts": {
             "title": "Max Consecutive Shifts",
             "type": "integer"
@@ -9263,6 +9282,9 @@
           "fair_weekends",
           "carry_fairness",
           "carry_cap",
+          "share_overtime",
+          "overtime_tolerance",
+          "overtime_carry_cap",
           "max_consecutive_shifts",
           "double_cycle_rest",
           "max_weekends",
@@ -9529,6 +9551,22 @@
             "title": "Carry Cap",
             "type": "number"
           },
+          "share_overtime": {
+            "title": "Share Overtime",
+            "type": "boolean"
+          },
+          "overtime_tolerance": {
+            "maximum": 744,
+            "minimum": 0,
+            "title": "Overtime Tolerance",
+            "type": "integer"
+          },
+          "overtime_carry_cap": {
+            "maximum": 744,
+            "minimum": 0,
+            "title": "Overtime Carry Cap",
+            "type": "integer"
+          },
           "max_consecutive_shifts": {
             "maximum": 1000,
             "minimum": 0,
@@ -9601,6 +9639,9 @@
           "fair_weekends",
           "carry_fairness",
           "carry_cap",
+          "share_overtime",
+          "overtime_tolerance",
+          "overtime_carry_cap",
           "max_consecutive_shifts",
           "double_cycle_rest",
           "max_weekends",
@@ -18588,10 +18629,37 @@
             "title": "Expiry",
             "type": "string"
           },
+          "identifier": {
+            "description": "As the file has it, trimmed when it is one; empty in a file of three columns.",
+            "title": "Identifier",
+            "type": "string"
+          },
+          "issue_date": {
+            "description": "As the file has it; empty in a file of three columns.",
+            "title": "Issue Date",
+            "type": "string"
+          },
           "full_name": {
             "description": "The nurse's, when the hospital ID is hers; empty otherwise.",
             "title": "Full Name",
             "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "skill",
+                  "certificate",
+                  "licence"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalogue's, when the skill is one; the page groups the rows by it.",
+            "title": "Kind"
           },
           "change": {
             "anyOf": [
@@ -18602,7 +18670,7 @@
                 "type": "null"
               }
             ],
-            "description": "What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded."
+            "description": "What confirming does with a row that has no problem: records the skill, renews the one she holds with the row's expiry, identifier and issue date, or nothing, since the file says what is already recorded."
           },
           "held_expiry": {
             "anyOf": [
@@ -18617,6 +18685,31 @@
             "description": "The expiry a renewal replaces.",
             "title": "Held Expiry"
           },
+          "held_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The identifier a renewal replaces, or the one recorded.",
+            "title": "Held Identifier"
+          },
+          "held_issue_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The issue date a renewal replaces, or the one recorded.",
+            "title": "Held Issue Date"
+          },
           "problems": {
             "items": {
               "$ref": "#/components/schemas/ImportProblem"
@@ -18630,9 +18723,14 @@
           "hospital_id",
           "skill",
           "expiry",
+          "identifier",
+          "issue_date",
           "full_name",
+          "kind",
           "change",
           "held_expiry",
+          "held_identifier",
+          "held_issue_date",
           "problems"
         ],
         "title": "SkillImportRow",

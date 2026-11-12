@@ -3,15 +3,29 @@ wherever it is made: see `nurses.skills_api` and the skills import (`nurses.skil
 from __future__ import annotations
 
 import datetime as dt
+from typing import Annotated
 from uuid import UUID
 
 from django.db.models import Prefetch
 from django.utils import timezone
 from ninja import Field, Schema
+from pydantic import AfterValidator, StringConstraints
 
 from hospital.models import Skill, SkillKind
 from nurses import membership
 from nurses.models import NurseProfile, NurseSkill
+
+
+def _no_nul(value: str) -> str:
+    # PostgreSQL cannot hold one, as `hospital.catalogue_api.no_nul` says; that module cannot be imported from here.
+    if "\x00" in value:
+        raise ValueError("cannot contain a NUL character")
+    return value
+
+
+# An identifier as a record keeps it, from the API's bodies and the import's cells alike: trimmed, and none when empty.
+Identifier = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100), AfterValidator(_no_nul),
+                       AfterValidator(lambda value: value or None)]
 
 
 class NurseSkillDetails(Schema):
