@@ -272,3 +272,11 @@ No Codex review, as the brief says.
 ticket 61, both kept; no migration clash and no change to the generated client. The overlapping tests passed locally (backend 275,
 frontend 65), and both workflows (backend, solver, frontend, image, browser checks) were green on `7ac08d1`; `main` was
 fast-forwarded from `c62cc35` to `7ac08d1`. What follows it is this ticket's markdown only (`[skip ci]`).
+
+**Reviewed by the user (2026-11-12):** all five points kept as built.
+- A retired skill marked "Lets a nurse precept" lets no one precept.
+- The night-alone gap: a unit dropping a shift that would leave her the night shift alone is refused; a transfer empties her
+  allowed shifts for the new unit's manager to choose.
+- The swap and cover refusals name her probation and her preceptor, leaning on ticket 56's "On probation" heading.
+- The explanation's words for the days she did not follow her preceptor.
+- Extend and Length are refused when her preceptor would then precept two nurses in one month.
