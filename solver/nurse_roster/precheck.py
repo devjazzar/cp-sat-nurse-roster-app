@@ -3,7 +3,7 @@ causes of infeasibility in plain words. CP-SAT only says INFEASIBLE."""
 from __future__ import annotations
 
 from . import fairness as F
-from .problem import (Problem, barred_days, expired_required, expiry_words, holds_skill,  # noqa: F401
+from .problem import (Problem, barred_days, counted, expired_required, expiry_words, holds_skill,  # noqa: F401
                       needed_history)          # (needed_history: re-exported, defined with the contract)
 
 # ---- cycle-rule automaton -------------------------------------------------------------
@@ -108,7 +108,7 @@ def precheck(p: Problem) -> list[str]:
     shift_h = {s: g.shift_hours[s] for s in dep.shifts}
     K, R = dep.max_consecutive_shifts, dep.double_cycle_rest
     allowed = {n.id: set(p.allowed(n)) for n in p.nurses}   # a nurse on probation's: no night shift
-    staff = [n for n in p.nurses if not n.on_probation]     # who counts toward a shift: every supply below
+    staff = [p.nurses[n] for n in counted(p)]               # who counts toward a shift: every supply below
     anchors = dep.headcounts if dep.headcount_enabled else []
     cut = p.planning_from                                     # elapsed days are facts: their demand
     free = range(cut, D)                                      # is met by whatever happened

@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .problem import (Nurse, Problem, barred_days, expired_required, expiry_words, followable_candidates,
+from .problem import (Nurse, Problem, barred_days, counted, expired_required, expiry_words, followable_candidates,
                       preceptor_of, preference_factor, skill_holders, superseding)
 from . import fairness as F
 from .rules import HARD, RULES, Match, active, level, soft_ids, weight
@@ -72,7 +72,7 @@ def _ctx(p: Problem, a: list[list[int]]) -> Ctx:
                [set(p.allowed(nu)) for nu in p.nurses],
                p.planning_from,
                [sum(hours[s] for s in a[n][:p.planning_from] if s >= 0) for n in range(N)],
-               [n for n, nu in enumerate(p.nurses) if not nu.on_probation])
+               counted(p))
 
 
 def count_switches(seq: list[int], H: int, NI: int | None, stop: int, last: bool | None = None) -> int:

@@ -406,11 +406,10 @@ def build_model(p: Problem) -> RosterModel:
                     pen["skill_need"][0].append(short)
 
     # ---- department overtime (soft) --------------------------------------------
-    unit_ot_vars = [ot_vars[n] for n in staff] if ot_vars else []   # her rounding overtime is her own record
-    unit_ot_cap = sum(ot_caps[n] for n in staff) if ot_vars else 0
-    if rule("dept_overtime") and unit_ot_vars:
+    unit_ot_cap = F.unit_overtime(p, ot_caps) if ot_vars else 0   # her rounding overtime is her own record
+    if rule("dept_overtime") and ot_vars:
         ex = m.new_int_var(0, unit_ot_cap, "dept_ot_excess")    # includes already-recorded excess
-        m.add(ex >= Sum(unit_ot_vars) - g.dept_overtime_cap)
+        m.add(ex >= F.unit_overtime(p, ot_vars) - g.dept_overtime_cap)
         pen["dept_overtime"][0].append(ex)
 
     # ---- overtime share (soft): each nurse's overtime above her target, beyond the tolerance ----
@@ -422,7 +421,7 @@ def build_model(p: Problem) -> RosterModel:
     owed = F.overtime_owed(p) if rule("overtime_above_share") and ot_vars else 0
     if owed > 0:
         unit_ot = m.new_int_var(0, unit_ot_cap, "unit_ot")
-        m.add(unit_ot == Sum(unit_ot_vars))
+        m.add(unit_ot == F.unit_overtime(p, ot_vars))
         scale, tol = 100 * owed, dep.overtime_tolerance
         for n, nurse in enumerate(p.nurses):
             r = p.required_hours(nurse)

@@ -131,9 +131,11 @@ def preceptor_of(p: "Problem", nurse: Nurse) -> int | None:
 def followable_candidates(p: "Problem", nurse: Nurse) -> list[int]:
     """The days the following rule judges for her: not pinned (a pin, an accepted day off and every elapsed day are
     facts), not on leave (the days outside her dates included) and not barred by an expired required skill. A day of
-    these is followable when her preceptor works on it a shift she is allowed (`Problem.allowed`)."""
+    these is followable when her preceptor works on it a shift she is allowed (`Problem.allowed`): the model
+    (`fol`) and the validator (`_following`) both read that set. Elapsed days are pinned (`check`), and left out here
+    by the cutoff as well."""
     off = set(nurse.unavailable) | set(barred_days(p, nurse))
-    return [d for d in range(p.days) if d not in nurse.pinned and d not in off]
+    return [d for d in range(p.planning_from, p.days) if d not in nurse.pinned and d not in off]
 
 
 def expiry_words(last: int) -> str:

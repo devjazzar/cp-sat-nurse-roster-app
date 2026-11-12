@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from nurse_roster import fairness as F
 from nurse_roster.explain import explain
 from nurse_roster.model import build_model, fingerprint, solve
 from nurse_roster.precheck import precheck
@@ -229,13 +228,15 @@ def test_the_fairness_figures_the_overtime_share_and_the_units_overtime_are_the_
 
 
 def test_her_carried_fairness_balances_are_zero_out():
-    p, a = _fair_month(True)
-    her, row = p.nurses[2], a[2]
-    hours = [sum(12 for v in r if v >= 0) for r in a]
-    overtime = [max(0, h - p.required_hours(nu)) for h, nu in zip(hours, p.nurses)]
+    """April 2026 with D and N fair, the weekend fair and the overtime share on: she comes in carrying 2 nights, 1 Friday
+    and 5 h above her shares, works 18 D shifts (four of them Fridays) and 8 h over, and carries 0, 0 and 0 out."""
+    p = _april(["D", "N"], headcounts=[Headcount("D", 1, 1, 1, 1), Headcount("N", 1, 1, 1, 1)], fair_shifts=["D", "N"],
+               fair_weekends=True, share_overtime=True)
+    p.nurses[0] = replace(p.nurses[0], night_balance=2.0, friday_balance=1.0, overtime_balance=5.0)
 
-    assert F.balances_out(p, her, row) == (0.0, 0.0)
-    assert F.overtime_balance_out(p, her, overtime[2], F.unit_overtime(p, overtime), F.overtime_owed(p)) == 0.0
+    carry = nurse_accounting(p, grid(p, {"a": "D" * 18 + "." * 12}))["a"]["carry_over"]
+
+    assert (carry["night_balance"], carry["friday_balance"], carry["overtime_balance"]) == (0.0, 0.0, 0.0)
 
 
 # ---- no night shift ------------------------------------------------------------------------------------------------
