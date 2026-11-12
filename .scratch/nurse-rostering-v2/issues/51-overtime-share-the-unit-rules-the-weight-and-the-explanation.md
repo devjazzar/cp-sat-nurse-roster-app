@@ -23,3 +23,10 @@
 `overtime_carry_cap` and `general.weights.overtime_above_share`, optional in both versions. Delete `OVERTIME_SHARE_FIELDS` in
 `units/tests/test_unit_rules.py`, `units/tests/test_rules_api.py` and `hospital/tests/test_rules.py`. Read ticket 49's
 "Worth your review" on the weight against `nurse_overtime` before the weight's description.
+
+**From ticket 49's review (the user, 2026-11-12).** The share rises with the unit's overtime, so with the overtime share
+weight above `nurse_overtime`'s the solver can lower the rule's cost by adding overtime, and through rounding when many
+nurses are priced at once. The user chose: the weights page and API refuse an overtime share weight above the hour of
+overtime's weight (the refusal says why, beside the field), and this ticket's tests hold "with the rule on, the month's total
+overtime is never above what it is with the rule off" on a month larger than ticket 49's small one. Ticket 49's comment
+has the detail.

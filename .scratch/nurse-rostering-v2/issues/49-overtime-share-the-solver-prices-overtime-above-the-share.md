@@ -160,3 +160,10 @@ and 71 and the fix to `operations.sh` (`bf16ca8`); both workflows green on it (b
 checks). On `ae1c600` the browser checks had failed on ticket 71's one-CPU confirmation check (28.7 s, inside gunicorn's 30 s),
 as `main`'s own run did; the main session fixed it on `main`. The local suites ran on `929e2b3`, before those merges; the
 merges touched nothing in `solver/` or `backend/closes/`.
+
+**Reviewed by the user (2026-11-12):** all points kept as built; the weight's cap goes to ticket 51.
+- Whole hours priced, the excess rounded down, the same integer arithmetic in the model and the validator.
+- Overtime that pays: ticket 51 refuses an overtime share weight above the hour of overtime's weight, and its tests hold
+  "the rule never raises the month's total overtime" on a larger month than this ticket's.
+- A nurse's overtime fixed to exactly what she worked above what she owes while the rule is on; the cap at her overtime an
+  either-or; a nurse owing no hours never priced, her overtime still in the unit's total; the sample file without the fields.
