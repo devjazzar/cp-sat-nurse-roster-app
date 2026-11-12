@@ -27,7 +27,7 @@ Expires, Required to work, Lets a nurse precept, Status, Edit, and its opening p
 `hospital/0007` must reverse (a `RunPython` with its reverse, as `0004` and `0005` have).
 
 **Implemented on 2026-11-12,** on branch `claude/ticket-58-kind-and-issuing-body-1f32de` (`87d0605`, `916248f`, `43088a8`,
-`9eefee3`, then this comment), from `main` at `3579d76`. Draft pull request
+`9eefee3`, this comment, then `21c1a84`, a merge of `main` with ticket 46, and this paragraph's correction), from `main` at `3579d76`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#19](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/19). Built in this session,
 not by implementer subagents: one ticket on its own integration branch, as the brief set out (it overrides
 `/implement-spec`'s subagent per ticket).
@@ -40,6 +40,10 @@ block of the Vitest suite was run again on it, 19 passed):
 - the OpenAPI document and the generated client regenerated, matching the export;
 - the solver untouched; no Playwright file changed. The six parallel frontend runs and the browser suite are GitHub's, on the
   pull request.
+- after the merge of `main` (`21c1a84`, ticket 46): no second `hospital/0007`, `makemigrations --check` clean, the OpenAPI
+  document and client regenerated and matching, `tsc -b` clean, and locally `hospital` with `nurses/tests/test_skills.py` and
+  `units/tests/test_skill_needs.py` (429 passed) and `app.test.tsx` (771 passed). The full suites on the merged head are
+  GitHub's.
 
 **What the dev stack needs:** a **rebuild** of `web` and `worker` (`docker compose up -d --build`) and the migration
 `hospital/0007_skill_kind_and_issuing_body`, which the stack's start runs. No change to `deploy/compose.yaml`, the
