@@ -381,18 +381,21 @@ class TestTheChain:
         assert {change["what"] for change in draft["changes"]} == {"closed"}
         assert draft["check"] is not None  # Checked again on the month as it stands, as at submit.
 
-    def test_the_carry_over_into_january_resets_overtime_and_both_balances(self, er):
+    def test_the_carry_over_into_january_resets_overtime_and_the_three_balances(self, er):
+        """The year boundary is applied as January's input is built, never inside a close (ADR 0004): December's row keeps
+        what December handed on."""
         amal = NurseProfile.objects.get(user__username="Amal")
         close = MonthClose.objects.create(unit=er, month=dt.date(2026, 12, 1), version=1, input={}, result={})
         values = {"ytd_overtime": 40, "hours_balance": 6, "night_balance": 1.5, "friday_balance": -0.5, "previous": ["N", ""],
-                  "last_shift_kind": "night", "rest_owed": 1, "preferences_not_kept": 1}   # January keeps the count
+                  "last_shift_kind": "night", "rest_owed": 1, "preferences_not_kept": 1,   # January keeps the count
+                  "overtime_balance": 9.5}
         CarryOver.objects.create(nurse=amal, unit=er, month=close.month, source=CarrySource.CLOSED, close=close, values=values)
 
         row = next(row for row in assemble(er, dt.date(2027, 1, 1)).nurses if row["id"] == "Amal")
 
-        # A close stored before the overtime balance (ticket 49) hands on 0.
         assert {key: row[key] for key in CARRIED} == values | {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0,
                                                                "overtime_balance": 0.0}
+        assert CarryOver.objects.get(nurse=amal, month=close.month).values["overtime_balance"] == 9.5
 
     def test_a_closed_months_overtime_balance_reaches_the_next_months_input(self, er):
         """Passed through as is (ticket 49): the solver hands it on unchanged until a unit shares its overtime (ticket 51)."""
@@ -410,14 +413,14 @@ class TestTheChain:
         """A nurse added in December whose first month in this application is January: her opening values were last year's."""
         from nurses.models import Placement
         amal = NurseProfile.objects.get(user__username="Amal")
-        NurseProfile.objects.filter(pk=amal.pk).update(ytd_overtime=30, night_balance=2.0, hours_balance=5)
+        NurseProfile.objects.filter(pk=amal.pk).update(ytd_overtime=30, night_balance=2.0, hours_balance=5, overtime_balance=7.5)
         Placement.objects.filter(nurse=amal).update(from_month=dt.date(2026, 12, 1))
 
         row = next(row for row in assemble(er, dt.date(2027, 1, 1)).nurses if row["id"] == "Amal")
         december = next(row for row in assemble(er, dt.date(2026, 12, 1)).nurses if row["id"] == "Amal")
 
-        assert (row["ytd_overtime"], row["night_balance"], row["hours_balance"]) == (0, 0.0, 5)
-        assert (december["ytd_overtime"], december["night_balance"]) == (30, 2.0)
+        assert (row["ytd_overtime"], row["night_balance"], row["hours_balance"], row["overtime_balance"]) == (0, 0.0, 5, 0.0)
+        assert (december["ytd_overtime"], december["night_balance"], december["overtime_balance"]) == (30, 2.0, 7.5)
 
     def test_a_transferred_nurse_carries_hers_into_the_new_unit(self, june, er, on, client_of, make_user):
         from solves.tests.conftest import make_sample_unit
@@ -609,6 +612,136 @@ class TestTheCountOfPreferencesNotKept:
 
         assert carried(closed(er))["Amal"]["preferences_not_kept"] == 1
         assert not_kept(er, JULY) == 1
+
+
+def shares_overtime(unit) -> None:
+    """The unit shares its overtime. Its rules gain the field in ticket 51; until then only a test writes it, here straight into
+    the rules a solve input takes its `department` from, so the solver moves each balance."""
+    unit.rules |= {"share_overtime": True, "overtime_tolerance": 12, "overtime_carry_cap": 12}
+    unit.save(update_fields=["rules"])
+
+
+def amal_works_ahead(unit) -> None:
+    """Amal comes into June 24 hours ahead, so SOUND's June, which leaves every nurse 4 hours short of what she owes (Dana 2),
+    gives her overtime and no one else any.
+
+    Counted by hand: she owes 208 - 24 = 184 and works 17 twelve-hour shifts, 204, so 20 hours of overtime, the unit's whole
+    overtime. The four owe 184 + 208 + 182 + 208 = 782. Her share is 20 x 184 / 782 = 4.71, so her balance moves by
+    20 - 4.71 = +15.29; Badr's and Emad's by 0 - 20 x 208 / 782 = -5.32, Dana's by 0 - 20 x 182 / 782 = -4.65.
+
+    With a day of leave on the 1st, a Night she works, recorded late: she owes 184 - 8 = 176 (a day's credit of her 208 hours)
+    and works 192, so 16 hours. The four owe 774. +16 - 16 x 176 / 774 = +12.36; Badr and Emad -16 x 208 / 774 = -4.30, Dana
+    -16 x 182 / 774 = -3.76."""
+    shares_overtime(unit)
+    NurseProfile.objects.filter(user__username="Amal").update(hours_balance=-24)
+
+
+JUNE_OUT = {"Amal": 15.29, "Badr": -5.32, "Dana": -4.65, "Emad": -5.32}
+JUNE_WITH_LEAVE_OUT = {"Amal": 12.36, "Badr": -4.3, "Dana": -3.76, "Emad": -4.3}
+
+
+def balances(unit, month) -> dict[str, float]:
+    """What the month's solve input hands the solver."""
+    return {row["id"]: row["overtime_balance"] for row in assemble(unit, month).nurses}
+
+
+class TestTheOvertimeBalance:
+    """The chain carries each nurse's overtime balance as one more carried field (ticket 50), from the solver's own carry-over
+    block, with the unit sharing its overtime (`shares_overtime`). The expected balances are `amal_works_ahead`'s, by hand."""
+
+    def test_her_first_month_takes_her_opening_value(self, er):
+        NurseProfile.objects.filter(user__username="Dana").update(overtime_balance=-6.5)
+
+        assert balances(er, JUNE) == {"Amal": 0.0, "Badr": 0.0, "Dana": -6.5, "Emad": 0.0}
+        assert assemble(er, JUNE).carried["Dana"].source == CarrySource.OPENING
+
+    def test_it_is_projected_from_the_roster_in_force(self, er, mona, carla, solver):  # noqa: F811
+        amal_works_ahead(er)
+        approved(mona, carla, er, solver)
+
+        assert balances(er, JULY) == JUNE_OUT
+        assert assemble(er, JULY).carried["Amal"].source == CarrySource.PROJECTED
+
+    def test_it_moves_on_from_her_opening_value(self, er, mona, carla, solver):  # noqa: F811
+        """Her share does not hang on what she carries in, so her balance moves by the same 15.29: 3.5 + 15.29 = 18.79."""
+        amal_works_ahead(er)
+        NurseProfile.objects.filter(user__username="Amal").update(overtime_balance=3.5)
+        approved(mona, carla, er, solver)
+
+        assert balances(er, JULY)["Amal"] == 18.79
+
+    def test_the_close_corrects_it_with_leave_recorded_late(self, er, mona, carla, solver, on):  # noqa: F811
+        amal_works_ahead(er)
+        approved(mona, carla, er, solver)
+        on(dt.date(2026, 7, 1))
+        assert record_leave(mona, er, "Amal", 1).status_code == 201
+
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+
+        assert {hospital_id: values["overtime_balance"] for hospital_id, values in carried(close).items()} == JUNE_WITH_LEAVE_OUT
+        assert balances(er, JULY) == JUNE_WITH_LEAVE_OUT
+        assert assemble(er, JULY).carried["Amal"].source == CarrySource.CLOSED
+
+    def test_closing_again_re_works_it(self, er, mona, carla, solver, on):  # noqa: F811
+        amal_works_ahead(er)
+        approved(mona, carla, er, solver)
+        on(dt.date(2026, 7, 1))
+        [first] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+        assert carried(first)["Amal"]["overtime_balance"] == 15.29 and balances(er, JULY) == JUNE_OUT
+
+        assert record_leave(mona, er, "Amal", 1).status_code == 201
+        ok(close_again(mona, er))
+
+        assert carried(closed(er))["Amal"]["overtime_balance"] == 12.36
+        assert carried(first)["Amal"]["overtime_balance"] == 15.29, "The first close stays as it was."
+        assert balances(er, JULY) == JUNE_WITH_LEAVE_OUT
+
+    def test_a_close_starts_from_the_month_before_closed(self, er, mona, carla, solver, on):  # noqa: F811
+        """July's close takes June's closed balances, the leave in them, whatever July's projection had said."""
+        amal_works_ahead(er)
+        approved(mona, carla, er, solver)
+        approved(mona, carla, er, solver, "2026-07")
+        on(dt.date(2026, 7, 1))
+        assert record_leave(mona, er, "Amal", 1).status_code == 201
+        on(dt.date(2026, 8, 3))
+
+        june_close, july_close = making.catch_up(at(dt.date(2026, 8, 3), 9))
+
+        assert (june_close.month, july_close.month) == (JUNE, JULY)
+        assert {row["id"]: row["overtime_balance"] for row in july_close.input["nurses"]} == JUNE_WITH_LEAVE_OUT
+
+    def test_a_month_with_no_roster_hands_it_on_unchanged(self, er, mona, carla, solver):  # noqa: F811
+        from hospital.models import FixedRamadanMonth
+        for month in ("2026-07", "2026-08"):
+            FixedRamadanMonth.objects.get_or_create(month=month, defaults={"dates": []})
+        amal_works_ahead(er)
+        approved(mona, carla, er, solver)
+
+        assert balances(er, AUGUST) == JUNE_OUT  # July has no roster: nothing was worked or owed there to move it.
+
+    def test_it_follows_a_transfer(self, er, mona, carla, solver, client_of, make_user):  # noqa: F811
+        from accounts.models import User
+        from solves.tests.conftest import make_sample_unit
+        client_of("omar", Role.UNIT_MANAGER)
+        icu = make_sample_unit("ICU", User.objects.get(username="omar"), make_user, prefix="i")
+        amal_works_ahead(er)
+        approved(mona, carla, er, solver)
+
+        membership.transfer(NurseProfile.objects.get(user__username="Amal"), icu, JULY)
+
+        assert balances(icu, JULY)["Amal"] == 15.29
+
+    def test_a_close_stored_before_it_existed_hands_on_zero(self, er, mona, carla, solver, on):  # noqa: F811
+        amal_works_ahead(er)
+        approved(mona, carla, er, solver)
+        on(dt.date(2026, 7, 1))
+        [close] = making.catch_up(at(dt.date(2026, 7, 1), 1))
+        for row in close.carry_overs.all():                   # as a close made before ticket 49 stored it
+            row.values = {key: value for key, value in row.values.items() if key != "overtime_balance"}
+            row.save(update_fields=["values"])
+
+        assert balances(er, JULY) == {"Amal": 0.0, "Badr": 0.0, "Dana": 0.0, "Emad": 0.0}
+        assert assemble(er, JULY).carried["Amal"].source == CarrySource.CLOSED
 
 
 class TestThreeMonths:

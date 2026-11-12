@@ -34,6 +34,8 @@ router = Router(tags=["nurses"])
 manager = SignedIn(Role.UNIT_MANAGER)
 
 Balance = Annotated[float, Field(ge=-MAX_PARAM, le=MAX_PARAM, allow_inf_nan=False)]
+# The solver bounds a nurse's overtime balance as it bounds an hours balance (`nurse_roster.request`), not as a shift balance.
+OvertimeBalance = Annotated[float, Field(ge=-MAX_HOURS, le=MAX_HOURS, allow_inf_nan=False)]
 
 
 AllowedShifts = Annotated[list[str], Field(min_length=1), AfterValidator(distinct_shifts)] | None
@@ -52,6 +54,8 @@ class AttributesBody(AllowedShiftsBody):
     hours_balance: int = Field(ge=-MAX_HOURS, le=MAX_HOURS, description="Hours still owed (+) or worked ahead (-).")
     night_balance: Balance = Field(description="Night shifts above (+) or below (-) their fair share.")
     friday_balance: Balance = Field(description="Weekend days above (+) or below (-) their fair share.")
+    overtime_balance: OvertimeBalance = Field(description="Hours of overtime above (+) or below (-) their overtime share so far "
+                                                       "this year.")
 
 
 class LengthChoice(Schema):
@@ -99,10 +103,12 @@ class NurseAttributesRow(Schema):
     hours_balance: int
     night_balance: float
     friday_balance: float
+    overtime_balance: float
     allowed_shifts: list[str] | None = Field(description="In this unit. Empty for any shift it works.")
     allowed_shifts_to_check: bool = Field(description="A transfer emptied the list, as none of its shifts are worked here.")
     opening_values_locked: bool = Field(description="Their first month has closed: the opening values (`ytd_overtime`, "
-                                                    "`hours_balance`, `night_balance`, `friday_balance`) can no longer change, "
+                                                    "`hours_balance`, `night_balance`, `friday_balance`, "
+                                                    "`overtime_balance`) can no longer change, "
                                                     "as the carry-over comes from the closes now.")
     skills: list[NurseSkillRow] = Field(description="Their current skills, to read: the CNO sets them on the Nurses page. "
                                                      "Their details for the CNO and the Deputy CNO only.")
@@ -122,13 +128,13 @@ def _row(nurse: NurseProfile, unit: Unit, *, details: bool = False) -> NurseAttr
         joins_from=joins.strftime("%Y-%m") if joins else None, leaves_from=leaves.strftime("%Y-%m") if leaves else None,
         team_leader=nurse.team_leader, score=nurse.score, ramadan_reduced=nurse.ramadan_reduced,
         breastfeeding=nurse.breastfeeding, ytd_overtime=nurse.ytd_overtime, hours_balance=nurse.hours_balance,
-        night_balance=nurse.night_balance, friday_balance=nurse.friday_balance,
+        night_balance=nurse.night_balance, friday_balance=nurse.friday_balance, overtime_balance=nurse.overtime_balance,
         allowed_shifts=here.allowed_shifts, allowed_shifts_to_check=here.allowed_shifts_to_check,
         opening_values_locked=has_closed(nurse), skills=skills_of(nurse, details=details),
         probation=_probation_on_the_row(nurse))
 
 
-OPENING_VALUES = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance")
+OPENING_VALUES = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance", "overtime_balance")
 
 
 def _refuse_opening_values(nurse: NurseProfile, changing: dict) -> None:

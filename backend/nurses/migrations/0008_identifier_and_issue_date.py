@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('hospital', '0007_skill_kind_and_issuing_body'),
-        ('nurses', '0006_probation'),
+        ('nurses', '0007_opening_overtime_balance'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

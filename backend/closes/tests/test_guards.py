@@ -51,20 +51,22 @@ class TestOpeningValues:
     def attributes(self, client, unit, hospital_id, **changes):
         row = next(row for row in ok(client.get(url(unit, "/nurses"))) if row["hospital_id"] == hospital_id)
         body = {key: row[key] for key in ("team_leader", "score", "ramadan_reduced", "breastfeeding", "ytd_overtime",
-                                          "hours_balance", "night_balance", "friday_balance", "allowed_shifts")}
+                                          "hours_balance", "night_balance", "friday_balance", "overtime_balance",
+                                          "allowed_shifts")}
         return client.put(url(unit, f"/nurses/{row['id']}/attributes"), body | changes, content_type="application/json")
 
     def test_they_lock_after_her_first_close_on_their_fields_only(self, june, mona, er, on):  # noqa: F811
-        assert self.attributes(mona, er, "Amal", hours_balance=3).status_code == 200
+        assert self.attributes(mona, er, "Amal", hours_balance=3, overtime_balance=-2.5).status_code == 200
         close_june(on)
 
-        errors = field_errors(self.attributes(mona, er, "Amal", hours_balance=5, ytd_overtime=9))
+        errors = field_errors(self.attributes(mona, er, "Amal", hours_balance=5, ytd_overtime=9, overtime_balance=4.5))
 
-        assert set(errors) == {"hours_balance", "ytd_overtime"}
+        assert set(errors) == {"hours_balance", "ytd_overtime", "overtime_balance"}
         assert errors["hours_balance"] == ("Amal's first month has closed, so their opening values can no longer change: each "
                                            "month now starts from the carry-over of the one before.")
         saved = ok(self.attributes(mona, er, "Amal", score=0.5))
         assert saved["score"] == 0.5 and saved["hours_balance"] == 3 and saved["opening_values_locked"] is True
+        assert saved["overtime_balance"] == -2.5
 
 
 class TestDates:

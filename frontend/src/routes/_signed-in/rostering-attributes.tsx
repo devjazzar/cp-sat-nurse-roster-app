@@ -16,6 +16,7 @@ import { Role, type AllowedShiftsBody, type AttributesBody, type NurseAttributes
 import {
   updateNurseAttributesBodyHoursBalanceMax as HOURS_MAX,
   updateNurseAttributesBodyNightBalanceMax as BALANCE_MAX,
+  updateNurseAttributesBodyOvertimeBalanceMax as OVERTIME_BALANCE_MAX,
 } from "@/api/generated/zod"
 import { CodeCheckboxes } from "@/components/code-checkboxes"
 import { CheckboxField, FormField } from "@/components/form-field"
@@ -49,7 +50,8 @@ const COULD_NOT_SAVE = "That did not work. Check your connection and try again."
 
 const between = (min: number, max: number) => `Between ${min} and ${max}.`
 const hours = (min: number) => z.int("Enter a whole number of hours.").min(min, between(min, HOURS_MAX)).max(HOURS_MAX, between(min, HOURS_MAX))
-const balance = z.number("Enter a number.").min(-BALANCE_MAX, between(-BALANCE_MAX, BALANCE_MAX)).max(BALANCE_MAX, between(-BALANCE_MAX, BALANCE_MAX))
+const within = (max: number, message: string) => z.number(message).min(-max, between(-max, max)).max(max, between(-max, max))
+const balance = within(BALANCE_MAX, "Enter a number.")
 const allowedShifts = z.array(z.string()).nullable()
 
 const attributesSchema = z.object({
@@ -62,6 +64,7 @@ const attributesSchema = z.object({
   hours_balance: hours(-HOURS_MAX),
   night_balance: balance,
   friday_balance: balance,
+  overtime_balance: within(OVERTIME_BALANCE_MAX, "Enter a number of hours."),
 })
 const dueToJoinSchema = z.object({ allowed_shifts: allowedShifts })
 
@@ -107,7 +110,7 @@ function AttributesForm({ unitId, nurse, shifts, isOwn, onCancel, onDone }: Form
     defaultValues: {
       team_leader: nurse.team_leader, score: nurse.score, ramadan_reduced: nurse.ramadan_reduced, breastfeeding: nurse.breastfeeding,
       allowed_shifts: nurse.allowed_shifts ?? null, ytd_overtime: nurse.ytd_overtime, hours_balance: nurse.hours_balance,
-      night_balance: nurse.night_balance, friday_balance: nurse.friday_balance,
+      night_balance: nurse.night_balance, friday_balance: nurse.friday_balance, overtime_balance: nurse.overtime_balance,
     },
   })
   const { errors } = form.formState
@@ -155,6 +158,8 @@ function AttributesForm({ unitId, nurse, shifts, isOwn, onCancel, onDone }: Form
             readOnly={locked} registration={form.register("night_balance", asNumber)} error={errors.night_balance} />
           <FormField label="Weekend fairness balance (shifts)" type="number" inputMode="decimal" step="any" description="Weekend days above their fair share so far this year, or below zero, under it."
             readOnly={locked} registration={form.register("friday_balance", asNumber)} error={errors.friday_balance} />
+          <FormField label="Overtime above or below their fair share (hours)" type="number" inputMode="decimal" step="any" description="Hours of overtime above their share of the unit's overtime so far this year, or below zero, under it."
+            readOnly={locked} registration={form.register("overtime_balance", asNumber)} error={errors.overtime_balance} />
         </FieldGroup>
       </FieldSet>
       <Unexpected error={update.error} />
@@ -232,6 +237,7 @@ function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
           <TableHead>Hours balance</TableHead>
           <TableHead>Night balance</TableHead>
           <TableHead>Weekend balance</TableHead>
+          <TableHead>Overtime balance</TableHead>
           <TableHead>Skills</TableHead>
         </TableRow>
       </TableHeader>
@@ -265,6 +271,7 @@ function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
             <TableCell className="tabular-nums">{nurse.hours_balance}</TableCell>
             <TableCell className="tabular-nums">{nurse.night_balance}</TableCell>
             <TableCell className="tabular-nums">{nurse.friday_balance}</TableCell>
+            <TableCell className="tabular-nums">{nurse.overtime_balance}</TableCell>
             <TableCell>
               {/* The API gives the details to the CNO and the Deputy CNO only; the unit's manager reads names and expiries. */}
               {!nurse.skills.some((skill) => skill.details)

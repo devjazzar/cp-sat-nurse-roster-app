@@ -2,7 +2,8 @@
 month, projected forward through each approved roster in between by the same computation a close makes: the solver package's
 carry-over of a month with every day recorded, worked out with no search (`solver_service.grid`, ADR 0009). A month with no
 approved roster carries what came into it on, with no shift history. A close takes no projection: its chain is closed months only.
-The carry-over handed into January has overtime-to-date and both fairness balances reset to zero.
+The carry-over handed into January has overtime-to-date and the three fairness balances (nights, weekend days, overtime against
+her overtime share) reset to zero.
 
 The nurse's unit is the one each month falls under for her (`membership.placement_in`), so a transferred nurse's carry-over follows
 her into the new unit from the month the transfer takes effect."""
@@ -24,15 +25,15 @@ logger = logging.getLogger(__name__)
 
 # A solve input's nurse fields that one month hands to the next: a result's `carry_over` block, field for field.
 # `preferences_not_kept` (ticket 28) is passed through as is: 0 until the app feeds preferences (tickets 29 and 30).
-# `overtime_balance` (ticket 49) likewise: the solver hands it on unchanged until a unit shares its overtime (ticket 51); its opening
-# value and its January reset are ticket 50's.
+# `overtime_balance` (ticket 49) likewise: the solver hands it on unchanged until a unit shares its overtime (ticket 51). It starts
+# from her opening value and resets in January with the other two balances (ticket 50).
 CARRIED = ("ytd_overtime", "hours_balance", "night_balance", "friday_balance", "previous", "last_shift_kind", "rest_owed",
            "preferences_not_kept", "overtime_balance")
 NO_HISTORY = {"previous": [], "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": 0}
 # The carried values added since the first closes: a close stored before the solver carried the count (ticket 28), or the overtime
 # balance (ticket 49), has none, and hands on 0, as nothing was priced then.
 CARRIED_SINCE = {"preferences_not_kept": 0, "overtime_balance": 0.0}
-NEW_YEAR = {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0}
+NEW_YEAR = {"ytd_overtime": 0, "night_balance": 0.0, "friday_balance": 0.0, "overtime_balance": 0.0}
 
 
 def next_month(month: dt.date) -> dt.date:
@@ -53,7 +54,7 @@ class Carried:
     year: int
 
     def into(self, month: dt.date) -> dict:
-        """The values as `month` starts from them: overtime-to-date and both fairness balances start again in a later year, the
+        """The values as `month` starts from them: overtime-to-date and the three fairness balances start again in a later year, the
         carry-over into January, from December or across months with no roster, and opening values entered the year before."""
         if month.year > self.year:
             return self.values | NEW_YEAR
@@ -69,7 +70,7 @@ def _added(nurse: NurseProfile) -> dt.date:
 
 def opening(nurse: NurseProfile) -> dict:
     return {"ytd_overtime": nurse.ytd_overtime, "hours_balance": nurse.hours_balance, "night_balance": nurse.night_balance,
-            "friday_balance": nurse.friday_balance, "overtime_balance": 0.0, **NO_HISTORY}
+            "friday_balance": nurse.friday_balance, "overtime_balance": nurse.overtime_balance, **NO_HISTORY}
 
 
 def closes_in_force(**filters) -> dict[tuple, MonthClose]:

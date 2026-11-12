@@ -650,7 +650,7 @@ def test_who_reads_the_identifier_and_the_issue_date(cno, mona, deputy, er, amal
 def test_a_manager_reads_no_identifier_from_what_his_writes_answer(cno, mona, er, amal, entries):
     recorded(cno, amal, entries["SCFHS"], "2028-03-31", "21-RN-0412", "2026-04-01")
     body = {"team_leader": False, "score": 0.5, "allowed_shifts": None, "ramadan_reduced": False, "breastfeeding": False, "ytd_overtime": 0,
-            "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0}
+            "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0, "overtime_balance": 0.0}
 
     response = mona.put(f"/api/units/{er.pk}/nurses/{amal}/attributes", body, content_type="application/json")
 

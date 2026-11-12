@@ -26,7 +26,8 @@ pytestmark = pytest.mark.django_db
 ER_REQUEST = Path(__file__).parents[3] / "solver/tests/fixtures/er_request_2026-03.json"
 THREE_SHIFTS = DEFAULT_UNIT_RULES | {"shifts": ["D", "N", "A"]}
 ATTRIBUTES = {"team_leader": True, "score": 0.61, "ramadan_reduced": True, "breastfeeding": True, "ytd_overtime": 77,
-              "hours_balance": -13, "night_balance": 1.5, "friday_balance": -2.25, "allowed_shifts": ["D"]}
+              "hours_balance": -13, "night_balance": 1.5, "friday_balance": -2.25, "overtime_balance": -6.5,
+              "allowed_shifts": ["D"]}
 
 
 @pytest.fixture(autouse=True)
@@ -113,9 +114,10 @@ def test_a_new_nurse_starts_from_the_solvers_defaults_with_opening_values_at_zer
     defaults = {field.name: field.default for field in dataclasses.fields(Nurse)}
 
     for name in ("team_leader", "score", "ramadan_reduced", "breastfeeding", "ytd_overtime", "hours_balance",
-                 "night_balance", "friday_balance"):
+                 "night_balance", "friday_balance", "overtime_balance"):
         assert getattr(nurse, name) == defaults[name], name
     assert nurse.ytd_overtime == nurse.hours_balance == nurse.night_balance == nurse.friday_balance == 0
+    assert nurse.overtime_balance == 0
     assert nurse.placements.get().allowed_shifts is None
 
 
@@ -137,6 +139,7 @@ def test_the_manager_saves_everything_and_a_solve_input_receives_it(mona, er, am
     nurse = loaded_nurse(er, amal)
     assert (nurse.team_leader, nurse.score, nurse.ramadan_reduced, nurse.breastfeeding) == (True, 0.61, True, True)
     assert (nurse.ytd_overtime, nurse.hours_balance, nurse.night_balance, nurse.friday_balance) == (77, -13, 1.5, -2.25)
+    assert nurse.overtime_balance == -6.5
     assert nurse.allowed_shifts == ["D"]
 
 
@@ -145,6 +148,7 @@ def test_the_manager_saves_everything_and_a_solve_input_receives_it(mona, er, am
     {"ytd_overtime": 0}, {"ytd_overtime": 10 ** 6},
     {"hours_balance": 10 ** 6}, {"hours_balance": -10 ** 6},
     {"night_balance": 1000}, {"night_balance": -1000}, {"friday_balance": 1000}, {"friday_balance": -1000},
+    {"overtime_balance": 10 ** 6}, {"overtime_balance": -10 ** 6}, {"overtime_balance": 0.25},
     {"allowed_shifts": None}, {"allowed_shifts": ["D", "N"]},
 ])
 def test_what_the_api_accepts_at_its_limits_the_solver_accepts(mona, er, amal, changes):
@@ -173,6 +177,11 @@ def test_a_defaulted_nurse_also_passes(mona, er, amal):
     ({"hours_balance": 0.5}, ("hours_balance",)),
     ({"night_balance": 1001}, ("night_balance",)),
     ({"friday_balance": -1001}, ("friday_balance",)),
+    ({"overtime_balance": 10 ** 6 + 1}, ("overtime_balance",)),
+    ({"overtime_balance": -10 ** 6 - 0.5}, ("overtime_balance",)),
+    ({"overtime_balance": "3"}, ("overtime_balance",)),
+    ({"overtime_balance": True}, ("overtime_balance",)),
+    ({"overtime_balance": None}, ("overtime_balance",)),
     ({"allowed_shifts": []}, ("allowed_shifts",)),
     ({"allowed_shifts": ["D", "D"]}, ("allowed_shifts",)),
     ({"allowed_shifts": "D"}, ("allowed_shifts",)),
@@ -188,12 +197,13 @@ def test_a_refusal_names_its_field_and_saves_nothing(mona, er, amal, changes, fi
     assert not AuditEntry.objects.filter(action="nurse.attributes_changed").exists()
 
 
-def test_infinity_is_refused(mona, er, amal):
-    text = json.dumps(ATTRIBUTES).replace('"night_balance": 1.5', '"night_balance": Infinity')
+@pytest.mark.parametrize("field, written", [("night_balance", "1.5"), ("overtime_balance", "-6.5")])
+def test_infinity_is_refused(mona, er, amal, field, written):
+    text = json.dumps(ATTRIBUTES).replace(f'"{field}": {written}', f'"{field}": Infinity')
 
     response = mona.put(f"/api/units/{er.pk}/nurses/{amal}/attributes", text, content_type="application/json")
 
-    assert ("night_balance",) in refused_fields(response)
+    assert (field,) in refused_fields(response)
 
 
 def test_saving_with_no_change_writes_nothing(mona, er, amal):
@@ -201,6 +211,17 @@ def test_saving_with_no_change_writes_nothing(mona, er, amal):
     save(mona, er, amal)
 
     assert AuditEntry.objects.filter(action="nurse.attributes_changed").count() == 1
+
+
+def test_the_overtime_balance_alone_changed_is_logged_as_the_other_opening_values_are(mona, er, amal):
+    save(mona, er, amal)
+
+    assert save(mona, er, amal, overtime_balance=12).status_code == 200
+
+    entries = AuditEntry.objects.filter(action="nurse.attributes_changed")
+    assert entries.count() == 2
+    assert {(entry.target, entry.before, entry.after) for entry in entries} == {("h123", None, None)}
+    assert NurseProfile.objects.get(pk=amal).overtime_balance == 12
 
 
 # ---- who ------------------------------------------------------------------------------------------
@@ -236,6 +257,7 @@ def test_the_cno_and_the_deputy_read_but_cannot_write(client_of, mona, er, role)
     save(mona, er, amal)
 
     assert listed(client, er)["h123"]["score"] == 0.61
+    assert listed(client, er)["h123"]["overtime_balance"] == -6.5
     assert save(client, er, amal, score=0.1).status_code == 403
     assert save_shifts(client, er, amal, None).status_code == 403
     assert listed(client, er)["h123"]["score"] == 0.61
@@ -303,7 +325,7 @@ def test_the_log_says_whose_changed_and_nothing_more(mona, er, amal, client_of):
     admin = client_of("it", Role.SYSTEM_ADMIN)
     text = admin.get("/api/audit/entries").content.decode()
     for leaked in ('"team_leader"', '"score"', "breastfeeding", "ramadan", "0.61", '"allowed_shifts"', "hours_balance",
-                   "ytd_overtime", "night_balance", "friday_balance"):
+                   "ytd_overtime", "night_balance", "friday_balance", "overtime_balance", "-6.5"):
         assert leaked not in text, leaked
 
 

@@ -36,25 +36,28 @@ Skills page (`routes/_signed-in/skills.tsx`) shows the pattern, a `<tbody aria-l
 
 **Implemented on 2026-11-12,** on branch `claude/ticket-59-identifier-and-issue-date-ce7e52` (`38cdfae`, `8414baf`, `3a6f4c8`,
 `0ce03fc` the code review's fixes, `e71870f` a fix found driving at 375 px, `2ad5b24` a merge of `main` with tickets 52 and 72,
-then this comment), from `main` at `d759f0d`. Draft pull request
+then this comment, then a merge of `main` with ticket 50, which renumbered my migration `0008` and put
+the Overtime balance column before Skills on Rostering attributes), from `main` at `d759f0d`. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#27](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/27). Built in this session, as
 the brief set out (it overrides `/implement-spec`'s subagent per ticket).
 
 The suites ran locally under the heavy-run lock:
 - the backend on a throwaway PostgreSQL 18 container of my own (`nr-t59-pg`), on `0ce03fc`: 3457 passed (`e71870f` and the
   merge change no backend code of mine);
-- `makemigrations --check --dry-run`: "No changes detected", before and after the merge;
+- `makemigrations --check --dry-run`: "No changes detected", before and after each merge;
+- after the merge of ticket 50: the touched backend files (`nurses` skills, attributes, two at once, expiries, the import;
+  `hospital` skills; `solves` input), 350 passed, and the Vitest blocks of Rostering attributes and the Nurses page's skills;
 - the frontend: `npm test` 822 passed on `e71870f`; `npm run build` and `tsc -b` clean, `tsc -b` again after the merge;
 - the OpenAPI document and the generated client regenerated, matching the export, before and after the merge;
 - the solver untouched. No Playwright file changed. The six parallel frontend runs and the browser suite are GitHub's.
 
 **What the dev stack needs:** a **rebuild** of `web` and `worker` (`docker compose up -d --build`) and the migration
-`nurses/0007_identifier_and_issue_date`, which the stack's start runs. No change to `deploy/compose.yaml`, the `Dockerfile`,
+`nurses/0008_identifier_and_issue_date`, which the stack's start runs. No change to `deploy/compose.yaml`, the `Dockerfile`,
 the solver or any dependency.
 
 **What was built, criterion by criterion.**
-1. **The row.** `NurseSkill` gains `identifier` (at most 100 characters, nullable) and `issue_date` (nullable). Migration `0007`
-   adds both and the partial unique constraint `nurses_one_current_identifier_a_skill` on (skill, identifier) where the row is
+1. **The row.** `NurseSkill` gains `identifier` (at most 100 characters, nullable) and `issue_date` (nullable). Migration `0008`
+   (it was `0007` until ticket 50's `0007_opening_overtime_balance` reached `main` first) adds both and the partial unique constraint `nurses_one_current_identifier_a_skill` on (skill, identifier) where the row is
    current and has an identifier. Every step reverses by itself.
 2. **Record and renew.** Both bodies take `identifier` and `issue_date`. The identifier is trimmed; an empty one is none; more
    than 100 characters or a NUL is refused beside it. The rules live in one place, `nurses.skills.problems_with`, which the API

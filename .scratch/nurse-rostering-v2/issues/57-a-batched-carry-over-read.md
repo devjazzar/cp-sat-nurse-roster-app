@@ -31,3 +31,12 @@
 - `roster` assembled the same month twice (in `changes_since` and again for the editor), and three times for a draft edited or out of date (`check_saved`) or a submitted roster (`review.new_since`). This session made it read the month once (`rosters/tests/test_roster_month_reads.py`), so that part is done. The submit and approve endpoints still check with an assembly of their own before `_roster_month` reads again; that is left as it was.
 - `close` reads every nurse's carry-in twice: once in the projection's assembly, then again in `closes.api._carry_over` for the `into` column, on the same `Chain`. A batched read serves both.
 - The result and the compare never assemble, so this ticket does not make them faster. Their 2.3–3.5 s on GitHub's runner is not their own work (9 ms and 146 ms here). The page sends them at the same moment as `replans/preview`, `close` and `solves/preview` to gunicorn's 3 sync workers, on a 4-core runner that is also running Chromium, the solver and a second stack. With this stack's `web` limited to one CPU (`docker update --cpus 1`), firing them together made `replans/preview` and `close` about 1.7 times slower, and the compare once waited 438 ms for a worker. That fits waiting for a CPU or a worker, but nobody has measured it on the runner.
+
+**From ticket 50 (2026-11-12):** the chain now reads one more profile field and resets one more value in January.
+`closes.chain.opening` takes the nurse's `overtime_balance` (her opening value, `NurseProfile.overtime_balance`, default 0)
+instead of a literal 0.0, and `NEW_YEAR` gains `"overtime_balance": 0.0`, applied in `Carried.into` as before. `CARRIED` and
+`CARRIED_SINCE` are unchanged (ticket 49 had added the field to both). A batched read must give the same: the field from the
+profile for a first month, carried unchanged through a month with no roster (it is not in `NO_HISTORY`), 0 in January and 0 out
+of a close stored before it. The cases are `closes/tests/test_close.py`'s `TestTheOvertimeBalance`, beside
+`TestTheCountOfPreferencesNotKept`; its helper `shares_overtime` writes the unit's switch straight into `unit.rules` until
+ticket 51 makes it a unit rule.

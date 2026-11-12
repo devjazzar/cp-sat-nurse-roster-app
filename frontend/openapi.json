@@ -9623,6 +9623,10 @@
             "title": "Friday Balance",
             "type": "number"
           },
+          "overtime_balance": {
+            "title": "Overtime Balance",
+            "type": "number"
+          },
           "allowed_shifts": {
             "anyOf": [
               {
@@ -9644,7 +9648,7 @@
             "type": "boolean"
           },
           "opening_values_locked": {
-            "description": "Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.",
+            "description": "Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.",
             "title": "Opening Values Locked",
             "type": "boolean"
           },
@@ -9684,6 +9688,7 @@
           "hours_balance",
           "night_balance",
           "friday_balance",
+          "overtime_balance",
           "allowed_shifts",
           "allowed_shifts_to_check",
           "opening_values_locked",
@@ -9944,6 +9949,13 @@
             "minimum": -1000,
             "title": "Friday Balance",
             "type": "number"
+          },
+          "overtime_balance": {
+            "description": "Hours of overtime above (+) or below (-) their overtime share so far this year.",
+            "maximum": 1000000,
+            "minimum": -1000000,
+            "title": "Overtime Balance",
+            "type": "number"
           }
         },
         "required": [
@@ -9955,7 +9967,8 @@
           "ytd_overtime",
           "hours_balance",
           "night_balance",
-          "friday_balance"
+          "friday_balance",
+          "overtime_balance"
         ],
         "title": "AttributesBody",
         "type": "object"
