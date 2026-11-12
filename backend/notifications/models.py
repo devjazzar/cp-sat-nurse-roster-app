@@ -18,6 +18,7 @@ class Event(models.TextChoices):
     MONTH_CLOSED = "month_closed"
     COVER_STEP = "cover_step"
     PROBATION_ENDING = "probation_ending"
+    MONTH_DATES_CHANGED = "month_dates_changed"
 
 
 class SolveOutcome(models.TextChoices):

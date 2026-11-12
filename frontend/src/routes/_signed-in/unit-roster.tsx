@@ -48,7 +48,7 @@ function Changes({ answer, draft }: { answer: RosterMonth; draft: Draft }) {
       <ul className="list-disc ps-5">
         {draft.changes.map((change) => (
           <li key={change.hospital_id + change.what}>
-            {changeSays(change)}
+            {changeSays(change, answer.month)}
             {later.has(change.hospital_id + change.what) && <strong className="font-medium">, since it was submitted</strong>}
           </li>
         ))}

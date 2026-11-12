@@ -22,3 +22,14 @@
 **Worth your review, already known:** the unit manager reads no identifier (the spec's decision beyond the grilling); say in the comment if the manager's page would be better with it.
 
 ## Comments
+
+**From ticket 58 (2026-11-12).** The catalogue row has `kind` (`Skill.Kind`: `skill`, `certificate`, `licence`) and
+`issuing_body`; `SkillSchema` carries both. A change to licence runs its refusal in `update_skill`
+(`hospital/catalogue_api.py`) where the comment "Ticket 59 adds the second refusal here" sits: today it is
+`_refuse_records_without_expiry(skill, "kind", ", and a licence always expires")`, beside `kind`, naming four at most and then
+"and N more". Add the identifier's refusal beside it, also on `kind`. `test_a_change_to_licence_passes_when_every_record_has_its_expiry`
+in `hospital/tests/test_skills.py` holds the change to the expiry alone; it should gain a record without an identifier and
+be refused. A licence with `expires` off is refused in the API and by the constraint `hospital_skill_a_licence_expires`. For
+the grouped tables: `frontend/src/lib/skill-kinds.ts` has `KINDS` (order and headings) and `byKind(rows, kindOf)`; the
+Skills page (`routes/_signed-in/skills.tsx`) shows the pattern, a `<tbody aria-labelledby>` per kind whose first row is a
+`<th scope="rowgroup">` heading spanning the columns. A nurse's skill row (`NurseSkillRow`) does not carry the kind yet.

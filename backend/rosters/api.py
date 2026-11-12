@@ -50,12 +50,16 @@ NOT_APPROVED = "This roster is not approved yet, so its changes are saved as pin
 
 
 class DraftChange(Schema):
-    hospital_id: str = Field(description="Empty for a change of the unit's own, `skills` alone so far.")
-    what: Literal["gender", "leave", "joined", "left", "pins", "preferences", "skills", "closed"] = Field(
+    hospital_id: str = Field(description="Empty for a change of the unit's own (`skills`) or of the month's (`ramadan_days`, "
+                                         "`public_holidays`).")
+    what: Literal["gender", "leave", "joined", "left", "pins", "preferences", "skills", "closed", "ramadan_days",
+                  "public_holidays"] = Field(
         description="`skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no "
                     "hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's "
                     "price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and "
-                    "the close's is the one that holds now (ticket 21).")
+                    "the close's is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: "
+                    "the month's Ramadan days or its public holidays differ from the list it was solved or submitted on "
+                    "(ticket 46).")
     full_name: str
 
 
@@ -291,7 +295,8 @@ def _roster_month(unit: Unit, month: dt.date, user: User) -> RosterMonth:
     # The month as it stands, read once: what changed since the solve and since the submit, the check and the editor all ask it,
     # and on a large unit each reading takes a while (every nurse's carry-over among it).
     assembled = assemble(unit, month)
-    changes = changes_since(roster.solve.input, unit, month, since=roster.solve.requested_at, assembled=assembled)
+    changes = changes_since(roster.solve.input, unit, month, since=roster.solve.requested_at, assembled=assembled,
+                            month_dates=True)
     checked = _checked(roster, changes, assembled.input)
     return RosterMonth(
         month=label, state=roster.state, submitted=_waiting(roster, assembled), last_rejection=_rejection(roster),

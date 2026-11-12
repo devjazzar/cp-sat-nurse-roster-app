@@ -2711,7 +2711,7 @@ export const getUpdateSkillUrl = (skillId: string,) => {
 }
 
 /**
- * A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back.
+ * A rename, a change of kind, issuing body or a mark, and a retire alike: `active` off retires it, on brings it back.
  * @summary Update Skill
  */
 export const updateSkill = async (skillId: string,

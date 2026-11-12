@@ -18,7 +18,7 @@ from closes.models import MonthClose
 from notifications.models import Event, Notification, SolveOutcome
 from covers.models import Cover
 from covers.steps import which as cover_shift_day
-from notifications.sending import CoverStep, SwapStep
+from notifications.sending import CoverStep, MonthDates, SwapStep
 from requesting.models import Request, RequestState, RequestWindow, Step
 from rosters.pins import long_date
 from swaps.models import Swap
@@ -58,6 +58,9 @@ class Names:
         self.covers = {str(row.pk): row for row in Cover.objects.filter(pk__in=cover_ids).select_related("shift")}
         nurse_ids = {note.payload.get("nurse_id") for note in notes} - {None}
         self.nurses = {str(row.pk): row.user.full_name for row in NurseProfile.objects.filter(pk__in=nurse_ids).select_related("user")}
+
+
+MONTH_DATES_SAY = {MonthDates.RAMADAN_DAYS: "Ramadan days", MonthDates.PUBLIC_HOLIDAYS: "public holidays"}
 
 
 def _month_name(month: str) -> str:
@@ -229,6 +232,10 @@ def text_of(note: Notification, names: Names) -> str:
             return _swap_words(note, names, roster, by)
         case Event.COVER_STEP:
             return _cover_words(note, names, by)
+        case Event.MONTH_DATES_CHANGED:
+            dates = MONTH_DATES_SAY.get(payload.get("what"), "dates")
+            return (f"{by} changed the {dates} of {_month_name(payload['month'])}. Check the {unit.name if unit else 'unit'} "
+                    "roster for that month: it was planned on the dates before.")
         case Event.PROBATION_ENDING:
             last = last_day_of(dt.date.fromisoformat(f"{payload['month']}-01"))
             return f"{names.nurses.get(payload.get('nurse_id'), 'A nurse')}'s probation ends on {last:%-d %B}. Extend it or let it end."

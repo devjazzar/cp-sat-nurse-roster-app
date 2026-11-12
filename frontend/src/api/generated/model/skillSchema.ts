@@ -5,10 +5,13 @@
  * OpenAPI spec version: 1
  */
 import type { SkillRenameSchema } from './skillRenameSchema';
+import type { SkillSchemaKind } from './skillSchemaKind';
 
 export interface SkillSchema {
   id: string;
   name: string;
+  kind: SkillSchemaKind;
+  issuing_body: string;
   expires: boolean;
   required_to_work: boolean;
   lets_a_nurse_precept: boolean;
