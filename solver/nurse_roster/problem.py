@@ -86,7 +86,7 @@ class Nurse:
                                        # (carry_over.preferences_not_kept): above 0, each of hers this
                                        # month costs twice its weight, whatever the count (ADR 0013)
     overtime_balance: float = 0.0      # hours her overtime has stood above (+) / below (-) her overtime share
-                                       # so far this year (carry_over.overtime_balance; fairness.overtime_target)
+                                       # so far this year (carry_over.overtime_balance; fairness.overtime_adj_100)
     skills: dict[str, int | None] = field(default_factory=dict)  # skill name -> its expiry, the last
                                        # day it counts: None = all month, 0..days-1 = that day of the
                                        # month, -1 = expired before the month (whatever the date). A

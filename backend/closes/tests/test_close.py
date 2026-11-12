@@ -527,10 +527,10 @@ class TestAFarMonth:
 
 def walked(chain: Chain, nurse: NurseProfile, month: dt.date):
     """`Chain.carry_in` as it was until a far month stopped stepping through every month: one `_through` a month."""
-    from closes.chain import BEFORE_PREFERENCES, Carried, _added, latest_closed, next_month, opening
+    from closes.chain import CARRIED_SINCE, Carried, _added, latest_closed, next_month, opening
     closed = latest_closed(nurse, month)
     if closed is not None:
-        carried = Carried(BEFORE_PREFERENCES | closed.values, CarrySource.CLOSED, closed.month, closed.month.year)
+        carried = Carried(CARRIED_SINCE | closed.values, CarrySource.CLOSED, closed.month, closed.month.year)
         step = next_month(closed.month)
     else:
         carried, step = Carried(opening(nurse), CarrySource.OPENING, None, _added(nurse).year), chain._first_roster(nurse, month)

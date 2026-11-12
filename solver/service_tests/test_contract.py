@@ -351,30 +351,34 @@ def shared(sample: dict) -> dict:
     return out
 
 
-def test_the_sample_carries_the_overtime_share_and_its_result_carries_each_balance(client, sample):
-    """A balance out is in + overtime - share, the share her hours owed over all the nurses', of the month's overtime: read off
-    the result's own `required` and `overtime`."""
-    req = shared(sample)
-    solved = wait_for(client, client.post("/solve", json=req).json()["job_id"], ended)["result"]
-
-    assert solved["ok"] is True and "overtime_above_share" in solved["penalties"]
-    nurses = solved["nurses"]
-    total, owed = sum(n["overtime"] for n in nurses.values()), sum(n["required"] for n in nurses.values())
-    for nd in req["nurses"]:
-        n = nurses[nd["id"]]
-        expected = nd.get("overtime_balance", 0) + n["overtime"] - total * n["required"] / owed
-        assert n["carry_over"]["overtime_balance"] == round(expected, 2)
-
-
-def test_validate_prices_overtime_above_a_share_in_the_solvers_words(client, sample):
-    """June 2026 owes 26 days at 8 h: Amal 208 h, Badr (two days' leave) 192, Dana (breastfeeding, 7 h a day) 182, Emad 208;
-    790 h in all. Amal works a day shift on each of the 26 days, 312 h, and the others nothing: the unit's 104 h of overtime
-    are all hers, her share 104 x 208 / 790 = 27.38 h, her target 27.38 - 2.5 = 24.88 h, and 104 - 24.88 - 12 = 67.12 h above
-    it: 67 priced, at 1."""
-    req = shared(sample)
+def amal_works_every_owed_day(req: dict) -> dict:
+    """June 2026 owes 26 days at 8 h (four Fridays off): Amal 208 h, Badr (two days' leave) 192, Dana (breastfeeding, 7 h a
+    day) 182, Emad 208; 790 h in all. Amal works a day shift on each of the 26 days, 312 h, the others nothing: the unit's
+    104 h of overtime are all hers. Her share is 104 x 208 / 790 = 27.38 h, Badr's 25.28, Dana's 23.96, Emad's 27.38."""
     dates = [f"2026-06-{d:02d}" for d in range(1, 31)]
     roster = {n["id"]: {day: "" for day in dates} for n in req["nurses"]}
     roster["Amal"] = {day: "" if day in ("2026-06-05", "2026-06-12", "2026-06-19", "2026-06-26") else "D" for day in dates}
+    return roster
+
+
+def test_the_sample_carries_the_overtime_share_and_its_result_carries_each_balance(client, sample):
+    """The month as recorded (every day elapsed, a month-end reconciliation): each balance out is in + overtime - share,
+    counted by hand: Amal 2.5 + 104 - 27.38 = 79.12, Badr -25.28, Dana -23.96, Emad -27.38."""
+    req = shared(sample) | {"replan_from": "2026-07-01"}
+    req["published"] = amal_works_every_owed_day(req)
+
+    result = wait_for(client, client.post("/solve", json=req).json()["job_id"], ended)["result"]
+
+    assert result["ok"] is True and "overtime_above_share" in result["penalties"]
+    assert {i: n["carry_over"]["overtime_balance"] for i, n in result["nurses"].items()} == {
+        "Amal": 79.12, "Badr": -25.28, "Dana": -23.96, "Emad": -27.38}
+
+
+def test_validate_prices_overtime_above_a_share_in_the_solvers_words(client, sample):
+    """Amal's share of the unit's 104 h is 27.38 h (`amal_works_every_owed_day`), her target 27.38 - 2.5 = 24.88 h, and
+    104 - 24.88 - 12 = 67.12 h above it: 67 priced, at 1."""
+    req = shared(sample)
+    roster = amal_works_every_owed_day(req)
 
     v = client.post("/validate", json={"solve_input": req, "roster": roster}).json()
 
