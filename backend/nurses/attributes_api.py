@@ -35,7 +35,7 @@ manager = SignedIn(Role.UNIT_MANAGER)
 
 Balance = Annotated[float, Field(ge=-MAX_PARAM, le=MAX_PARAM, allow_inf_nan=False)]
 # The solver bounds a nurse's overtime balance as it bounds an hours balance (`nurse_roster.request`), not as a shift balance.
-HoursBalance = Annotated[float, Field(ge=-MAX_HOURS, le=MAX_HOURS, allow_inf_nan=False)]
+OvertimeBalance = Annotated[float, Field(ge=-MAX_HOURS, le=MAX_HOURS, allow_inf_nan=False)]
 
 
 AllowedShifts = Annotated[list[str], Field(min_length=1), AfterValidator(distinct_shifts)] | None
@@ -54,7 +54,7 @@ class AttributesBody(AllowedShiftsBody):
     hours_balance: int = Field(ge=-MAX_HOURS, le=MAX_HOURS, description="Hours still owed (+) or worked ahead (-).")
     night_balance: Balance = Field(description="Night shifts above (+) or below (-) their fair share.")
     friday_balance: Balance = Field(description="Weekend days above (+) or below (-) their fair share.")
-    overtime_balance: HoursBalance = Field(description="Hours of overtime above (+) or below (-) their overtime share so far "
+    overtime_balance: OvertimeBalance = Field(description="Hours of overtime above (+) or below (-) their overtime share so far "
                                                        "this year.")
 
 

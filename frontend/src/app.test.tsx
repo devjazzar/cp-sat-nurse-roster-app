@@ -5249,7 +5249,7 @@ describe("the rostering attributes page", () => {
     await user.type(screen.getByLabelText("Weekend fairness balance (shifts)"), "-2.5")
     const overtime = screen.getByLabelText("Overtime above or below their fair share (hours)")
     expect(overtime).toHaveValue(6.25)
-    expect(overtime).toHaveAccessibleDescription("Hours of overtime above their fair share of the unit's overtime so far this year, or below zero, under it.")
+    expect(overtime).toHaveAccessibleDescription("Hours of overtime above their share of the unit's overtime so far this year, or below zero, under it.")
     await user.clear(overtime)
     await user.type(overtime, "-7.5")
     await user.click(screen.getByRole("button", { name: "Save" }))
