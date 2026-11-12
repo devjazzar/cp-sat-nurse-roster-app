@@ -322,7 +322,11 @@ SAMPLES = ["v1", "four_nurses.json", "four_nurses_skills.json"]      # versions 
 
 @pytest.mark.parametrize("name", SAMPLES)
 def test_an_input_without_the_fields_has_the_rule_off_and_every_balance_at_zero(name):
+    """As one stored before the rule: four_nurses.json has carried the unit's three fields and the weight since ticket 51."""
     req = sample(name)
+    for field in ("share_overtime", "overtime_tolerance", "overtime_carry_cap"):
+        req["department"].pop(field, None)
+    req["general"]["weights"].pop("overtime_above_share", None)
     before = copy.deepcopy(req)
 
     p = load_request(req).problem

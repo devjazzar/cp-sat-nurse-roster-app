@@ -50,6 +50,11 @@ export interface Weights {
      * @minimum 0
      * @maximum 1000000
      */
+  overtime_above_share: number;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
   score_deficit: number;
   /**
      * @minimum 0

@@ -316,6 +316,68 @@ class TestFullRuns:
         assert before["cost"] == after["cost"] - after["penalties"]["excess_full_run"]
 
 
+OVERTIME_SHARE = ("share_overtime", "overtime_tolerance", "overtime_carry_cap")
+
+
+def amal_ahead_in_sound_june() -> dict:
+    """SOUND's June, with Amal coming in 24 hours ahead: 20 hours of overtime, all hers, the unit's whole overtime. Counted by
+    hand in `closes.tests.test_close.amal_works_ahead`: her share is 20 x 184 / 782 = 4.71 h, so with 12 hours free her
+    priced hours are 20 - 4.71 - 12 = 3.29, rounded down to 3 (ticket 49)."""
+    from rosters.tests.test_review import SOUND
+    NurseProfile.objects.filter(user__username="Amal").update(hours_balance=-24)
+    return copy.deepcopy(SOUND[MONTH]["roster"])
+
+
+class TestTheOvertimeShare:
+    """The unit's three overtime share rules and the hospital's weight reach every new input (ticket 51); one stored without
+    them is read as the rule off. Priced by the solver package's own validator, with no search."""
+
+    def test_a_solve_input_carries_the_units_three_fields_and_the_hospitals_weight(self, er):
+        er.rules |= {"share_overtime": True, "overtime_tolerance": 8, "overtime_carry_cap": 30}
+        er.save()
+        settings = HospitalSettings.load()
+        settings.rules["weights"] |= {"nurse_overtime": 6, "overtime_above_share": 5}
+        settings.save()
+
+        solve_input = built(er).input
+        problem = load_request(solve_input).problem
+
+        assert {key: solve_input["department"][key] for key in OVERTIME_SHARE} == {
+            "share_overtime": True, "overtime_tolerance": 8, "overtime_carry_cap": 30}
+        assert solve_input["general"]["weights"]["overtime_above_share"] == 5
+        department = problem.department
+        assert (department.share_overtime, department.overtime_tolerance, department.overtime_carry_cap) == (True, 8, 30)
+        assert problem.general.weights.overtime_above_share == 5
+
+    def test_overtime_above_a_share_costs_the_weight_in_the_solvers_words(self, er):
+        from solver_service.grid import validate_grid
+        roster = amal_ahead_in_sound_june()
+
+        answer = validate_grid(built(er).input, roster)
+
+        [rule] = [rule for rule in answer["rules"] if rule["id"] == "overtime_above_share"]
+        assert [(match["nurse"], match["amount"], match["text"]) for match in rule["matches"]] == [
+            ("Amal", 3, "Amal: 20 h overtime, share 4.7 h, 3 h priced")]
+        assert (rule["weight"], answer["penalties"]["overtime_above_share"]) == (1, 3)
+
+    def test_an_input_stored_before_the_overtime_share_is_read_as_the_rule_off_and_prices_the_rest_as_before(self, er):
+        from solver_service.grid import validate_grid
+        roster = amal_ahead_in_sound_june()
+        now = built(er).input
+        stored = copy.deepcopy(now)
+        for key in OVERTIME_SHARE:
+            del stored["department"][key]
+        del stored["general"]["weights"]["overtime_above_share"]
+
+        before, after = validate_grid(stored, roster), validate_grid(now, roster)
+
+        department = load_request(stored).problem.department
+        assert (department.share_overtime, department.overtime_tolerance, department.overtime_carry_cap) == (False, 0, 0)
+        assert before["penalties"]["overtime_above_share"] == 0 and after["penalties"]["overtime_above_share"] == 3
+        assert before["penalties"] == after["penalties"] | {"overtime_above_share": 0}
+        assert before["cost"] == after["cost"] - 3
+
+
 class TestPreferences:
     """A nurse's live preferences are the days she asked off (`undesired_days`) and to work (`desired_days`), each in date
     order (ADR 0013)."""

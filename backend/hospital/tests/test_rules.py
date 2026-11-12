@@ -49,25 +49,21 @@ def version_2(request: dict) -> dict:
 
 
 # ---- the solver's contract ------------------------------------------------------------------------
-# The solver's overtime-share weight (ticket 49) that the app's weights do not carry yet: ticket 51 adds it to the weights and
-# deletes this set and its subtraction below.
-OVERTIME_SHARE_FIELDS = {"overtime_above_share"}
-
-
 def test_the_rules_are_every_field_of_the_solvers_block_but_the_catalogues():
     """The shift catalogue gives `shift_hours`, the skill catalogue `required_skills`."""
     fields = {field.name for field in dataclasses.fields(GeneralRules)}
 
     assert set(DEFAULT_RULES) == fields - {"shift_hours", "required_skills"}
-    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)} - OVERTIME_SHARE_FIELDS
+    assert set(DEFAULT_RULES["weights"]) == {field.name for field in dataclasses.fields(Weights)}
 
 
 def test_the_defaults_are_the_reviewed_set_the_solver_was_shaped_on():
-    """The ER sample predates full runs and skills; the full-run weight is the spec's (full-runs.md), 4, and the skill
-    shortfall's is 0, no price until the CNO sets one (skills-per-shift-day.md)."""
+    """The ER sample predates full runs, skills and the overtime share; the full-run weight is the spec's (full-runs.md), 4,
+    the skill shortfall's is 0, no price until the CNO sets one (skills-per-shift-day.md), and an hour of overtime above a
+    share costs 1 (overtime-share.md)."""
     reviewed = er_request()["general"]
     del reviewed["shift_hours"]
-    reviewed["weights"] |= {"excess_full_run": 4, "skill_shortfall": 0}
+    reviewed["weights"] |= {"excess_full_run": 4, "skill_shortfall": 0, "overtime_above_share": 1}
 
     assert DEFAULT_RULES == reviewed
 
@@ -285,6 +281,89 @@ def test_an_installation_from_before_the_skill_shortfall_weight_gets_it_at_0(sig
     row.refresh_from_db()
     assert row.rules["weights"]["skill_shortfall"] == 0 and row.rules["weights"]["change"] == 9
     assert not row.rules_need_review
+
+
+# ---- the overtime share's weight (ticket 51) ------------------------------------------------------
+def shared_problem() -> Problem:
+    """The ER sample under the hospital's block, its unit sharing its overtime."""
+    general = general_block(HospitalSettings.load(), shift_hours=er_request()["general"]["shift_hours"])
+    request = version_2(er_request()) | {"general": general}
+    request["department"] |= {"share_overtime": True, "overtime_tolerance": 12, "overtime_carry_cap": 12}
+    return load_request(request).problem
+
+
+def test_an_hour_of_overtime_above_a_share_costs_1_by_default(signed_in):
+    assert signed_in(Role.DEPUTY_CNO).get(RULES).json()["rules"]["weights"]["overtime_above_share"] == 1
+
+
+def test_the_cno_changes_the_overtime_share_weight_audited_and_a_solve_input_carries_it(signed_in):
+    client = signed_in(Role.CNO)
+    put(client, weights(nurse_overtime=5))
+    AuditEntry.objects.all().delete()
+
+    response = put(client, weights(nurse_overtime=5, overtime_above_share=4))
+
+    assert response.status_code == 200 and response.json()["rules"]["weights"]["overtime_above_share"] == 4
+    entry = AuditEntry.objects.get(action="hospital_rules.changed")
+    assert entry.before == {"weights.overtime_above_share": 1} and entry.after == {"weights.overtime_above_share": 4}
+    assert shared_problem().general.weights.overtime_above_share == 4
+
+
+def test_an_overtime_share_weight_of_0_switches_the_rule_off_hospital_wide(signed_in):
+    assert active(shared_problem(), "overtime_above_share")
+
+    assert put(signed_in(Role.CNO), weights(overtime_above_share=0)).status_code == 200
+
+    assert not active(shared_problem(), "overtime_above_share")
+
+
+def test_the_overtime_share_weight_may_equal_the_hour_of_overtimes(signed_in):
+    response = put(signed_in(Role.CNO), weights(nurse_overtime=3, overtime_above_share=3))
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("changes", [{"overtime_above_share": 2}, {"nurse_overtime": 0}])
+def test_an_overtime_share_weight_above_the_hour_of_overtimes_is_refused_beside_it_saying_why(signed_in, changes):
+    """The user's decision (ticket 49's review): above it, the solver could lower the rule's cost by adding overtime."""
+    response = put(signed_in(Role.CNO), weights(**changes))
+
+    assert refused_fields(response) == {("weights", "overtime_above_share")}
+    assert response.json()["detail"][0]["msg"] == (
+        "Value error, Cannot be above the weight of nurse overtime, or the solver could lower this cost by adding overtime.")
+    assert HospitalSettings.load().rules["weights"]["overtime_above_share"] == 1
+
+
+@pytest.mark.parametrize("value", [-1, 10 ** 6 + 1, 0.5, "1", True, None])
+def test_a_bad_overtime_share_weight_is_refused_with_its_field(signed_in, value):
+    assert ("weights", "overtime_above_share") in refused_fields(put(signed_in(Role.CNO), weights(overtime_above_share=value)))
+
+
+def test_an_installation_from_before_the_overtime_share_weight_gets_it_at_1(signed_in):
+    put(signed_in(Role.CNO), weights(change=9))
+    row = HospitalSettings.load()
+    del row.rules["weights"]["overtime_above_share"]
+    row.save()
+
+    migration("hospital", "0008_overtime_above_share_weight").add(django_apps, None)
+
+    row.refresh_from_db()
+    assert row.rules["weights"]["overtime_above_share"] == 1 and row.rules["weights"]["change"] == 9
+    assert not row.rules_need_review
+
+
+def test_an_installation_pricing_no_overtime_gets_the_share_weight_at_0_so_its_next_save_is_not_refused(signed_in):
+    client = signed_in(Role.CNO)
+    put(client, weights(nurse_overtime=0, overtime_above_share=0))
+    row = HospitalSettings.load()
+    del row.rules["weights"]["overtime_above_share"]
+    row.save()
+
+    migration("hospital", "0008_overtime_above_share_weight").add(django_apps, None)
+
+    row.refresh_from_db()
+    assert row.rules["weights"]["overtime_above_share"] == 0
+    assert put(client, row.rules).status_code == 200
 
 
 # ---- validation -----------------------------------------------------------------------------------

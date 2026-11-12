@@ -9,8 +9,8 @@ from uuid import UUID
 
 from django.db import transaction
 from ninja import Router, Schema
-from nurse_roster.problem import (MAX_FULL_RUNS, MAX_HISTORY, MAX_NURSES, MAX_PARAM, MAX_REST_DAYS, MAX_SHIFTS,
-                                  MAX_SKILLS, needed_history)
+from nurse_roster.problem import (MAX_FULL_RUNS, MAX_HISTORY, MAX_NURSES, MAX_OVERTIME_HOURS, MAX_PARAM, MAX_REST_DAYS,
+                                  MAX_SHIFTS, MAX_SKILLS, needed_history)
 from pydantic import Field, ValidationInfo, field_validator
 
 from accounts.authz import SignedIn
@@ -35,6 +35,7 @@ Count = Annotated[int, Field(ge=0, le=MAX_PARAM)]
 ScoreLevel = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 ShiftCount = Annotated[float, Field(ge=0, le=MAX_PARAM, allow_inf_nan=False)]
 FullRuns = Annotated[int, Field(ge=0, le=MAX_FULL_RUNS)]
+OvertimeHours = Annotated[int, Field(ge=0, le=MAX_OVERTIME_HOURS)]
 MAX_REQUESTS = 31  # A request, or a preference, is about one date of one month.
 
 
@@ -87,6 +88,9 @@ class UnitRules(StrictSchema):
     fair_weekends: bool
     carry_fairness: bool
     carry_cap: ShiftCount
+    share_overtime: bool
+    overtime_tolerance: OvertimeHours
+    overtime_carry_cap: OvertimeHours
     max_consecutive_shifts: Count
     double_cycle_rest: Count
     max_weekends: Count
@@ -147,6 +151,9 @@ class UnitRulesAnswer(Schema):
     fair_weekends: bool
     carry_fairness: bool
     carry_cap: float
+    share_overtime: bool
+    overtime_tolerance: int
+    overtime_carry_cap: int
     max_consecutive_shifts: int
     double_cycle_rest: int
     max_weekends: int

@@ -62,6 +62,17 @@ export interface UnitRules {
      * @maximum 1000
      */
   carry_cap: number;
+  share_overtime: boolean;
+  /**
+     * @minimum 0
+     * @maximum 744
+     */
+  overtime_tolerance: number;
+  /**
+     * @minimum 0
+     * @maximum 744
+     */
+  overtime_carry_cap: number;
   /**
      * @minimum 0
      * @maximum 1000

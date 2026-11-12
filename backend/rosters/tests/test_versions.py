@@ -261,6 +261,20 @@ class TestADirectEdit:
         assert "sick" not in everything.lower() and "covers" not in everything and "Amal" not in everything
 
 
+class TestOvertimeAboveAShare:
+    def test_an_edit_giving_a_nurse_overtime_above_her_share_is_not_refused_and_july_carries_her_balance(self, mona, carla, er,
+                                                                                                         solver):
+        """Ticket 51: the rule is priced, never refused (`one_more_shift_past_her_share`)."""
+        from closes.tests.test_close import JULY as JULY_DATE, balances, one_more_shift_past_her_share
+        july = one_more_shift_past_her_share("Amal")
+        approved(mona, carla, er, solver)
+
+        changed(mona, er, pin("Amal", 9, "N"))
+
+        assert cell_of(er, "Amal", 9) == "N"
+        assert balances(er, JULY_DATE) == july
+
+
 class TestTheVersionList:
     def test_newest_first_with_author_time_reason_origin_and_cells_changed(self, mona, carla, er, solver):
         approved(mona, carla, er, solver)

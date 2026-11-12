@@ -621,6 +621,25 @@ class TestRestoring:
         assert AuditEntry.objects.get(action="roster.draft_restored").actor.username == "omar"
 
 
+class TestOvertimeShareWords:
+    """The draft's explanation names each nurse's overtime above her share and its cost in the solver's words (ticket 51)."""
+
+    def test_overtime_above_a_share_is_explained_by_nurse_with_its_cost(self, mona, er, solver):
+        """`amal_ahead_in_sound_june`'s month, counted by hand: Amal's 20 hours against a share of 4.71, 3 priced at 1."""
+        from solves.tests.test_input import amal_ahead_in_sound_june
+        roster = amal_ahead_in_sound_june()
+        result = result_of(roster, cost=3)
+        result["penalties"] = {"overtime_above_share": 3}
+
+        answer = details(mona, er, solved(mona, er, solver, job("finished", result=result, best_cost=3)))
+
+        [rule] = answer["rules"]
+        assert (rule["rule"], rule["penalty"], rule["weight"], rule["amount"], rule["counted_in"]) == (
+            "overtime_above_share", 3, 1, 3, "hour of overtime above the share")
+        assert [(match["hospital_id"], match["date"], match["amount"], match["text"]) for match in rule["largest"]] == [
+            ("Amal", None, 3, "Amal: 20 h overtime, share 4.7 h, 3 h priced")]
+
+
 class TestSkillWords:
     """The two skill rules read like every other rule, with dates, and under a skill's name today (ticket 35)."""
 

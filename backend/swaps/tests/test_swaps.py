@@ -186,6 +186,21 @@ class TestAShortShiftDay:
         assert "This swap breaks the unit's rules: headcount: 2026-06-09 D = 0, want 3..3" in said
 
 
+class TestOvertimeAboveAShare:
+    def test_a_swap_giving_a_nurse_overtime_above_her_share_is_not_refused_and_july_carries_her_balance(self, in_force, nurse,
+                                                                                                        mona):
+        """Ticket 51: Emad takes Badr's Day on the 9th (`one_more_shift_past_her_share`)."""
+        from closes.tests.test_close import JULY, balances, one_more_shift_past_her_share
+        july = one_more_shift_past_her_share("Emad")
+
+        swap = proposed(nurse("Badr"), *SOUND_SWAP)
+        acted(nurse("Emad"), swap["id"], "accept")
+        decided(mona, in_force, swap["id"], "approve")
+
+        assert Swap.objects.get().state == SwapState.APPROVED
+        assert balances(in_force, JULY) == july
+
+
 class TestTheProposersOwnFacts:
     """The proposer's own facts may be named to them."""
 

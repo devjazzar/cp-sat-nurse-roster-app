@@ -8009,6 +8009,12 @@
             "title": "Fair Weekend",
             "type": "integer"
           },
+          "overtime_above_share": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Overtime Above Share",
+            "type": "integer"
+          },
           "score_deficit": {
             "maximum": 1000000,
             "minimum": 0,
@@ -8073,6 +8079,7 @@
           "fair_day",
           "fair_night",
           "fair_weekend",
+          "overtime_above_share",
           "score_deficit",
           "score_spread",
           "excess_weekend",
@@ -9072,6 +9079,18 @@
             "title": "Carry Cap",
             "type": "number"
           },
+          "share_overtime": {
+            "title": "Share Overtime",
+            "type": "boolean"
+          },
+          "overtime_tolerance": {
+            "title": "Overtime Tolerance",
+            "type": "integer"
+          },
+          "overtime_carry_cap": {
+            "title": "Overtime Carry Cap",
+            "type": "integer"
+          },
           "max_consecutive_shifts": {
             "title": "Max Consecutive Shifts",
             "type": "integer"
@@ -9133,6 +9152,9 @@
           "fair_weekends",
           "carry_fairness",
           "carry_cap",
+          "share_overtime",
+          "overtime_tolerance",
+          "overtime_carry_cap",
           "max_consecutive_shifts",
           "double_cycle_rest",
           "max_weekends",
@@ -9399,6 +9421,22 @@
             "title": "Carry Cap",
             "type": "number"
           },
+          "share_overtime": {
+            "title": "Share Overtime",
+            "type": "boolean"
+          },
+          "overtime_tolerance": {
+            "maximum": 744,
+            "minimum": 0,
+            "title": "Overtime Tolerance",
+            "type": "integer"
+          },
+          "overtime_carry_cap": {
+            "maximum": 744,
+            "minimum": 0,
+            "title": "Overtime Carry Cap",
+            "type": "integer"
+          },
           "max_consecutive_shifts": {
             "maximum": 1000,
             "minimum": 0,
@@ -9471,6 +9509,9 @@
           "fair_weekends",
           "carry_fairness",
           "carry_cap",
+          "share_overtime",
+          "overtime_tolerance",
+          "overtime_carry_cap",
           "max_consecutive_shifts",
           "double_cycle_rest",
           "max_weekends",
