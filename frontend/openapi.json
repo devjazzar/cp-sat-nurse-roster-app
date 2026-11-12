@@ -2285,11 +2285,11 @@
                   "type": "null"
                 }
               ],
-              "description": "YYYY-MM: the month the choice would take effect from.",
+              "description": "YYYY-MM: the month the choice would take effect from. Required.",
               "title": "Month"
             },
-            "required": true,
-            "description": "YYYY-MM: the month the choice would take effect from."
+            "required": false,
+            "description": "YYYY-MM: the month the choice would take effect from. Required."
           }
         ],
         "responses": {
@@ -10209,13 +10209,10 @@
                 "type": "null"
               }
             ],
-            "description": "YYYY-MM: the month the choice would take effect from.",
+            "description": "YYYY-MM: the month the choice would take effect from. Required.",
             "title": "Month"
           }
         },
-        "required": [
-          "month"
-        ],
         "title": "PreceptorMonth",
         "type": "object"
       },

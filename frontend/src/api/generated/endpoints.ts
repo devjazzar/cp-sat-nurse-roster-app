@@ -5132,7 +5132,7 @@ export const useEndProbation = <TError = unknown,
 
 export const getListPreceptorChoicesUrl = (unitId: string,
     nurseId: string,
-    params: ListPreceptorChoicesParams,) => {
+    params?: ListPreceptorChoicesParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -5153,7 +5153,7 @@ export const getListPreceptorChoicesUrl = (unitId: string,
  */
 export const listPreceptorChoices = async (unitId: string,
     nurseId: string,
-    params: ListPreceptorChoicesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PreceptorChoices> => {
+    params?: ListPreceptorChoicesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PreceptorChoices> => {
 
   return apiFetch<PreceptorChoices>(getListPreceptorChoicesUrl(unitId,nurseId,params),
   {
@@ -5179,7 +5179,7 @@ export const getListPreceptorChoicesQueryKey = (unitId: string,
 
 export const getListPreceptorChoicesQueryOptions = <TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(unitId: string,
     nurseId: string,
-    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -5204,7 +5204,7 @@ export type ListPreceptorChoicesQueryError = unknown
 export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
  unitId: string,
     nurseId: string,
-    params: ListPreceptorChoicesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>> & Pick<
+    params: undefined |  ListPreceptorChoicesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPreceptorChoices>>,
           TError,
@@ -5216,7 +5216,7 @@ export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPr
 export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
  unitId: string,
     nurseId: string,
-    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>> & Pick<
+    params?: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPreceptorChoices>>,
           TError,
@@ -5228,7 +5228,7 @@ export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPr
 export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
  unitId: string,
     nurseId: string,
-    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -5238,7 +5238,7 @@ export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPr
 export function useListPreceptorChoices<TData = Awaited<ReturnType<typeof listPreceptorChoices>>, TError = unknown>(
  unitId: string,
     nurseId: string,
-    params: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListPreceptorChoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPreceptorChoices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 

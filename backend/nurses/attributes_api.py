@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from django.db import transaction
-from ninja import Router, Schema
+from ninja import Query, Router, Schema
 from ninja.errors import HttpError
 from nurse_roster.problem import MAX_HOURS, MAX_PARAM
 from pydantic import AfterValidator, Field
@@ -348,6 +348,11 @@ class PreceptorChoices(Schema):
                                                       "and precept no other nurse in any of them. Empty with a refusal.")
 
 
+class PreceptorMonth(Schema):
+    # Optional as every month filter is, since a required one carries its `examples` where the client generator refuses them.
+    month: MonthText | None = Field(None, description="YYYY-MM: the month the choice would take effect from. Required.")
+
+
 class PreceptorBody(Body):
     preceptor_id: UUID = Field(description="The nurse profile's.")
     from_month: MonthText
@@ -379,12 +384,15 @@ def _month_refusal(nurse: NurseProfile, unit: Unit, month: dt.date) -> str | Non
 
 @router.get("/{unit_id}/nurses/{nurse_id}/preceptor-choices", response=PreceptorChoices, auth=manager,
             operation_id="listPreceptorChoices")
-def list_preceptor_choices(request, unit_id: UUID, nurse_id: UUID, month: MonthText) -> PreceptorChoices:
+def list_preceptor_choices(request, unit_id: UUID, nurse_id: UUID, filters: Query[PreceptorMonth]) -> PreceptorChoices:
     """The list Change preceptor offers, from a month on. Read with no lock: the save checks it all again."""
     unit = unit_in_scope(request.user, unit_id)
     nurse = with_units(membership.on_the_list_of(unit)).filter(pk=nurse_id).first()
     if nurse is None:
         raise HttpError(403, "This nurse is not in your unit.")
+    if filters.month is None:
+        refuse((("month",), "Choose the month the preceptor would take effect from."))
+    month = filters.month
     chosen = dt.date.fromisoformat(f"{month}-01")
     refusal = None if probation.running(nurse) and nurse.on_probation else f"{nurse.user.full_name} is not on probation."
     refusal = refusal or _month_refusal(nurse, unit, chosen)

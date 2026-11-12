@@ -2046,7 +2046,7 @@ export const listPreceptorChoicesQueryMonthOneRegExp = new RegExp('^\\d{4}-(0[1-
 
 
 export const ListPreceptorChoicesQueryParams = zod.object({
-  "month": zod.union([zod.string().regex(listPreceptorChoicesQueryMonthOneRegExp),zod.null()]).describe('YYYY-MM: the month the choice would take effect from.')
+  "month": zod.union([zod.string().regex(listPreceptorChoicesQueryMonthOneRegExp),zod.null()]).optional().describe('YYYY-MM: the month the choice would take effect from. Required.')
 })
 
 export const ListPreceptorChoicesResponse = zod.object({

@@ -6,6 +6,6 @@
  */
 
 export type ListPreceptorChoicesParams = {
-  /** YYYY-MM: the month the choice would take effect from. */
-  month: string | null;
+  /** YYYY-MM: the month the choice would take effect from. Required. */
+  month?: string | null;
 };
