@@ -96,7 +96,7 @@ function ProbationCard({ answer }: { answer: MyMonth }) {
           <p>You are on probation in {month}. Its last day is {fullDay(last_day)}.</p>
           <p>{preceptor
             ? `Your preceptor is ${preceptor}. You work beside them on their day shifts, and work no night shift.`
-            : "No preceptor is assigned to you yet. Your unit manager chooses one; until then your day shifts are placed on their own."}</p>
+            : "No preceptor is assigned to you yet. Your unit manager chooses one. Until then, your day shifts are planned without a preceptor to follow."}</p>
           <p className="text-sm text-muted-foreground">On the roster your row is under On probation: a shift is fully staffed without you.</p>
         </CardContent>
       </Card>

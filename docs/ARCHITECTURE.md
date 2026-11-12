@@ -128,6 +128,8 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Assign and change a nurse on probation's preceptor (ticket 55) | | | | own unit, or the unit she joins | |
 | Read who precepts whom | | yes | yes | own unit | |
 | Read who is on probation and until when | | yes | yes | own unit | |
+| See on a roster (grid, print page, files) who was on probation in its month, under its "On probation" heading, with her preceptor's name (ticket 56) | | yes | yes | own unit | own unit's roster in force |
+| Read own probation's last day and preceptor, or the nurse on probation one precepts, on My month (ticket 56) | | | | a manager with a nurse profile | yes |
 | Read nurses | | yes | | own unit | |
 | Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | yes (from ticket 61) | | |
 | Read a nurse's skills, certificates and licences with their kinds and expiries | | yes | yes | own unit | |
@@ -1040,6 +1042,16 @@ staff list's (byte order mark, every cell quoted, an apostrophe before a cell th
 text as text, numbers as numbers and dates as dates, marks text that opens like a formula as text the way Excel does, and is
 built in memory with XlsxWriter. Both answer `no-store`. The print page is laid out for A4 landscape, a 31-day month across one
 page and the header row repeated on each.
+
+A nurse on probation in the month (ADR 0014) is read off the input the version was planned with (`rosters.sheets.planned_with`:
+its own solve, or for a hand edit the one of the version it was made on), as the solve and the checks read her, so a version
+planned before her probation changed shows her as it was planned and the roster page says what changed since. Her row goes below
+the counted nurses, in a row group headed "On probation", with her preceptor's name under hers ("No preceptor" when none was in
+force); the manager's grid, the approvers' reading of it and My roster read the same (`rosters.grids.Apart`), and each row says
+`on_probation` and `preceptor_name`. In the CSV and the workbook a row reading "On probation" in its first cell heads her rows,
+and a last column, "Preceptor", names each one's; a month with nobody on probation has neither, and is the file it always was.
+That pairing is all a colleague reads of her: her leave is still the same empty cell as a day off. My month reads the probation
+as it stands now, not as the roster was planned: for her, its last day and her preceptor; for her preceptor, her name.
 
 ### Observability
 
