@@ -1,8 +1,8 @@
 import { type ReactNode, useId } from "react"
 
 import type { RosterSheet } from "@/api/generated/model"
-import { ON_PROBATION, ON_PROBATION_MEANS, preceptorLine } from "@/components/roster-grid"
 import { Button } from "@/components/ui/button"
+import { ON_PROBATION, ON_PROBATION_MEANS, preceptorLine } from "@/lib/probation-words"
 import { asDate, cn, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
 
 /** A roster version laid out for paper: one row a nurse, a column a date, then the hours and the count of each shift, the table

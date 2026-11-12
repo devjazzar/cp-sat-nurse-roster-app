@@ -99,12 +99,14 @@ class TestThePages:
         assert marks(ok(badr.get("/api/rosters/mine", {"month": JULY}))["roster"]["rows"]) == IN_JULY
         assert marks(ok(badr.get("/api/rosters/mine/sheet", {"month": JUNE}))["sheet"]["rows"]) == IN_JUNE
 
-    def test_her_own_my_roster_and_print_sheet_have_her_under_the_heading_too(self, june_and_july, client_of):
-        from conftest import PASSWORD
-        from django.test import Client
+    def test_her_preceptor_reads_it_as_any_colleague_does(self, june_and_july, nurses_of_er):
+        amal = nurses_of_er("Amal")
 
-        her = Client()
-        assert post(her, "/api/auth/login", {"username": "Abla", "password": PASSWORD}).status_code == 200
+        assert marks(ok(amal.get("/api/rosters/mine", {"month": JUNE}))["roster"]["rows"]) == IN_JUNE
+        assert marks(ok(amal.get("/api/rosters/mine/sheet", {"month": JUNE}))["sheet"]["rows"]) == IN_JUNE
+
+    def test_her_own_my_roster_and_print_sheet_have_her_under_the_heading_too(self, june_and_july, nurses_of_er):
+        her = nurses_of_er("Abla")
 
         assert marks(ok(her.get("/api/rosters/mine", {"month": JUNE}))["roster"]["rows"]) == IN_JUNE
         own = ok(her.get("/api/rosters/mine/sheet", {"month": JUNE}))["sheet"]
@@ -206,31 +208,26 @@ def my_month(client, month) -> dict:
 
 class TestMyMonth:
     @pytest.fixture
-    def signed_in(self, abla, nurses_of_er):
-        from conftest import PASSWORD
-        from django.test import Client
+    def clients(self, abla, nurses_of_er):
+        return {nurse: nurses_of_er(nurse) for nurse in ("Abla", "Amal", "Badr")}
 
-        her = Client()
-        assert post(her, "/api/auth/login", {"username": "Abla", "password": PASSWORD}).status_code == 200
-        return {"Abla": her, "Amal": nurses_of_er("Amal"), "Badr": nurses_of_er("Badr")}
-
-    def test_she_reads_her_preceptor_and_her_last_day_and_her_preceptor_reads_her(self, signed_in):
-        assert my_month(signed_in["Abla"], JUNE) == {"probation": {"last_day": "2026-06-30", "preceptor_name": "Amal"},
+    def test_she_reads_her_preceptor_and_her_last_day_and_her_preceptor_reads_her(self, clients):
+        assert my_month(clients["Abla"], JUNE) == {"probation": {"last_day": "2026-06-30", "preceptor_name": "Amal"},
                                                      "precepts": None}
-        assert my_month(signed_in["Amal"], JUNE) == {"probation": None, "precepts": "Abla Saad"}
-        assert my_month(signed_in["Badr"], JUNE) == {"probation": None, "precepts": None}
+        assert my_month(clients["Amal"], JUNE) == {"probation": None, "precepts": "Abla Saad"}
+        assert my_month(clients["Badr"], JUNE) == {"probation": None, "precepts": None}
 
-    def test_the_month_after_her_probation_neither_has_any(self, signed_in):
+    def test_the_month_after_her_probation_neither_has_any(self, clients):
         for nurse in ("Abla", "Amal", "Badr"):
-            assert my_month(signed_in[nurse], JULY) == {"probation": None, "precepts": None}, nurse
+            assert my_month(clients[nurse], JULY) == {"probation": None, "precepts": None}, nurse
 
-    def test_before_her_preceptor_is_assigned_she_reads_that_none_is(self, signed_in):
-        assert my_month(signed_in["Abla"], "2026-04") == {"probation": {"last_day": "2026-06-30", "preceptor_name": None},
+    def test_before_her_preceptor_is_assigned_she_reads_that_none_is(self, clients):
+        assert my_month(clients["Abla"], "2026-04") == {"probation": {"last_day": "2026-06-30", "preceptor_name": None},
                                                           "precepts": None}
 
-    def test_it_reads_her_probation_as_it_stands_once_extended(self, signed_in, abla, mona, er):
+    def test_it_reads_her_probation_as_it_stands_once_extended(self, clients, abla, mona, er):
         ok(post(mona, url(er, f"/nurses/{abla.pk}/probation/extend"), {}))
 
-        assert my_month(signed_in["Abla"], JULY) == {"probation": {"last_day": "2026-07-31", "preceptor_name": "Amal"},
+        assert my_month(clients["Abla"], JULY) == {"probation": {"last_day": "2026-07-31", "preceptor_name": "Amal"},
                                                      "precepts": None}
-        assert my_month(signed_in["Amal"], JULY) == {"probation": None, "precepts": "Abla Saad"}
+        assert my_month(clients["Amal"], JULY) == {"probation": None, "precepts": "Abla Saad"}

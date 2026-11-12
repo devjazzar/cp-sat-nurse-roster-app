@@ -79,8 +79,8 @@ def export_version(request: HttpRequest, unit_id: UUID, filters: Query[ExportFil
         return csv_response(filename, sheet.table())
     # The names wide enough to read, a date as wide as YYYY-MM-DD; the header row and the two name columns stay in view.
     widths = {0: 14, 1: 28, **{2 + index: 11 for index in range(len(sheet.days))}}
-    if sheet.any_on_probation:  # The last column names each preceptor, as wide as a name.
-        widths[len(sheet.table()[0]) - 1] = 28
+    if sheet.any_on_probation:  # The last column, after the dates, the hours and a count a shift, names each preceptor.
+        widths[2 + len(sheet.days) + 1 + len(sheet.shifts)] = 28
     return xlsx_response(filename, _title(sheet), "Roster", sheet.table(), frozen=(1, 2), widths=widths)
 
 

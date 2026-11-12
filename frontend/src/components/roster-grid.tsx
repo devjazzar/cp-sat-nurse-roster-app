@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import type { GridCell, GridRow, GridShift, GridView } from "@/api/generated/model"
+import { ON_PROBATION, ON_PROBATION_MEANS, preceptorLine } from "@/lib/probation-words"
 import { asDate, cn, readableOn, scrollableRegion } from "@/lib/utils"
 
 const features = tableFeatures({})
@@ -10,11 +11,6 @@ const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "
 const longDay = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
 
 const NURSE_HEADER = "Nurse"
-/** The heading her rows sit under (ADR 0014): she works beside her preceptor and counts toward no shift. */
-export const ON_PROBATION = "On probation"
-export const preceptorLine = (name: string | null) => name ? `Preceptor: ${name}` : "No preceptor"
-/** What the heading means, in each legend that shows it. */
-export const ON_PROBATION_MEANS = `${ON_PROBATION}: works beside their preceptor and is not counted toward any shift`
 const ROW_HEIGHT = 33
 /** A unit's usual month fits in the page, where the browser's find and a screen reader see all of it. Past this, only the rows
  *  in view are drawn, and `aria-rowcount` still says how many there are. */
@@ -232,7 +228,8 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
           {onProbation.length === 0 && spacer(after)}
         </tbody>
         {onProbation.length > 0 && (
-          <tbody aria-labelledby={headingDrawn ? headingId : undefined}>
+          // A long grid scrolled past the heading still names the group, with the heading's own words.
+          <tbody aria-labelledby={headingDrawn ? headingId : undefined} aria-label={headingDrawn ? undefined : ON_PROBATION}>
             {headingDrawn && (
               <tr aria-rowindex={firstOnProbation + 2} style={{ height: ROW_HEIGHT }}>
                 <th id={headingId} scope="rowgroup" colSpan={grid.days.length + 1} className="border-b bg-muted px-0 py-1 text-start font-medium">
