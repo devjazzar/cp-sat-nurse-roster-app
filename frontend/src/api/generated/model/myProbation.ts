@@ -9,5 +9,5 @@ export interface MyProbation {
   /** Her probation's last day, as it stands. */
   last_day: string;
   /** Her preceptor's full name in this month, as it stands. Null while none is assigned. */
-  preceptor: string | null;
+  preceptor_name: string | null;
 }

@@ -88,7 +88,7 @@ function Hours({ answer }: { answer: MyMonth }) {
 function ProbationCard({ answer }: { answer: MyMonth }) {
   const month = monthName(answer.month)
   if (answer.probation) {
-    const { last_day, preceptor } = answer.probation
+    const { last_day, preceptor_name: preceptor } = answer.probation
     return (
       <Card>
         <CardHeader><CardTitle><h3>Probation</h3></CardTitle></CardHeader>

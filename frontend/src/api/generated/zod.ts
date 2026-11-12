@@ -5954,7 +5954,7 @@ export const GetMyMonthResponse = zod.object({
 }),zod.null()]).describe('Null until that unit\'s roster of the month is approved, and for a month before `first_month`.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Her probation\'s last day, as it stands.'),
-  "preceptor": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name in this month, as it stands. Null while none is assigned.')
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name in this month, as it stands. Null while none is assigned.')
 }),zod.null()]).optional().describe('The reader\'s own probation, when they are on probation in this month. Null for anyone else.'),
   "precepts": zod.union([zod.string(),zod.null()]).optional().describe('The full name of the nurse on probation the reader precepts in this month, as it stands. Null for anyone else.')
 })

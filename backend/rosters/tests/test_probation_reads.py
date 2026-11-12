@@ -9,6 +9,7 @@ the alphabet's. She started on 1 April 2026; her 3 months are April, May and Jun
 counted by hand, and in July she is counted like everyone. Amal precepts her from May. June and July are solved by the real
 solver in this process, beside her preceptor in June, and approved."""
 import datetime as dt
+import io
 
 import pytest
 
@@ -147,6 +148,28 @@ class TestTheFiles:
         assert cells[f"A{last - 1}"]["value"] == "On probation"
         assert not any(reference.endswith(str(last - 1)) for reference in cells if not reference.startswith("A"))
         assert (cells[f"A{last}"]["value"], cells[f"{preceptor_column}{last}"]["value"]) == ("Abla", "Amal")
+        assert _width(export(mona, er, file_format="xlsx", month=JUNE), len(table[0])) >= 28  # A name's, not the default 8.43.
+
+
+def test_the_system_admin_reads_nothing_of_it(abla, er, signed_in):
+    admin = signed_in()
+
+    assert admin.get(url(er, "/roster"), {"month": JUNE}).status_code == 403
+    assert sheet(admin, er, month=JUNE).status_code == 403
+    assert export(admin, er, month=JUNE).status_code == 403
+    assert admin.get("/api/rosters/mine/month", {"month": JUNE}).status_code == 403
+
+
+def _width(response, column: int) -> float:
+    """The width the workbook sets on a column counted from 1, read from the file's own XML."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    from rosters.tests.test_exports import NS
+
+    sheet_xml = ElementTree.fromstring(zipfile.ZipFile(io.BytesIO(response.content)).read("xl/worksheets/sheet1.xml"))
+    found = next(col for col in sheet_xml.iter(f"{{{NS['x']}}}col") if int(col.get("min")) <= column <= int(col.get("max")))
+    return float(found.get("width"))
 
 
 def _column(number: int) -> str:
@@ -192,7 +215,7 @@ class TestMyMonth:
         return {"Abla": her, "Amal": nurses_of_er("Amal"), "Badr": nurses_of_er("Badr")}
 
     def test_she_reads_her_preceptor_and_her_last_day_and_her_preceptor_reads_her(self, signed_in):
-        assert my_month(signed_in["Abla"], JUNE) == {"probation": {"last_day": "2026-06-30", "preceptor": "Amal"},
+        assert my_month(signed_in["Abla"], JUNE) == {"probation": {"last_day": "2026-06-30", "preceptor_name": "Amal"},
                                                      "precepts": None}
         assert my_month(signed_in["Amal"], JUNE) == {"probation": None, "precepts": "Abla Saad"}
         assert my_month(signed_in["Badr"], JUNE) == {"probation": None, "precepts": None}
@@ -202,12 +225,12 @@ class TestMyMonth:
             assert my_month(signed_in[nurse], JULY) == {"probation": None, "precepts": None}, nurse
 
     def test_before_her_preceptor_is_assigned_she_reads_that_none_is(self, signed_in):
-        assert my_month(signed_in["Abla"], "2026-04") == {"probation": {"last_day": "2026-06-30", "preceptor": None},
+        assert my_month(signed_in["Abla"], "2026-04") == {"probation": {"last_day": "2026-06-30", "preceptor_name": None},
                                                           "precepts": None}
 
     def test_it_reads_her_probation_as_it_stands_once_extended(self, signed_in, abla, mona, er):
         ok(post(mona, url(er, f"/nurses/{abla.pk}/probation/extend"), {}))
 
-        assert my_month(signed_in["Abla"], JULY) == {"probation": {"last_day": "2026-07-31", "preceptor": "Amal"},
+        assert my_month(signed_in["Abla"], JULY) == {"probation": {"last_day": "2026-07-31", "preceptor_name": "Amal"},
                                                      "precepts": None}
         assert my_month(signed_in["Amal"], JULY) == {"probation": None, "precepts": "Abla Saad"}

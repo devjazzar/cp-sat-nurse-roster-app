@@ -13,6 +13,8 @@ const NURSE_HEADER = "Nurse"
 /** The heading her rows sit under (ADR 0014): she works beside her preceptor and counts toward no shift. */
 export const ON_PROBATION = "On probation"
 export const preceptorLine = (name: string | null) => name ? `Preceptor: ${name}` : "No preceptor"
+/** What the heading means, in each legend that shows it. */
+export const ON_PROBATION_MEANS = `${ON_PROBATION}: works beside their preceptor and is not counted toward any shift`
 const ROW_HEIGHT = 33
 /** A unit's usual month fits in the page, where the browser's find and a screen reader see all of it. Past this, only the rows
  *  in view are drawn, and `aria-rowcount` still says how many there are. */
@@ -125,14 +127,14 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
   })
   const items = windowed ? virtualizer.getVirtualItems() : rows.map((_, index) => ({ index, start: index * ROW_HEIGHT, end: (index + 1) * ROW_HEIGHT }))
   /** The first row on probation, where the heading goes; -1 with nobody on probation. */
-  const firstApart = grid.rows.findIndex((row) => row.on_probation)
-  const apart = firstApart >= 0
-  const counted = items.filter(({ index }) => !apart || index < firstApart)
-  const onProbation = items.filter(({ index }) => apart && index >= firstApart)
-  const headingDrawn = onProbation[0]?.index === firstApart
+  const firstOnProbation = grid.rows.findIndex((row) => row.on_probation)
+  const anyOnProbation = firstOnProbation >= 0
+  const counted = items.filter(({ index }) => !anyOnProbation || index < firstOnProbation)
+  const onProbation = items.filter(({ index }) => anyOnProbation && index >= firstOnProbation)
+  const headingDrawn = onProbation[0]?.index === firstOnProbation
   // The heading is no row of the virtualizer's, so in a windowed grid its height joins the spacer on whichever side it is off.
-  const headingAbove = apart && (items[0]?.index ?? 0) > firstApart
-  const headingBelow = apart && (items.at(-1)?.index ?? 0) < firstApart
+  const headingAbove = anyOnProbation && (items[0]?.index ?? 0) > firstOnProbation
+  const headingBelow = anyOnProbation && (items.at(-1)?.index ?? 0) < firstOnProbation
   const before = windowed ? (items[0]?.start ?? 0) + (headingAbove ? ROW_HEIGHT : 0) : 0
   const after = windowed ? virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0) + (headingBelow ? ROW_HEIGHT : 0) : 0
   const spacer = (height: number) => height > 0 && <tr aria-hidden="true"><td style={{ height }} colSpan={grid.days.length + 1} /></tr>
@@ -174,7 +176,7 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
     const [nurse, ...cells] = row.getAllCells()
     const name = nurse.getValue() as string
     return (
-      <tr key={row.id} ref={windowed ? virtualizer.measureElement : undefined} data-index={index} aria-rowindex={index + 2 + (apart && index >= firstApart ? 1 : 0)} style={{ height: ROW_HEIGHT }}>
+      <tr key={row.id} ref={windowed ? virtualizer.measureElement : undefined} data-index={index} aria-rowindex={index + 2 + (anyOnProbation && index >= firstOnProbation ? 1 : 0)} style={{ height: ROW_HEIGHT }}>
         {/* Wraps rather than truncates: a name has to be reachable whole, and a title is not by keyboard. Narrower on a phone,
             so a week of days shows beside it at 360 px (ticket 23). */}
         <th scope="row" className="sticky start-0 z-10 max-w-28 border-b sm:max-w-48 bg-background px-2 py-1 text-start font-normal wrap-anywhere">
@@ -201,7 +203,7 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
   return (
     <div ref={scroller} {...region}
       className={cn(region.className, "relative overflow-auto border", windowed && "max-h-[70svh]")}>
-      <table role={editing ? "grid" : undefined} aria-label={editing ? label : undefined} aria-rowcount={rows.length + 1 + (apart ? 1 : 0)}
+      <table role={editing ? "grid" : undefined} aria-label={editing ? label : undefined} aria-rowcount={rows.length + 1 + (anyOnProbation ? 1 : 0)}
         className="w-max border-separate border-spacing-0 text-sm">
         <thead className="sticky top-0 z-20 bg-background">
           <tr aria-rowindex={1}>
@@ -232,7 +234,7 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
         {onProbation.length > 0 && (
           <tbody aria-labelledby={headingDrawn ? headingId : undefined}>
             {headingDrawn && (
-              <tr aria-rowindex={firstApart + 2} style={{ height: ROW_HEIGHT }}>
+              <tr aria-rowindex={firstOnProbation + 2} style={{ height: ROW_HEIGHT }}>
                 <th id={headingId} scope="rowgroup" colSpan={grid.days.length + 1} className="border-b bg-muted px-0 py-1 text-start font-medium">
                   {/* Sticky, so the heading stays in view while the grid scrolls sideways on a phone. */}
                   <span className="sticky start-0 px-2">{ON_PROBATION}</span>
@@ -262,7 +264,7 @@ export function GridLegend({ grid, editable = false }: { grid: GridView; editabl
       <li className="flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex size-6 items-center justify-center rounded-sm border text-xs">·</span>Before their start date or after their end date</li>
       <li className="flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex size-6 rounded-sm border" />Off</li>
       <li>Hol: a public holiday</li>
-      {grid.rows.some((row) => row.on_probation) && <li>{ON_PROBATION}: works beside their preceptor and is not counted toward any shift</li>}
+      {grid.rows.some((row) => row.on_probation) && <li>{ON_PROBATION_MEANS}</li>}
       {editable && <li className="flex items-center gap-1.5"><span aria-hidden="true" className="relative inline-flex size-6 rounded-sm border"><span className="absolute end-0.5 top-0.5 size-1.5 rounded-full bg-current" /></span>Pinned</li>}
       {editable && <li className="flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex size-6 rounded-sm border outline-2 -outline-offset-4 outline-dashed" />Changed, not saved yet</li>}
     </ul>

@@ -29,6 +29,16 @@ if TYPE_CHECKING:
 Grid = dict[str, dict[str, str]]
 
 
+def planned_with(version: RosterVersion) -> Solve:
+    """The solve this version was planned with: its own, or for a hand edit the one of the version it was made on. Its input
+    holds the shift hours and who was on probation as the version was planned."""
+    if version.solve is not None:
+        return version.solve
+    earlier = version.roster.versions.filter(number__lt=version.number, solve__isnull=False).select_related("solve").first()
+    # Version 1 always has one, the approval's; the roster's own is the last resort should that ever not hold.
+    return earlier.solve if earlier else version.roster.solve
+
+
 def make_version(roster: Roster, grid: Grid, origin: str, by: User, reason: str = "",
                  solve: Solve | None = None) -> RosterVersion:
     """The next number, with `grid` in today's codes, which becomes `Roster.grid` too. Hold the roster's row lock, so that two

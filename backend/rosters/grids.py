@@ -62,23 +62,27 @@ def by_name(hospital_ids: Iterable[str], names: dict[str, str]) -> list[str]:
 
 
 @dataclass(frozen=True)
-class Apart:
-    """Who is on probation in the month a solve input is of, with each one's preceptor's hospital ID or None."""
+class OnProbation:
+    """Who is on probation in the month a solve input is of, with each one's preceptor's hospital ID or None: the roster reads'
+    one reading of the input's `on_probation` and `preceptor`."""
     preceptors: dict[str, str | None]
 
     @classmethod
-    def of(cls, solve_input: dict) -> Apart:
+    def of(cls, solve_input: dict) -> OnProbation:
         return cls({row["id"]: row.get("preceptor") for row in solve_input["nurses"] if row.get("on_probation")})
 
     def __contains__(self, hospital_id: str) -> bool:
         return hospital_id in self.preceptors
 
-    def names_needed(self) -> set[str]:
-        return {preceptor for preceptor in self.preceptors.values() if preceptor}
+    def names(self, hospital_ids: Iterable[str]) -> dict[str, str]:
+        """The full names of these nurses and of every preceptor named."""
+        return full_names({*hospital_ids, *(preceptor for preceptor in self.preceptors.values() if preceptor)})
 
-    def preceptor_name(self, hospital_id: str, names: dict[str, str]) -> str | None:
+    def marks(self, hospital_id: str, names: dict[str, str]) -> dict:
+        """A row's `on_probation` and `preceptor_name`."""
         preceptor = self.preceptors.get(hospital_id)
-        return (names.get(preceptor) or preceptor) if preceptor else None
+        return {"on_probation": hospital_id in self.preceptors,
+                "preceptor_name": (names.get(preceptor) or preceptor) if preceptor else None}
 
     def ordered(self, hospital_ids: Iterable[str], names: dict[str, str]) -> list[str]:
         """The counted nurses by name, then those on probation by name."""
@@ -94,8 +98,8 @@ def grid_view(grid: dict[str, dict[str, str]], solve: Solve) -> GridView:
     days = sorted({day for row in grid.values() for day in row})
     holidays = set(solve.input["public_holidays"])
     credited = {row["id"]: set(row.get("leave", [])) for row in solve.input["nurses"]}
-    apart = Apart.of(solve.input)
-    names = full_names({*grid, *apart.names_needed()})
+    on_probation = OnProbation.of(solve.input)
+    names = on_probation.names(grid)
 
     def cell(hospital_id: str, day: str, code: str) -> GridCell:
         if code:
@@ -110,10 +114,9 @@ def grid_view(grid: dict[str, dict[str, str]], solve: Solve) -> GridView:
     return GridView(
         days=[GridDay(date=day, weekend=dt.date.fromisoformat(day).weekday() in general["weekend_weekdays"],
                       holiday=day in holidays) for day in days],
-        rows=[GridRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""), on_probation=hospital_id in apart,
-                      preceptor_name=apart.preceptor_name(hospital_id, names),
+        rows=[GridRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""), **on_probation.marks(hospital_id, names),
                       cells=[cell(hospital_id, day, grid[hospital_id][day]) for day in days])
-              for hospital_id in apart.ordered(grid, names)],
+              for hospital_id in on_probation.ordered(grid, names)],
         shifts=[GridShift(code=shift.code, display_name=shift.display_name, colour=shift.colour,
                           hours=hours_then.get(shift.code, shift.hours))
                 for shift in Shift.objects.filter(code__in=used)])

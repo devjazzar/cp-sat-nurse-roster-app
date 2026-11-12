@@ -8823,7 +8823,7 @@ describe("a nurse's own month", () => {
   })
 
   it("tells a nurse on probation her preceptor and her probation's last day (ticket 56)", async () => {
-    start("/my-month", mine({ ...IN_FORCE, probation: { last_day: "2026-11-30", preceptor: "Amal Saleh" }, precepts: null }))
+    start("/my-month", mine({ ...IN_FORCE, probation: { last_day: "2026-11-30", preceptor_name: "Amal Saleh" }, precepts: null }))
 
     const card = (await screen.findByRole("heading", { level: 3, name: "Probation" })).closest("[data-slot=card]") as HTMLElement
     expect(within(card).getByText("You are on probation in November 2026. Its last day is Monday, 30 November 2026.")).toBeInTheDocument()
@@ -8832,7 +8832,7 @@ describe("a nurse's own month", () => {
   })
 
   it("says when no preceptor is assigned yet", async () => {
-    start("/my-month", mine({ ...NO_HOURS_YET, probation: { last_day: "2026-12-31", preceptor: null }, precepts: null }))
+    start("/my-month", mine({ ...NO_HOURS_YET, probation: { last_day: "2026-12-31", preceptor_name: null }, precepts: null }))
 
     expect(await screen.findByText(/No preceptor is assigned to you yet\. Your unit manager chooses one/)).toBeInTheDocument()
   })

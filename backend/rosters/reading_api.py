@@ -1,7 +1,7 @@
 """Rosters read across units, and the roster a nurse reads. The CNO and the Deputy CNO see every unit's state per month and the
 rosters waiting for them. A nurse sees the approved roster of the unit their month falls under, with colleagues' names and
 shifts only: nothing here for anyone but the reader comes from `Leave` or a result's `nurses`, and of a stored input's `nurses` only
-who is on probation in the month and her preceptor (`rosters.grids.Apart`), so a colleague's day of leave is the same `""` as
+who is on probation in the month and her preceptor (`rosters.grids.OnProbation`), so a colleague's day of leave is the same `""` as
 any day off. Their own row may say leave."""
 from __future__ import annotations
 
@@ -26,10 +26,11 @@ from closes.models import CarryOver, CarrySource, MonthClose
 from rosters import review
 from rosters.day import Figures, State, hospital_day
 from rosters.drafts import in_current_codes
-from rosters.grids import Apart, GridDay, full_names
+from rosters.grids import GridDay, OnProbation
 from rosters.models import Roster, RosterState, RosterVersion
 from rosters.own_month import OwnHours, closed_hours, own_hours
-from rosters.sheets import MyDay, RosterSheet, as_schema, days_of, planned_with, sheet_of
+from rosters.sheets import MyDay, RosterSheet, as_schema, days_of, sheet_of
+from rosters.versions import planned_with
 from units.models import Unit
 
 router = Router(tags=["rosters"])
@@ -334,18 +335,17 @@ def my_roster(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyRosterM
         return answer
     grid = found.grid
     days = days_of(found.month)
-    apart = Apart.of(planned_with(found.version).input)
-    names = full_names({*grid, *apart.names_needed()})
+    on_probation = OnProbation.of(planned_with(found.version).input)
+    names = on_probation.names(grid)
     used = {code for row in grid.values() for code in row.values() if code}
     mine = found.nurse.user.username
     answer.roster = NurseRoster(
         approved_at=found.approved_at, version=found.version.number, days=days,
         shifts=[NurseShift(code=shift.code, display_name=shift.display_name, colour=shift.colour, hours=shift.hours)
                 for shift in Shift.objects.filter(code__in=used)],
-        rows=[ColleagueRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""), on_probation=hospital_id in apart,
-                           preceptor_name=apart.preceptor_name(hospital_id, names),
+        rows=[ColleagueRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""), **on_probation.marks(hospital_id, names),
                            shifts=[grid[hospital_id].get(day.date.isoformat(), "") for day in days])
-              for hospital_id in apart.ordered(grid, names)],
+              for hospital_id in on_probation.ordered(grid, names)],
         mine=_mine(found.nurse, grid[mine], days) if mine in grid else None)
     return answer
 
@@ -404,7 +404,8 @@ class MyMonthInForce(Schema):
 
 class MyProbation(Schema):
     last_day: dt.date = Field(description="Her probation's last day, as it stands.")
-    preceptor: str | None = Field(description="Her preceptor's full name in this month, as it stands. Null while none is assigned.")
+    preceptor_name: str | None = Field(description="Her preceptor's full name in this month, as it stands. Null while none is "
+                                                   "assigned.")
 
 
 class MyMonth(Schema):
@@ -420,16 +421,20 @@ class MyMonth(Schema):
                                                    "as it stands. Null for anyone else.")
 
 
-def _probation_of(nurse: NurseProfile | None, month: dt.date) -> dict:
-    """Hers, or the one she precepts, in this month as it stands, not as its roster was planned: what she should know now."""
+def _probation_of(nurse: NurseProfile | None, month: dt.date) -> tuple[MyProbation | None, str | None]:
+    """Her own probation, and the name of the nurse on probation she precepts, in this month as it stands, not as its roster was
+    planned: what she should know now. At most one of the two, since a nurse on probation precepts no one."""
     if nurse is None:
-        return {}
+        return None, None
     if probation.on_probation_in(nurse, month):
         held = preceptors.assignment_in(nurse, month)
-        return {"probation": MyProbation(last_day=probation.last_day(nurse),
-                                         preceptor=preceptors.name_of(held.preceptor) if held else None)}
+        return MyProbation(last_day=probation.last_day(nurse),
+                           preceptor_name=preceptors.name_of(held.preceptor) if held else None), None
     precepted = preceptors.precepted_in(nurse, [month])
-    return {"precepts": preceptors.name_of(precepted[0])} if precepted else {}
+    if precepted is None:
+        return None, None
+    precepted_nurse, _ = precepted
+    return None, preceptors.name_of(precepted_nurse)
 
 
 @router.get("/mine/month", response=MyMonth, auth=nurse_reader, operation_id="getMyMonth")
@@ -438,7 +443,8 @@ def my_month(request: HttpRequest, filters: Query[MyRosterFilter]) -> MyMonth:
     since counts, and a new version (ticket 16) is read as it comes. Nothing of a colleague: the arithmetic reads the reader's
     row only. Their leave with its type is `GET /api/nurses/my-leave`, which reads any month."""
     found = in_force(request.user, filters.month)
-    answer = MyMonth(**found.heading(), roster=None, **_probation_of(found.nurse, found.month))
+    own, precepts = _probation_of(found.nurse, found.month)
+    answer = MyMonth(**found.heading(), roster=None, probation=own, precepts=precepts)
     if found.version is None:
         return answer
     mine = found.nurse.user.username

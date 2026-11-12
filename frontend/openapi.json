@@ -17833,7 +17833,7 @@
             "title": "Last Day",
             "type": "string"
           },
-          "preceptor": {
+          "preceptor_name": {
             "anyOf": [
               {
                 "type": "string"
@@ -17843,12 +17843,12 @@
               }
             ],
             "description": "Her preceptor's full name in this month, as it stands. Null while none is assigned.",
-            "title": "Preceptor"
+            "title": "Preceptor Name"
           }
         },
         "required": [
           "last_day",
-          "preceptor"
+          "preceptor_name"
         ],
         "title": "MyProbation",
         "type": "object"

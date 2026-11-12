@@ -6,9 +6,9 @@ A table leaves the system on paper or as a file, so it holds what a colleague ma
 or nothing, and a day of leave or outside a nurse's dates is nothing, like any day off. Its hours are therefore worked out from
 the cells alone: what a month owes a nurse, or their overtime, would say how much leave they had.
 
-A nurse on probation in the month, as the version was planned (`planned_with`), sits below the counted nurses under an "On
-probation" heading with her preceptor's name (ADR 0014; `rosters.grids.Apart`). A month with nobody on probation is the table
-it always was."""
+A nurse on probation in the month, as the version was planned (`rosters.versions.planned_with`), sits below the counted nurses
+under an "On probation" heading with her preceptor's name (ADR 0014; `rosters.grids.OnProbation`). A month with nobody on
+probation is the table it always was."""
 from __future__ import annotations
 
 import datetime as dt
@@ -21,8 +21,9 @@ from ninja import Field, Schema
 from hospital.models import HospitalSettings, PublicHoliday, Shift
 from nurses import membership
 from rosters.drafts import current_codes, in_current_codes
-from rosters.grids import Apart, GridDay, full_names
+from rosters.grids import GridDay, OnProbation
 from rosters.models import RosterVersion
+from rosters.versions import planned_with
 from solves.models import Solve
 
 
@@ -75,7 +76,7 @@ class Sheet:
     rows: list[SheetRow]
 
     @property
-    def apart(self) -> bool:
+    def any_on_probation(self) -> bool:
         """Someone on it is on probation in the month."""
         return any(row.on_probation for row in self.rows)
 
@@ -85,26 +86,17 @@ class Sheet:
         row reading "On probation" heads hers, which come last."""
         header = ["Hospital ID", "Full name", *(day.date for day in self.days), "Shift hours",
                   *(shift.heading for shift in self.shifts)]
-        if not self.apart:
+        if not self.any_on_probation:
             return [header, *([row.hospital_id, row.full_name, *row.shifts, row.hours, *row.counts] for row in self.rows)]
         table: list[list[str | int | dt.date]] = [[*header, "Preceptor"]]
         headed = False
         for row in self.rows:
-            if row.on_probation and not headed:  # The rows come counted first (`Apart.ordered`).
+            if row.on_probation and not headed:  # The rows come counted first (`OnProbation.ordered`).
                 table.append([ON_PROBATION, *[""] * len(header)])
                 headed = True
             table.append([row.hospital_id, row.full_name, *row.shifts, row.hours, *row.counts,
                           (row.preceptor_name or NO_PRECEPTOR) if row.on_probation else ""])
         return table
-
-
-def planned_with(version: RosterVersion) -> Solve:
-    """The solve this version was planned with: its own, or for a hand edit the one of the version it was made on."""
-    if version.solve is not None:
-        return version.solve
-    earlier = version.roster.versions.filter(number__lt=version.number, solve__isnull=False).select_related("solve").first()
-    # Version 1 always has one, the approval's; the roster's own is the last resort should that ever not hold.
-    return earlier.solve if earlier else version.roster.solve
 
 
 def _hours_by_code(solve: Solve) -> dict[str, int]:
@@ -121,18 +113,17 @@ def sheet_of(version: RosterVersion) -> Sheet:
     used = {code for row in grid.values() for code in row.values() if code}
     solve = planned_with(version)
     given = _hours_by_code(solve)
-    apart = Apart.of(solve.input)
+    on_probation = OnProbation.of(solve.input)
     shifts = [SheetShift(code=shift.code, display_name=shift.display_name, hours=given.get(shift.code, shift.hours))
               for shift in Shift.objects.filter(code__in=used)]
     hours = {shift.code: shift.hours for shift in shifts}
-    names = full_names({*grid, *apart.names_needed()})
+    names = on_probation.names(grid)
     rows = []
-    for hospital_id in apart.ordered(grid, names):
+    for hospital_id in on_probation.ordered(grid, names):
         cells = [grid[hospital_id].get(day.date.isoformat(), "") for day in days]
         rows.append(SheetRow(hospital_id=hospital_id, full_name=names.get(hospital_id, ""), shifts=cells,
                              hours=sum(hours[code] for code in cells if code),
-                             counts=[cells.count(shift.code) for shift in shifts], on_probation=hospital_id in apart,
-                             preceptor_name=apart.preceptor_name(hospital_id, names)))
+                             counts=[cells.count(shift.code) for shift in shifts], **on_probation.marks(hospital_id, names)))
     return Sheet(version=version, days=days, shifts=shifts, rows=rows)
 
 

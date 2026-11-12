@@ -1,7 +1,7 @@
 import { type ReactNode, useId } from "react"
 
 import type { RosterSheet } from "@/api/generated/model"
-import { ON_PROBATION, preceptorLine } from "@/components/roster-grid"
+import { ON_PROBATION, ON_PROBATION_MEANS, preceptorLine } from "@/components/roster-grid"
 import { Button } from "@/components/ui/button"
 import { asDate, cn, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
 
@@ -109,7 +109,7 @@ export function SheetPage({ sheet, me, back }: { sheet: RosterSheet; me?: string
       <p className="text-sm print:text-[7pt]">
         {sheet.shifts.map((shift) => `${shift.code}: ${shift.display_name}, ${shift.hours} hours`).join(". ")}{sheet.shifts.length ? ". " : ""}
         An empty cell is a day not worked. Hours are those of the shifts on the row.
-        {sheet.rows.some((row) => row.on_probation) ? ` ${ON_PROBATION}: works beside their preceptor and is not counted toward any shift.` : ""}
+        {sheet.rows.some((row) => row.on_probation) ? ` ${ON_PROBATION_MEANS}.` : ""}
         {ownLeave ? " L: your leave. My month counts your leave as worked in your hours; these hours count shifts only." : ""}{ownOutside ? " ·: before your start date or after your end date." : ""}
       </p>
     </div>
