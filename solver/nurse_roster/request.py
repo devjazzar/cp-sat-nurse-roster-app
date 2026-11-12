@@ -62,6 +62,13 @@ of exactly `max_consecutive_shifts` shifts) a nurse may work in the month, a who
 absent or null = no cap; and `general.weights.excess_full_run`, the price of each one above it,
 absent = 0. A full run counts in the month that holds its last day, one reaching the month's last
 day included (`validate.count_full_runs`).
+
+The overtime share (2026-11-12, ticket 49 of the app) adds five fields, optional in either version
+for the same reason: `department.share_overtime` (absent = false, the rule off),
+`department.overtime_tolerance` and `department.overtime_carry_cap` (whole hours 0..744, absent =
+0), `general.weights.overtime_above_share` (absent = 0) and a nurse's `overtime_balance`, the hours
+her overtime has stood above (+) or below (-) her overtime share so far this year (absent = 0; a
+carried value, as `preferences_not_kept` is). The rule: `fairness.overtime_priced`.
 """
 from __future__ import annotations
 
@@ -71,7 +78,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .calendar import MonthInfo, parse_date, parse_month
-from .problem import SCHEMA_VERSION, Problem, read_json
+from .problem import MAX_HOURS, SCHEMA_VERSION, Problem, read_json
 
 REQUEST_VERSION = 2           # what a caller writes; READABLE_VERSIONS: what the loader still reads
 READABLE_VERSIONS = (1, 2)
@@ -87,7 +94,8 @@ _NURSE_REQUIRED = ("id", "gender", "team_leader", "score", "ramadan_reduced", "b
                    "last_shift_kind", "rest_owed")
 _KINDS = (None, "night", "day")
 _NURSE_DATES = ("leave", "undesired_days", "desired_days")
-_NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous", "preferences_not_kept", "skills")
+_NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous", "preferences_not_kept", "overtime_balance",
+                                  "skills")
 # the fields version 2 adds, with the values a version-1 request is read with (no skills)
 _V2_GENERAL = {"required_skills": []}
 _V2_WEIGHTS = {"skill_shortfall": 0}
@@ -95,6 +103,9 @@ _V2_DEPARTMENT = {"skill_needs": [], "skill_needs_hard": True}
 # the full-run fields, optional in either version, with the values an input without them is read with
 _FULL_RUN_DEPARTMENT = {"max_full_runs": None}
 _FULL_RUN_WEIGHTS = {"excess_full_run": 0}
+# the overtime-share fields, likewise: the rule off, nothing free, nothing carried, no price
+_OVERTIME_SHARE_DEPARTMENT = {"share_overtime": False, "overtime_tolerance": 0, "overtime_carry_cap": 0}
+_OVERTIME_SHARE_WEIGHTS = {"overtime_above_share": 0}
 _SOLVER_FIELDS = ("time_limit_seconds", "reproducible")
 _DAY_REF = re.compile(r"\bday (\d+)\b")
 
@@ -142,7 +153,7 @@ def load_request(raw: object) -> Request:
     general, department = raw["general"], raw["department"]
     if version == 1:
         general, department = _version_1(raw)
-    general, department = _full_runs(general, department)
+    general, department = _optional_rules(general, department)
     try:
         month = parse_month(raw["month"])
     except ValueError as e:
@@ -195,15 +206,16 @@ def _version_1(raw: dict) -> tuple[object, object]:
     return general, upgraded(raw["department"], _V2_DEPARTMENT, "department")
 
 
-def _full_runs(general: object, department: object) -> tuple[object, object]:
-    """`general` and `department` with the full-run fields a request may leave out filled, on
-    copies: no cap (`department.max_full_runs` null) and `weights.excess_full_run` 0, so an input
-    made before them, of either version, loads and gives what it gave. A block that is not an
-    object, or weights missing or not an object, are left for the problem's own check to name."""
+def _optional_rules(general: object, department: object) -> tuple[object, object]:
+    """`general` and `department` with the rule fields a request may leave out filled, on copies:
+    the full runs' (no cap, `department.max_full_runs` null, and `weights.excess_full_run` 0) and
+    the overtime share's (off, 0 hours free, 0 carried, `weights.overtime_above_share` 0), so an
+    input made before them, of either version, loads and gives what it gave. A block that is not
+    an object, or weights missing or not an object, are left for the problem's own check to name."""
     if isinstance(department, dict):
-        department = {**_FULL_RUN_DEPARTMENT, **department}
+        department = {**_FULL_RUN_DEPARTMENT, **_OVERTIME_SHARE_DEPARTMENT, **department}
     if isinstance(general, dict) and isinstance(general.get("weights"), dict):
-        general = {**general, "weights": {**_FULL_RUN_WEIGHTS, **general["weights"]}}
+        general = {**general, "weights": {**_FULL_RUN_WEIGHTS, **_OVERTIME_SHARE_WEIGHTS, **general["weights"]}}
     return general, department
 
 
@@ -330,6 +342,12 @@ def _nurse(month: MonthInfo, nd: object, where: str, shifts: list[str] | None,
         if not isinstance(unkept, int) or isinstance(unkept, bool) or unkept < 0:
             raise ValueError(f"{where}.preferences_not_kept: must be a whole number, 0 or more, got {unkept!r}")
         n["preferences_not_kept"] = unkept
+    if "overtime_balance" in nd:
+        balance = nd["overtime_balance"]
+        if isinstance(balance, bool) or not isinstance(balance, (int, float)) or not math.isfinite(balance) \
+                or abs(balance) > MAX_HOURS:
+            raise ValueError(f"{where}.overtime_balance: must be a number of hours within ±{MAX_HOURS}, got {balance!r}")
+        n["overtime_balance"] = balance
     if "skills" in nd:
         n["skills"] = _skills(month, nd["skills"], f"{where}.skills")
     return n

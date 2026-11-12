@@ -94,6 +94,8 @@ _RULES = [
          lambda p: p.department.night_shift in p.department.fair_shifts),
     Rule("fair_weekend", SOFT, "fair_weekend", "0.1 shift from the fair Friday share",
          lambda p: p.department.fair_weekends),
+    Rule("overtime_above_share", SOFT, "overtime_above_share", "hour of overtime above the share",
+         lambda p: p.department.share_overtime and p.general.hours_rule_enabled),
     Rule("score_deficit", SOFT, "score_deficit", "0.01 score-point x person under the target",
          lambda p: p.department.score_target > 0 or p.department.score_target_weekend > 0),
     Rule("score_spread", SOFT, "score_spread", "0.01 score-point x person above the band "

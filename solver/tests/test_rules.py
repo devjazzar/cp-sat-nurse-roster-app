@@ -200,6 +200,8 @@ def test_each_soft_rule_alone_matches_the_solver():
                 nu.skills = {"ICU": last}
         if rid == "excess_full_run":                          # none allowed: every full run is priced
             p.department.max_full_runs = 0
+        if rid == "overtime_above_share":                     # nothing free above a share
+            p.department.share_overtime, p.department.overtime_tolerance = True, 0
         sol = solve(build_model(p), p, time_limit=4, workers=4)
         assert sol.status in ("OPTIMAL", "FEASIBLE"), (rid, sol.status, sol.message)
         assert penalises(p, sol.assignment, rid) == sol.objective, rid

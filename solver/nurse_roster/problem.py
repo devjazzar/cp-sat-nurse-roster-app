@@ -30,7 +30,7 @@ MAX_HOURS = 10 ** 6      # overtime caps, YTD overtime, a carried hours balance
 MAX_PARAM = 1000         # rule counts (max in a row, switches), balances, caps
 MAX_REST_DAYS = 7        # night_rest_days: its clause encoding lists every day of the gap, so
                          # the model grows with the square of it; a week is beyond any real rule
-SCHEMA_VERSION = 6       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
+SCHEMA_VERSION = 7       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
                          # explicit; no migration from 1 or 2 (they relied on defaults). 4 (2026-11-08):
                          # a nurse's optional `preferences_not_kept` (absent = 0) doubles the price of
                          # her undesired and desired days (ADR 0013); a version-3 file is refused
@@ -42,8 +42,13 @@ SCHEMA_VERSION = 6       # of the problem JSON. 3 (2026-11-03): every rule, swit
                          # loader reads its version 1 as version 2 with no skills). 6 (2026-11-09):
                          # full runs: the department's `max_full_runs` (null = no cap) and
                          # `weights.excess_full_run`, both required; a version-5 file is refused like
-                         # any other (the request takes both as optional, in either of its versions)
+                         # any other (the request takes both as optional, in either of its versions). 7
+                         # (2026-11-12): the overtime share: the department's `share_overtime`,
+                         # `overtime_tolerance` and `overtime_carry_cap` and `weights.overtime_above_share`,
+                         # required, and a nurse's optional `overtime_balance` (absent = 0); a version-6
+                         # file is refused like any other (the request takes all five as optional)
 MAX_FULL_RUNS = 31       # max_full_runs: a month holds at most 31 days
+MAX_OVERTIME_HOURS = 744 # overtime_tolerance, overtime_carry_cap: the hours of a 31-day month
 MAX_SKILLS = 100         # skills a nurse holds, skills required to work, a unit's skill needs
 MAX_NAME = 100           # nurse ids and shift names (the CSV reader's field limit is 128 kB)
 _MONTH = re.compile(r"(\d{4})-(\d{2})")
@@ -80,6 +85,8 @@ class Nurse:
     preferences_not_kept: int = 0      # her undesired / desired days the month before did not keep
                                        # (carry_over.preferences_not_kept): above 0, each of hers this
                                        # month costs twice its weight, whatever the count (ADR 0013)
+    overtime_balance: float = 0.0      # hours her overtime has stood above (+) / below (-) her overtime share
+                                       # so far this year (carry_over.overtime_balance; fairness.overtime_target)
     skills: dict[str, int | None] = field(default_factory=dict)  # skill name -> its expiry, the last
                                        # day it counts: None = all month, 0..days-1 = that day of the
                                        # month, -1 = expired before the month (whatever the date). A
@@ -159,6 +166,8 @@ class Weights:
     change: int                  # per cell that differs from the published roster (re-solves)
     skill_shortfall: int = 0     # per nurse a soft skill need is short on a shift-day (rule skill_need)
     excess_full_run: int = 0     # per full run a nurse works above the department maximum
+    overtime_above_share: int = 0  # per whole hour of a nurse's overtime above her overtime share, beyond the
+                                   # department's tolerance (fairness.overtime_priced)
 
 
 @dataclass(slots=True)
@@ -238,6 +247,9 @@ class DepartmentRules:
     skill_needs_hard: bool = True        # True: every need is hard; False: soft, weight skill_shortfall
     max_full_runs: int | None = None     # soft: full runs (exactly max_consecutive_shifts in a row) a nurse
                                          # works per month, 0..31; None = no cap (full_runs)
+    share_overtime: bool = False         # soft: price each nurse's overtime above her overtime share
+    overtime_tolerance: int = 0          # hours above her share (target) that are free, 0..744
+    overtime_carry_cap: int = 0          # most the carried overtime_balance moves her target, hours, 0..744
 
 
 @dataclass(slots=True)
@@ -429,7 +441,7 @@ class Problem:
     def from_dict(raw: dict, *, check_planning: bool = True) -> "Problem":
         """Every field of the rule objects and every nurse scalar is required: no unit's
         numbers live in the code. Only a nurse's day lists, pins, `allowed_shifts`,
-        `previous`, `last_shift_kind`, `rest_owed`, `preferences_not_kept` and `skills`, a headcount's `also_counts`, and the root's
+        `previous`, `last_shift_kind`, `rest_owed`, `preferences_not_kept`, `overtime_balance` and `skills`, a headcount's `also_counts`, and the root's
         holidays, Ramadan days, `published`, `planning_from` and `month` may be absent (absent = none). An explicitly empty
         list stays empty. The result is checked (`check`) so malformed input fails here, not
         in the solver. Every malformed input raises ValueError (never TypeError), with the
@@ -520,7 +532,7 @@ class Problem:
                 raise err(f"general.{name} must be true or false, got {getattr(g, name)!r}")
         for name in ("headcount_enabled", "require_team_leader", "require_both_genders", "score_balance",
                      "night_rest_hard", "fair_weekends", "carry_fairness", "no_mixed_blocks", "switches_hard",
-                     "skill_needs_hard"):
+                     "skill_needs_hard", "share_overtime"):
             if not isinstance(getattr(dep, name), bool):
                 raise err(f"department.{name} must be true or false, got {getattr(dep, name)!r}")
         if not isinstance(dep.name, str):
@@ -576,6 +588,10 @@ class Problem:
                 (not _is_int(dep.max_full_runs) or not 0 <= dep.max_full_runs <= MAX_FULL_RUNS):
             raise err(f"department.max_full_runs must be a whole number within 0..{MAX_FULL_RUNS} or null, "
                       f"got {dep.max_full_runs!r}")
+        for name in ("overtime_tolerance", "overtime_carry_cap"):
+            v = getattr(dep, name)
+            if not _is_int(v) or not 0 <= v <= MAX_OVERTIME_HOURS:
+                raise err(f"department.{name} must be a whole number of hours within 0..{MAX_OVERTIME_HOURS}, got {v!r}")
         if not _is_int(dep.night_rest_days) or not 0 <= dep.night_rest_days <= MAX_REST_DAYS:
             raise err(f"department.night_rest_days must be an integer within 0..{MAX_REST_DAYS}")
         for name in ("score_target", "score_target_weekend", "score_band_hi", "score_band_hi_weekend"):
@@ -704,6 +720,8 @@ class Problem:
                 v = getattr(nu, name)
                 if not _is_num(v) or abs(v) > MAX_PARAM:
                     raise err(f"{nu.id}: {name} must be a number within ±{MAX_PARAM}")
+            if not _is_num(nu.overtime_balance) or abs(nu.overtime_balance) > MAX_HOURS:   # a sanity bound, as
+                raise err(f"{nu.id}: overtime_balance must be a number of hours within ±{MAX_HOURS}")  # hours_balance's
             for name in ("unavailable", "undesired_days", "desired_days"):
                 days = _list(getattr(nu, name), f"{nu.id}.{name}")
                 for d in days:
@@ -880,7 +898,7 @@ def _list(v, where: str) -> list:
 _ROOT_OPTIONAL = frozenset({"public_holidays", "ramadan_days", "published", "planning_from", "month"})
 _NURSE_OPTIONAL = frozenset({"unavailable", "undesired_days", "desired_days", "pinned",
                              "allowed_shifts", "previous", "last_shift_kind", "rest_owed",
-                             "preferences_not_kept", "skills"})
+                             "preferences_not_kept", "overtime_balance", "skills"})
 
 
 def _require(cls, raw, where: str, *, optional: frozenset | set = frozenset()) -> dict:

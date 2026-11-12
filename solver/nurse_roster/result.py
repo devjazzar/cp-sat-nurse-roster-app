@@ -165,11 +165,12 @@ def nurse_accounting(p: Problem, assignment: list[list[int]], analysis: Analysis
     sh = dep.shifts
     share, per = F.share_m(p), F.friday_slots_m(p)
     need = needed_history(dep, g)
+    hours = [sum(g.shift_hours[sh[v]] for v in row if v >= 0) for row in assignment]
+    overtime = [max(0, h - p.required_hours(n)) if g.hours_rule_enabled else 0 for n, h in zip(p.nurses, hours)]
+    unit_ot, owed = sum(overtime), F.overtime_owed(p)
     nurses = {}
-    for n, row in zip(p.nurses, assignment):
-        hrs = sum(g.shift_hours[sh[v]] for v in row if v >= 0)
+    for n, row, hrs, ot in zip(p.nurses, assignment, hours, overtime):
         required = p.required_hours(n)
-        overtime = max(0, hrs - required) if g.hours_rule_enabled else 0
         shortfall = max(0, required - hrs) if g.hours_rule_enabled else 0
         night_out, friday_out = F.balances_out(p, n, row, share=share, per=per)
         names = [sh[v] if v >= 0 else "" for v in row]
@@ -177,18 +178,20 @@ def nurse_accounting(p: Problem, assignment: list[list[int]], analysis: Analysis
         nurses[n.id] = {
             "leave": [month.iso(d) for d in sorted(set(n.unavailable))],
             "contract": p.contract_hours(n), "leave_credit": p.leave_credit(n), "required": required,
-            "hours_worked": hrs, "overtime": overtime, "shortfall": shortfall,
+            "hours_worked": hrs, "overtime": ot, "shortfall": shortfall,
             "shifts": {s: sum(1 for v in row if v == i) for i, s in enumerate(sh)},
             "cost": an.nurses.get(n.id, 0),
             "carry_over": {"hours_balance": p.carry_over(n, hrs), "night_balance": night_out,
-                           "friday_balance": friday_out, "ytd_overtime": n.ytd_overtime + overtime,
+                           "friday_balance": friday_out, "ytd_overtime": n.ytd_overtime + ot,
                            "previous": tail,
                            # the two memories, walked up to where next month's history begins
                            "last_shift_kind": _kind_out(before, n, dep.night_shift),
                            "rest_owed": rest_owed_after(n.rest_owed, before, dep.night_shift,
                                                         dep.day_shift, dep.night_rest_days),
                            # one month's memory: this month's days of hers not kept (ADR 0013)
-                           "preferences_not_kept": preferences_not_kept(p, n, row)}}
+                           "preferences_not_kept": preferences_not_kept(p, n, row),
+                           # in + overtime - share, while the unit's switch and the hours rule are on
+                           "overtime_balance": F.overtime_balance_out(p, n, ot, unit_ot, owed)}}
     return nurses
 
 

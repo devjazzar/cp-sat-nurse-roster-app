@@ -278,7 +278,8 @@ def test_result_roster_and_carry_over_round_trip():
     assert set(res["penalties"]) == {"night_rest", "shift_switch", "dept_overtime", "nurse_overtime",
                                      "nurse_shortfall", "avoidable_shortfall", "fair_day", "fair_night", "fair_weekend",
                                      "score_deficit", "score_spread", "excess_weekend", "undesired_day",
-                                     "desired_day", "change", "skill_need", "excess_full_run"}
+                                     "desired_day", "change", "skill_need", "excess_full_run",
+                                     "overtime_above_share"}
     share, per = F.share_m(q), F.friday_slots_m(q)
     need = needed_history(q.department, q.general)
     assert need == 8
@@ -294,6 +295,7 @@ def test_result_roster_and_carry_over_round_trip():
         assert carry["hours_balance"] == q.carry_over(n, hrs)
         assert (carry["night_balance"], carry["friday_balance"]) == F.balances_out(q, n, row, share=share, per=per)
         assert carry["ytd_overtime"] == n.ytd_overtime + block["overtime"]
+        assert carry["overtime_balance"] == n.overtime_balance == 0      # the overtime share off: handed on
         assert carry["previous"] == [sh[v] if v >= 0 else "" for v in row]   # the month: it has work
     assert sum(res["nurses"][n]["cost"] for n in res["nurses"]) + res["department_cost"] == res["cost"]
     # next month's request = this month's static nurse fields + carry_over, and it loads

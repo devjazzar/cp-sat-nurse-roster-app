@@ -128,7 +128,8 @@ def build_model(p: Problem) -> RosterModel:
         # horizon (parameters up to 1000 would otherwise cost a million iterations).
         hi = cut + R_rest * (dep.max_consecutive_shifts + 1) if dep.max_consecutive_shifts > 0 else T - 1
         rest_long = range(R_rest + 1, min(hi, T - 1) + 1)
-    ot_vars = []
+    ot_vars = []                        # one per nurse while the hours rule is on, in the nurses' order
+    ot_caps = []
     total_ot_cap = 0
     counts = F.fair_shifts(p)
     share = F.share_m(p)                                     # thousandths of demand per fair shift
@@ -193,7 +194,10 @@ def build_model(p: Problem) -> RosterModel:
             ot = m.new_int_var(0, cap, f"ot{n}")
             short = m.new_int_var(0, req, f"sh{n}")
             m.add(total_h - req == ot - short)
+            if rule("overtime_above_share"):                   # her overtime exactly, as the validator reads it:
+                m.add_max_equality(ot, [total_h - req, 0])     # never raised with the shortfall to move the shares
             ot_vars.append(ot)
+            ot_caps.append(cap)
             total_ot_cap += cap
             pen["nurse_overtime"][0].append(ot)
             pen["nurse_shortfall"][0].append(short)
@@ -406,6 +410,30 @@ def build_model(p: Problem) -> RosterModel:
         ex = m.new_int_var(0, total_ot_cap, "dept_ot_excess")   # includes already-recorded excess
         m.add(ex >= Sum(ot_vars) - g.dept_overtime_cap)
         pen["dept_overtime"][0].append(ex)
+
+    # ---- overtime share (soft): each nurse's overtime above her target, beyond the tolerance ----
+    # (fairness.overtime_priced, which says it in full). The share moves with the unit's overtime O,
+    # a variable: with S = 100 R, S p >= S (ot - tol) - 100 r O + R adj - (S - 1) makes the least p
+    # floor((S (ot - tol) - 100 r O + R adj) / S). Its cap at her overtime is an either-or, p >= ot or
+    # the floor, needed only where the carried balance can push the floor above her overtime: a
+    # balance held above the tolerance (a plain upper bound p <= ot would make such a month infeasible).
+    owed = F.overtime_owed(p) if rule("overtime_above_share") and ot_vars else 0
+    if owed > 0:
+        unit_ot = m.new_int_var(0, total_ot_cap, "unit_ot")
+        m.add(unit_ot == Sum(ot_vars))
+        scale, tol = 100 * owed, dep.overtime_tolerance
+        for n, nurse in enumerate(p.nurses):
+            r = p.required_hours(nurse)
+            if r == 0:                                         # she owes none: no share, never priced
+                continue
+            adj = F.overtime_adj_100(p, nurse)
+            priced = m.new_int_var(0, ot_caps[n], f"ots{n}")
+            floor = m.add(scale * priced >= scale * (ot_vars[n] - tol) - 100 * r * unit_ot + owed * adj - (scale - 1))
+            if adj > 100 * tol:
+                whole = nb(f"otw{n}")
+                m.add(priced >= ot_vars[n]).only_enforce_if(whole)
+                floor.only_enforce_if(whole.Not())
+            pen["overtime_above_share"][0].append(priced)
 
     # ---- night/day switches: changes between night work and any other work -----------
     # last_n[t] remembers whether the most recent worked shift up to day t was the night

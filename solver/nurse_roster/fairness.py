@@ -138,3 +138,54 @@ def balances_out(p: Problem, nurse: Nurse, row: list[int], *, share: dict[str, i
         fridays = sum(1 for d, v in enumerate(row) if v >= 0 and p.is_weekend(d))
         friday_out += fridays - friday_expected_m(p, nurse, per) / 1000
     return round(night_out, 2), round(friday_out, 2)
+
+
+# ---- the overtime share (ticket 49 of the app; GLOSSARY Overtime share) --------------------------
+# A nurse's share of the unit's overtime O is O x r / R, r the hours she owes this month
+# (`Problem.required_hours`) and R the hours every nurse of the problem owes. Her target is the
+# share less her carried `overtime_balance`, held within ±`overtime_carry_cap`, when the unit carries
+# fairness. Her priced hours are her overtime above the target, beyond `overtime_tolerance`, in
+# whole hours rounded down (the target rounded up to a whole hour: a part hour is never priced),
+# and never more than her overtime. Integer arithmetic in hundredths of an hour scaled by R, so the
+# model (`model.build_model`) and the validator (`validate`) count exactly the same hours.
+
+def overtime_owed(p: Problem) -> int:
+    """R: the hours every nurse of the problem owes this month."""
+    return sum(p.required_hours(nu) for nu in p.nurses)
+
+
+def overtime_adj_100(p: Problem, nurse: Nurse) -> int:
+    """Her carried overtime balance (hours, + = above her share so far) held within the unit's limit, in
+    hundredths of an hour; 0 when the unit does not carry fairness between months."""
+    dep = p.department
+    if not dep.carry_fairness:
+        return 0
+    cap = dep.overtime_carry_cap
+    return round(max(-cap, min(cap, nurse.overtime_balance)) * 100)
+
+
+def overtime_share(p: Problem, nurse: Nurse, total: int, owed: int) -> float:
+    """Her share, in hours, of `total`, the unit's overtime this month; `owed` is `overtime_owed(p)`."""
+    return total * p.required_hours(nurse) / owed if owed else 0.0
+
+
+def overtime_priced(p: Problem, nurse: Nurse, overtime: int, total: int, owed: int) -> int:
+    """Whole hours of her `overtime` priced: above her target by more than the tolerance, rounded down,
+    at most her overtime; 0 for a nurse who owes no hours (no share) or works no overtime. With
+    S = 100 R: floor((S (ot - tol) - 100 r O + R adj) / S), the model's linear form exactly."""
+    r = p.required_hours(nurse)
+    if r == 0 or overtime <= 0:
+        return 0
+    scale = 100 * owed
+    x = scale * (overtime - p.department.overtime_tolerance) - 100 * r * total + owed * overtime_adj_100(p, nurse)
+    return max(0, min(overtime, x // scale))
+
+
+def overtime_balance_out(p: Problem, nurse: Nurse, overtime: int, total: int, owed: int) -> float:
+    """Her `overtime_balance` for next month: in + overtime - share, rounded as the shift balances are.
+    It moves while the unit's switch and the hospital's hours rule are on, whether or not the unit
+    carries fairness and whatever the weight (the price is the hospital's; the record is the unit's),
+    as the night balance moves; otherwise it is handed on unchanged."""
+    if not (p.department.share_overtime and p.general.hours_rule_enabled):
+        return nurse.overtime_balance
+    return round(nurse.overtime_balance + overtime - overtime_share(p, nurse, total, owed), 2)

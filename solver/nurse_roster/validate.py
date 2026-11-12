@@ -426,6 +426,21 @@ def _fair(c: Ctx, night: bool) -> list[Match]:
     return out
 
 
+def _overtime_above_share(c: Ctx) -> list[Match]:
+    """Each nurse's overtime above her overtime share's target, beyond the tolerance (`fairness.overtime_priced`)."""
+    out, p = [], c.p
+    overtime = [max(0, c.hrs[n] - p.required_hours(nu)) for n, nu in enumerate(p.nurses)]
+    total, owed = sum(overtime), F.overtime_owed(p)
+    for n, nu in enumerate(p.nurses):
+        amt = F.overtime_priced(p, nu, overtime[n], total, owed)
+        if amt > 0:
+            share, adj = F.overtime_share(p, nu, total, owed), F.overtime_adj_100(p, nu)
+            target = f", target {share - adj / 100:.1f} h after the carried balance" if adj else ""
+            out.append(Match(nu.id, None, amt, f"{nu.id}: {overtime[n]} h overtime, share {share:.1f} h{target}, "
+                                               f"{amt} h priced"))
+    return out
+
+
 def _score_deficit(c: Ctx) -> list[Match]:
     out, p, dep = [], c.p, c.p.department
     for hc in dep.headcounts:
@@ -534,6 +549,7 @@ CHECKS: dict[str, Callable[[Ctx], list[Match]]] = {
     "nurse_shortfall": _nurse_shortfall, "avoidable_shortfall": _avoidable_shortfall,
     "fair_day": lambda c: _fair(c, False),
     "fair_night": lambda c: _fair(c, True), "fair_weekend": _fair_weekend,
+    "overtime_above_share": _overtime_above_share,
     "score_deficit": _score_deficit, "score_spread": _score_spread,
     "excess_weekend": _excess_weekend, "excess_full_run": _excess_full_run,
     "undesired_day": _undesired_day, "desired_day": _desired_day,
