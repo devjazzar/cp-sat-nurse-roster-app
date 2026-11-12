@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useId } from "react"
+import { type ReactNode, useId } from "react"
 
 import type { NurseSkillRow } from "@/api/generated/model"
 import { Badge } from "@/components/ui/badge"
@@ -43,15 +43,13 @@ type RecordsTableProps = {
   details: boolean
   /** A cell of buttons for each record, under an Actions column. */
   actions?: (skill: NurseSkillRow) => ReactNode
-  /** A row of its own under a record, spanning the table, such as the form that renews it. */
-  below?: (skill: NurseSkillRow) => ReactNode
   /** False inside another table that scrolls already, so that each nurse's row adds no stop for the keyboard. */
   scrolls?: boolean
 }
 
 /** A nurse's records, grouped under Skills, Certificates and Licences, each heading a row group with its own name (ticket 58's
  *  rule). Within a group, in the order of their names, as the API gives them. Scrolls inside itself on a phone. */
-export function RecordsTable({ skills, label, details, actions, below, scrolls = true }: RecordsTableProps) {
+export function RecordsTable({ skills, label, details, actions, scrolls = true }: RecordsTableProps) {
   const id = useId()
   const columns = ["Name", "Expiry", ...(details ? ["Identifier", "Issue date"] : []), ...(actions ? ["Actions"] : [])]
   return (
@@ -71,33 +69,26 @@ export function RecordsTable({ skills, label, details, actions, below, scrolls =
               className="bg-muted/50 font-medium text-foreground">{group.heading}</TableHead>
           </TableRow>
           {group.rows.map((skill) => (
-            <Fragment key={skill.skill_id}>
-              <TableRow>
-                <TableCell>
-                  <span className="flex flex-wrap items-center gap-1">
-                    {skill.name}
-                    {!skill.active && <Badge variant="outline">Retired</Badge>}
-                  </span>
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {skill.expiry ? shortDay(skill.expiry) : <span className="text-muted-foreground">Does not expire</span>}
-                </TableCell>
-                {details && (
-                  <>
-                    <TableCell translate="no">{skill.details?.identifier ?? <span className="text-muted-foreground">None</span>}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {skill.details?.issue_date ? shortDay(skill.details.issue_date) : <span className="text-muted-foreground">Not recorded</span>}
-                    </TableCell>
-                  </>
-                )}
-                {actions && <TableCell><div className="flex flex-wrap gap-2">{actions(skill)}</div></TableCell>}
-              </TableRow>
-              {below?.(skill) && (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={columns.length} className="whitespace-normal">{below(skill)}</TableCell>
-                </TableRow>
+            <TableRow key={skill.skill_id}>
+              <TableCell>
+                <span className="flex flex-wrap items-center gap-1">
+                  {skill.name}
+                  {!skill.active && <Badge variant="outline">Retired</Badge>}
+                </span>
+              </TableCell>
+              <TableCell className="tabular-nums">
+                {skill.expiry ? shortDay(skill.expiry) : <span className="text-muted-foreground">Does not expire</span>}
+              </TableCell>
+              {details && (
+                <>
+                  <TableCell translate="no">{skill.details?.identifier ?? <span className="text-muted-foreground">None</span>}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {skill.details?.issue_date ? shortDay(skill.details.issue_date) : <span className="text-muted-foreground">Not recorded</span>}
+                  </TableCell>
+                </>
               )}
-            </Fragment>
+              {actions && <TableCell><div className="flex flex-wrap gap-2">{actions(skill)}</div></TableCell>}
+            </TableRow>
           ))}
         </TableBody>
       ))}

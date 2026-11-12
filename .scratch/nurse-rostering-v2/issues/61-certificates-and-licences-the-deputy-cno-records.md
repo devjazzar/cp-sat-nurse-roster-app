@@ -34,8 +34,8 @@ added `kind` and `issuing_body` to them and changed no role. The Rostering attri
 **From ticket 59 (2026-11-12).** The three write endpoints (`recordNurseSkill`, `renewNurseSkill`, `removeNurseSkill`) answer
 with `skills_of(nurse, details=True)`, the full shape: fine for the Deputy CNO too. On Rostering attributes the CNO and the
 Deputy CNO now see each nurse's records as a nested `RecordsTable` (`frontend/src/components/nurse-skills.tsx`) in the Skills
-cell, grouped by kind with Identifier and Issue date; it takes `actions` and `below` (the Nurses page uses them for Renew,
-Take off and the renew form under the row), so your controls can reuse the Nurses page's `HeldSkills`, `RenewForm` and
+cell, grouped by kind with Identifier and Issue date; it takes `actions` (the Nurses page uses it for Renew and Take off, and
+shows the renew form under the table, since a row as wide as the table scrolls away on a phone), so your controls can reuse the Nurses page's `HeldSkills`, `RenewForm` and
 `RecordSkillForm` (`routes/_signed-in/nurses.tsx`) if you lift them into a component. The page's words "The CNO sets skills on
 the Nurses page" and My month's "The CNO records them" need the Deputy then. The renew body's identifier and issue date may be
 left out (carried forward); the page always sends all three.

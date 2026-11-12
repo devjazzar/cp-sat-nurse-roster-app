@@ -454,7 +454,7 @@ type RecordDetails = z.infer<typeof recordDetailsSchema>
 /** What a form's fields say, as the API takes them: an empty field is none. */
 const asSent = ({ identifier, issue_date }: RecordDetails) => ({ identifier: identifier.trim() || null, issue_date: issue_date || null })
 
-/** The form that renews one record, under its row: a new expiry, identifier or issue date, or all three, as the body gave
+/** The form that renews one record, under the table: a new expiry, identifier or issue date, or all three, as the body gave
  *  them. What it says already is sent as it is, and the API changes nothing then. */
 function RenewForm({ nurse, skill, onSaid, onDone }: {
   nurse: NurseRow; skill: NurseSkillRow; onSaid: (message: string) => void; onDone: () => void
@@ -494,7 +494,7 @@ function RenewForm({ nurse, skill, onSaid, onDone }: {
   })
 
   return (
-    <form onSubmit={submit} noValidate aria-label={`Renew ${skill.name}`} className="flex max-w-md flex-col gap-3 py-2">
+    <form onSubmit={submit} noValidate aria-label={`Renew ${skill.name}`} className="flex max-w-md flex-col gap-3">
       <FieldGroup>
         {skill.expires && (
           <FormField id={`expiry-${skill.skill_id}`} label={`Expiry of ${skill.name}`} type="date" description={EXPIRY_HINT}
@@ -517,6 +517,7 @@ function HeldSkills({ nurse, onSaid, onGone }: { nurse: NurseRow; onSaid: (messa
   const refresh = useRefreshNurses()
   const remove = useRemoveNurseSkill()
   const [renewing, setRenewing] = useState<string | null>(null)
+  const chosen = nurse.skills.find((skill) => skill.skill_id === renewing)
   const renewButton = (skillId: string) => `renew-${nurse.id}-${skillId}`
 
   function takeOff(skill: NurseSkillRow) {
@@ -547,9 +548,14 @@ function HeldSkills({ nurse, onSaid, onGone }: { nurse: NurseRow; onSaid: (messa
               onClick={() => takeOff(skill)}>Take off</Button>
           </>
         )}
-        below={(skill) => renewing === skill.skill_id && skill.active
-          ? <RenewForm nurse={nurse} skill={skill} onSaid={onSaid} onDone={() => closeRenewal(skill.skill_id)} />
-          : null} />
+      />
+      {/* Under the table rather than in a row of it: a row is as wide as the table, which scrolls on a phone. */}
+      {chosen?.active && (
+        <section aria-labelledby={`renewing-${chosen.skill_id}`} className="flex flex-col gap-2">
+          <h4 id={`renewing-${chosen.skill_id}`} className="font-medium">Renew {chosen.name}</h4>
+          <RenewForm key={chosen.skill_id} nurse={nurse} skill={chosen} onSaid={onSaid} onDone={() => closeRenewal(chosen.skill_id)} />
+        </section>
+      )}
       <Unexpected error={remove.error} />
       {nurse.skills.some((skill) => !skill.active) && (
         <p className="text-sm text-muted-foreground">A retired skill can no longer be renewed. The record stays until you take it off.</p>
