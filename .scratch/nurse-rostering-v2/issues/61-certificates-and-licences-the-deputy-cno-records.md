@@ -30,3 +30,12 @@ ticket 61)" once built.
 **From ticket 58 (2026-11-12).** The catalogue's write endpoints (`createSkill`, `updateSkill`) stay `auth=cno`; ticket 58
 added `kind` and `issuing_body` to them and changed no role. The Rostering attributes row can group a nurse's records with
 `byKind` in `frontend/src/lib/skill-kinds.ts` once ticket 59 gives a record its kind.
+
+**From ticket 59 (2026-11-12).** The three write endpoints (`recordNurseSkill`, `renewNurseSkill`, `removeNurseSkill`) answer
+with `skills_of(nurse, details=True)`, the full shape: fine for the Deputy CNO too. On Rostering attributes the CNO and the
+Deputy CNO now see each nurse's records as a nested `RecordsTable` (`frontend/src/components/nurse-skills.tsx`) in the Skills
+cell, grouped by kind with Identifier and Issue date; it takes `actions` and `below` (the Nurses page uses them for Renew,
+Take off and the renew form under the row), so your controls can reuse the Nurses page's `HeldSkills`, `RenewForm` and
+`RecordSkillForm` (`routes/_signed-in/nurses.tsx`) if you lift them into a component. The page's words "The CNO sets skills on
+the Nurses page" and My month's "The CNO records them" need the Deputy then. The renew body's identifier and issue date may be
+left out (carried forward); the page always sends all three.

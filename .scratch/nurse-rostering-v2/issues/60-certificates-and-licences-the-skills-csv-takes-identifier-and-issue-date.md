@@ -18,3 +18,15 @@
 
 **From ticket 58 (2026-11-12).** A catalogue entry's kind is `hospital.models.Skill.kind` (`Skill.Kind.LICENCE` for a
 licence); the import preview can group by it with `byKind` in `frontend/src/lib/skill-kinds.ts`, as the Skills page does.
+
+**From ticket 59 (2026-11-12).** A record has `identifier` and `issue_date` (`nurses.models.NurseSkill`, migration
+`nurses/0007`). The rules a record or a renewal keeps are in one place, `nurses.skills.problems_with(nurse, skill, expiry,
+identifier, issue_date)`, which answers `(field, words)` pairs; the API and the import both call it. Writes go through
+`nurses.skills.record_anew(..., ending=held)`, which ends the old row. Until your columns exist the import (`_judged` in
+`nurses/skills_importing.py`) calls it with the held record's identifier and issue date carried, maps a problem onto the
+`skill` or `expiry` column, and so: a renewal carries both fields (`test_a_renewal_from_a_file_carries_the_identifier_and_the_issue_date`);
+a licence the nurse does not hold is a problem ("SCFHS is a licence, so it needs its identifier. Record it on the Nurses page,
+or remove the line."), which your three-column header rule replaces; and a renewal to before the recorded issue date is a
+problem on `expiry`. `RowMeaning.change` still compares the expiry alone: yours compares all three. The uniqueness check
+excludes her own current record, so a renewal keeps her number; within a file you must also check the other rows. The
+grouped table helper for the preview is `byKind` in `frontend/src/lib/skill-kinds.ts`.

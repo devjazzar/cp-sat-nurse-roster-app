@@ -128,8 +128,9 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | Read who is on probation and until when | | yes | yes | own unit | |
 | Read nurses | | yes | | own unit | |
 | Record, renew and take off a nurse's skills (a manager with a nurse profile's too) | | yes | yes (from ticket 61) | | |
-| Read a nurse's skills with their expiries | | yes | yes | own unit | |
-| Read the expiries: skills expired or expiring within 90 days, and skills required to work with no record | | yes | yes | own unit | |
+| Read a nurse's skills, certificates and licences with their kinds and expiries | | yes | yes | own unit | |
+| Read a record's identifier and issue date, with the issuing body (ticket 59) | | yes | yes | | |
+| Read the expiries: skills expired or expiring within 90 days, and skills required to work with no record, each with its kind and no identifier | | yes | yes | own unit | |
 | View every unit's rosters, with the per-month state overview and the Day view (one date across every unit) | | yes | yes | | |
 | Approve or reject a submitted roster | | yes | yes | | |
 | Read an approved roster's versions with their reasons, and compare any two | | yes | yes | own unit | |
@@ -144,7 +145,7 @@ Nurse always has a profile; a Unit Manager may (the CNO decides). Nobody ever ne
 | View own unit's approved roster (names and shifts only) and own summary | | | | | yes |
 | Make and withdraw requests; make and withdraw preferences, or ask for one as a request; propose, accept and reject swaps; accept and decline covers offered to them | | | | | yes |
 | Read own leave with its type (a manager with a nurse profile too) | | | | yes | yes |
-| Read own skills with their expiries (a manager with a nurse profile too) | | | | yes | yes |
+| Read own skills, certificates and licences with their expiries, identifiers and issue dates (a manager with a nurse profile too) | | | | yes | yes |
 
 Cardinalities: exactly one active CNO and one active Deputy CNO per hospital (a deactivated one
 stays on record, so a successor gets a new account); one Unit Manager per unit and one unit per
@@ -237,7 +238,15 @@ team leader, score, Ramadan-reduced, breastfeeding, opening values (overtime thi
 night and weekend fairness balances; editable until her first month closes), whether a manager has ever saved
 these, which is how a score at the default is told from one somebody looked at. Her skills are rows of their own (below).
 
-**Nurse skill**: nurse, skill, expiry (null for a kind that does not expire), recorded by and when; removed by and when. At
+**Nurse skill**: nurse, skill, expiry (null for a kind that does not expire), identifier (the number or code the issuing body
+gave it: free text, at most 100 characters, trimmed, may be empty), issue date (may be empty), recorded by and when; removed by
+and when (ticket 59 added the identifier and the issue date). The identifier is required when the skill is a licence, and is
+unique among one skill's current records, compared exactly: a record or renewal repeating another nurse's is refused naming
+her, beside a partial unique constraint (`nurses_one_current_identifier_a_skill`), while an ended record and another skill may
+hold the same one. The issue date is neither after the expiry nor after today on the hospital's clock, and nothing reads it:
+the expiry is what a roster reads. A renewal takes a new expiry and may take a new identifier and issue date; what it does not
+name is carried from the row it ends. The CNO, the Deputy CNO and the nurse herself read the identifier, the issue date and
+the issuing body; a unit manager's reads and the expiries carry kind, name and expiry only. At
 most one current row a nurse and skill; a renewal or removal ends the row rather than rewriting it, as leave's does, because
 the audit log says only whose skills changed and by whom (`nurse.skills_changed`), never which skill or date, since a lapse
 says something about a person. The CNO records, renews and takes them off on the nurse's row of the Nurses page, a manager
@@ -878,7 +887,10 @@ logged. So does each taking of a roster version's CSV or Excel file (`roster.exp
 version and which format, and nothing from the file. A roster's print page makes no file and shows only what its reader can
 already read, so it is not logged. Nurses see colleagues' names and shifts only. The System Admin reads the log and may see no rostering attribute, so an attribute's change is logged as whose
 changed and by whom, without its value or even which one, since a change to a two-way flag gives its value away. Unit
-rules are logged with their values, as hospital rules are: they say nothing about a person. Attributes also stay off
+rules are logged with their values, as hospital rules are: they say nothing about a person. A nurse's skills, certificates
+and licences are logged as whose changed and by whom (`nurse.skills_changed`), never the entry, the identifier or a date, and
+their identifiers, issue dates and expiries reach no file (the staff list, a roster's CSV, Excel or print page) and no
+notification (ticket 59). Attributes also stay off
 the staff list, a file that leaves the system. Leave is logged the same way, as whose changed and by whom: not its type, its
 dates or how many, since a long run gives the type away and a date is part of a roster. So is a request: whose it is, who moved it and how (made, withdrawn,
 accepted, rejected, edited, cancelled), never its date, its shift or either reason, which can be about someone's health. A
