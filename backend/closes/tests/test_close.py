@@ -583,8 +583,26 @@ class TestTheBatchedRead:
 
     @staticmethod
     def joining(er, make_user, numbers):
+        """Each with a skill, and every other one on probation from June, precepted by Amal: each per-nurse read of an assembly
+        is asked of them."""
+        from hospital.models import Skill
+        from nurses.models import NurseSkill, PreceptorAssignment
+        skill = Skill.objects.get_or_create(name="Preceptorship", defaults={"expires": True, "required_to_work": False,
+                                                                             "lets_a_nurse_precept": True})[0]
+        amal = NurseProfile.objects.get(user__username="Amal")
         for number in numbers:
-            nurse_in(er, make_user, f"Nurse{number}", night_balance=number / 4, overtime_balance=-number / 2)
+            probation = number % 2 == 1
+            nurse = nurse_in(er, make_user, f"Nurse{number}", night_balance=number / 4, overtime_balance=-number / 2,
+                             start=JUNE if probation else dt.date(2026, 1, 1), on_probation=probation, probation_months=3)
+            NurseSkill.objects.create(nurse=nurse, skill=skill, expiry=dt.date(2026, 7, 20), recorded_by=amal.user)
+            if probation:
+                PreceptorAssignment.objects.create(nurse=nurse, preceptor=amal, unit=er, from_month=JUNE, assigned_by=amal.user)
+
+    @staticmethod
+    def sources(carried: dict) -> dict[str, CarrySource]:
+        """ER's four's source, and the newcomers': opening, as none is in a roster or a close."""
+        return {"four": {carried[hospital_id].source for hospital_id in ("Amal", "Badr", "Dana", "Emad")},
+                "joining": {value.source for hospital_id, value in carried.items() if hospital_id.startswith("Nurse")}}
 
     @staticmethod
     def statements(read) -> int:
@@ -613,7 +631,12 @@ class TestTheBatchedRead:
         five = self.statements(read)
         self.joining(er, make_user, range(6, 10))
         with queries_counted(five):
-            assert len(read()) == 9
+            carried = read()
+
+        four = {"opening": CarrySource.OPENING, "closed": CarrySource.CLOSED,
+                "projected": CarrySource.PROJECTED if project else CarrySource.OPENING,
+                "projected_and_closed": CarrySource.PROJECTED if project else CarrySource.CLOSED}[scene]
+        assert len(carried) == 9 and self.sources(carried) == {"four": {four}, "joining": {CarrySource.OPENING}}
 
     @pytest.mark.parametrize("scene", ["opening", "projected", "closed"])
     def test_a_months_assembly_does_not_grow_with_its_nurses_either(self, er, mona, carla, solver, on, make_user,
@@ -628,7 +651,14 @@ class TestTheBatchedRead:
         five = self.statements(lambda: assemble(er, JULY))
         self.joining(er, make_user, range(6, 10))
         with queries_counted(five):
-            assert len(assemble(er, JULY).nurses) == 9
+            july = assemble(er, JULY)
+
+        four = {"opening": CarrySource.OPENING, "projected": CarrySource.PROJECTED, "closed": CarrySource.CLOSED}[scene]
+        assert len(july.nurses) == 9 and self.sources(july.carried) == {"four": {four}, "joining": {CarrySource.OPENING}}
+        rows = {row["id"]: row for row in july.nurses}
+        assert [hospital_id for hospital_id, row in rows.items() if row.get("on_probation")] == ["Nurse5", "Nurse7", "Nurse9"]
+        assert {rows[hospital_id].get("preceptor") for hospital_id in ("Nurse5", "Nurse7", "Nurse9")} <= {"Amal", None}
+        assert all(rows[f"Nurse{number}"]["skills"] for number in range(5, 10))
 
     def test_a_close_reads_each_nurses_carry_over_once_for_both_columns(self, june, er, mona, monkeypatch):
         """June approved and not closed: the projection's assembly of June and the `into` column share one reading, so where
