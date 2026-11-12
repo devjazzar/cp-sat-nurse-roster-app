@@ -199,3 +199,10 @@ names start with "Skills".
 - The record forms live in `frontend/src/components/skill-records.tsx` (`SkillsPanel`, taking the nurse, a `refresh` and
   `keepsCatalogue`); the Nurses page and Rostering attributes both use it.
 - A new write about a nurse must be added to `NURSE_WRITE_ROLES` in `backend/accounts/tests/test_authorization.py`.
+
+**Reviewed by the user (2026-11-12):** all points kept as built.
+- The Deputy's controls open in a panel above the list, from a Skills button on each row, rather than inline.
+- The new words on Rostering attributes, My month and Expiries.
+- The Import skills page for the Deputy differs only in its back link and the Hospital ID note.
+- Left as they are: the panel can show the old list for a moment after a save, as the CNO's Nurses page does; a nurse with
+  no current unit is reached by the Deputy only through the import.
