@@ -755,8 +755,9 @@ that touches an approved month changes nothing in it, and its roster page says h
 result keeps only priced soft rules, so the draft's explanation of which of her preceptor's day shifts she did not follow, and why
 (her leave, a bar, a day over, a pin or an accepted request, or her hours, which held no more), is worked out from the stored input
 and roster with the solver's own `Problem` (`solves.result.not_followed`). Every headcount the app works out itself (the cover
-list's "already full", the Day view's counts and its overtime totals) leaves her out, as `problem.counted` does; the sheets'
-totals are ticket 56's. A unit's rules that would leave a nurse on probation with the night shift alone are refused
+list's "already full", the Day view's counts and its overtime totals) leaves her out, as `problem.counted` does. No roster
+sheet shows a per-day total (a row's hours and shift counts are its own), so there her row sits apart under "On probation"
+(ticket 56; "Roster files and the print page"). A unit's rules that would leave a nurse on probation with the night shift alone are refused
 (`membership.left_night_alone`), and a transfer that would carry her that list empties it for the new unit's manager to look at.
 
 ## 7. The worker and the queue (ADR 0006)
