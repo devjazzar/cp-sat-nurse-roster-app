@@ -86,7 +86,7 @@ class TestPreview:
         amal = NurseProfile.objects.select_related("user").get(user__username="Amal")
         same = {"team_leader": amal.team_leader, "score": amal.score, "ramadan_reduced": amal.ramadan_reduced,
                 "breastfeeding": amal.breastfeeding, "ytd_overtime": 0, "hours_balance": 0, "night_balance": 0.0,
-                "friday_balance": 0.0, "allowed_shifts": None}
+                "friday_balance": 0.0, "overtime_balance": 0.0, "allowed_shifts": None}
         assert preview(mona, er)["warnings"]["unreviewed_scores"] == 4
 
         response = mona.put(url(er, f"/nurses/{amal.pk}/attributes"), same, content_type="application/json")
