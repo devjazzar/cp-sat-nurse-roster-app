@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_signed-in/skills")({
 
 const schema = z.object({
   name: z.string().trim().min(1, "Enter a name.").max(NAME_MAX, `At most ${NAME_MAX} characters.`),
-  kind: z.enum([Kind.skill, Kind.certificate, Kind.licence]),
+  kind: z.enum(Kind),
   issuing_body: z.string().trim().max(ISSUING_BODY_MAX, `At most ${ISSUING_BODY_MAX} characters.`),
   expires: z.boolean(),
   required_to_work: z.boolean(),
@@ -127,7 +127,7 @@ function FormerNames({ skill }: { skill: SkillSchema }) {
 
 const yesNo = (value: boolean) => (value ? "Yes" : "No")
 
-const COLUMNS = 6
+const COLUMNS = ["Name", "Issuing body", "Expires", "Required to work", "Lets a nurse precept", "Status"]
 
 function SkillsTable({ skills, onEdit }: { skills: SkillSchema[]; onEdit?: (skill: SkillSchema, button: HTMLElement) => void }) {
   return (
@@ -135,19 +135,14 @@ function SkillsTable({ skills, onEdit }: { skills: SkillSchema[]; onEdit?: (skil
     <Table container={onEdit ? undefined : scrollableRegion("Skills")}>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Issuing body</TableHead>
-          <TableHead>Expires</TableHead>
-          <TableHead>Required to work</TableHead>
-          <TableHead>Lets a nurse precept</TableHead>
-          <TableHead>Status</TableHead>
+          {COLUMNS.map((column) => <TableHead key={column}>{column}</TableHead>)}
           {onEdit && <TableHead className="sticky end-0 bg-card"><span className="sr-only">Actions</span></TableHead>}
         </TableRow>
       </TableHeader>
       {byKind(skills, (skill) => skill.kind).map((group) => (
         <TableBody key={group.kind} aria-labelledby={`skills-${group.kind}`}>
           <TableRow className="hover:bg-transparent">
-            <TableHead id={`skills-${group.kind}`} scope="rowgroup" colSpan={onEdit ? COLUMNS + 1 : COLUMNS}
+            <TableHead id={`skills-${group.kind}`} scope="rowgroup" colSpan={COLUMNS.length + (onEdit ? 1 : 0)}
               className="bg-muted/50 font-medium text-foreground">{group.heading}</TableHead>
           </TableRow>
           {group.rows.map((skill) => (

@@ -16,7 +16,8 @@ from nurses.tests.conftest import added, make_unit
 pytestmark = pytest.mark.django_db
 
 SKILLS = "/api/hospital/skills"
-NEW = {"name": "BLS", "kind": "skill", "issuing_body": "", "expires": True, "required_to_work": True, "lets_a_nurse_precept": False, "active": True}
+NEW = {"name": "BLS", "kind": "skill", "issuing_body": "", "expires": True, "required_to_work": True,
+       "lets_a_nurse_precept": False, "active": True}
 
 
 def create(client, **fields):
@@ -259,6 +260,7 @@ def record_on(cno, skill_name: str, full_name: str, hospital_id: str, unit, expi
 
 @pytest.mark.django_db(transaction=True)
 def test_every_entry_there_was_before_the_kind_is_a_skill_with_no_issuing_body(signed_in):
+    # Goes back to 0006, which reverses 0007, and forward again, as ticket 53's test does.
     executor = MigrationExecutor(connection)
     executor.migrate([("hospital", "0006_skill_lets_a_nurse_precept")])
     before = executor.loader.project_state([("hospital", "0006_skill_lets_a_nurse_precept")]).apps

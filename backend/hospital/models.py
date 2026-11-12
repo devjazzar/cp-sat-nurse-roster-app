@@ -81,7 +81,7 @@ class Skill(models.Model):
     class Kind(models.TextChoices):
         SKILL = "skill"  # The plain kind: an ability, a course card.
         CERTIFICATE = "certificate"  # A degree, a diploma, a course certificate.
-        LICENCE = "licence"  # Permits a nurse to practise: the SCFHS registration.
+        LICENCE = "licence"  # Permits a nurse to practise, from the Saudi Commission for Health Specialties.
 
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     name = models.CharField(max_length=100)

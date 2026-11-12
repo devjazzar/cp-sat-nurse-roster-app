@@ -188,19 +188,20 @@ a forbidden succession names, cannot be retired, and the refusal names the units
 **Skill** (catalogue): name (unique in any case of letters), kind (a skill, a certificate or a licence), issuing body (free
 text, at most 100 characters, may be empty), expires, required to work, lets a nurse precept, active flag. A licence always
 expires: a licence with `expires` off is refused, and a check constraint holds it in the database. Changing an entry to a
-licence is refused beside its kind, naming the nurses, while a current record of it has no expiry; changing away from licence
-is free. Every other rule here treats every kind alike, the skill needs included; the Skills page lists the entries under
-Skills, Certificates and Licences. The CNO keeps it and every role reads it, the System Admin included, since it names no one. Never deleted, only retired:
-nurses' records of it and past rosters keep it. The name may be renamed: each rename is recorded (old name, new name, by whom
-and when), and no other skill may take a name a skill used to hold, as for a shift's code, so that an old name in a stored
-solve input still means one skill. A change goes to the audit log with its values (`skill.created`, `skill.changed`). Turning
-`expires` on is refused, naming the nurses, while a current record of the skill has no expiry; turning it off is allowed, and
-the expiries recorded stay, counting for nothing until it is on again. Retiring it is refused, naming the units, while a live
-unit's skill need names it; a new name is carried through every unit's skill needs in the same transaction, archived units
-too, each changed unit audited as `unit_rules.changed` (ticket 34). The live skills marked required to work are a solve
-input's `required_skills`; a retired one bars nobody. A nurse holding a skill marked as letting a nurse precept, unexpired on
-the day of assigning, may be assigned as a preceptor (ticket 55); the mark is read then only, so clearing it while a nurse
-precepts by that skill is allowed and takes no preceptor away (ticket 53).
+licence is refused beside its kind, naming the nurses, while a current record of it has no expiry; changing away from
+licence is free. Every other rule here treats every kind alike, the skill needs included; the Skills page lists the entries
+under Skills, Certificates and Licences. The CNO keeps it and every role reads it, the System Admin included, since it names
+no one. Never deleted, only retired: nurses' records of it and past rosters keep it. The name may be renamed: each rename is
+recorded (old name, new name, by whom and when), and no other skill may take a name a skill used to hold, as for a shift's
+code, so that an old name in a stored solve input still means one skill. A change goes to the audit log with its values
+(`skill.created`, `skill.changed`). Turning `expires` on is refused, naming the nurses, while a current record of the skill
+has no expiry; turning it off is allowed, and the expiries recorded stay, counting for nothing until it is on again.
+Retiring it is refused, naming the units, while a live unit's skill need names it; a new name is carried through every
+unit's skill needs in the same transaction, archived units too, each changed unit audited as `unit_rules.changed` (ticket
+34). The live skills marked required to work are a solve input's `required_skills`; a retired one bars nobody. A nurse
+holding a skill marked as letting a nurse precept, unexpired on the day of assigning, may be assigned as a preceptor (ticket
+55); the mark is read then only, so clearing it while a nurse precepts by that skill is allowed and takes no preceptor away
+(ticket 53).
 
 **Public holiday**: date, name. **Ramadan days**: per month, the CNO's fixed dates or range,
 else derived from the Umm al-Qura calendar.

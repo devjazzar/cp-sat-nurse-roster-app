@@ -336,8 +336,9 @@ class SkillSchema(Schema):
 
 
 def _skill_fields(skill: Skill) -> dict:
-    return {"name": skill.name, "kind": skill.kind, "issuing_body": skill.issuing_body, "expires": skill.expires, "required_to_work": skill.required_to_work,
-            "lets_a_nurse_precept": skill.lets_a_nurse_precept, "active": skill.active}
+    return {"name": skill.name, "kind": skill.kind, "issuing_body": skill.issuing_body, "expires": skill.expires,
+            "required_to_work": skill.required_to_work, "lets_a_nurse_precept": skill.lets_a_nurse_precept,
+            "active": skill.active}
 
 
 def _write_skill(skill: Skill, body: SkillBody) -> None:
