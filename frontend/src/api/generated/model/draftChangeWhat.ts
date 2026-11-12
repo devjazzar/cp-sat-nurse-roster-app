@@ -6,7 +6,7 @@
  */
 
 /**
- * `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21).
+ * `skills`: her skills as the month sees them were recorded, renewed, taken off or retired since, or, with no hospital ID, the unit's skill needs or their flag, the skills required to work or the skill shortfall's price changed (ticket 35). `preferences`: a preference of hers made or ended since (ticket 29). `closed`: the month before closed after this was solved, so the carry-over it started from was projected and the close's is the one that holds now (ticket 21). `ramadan_days`, `public_holidays`, with no hospital ID: the month's Ramadan days or its public holidays differ from the list it was solved or submitted on (ticket 46).
  */
 export type DraftChangeWhat = typeof DraftChangeWhat[keyof typeof DraftChangeWhat];
 
@@ -20,4 +20,6 @@ export const DraftChangeWhat = {
   preferences: 'preferences',
   skills: 'skills',
   closed: 'closed',
+  ramadan_days: 'ramadan_days',
+  public_holidays: 'public_holidays',
 } as const;

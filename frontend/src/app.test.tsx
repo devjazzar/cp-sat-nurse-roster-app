@@ -1949,23 +1949,23 @@ describe("the leave types page", () => {
 
 // Ticket 32. The CNO keeps the skill catalogue; every other role reads it, and the System Admin has no link to it.
 describe("the skills page", () => {
-  const ICU = { id: "k1", name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
-  const BLS = { id: "k2", name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
+  const ICU = { id: "k1", name: "ICU", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
+  const BLS = { id: "k2", name: "BLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
   const listed = { "GET /api/hospital/skills": { body: [BLS, ICU] } }
   const rowOf = async (name: string) => (await screen.findByText(name)).closest("tr") as HTMLElement
-  /** The "Lets a nurse precept" column, the fourth. */
-  const precepts = async (name: string) => within(await rowOf(name)).getAllByRole("cell")[3]
+  /** The "Lets a nurse precept" column, the fifth. */
+  const precepts = async (name: string) => within(await rowOf(name)).getAllByRole("cell")[4]
 
   it("lists the catalogue for the CNO, with both flags and a skill's former names", async () => {
     const renamed = { ...BLS, name: "Basic life support", renames: [{ old_name: "BLS", new_name: "Basic life support", at: "2026-11-05T10:00:00+03:00" }] }
     start("/skills", asCno({ "GET /api/hospital/skills": { body: [renamed, { ...ICU, active: false }] } }))
 
     const table = await screen.findByRole("table")
-    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Expires", "Required to work", "Lets a nurse precept", "Status", "Actions"])
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Issuing body", "Expires", "Required to work", "Lets a nurse precept", "Status", "Actions"])
     const bls = await rowOf("Basic life support")
     expect(within(bls).getByText(/until 2026-11-05/)).toHaveTextContent("Was BLS until 2026-11-05")
-    expect(within(bls).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 5)).toEqual(["Yes", "Yes", "No", "Active"])
-    expect(within(await rowOf("ICU")).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 5)).toEqual(["No", "No", "No", "Retired"])
+    expect(within(bls).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 6)).toEqual(["", "Yes", "Yes", "No", "Active"])
+    expect(within(await rowOf("ICU")).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 6)).toEqual(["", "No", "No", "No", "Retired"])
   })
 
   it("adds a skill with both flags and empties the form", async () => {
@@ -1984,7 +1984,7 @@ describe("the skills page", () => {
     await user.click(screen.getByRole("button", { name: "Add skill" }))
 
     expect(await screen.findByText("ACLS is added.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "ACLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true })
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "ACLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true })
     expect(screen.getByLabelText("Name")).toHaveValue("")
     expect(screen.getByLabelText("Expires")).not.toBeChecked()
   })
@@ -2022,7 +2022,7 @@ describe("the skills page", () => {
     await user.click(screen.getByRole("button", { name: "Save skill" }))
 
     expect(await screen.findByText("Basic life support is saved.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Basic life support", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: false })
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Basic life support", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: false })
     expect(screen.getByRole("heading", { name: "Add a skill" })).toBeInTheDocument()
     await waitFor(() => expect(edit).toHaveFocus())
   })
@@ -2047,14 +2047,14 @@ describe("the skills page", () => {
     await user.click(mark)
     await user.click(screen.getByRole("button", { name: "Save skill" }))
     expect(await screen.findByText("BLS is saved.")).toBeInTheDocument()
-    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: true, active: true })
+    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "BLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: true, active: true })
 
     await user.click(screen.getByRole("button", { name: "Edit ICU" }))
     expect(screen.getByLabelText("Lets a nurse precept")).toBeChecked()
     await user.click(screen.getByLabelText("Lets a nurse precept"))
     await user.click(screen.getByRole("button", { name: "Save skill" }))
     expect(await screen.findByText("ICU is saved.")).toBeInTheDocument()
-    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true })
+    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "ICU", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true })
   })
 
   it("adds a skill that lets a nurse precept", async () => {
@@ -2068,8 +2068,89 @@ describe("the skills page", () => {
     await user.click(screen.getByRole("button", { name: "Add skill" }))
 
     expect(await screen.findByText("Preceptor course is added.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Preceptor course", expires: false, required_to_work: false, lets_a_nurse_precept: true, active: true })
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Preceptor course", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: true, active: true })
     expect(screen.getByLabelText("Lets a nurse precept")).not.toBeChecked()
+  })
+
+  // Ticket 58. Each entry is a skill, a certificate or a licence, and names the body that issues it.
+  const DEGREE = { id: "k3", name: "BSc Nursing", kind: "certificate", issuing_body: "King Saud University", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
+  const SCFHS = { id: "k4", name: "SCFHS registration", kind: "licence", issuing_body: "Saudi Commission for Health Specialties", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
+  const namesIn = (group: HTMLElement) => within(group).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[0].textContent)
+
+  it("groups the catalogue under Skills, Certificates and Licences, each with its entries and their issuing bodies", async () => {
+    start("/skills", asCno({ "GET /api/hospital/skills": { body: [DEGREE, BLS, ICU, SCFHS] } }))
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getAllByRole("rowgroup").slice(1).map((group) => within(group).getAllByRole("row")[0].textContent)).toEqual(["Skills", "Certificates", "Licences"])
+    expect(namesIn(within(table).getByRole("rowgroup", { name: "Skills" }))).toEqual(["BLS", "ICU"])
+    expect(namesIn(within(table).getByRole("rowgroup", { name: "Certificates" }))).toEqual(["BSc Nursing"])
+    expect(namesIn(within(table).getByRole("rowgroup", { name: "Licences" }))).toEqual(["SCFHS registration"])
+    expect(within(await rowOf("SCFHS registration")).getAllByRole("cell")[1]).toHaveTextContent("Saudi Commission for Health Specialties")
+  })
+
+  it("leaves out a heading that has no entries", async () => {
+    start("/skills", asCno({ "GET /api/hospital/skills": { body: [SCFHS, ICU] } }))
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getByRole("rowgroup", { name: "Skills" })).toBeInTheDocument()
+    expect(within(table).getByRole("rowgroup", { name: "Licences" })).toBeInTheDocument()
+    expect(within(table).queryByRole("rowgroup", { name: "Certificates" })).not.toBeInTheDocument()
+  })
+
+  it("adds a licence with its issuing body, Expires on and fixed while the kind is licence", async () => {
+    const { user, calls } = start("/skills", asCno({
+      ...listed,
+      "POST /api/hospital/skills": ({ body }: { body: unknown }) => ({ status: 201, body: { ...(body as object), id: "k4", renames: [] } }),
+    }))
+
+    const kind = await screen.findByLabelText("Kind")
+    expect(kind).toHaveValue("skill")
+    expect(kind).toHaveAccessibleDescription(/A licence permits a nurse to practise and always expires/)
+    expect(screen.getByLabelText("Issuing body")).toHaveAccessibleDescription(/Saudi Commission for Health Specialties/)
+    await user.type(screen.getByLabelText("Name"), "SCFHS registration")
+    await user.selectOptions(kind, "Licence")
+    expect(screen.getByLabelText("Expires")).toBeChecked()
+    expect(screen.getByLabelText("Expires")).toBeDisabled()
+    expect(screen.getByLabelText("Expires")).toHaveAccessibleDescription(/A licence always expires/)
+    await user.type(screen.getByLabelText("Issuing body"), "Saudi Commission for Health Specialties")
+    await user.click(screen.getByLabelText("Required to work"))
+    await user.click(screen.getByRole("button", { name: "Add skill" }))
+
+    expect(await screen.findByText("SCFHS registration is added.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "SCFHS registration", kind: "licence", issuing_body: "Saudi Commission for Health Specialties", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true })
+    expect(screen.getByLabelText("Kind")).toHaveValue("skill")
+    expect(screen.getByLabelText("Expires")).toBeEnabled()
+  })
+
+  it("frees Expires again when the kind changes away from licence", async () => {
+    const { user, calls } = start("/skills", asCno({
+      "GET /api/hospital/skills": { body: [SCFHS] },
+      "PUT /api/hospital/skills/k4": ({ body }: { body: unknown }) => ({ body: { ...SCFHS, ...(body as object) } }),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit SCFHS registration" }))
+    expect(screen.getByLabelText("Kind")).toHaveValue("licence")
+    expect(screen.getByLabelText("Expires")).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText("Kind"), "Certificate")
+    expect(screen.getByLabelText("Expires")).toBeEnabled()
+    expect(screen.getByLabelText("Expires")).toBeChecked()
+    await user.click(screen.getByLabelText("Expires"))
+    await user.click(screen.getByRole("button", { name: "Save skill" }))
+
+    expect(await screen.findByText("SCFHS registration is saved.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "SCFHS registration", kind: "certificate", issuing_body: "Saudi Commission for Health Specialties", expires: false, required_to_work: true, lets_a_nurse_precept: false, active: true })
+  })
+
+  it("shows a refused change to licence beside the kind", async () => {
+    const words = "Amal Saleh holds ICU with no expiry, and a licence always expires. Take it off them first, then record it again with its expiry."
+    const { user } = start("/skills", asCno({ ...listed, "PUT /api/hospital/skills/k1": refusal(["kind"], words) }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit ICU" }))
+    await user.selectOptions(screen.getByLabelText("Kind"), "Licence")
+    await user.click(screen.getByRole("button", { name: "Save skill" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Kind")).toHaveFocus())
+    expect(screen.getByLabelText("Kind")).toHaveAccessibleDescription(expect.stringContaining(words))
   })
 
   it("cancelling an edit changes nothing", async () => {
@@ -2103,6 +2184,9 @@ describe("the skills page", () => {
 
     expect(await screen.findByText("BLS")).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Lets a nurse precept" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Issuing body" })).toBeInTheDocument()
+    expect(screen.getByRole("rowgroup", { name: "Skills" })).toBeInTheDocument()
+    expect(screen.queryByLabelText("Kind")).not.toBeInTheDocument()
     expect(await precepts("BLS")).toHaveTextContent("Yes")
     expect(await precepts("ICU")).toHaveTextContent("No")
     expect(screen.getByText(/checked only when a preceptor is assigned/)).toBeInTheDocument()
@@ -2138,10 +2222,15 @@ describe("the holidays and Ramadan page", () => {
   })
   // Umm al-Qura's Ramadan 1447 runs from 18 February to 19 March 2026.
   const CARD_1447 = { hijri_year: 1447, first: "2026-02-18", last: "2026-03-19", days: 30, source: "derived", calendar_first: "2026-02-18", calendar_last: "2026-03-19" }
-  const year2026 = (march?: unknown, holidays: unknown[] = [NATIONAL], cards: unknown[] = [CARD_1447]) => ({
+  // What the calendar proposes for 2026 beside National Day, entered already: Arafat Day 1447 is 26 May 2026.
+  const FOUNDING = { name: "Founding Day", first: "2026-02-22", length: 1 }
+  const FITR = { name: "Eid al-Fitr", first: "2026-03-19", length: 4 }
+  const ADHA = { name: "Eid al-Adha", first: "2026-05-26", length: 4 }
+  const year2026 = (march?: unknown, holidays: unknown[] = [NATIONAL], cards: unknown[] = [CARD_1447], proposals: unknown[] = [FOUNDING, FITR, ADHA]) => ({
     "GET /api/hospital/public-holidays": { body: holidays },
     "GET /api/hospital/ramadan": { body: months(march) },
     "GET /api/hospital/ramadans": { body: cards },
+    "GET /api/hospital/holiday-proposals": { body: proposals },
   })
   const row = async (name: string) => (await screen.findByRole("cell", { name })).closest("tr") as HTMLElement
 
@@ -2465,6 +2554,154 @@ describe("the holidays and Ramadan page", () => {
     })
   })
 
+  describe("the holidays card", () => {
+    const proposalsCard = async () => (await screen.findByRole("heading", { name: "Proposed by the calendar" })).closest("[data-slot=card]") as HTMLElement
+    const lineOf = async (name: string) => (await screen.findByRole("group", { name })) as HTMLElement
+    /** The proposals as they are read, the first time and after: one list per read, the last one kept. */
+    const reads = (...lists: unknown[][]) => () => ({ body: lists.length > 1 ? lists.shift() : lists[0] })
+
+    it("proposes to the CNO what the calendar gives and the holidays do not hold, each line editable", async () => {
+      const { calls } = start("/holidays?year=2026", asCno(year2026()))
+
+      const card = await proposalsCard()
+      // In date order, as the API gives them.
+      expect(within(card).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Add Founding Day", "Add Eid al-Fitr", "Add Eid al-Adha"])
+      const fitr = await lineOf("Eid al-Fitr")
+      expect(fitr).toHaveTextContent("From Thursday, 19 March 2026, 4 days.")
+      expect(within(fitr).getByLabelText("First day of Eid al-Fitr")).toHaveValue("2026-03-19")
+      expect(within(fitr).getByLabelText("Days of Eid al-Fitr")).toHaveValue(4)
+      expect(within(await lineOf("Founding Day")).getByRole("button", { name: "Add Founding Day" })).toBeInTheDocument()
+      expect(calls.map((call) => call.url)).toContain("/api/hospital/holiday-proposals?year=2026")
+    })
+
+    it("says so when every proposal of the year is entered", async () => {
+      start("/holidays?year=2026", asCno(year2026(undefined, [NATIONAL], [CARD_1447], [])))
+
+      expect(await proposalsCard()).toHaveTextContent("Every holiday the calendar proposes for 2026 is entered.")
+    })
+
+    it("adds a proposal, says what was added and skipped, and the line goes with focus on the next one", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "GET /api/hospital/holiday-proposals": reads([FOUNDING, FITR, ADHA], [FOUNDING, ADHA]),
+        "POST /api/hospital/holiday-proposals": { body: { added: ["2026-03-19", "2026-03-21", "2026-03-22"], skipped: ["2026-03-20"] } },
+      }))
+
+      await user.click(within(await lineOf("Eid al-Fitr")).getByRole("button", { name: "Add Eid al-Fitr" }))
+
+      expect(await screen.findByText("Eid al-Fitr is added on 19 March 2026, 21 March 2026 and 22 March 2026. 20 March 2026 was already a holiday and is unchanged.")).toBeInTheDocument()
+      const post = calls.find((call) => call.method === "POST")
+      expect(post?.url).toBe("/api/hospital/holiday-proposals?year=2026")
+      expect(post?.body).toEqual({ name: "Eid al-Fitr", first: "2026-03-19", length: 4 })
+      await waitFor(() => expect(screen.queryByRole("group", { name: "Eid al-Fitr" })).not.toBeInTheDocument())
+      await waitFor(() => expect(within(screen.getByRole("group", { name: "Eid al-Adha" })).getByLabelText("First day of Eid al-Adha")).toHaveFocus())
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/public-holidays?year=2026")).toHaveLength(2))
+    })
+
+    it("adds the last proposal left, and focus goes to the card", async () => {
+      const { user } = start("/holidays?year=2026", asCno({
+        ...year2026(undefined, [NATIONAL], [CARD_1447], [ADHA]),
+        "GET /api/hospital/holiday-proposals": reads([ADHA], []),
+        "POST /api/hospital/holiday-proposals": { body: { added: ["2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29"], skipped: [] } },
+      }))
+
+      await user.click(within(await lineOf("Eid al-Adha")).getByRole("button", { name: "Add Eid al-Adha" }))
+
+      expect(await screen.findByText("Eid al-Adha is added: 26 May – 29 May 2026, 4 days.")).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole("heading", { name: "Proposed by the calendar" })).toHaveFocus())
+      expect(await proposalsCard()).toHaveTextContent("Every holiday the calendar proposes for 2026 is entered.")
+    })
+
+    it("adds a proposal with its first day and length changed; the line stays, as the calendar gives it", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/holiday-proposals": { body: { added: ["2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01"], skipped: [] } },
+      }))
+
+      const adha = await lineOf("Eid al-Adha")
+      const first = within(adha).getByLabelText("First day of Eid al-Adha")
+      const length = within(adha).getByLabelText("Days of Eid al-Adha")
+      await user.clear(first)
+      await user.type(first, "2026-05-27")
+      await user.clear(length)
+      await user.type(length, "6")
+      const add = within(adha).getByRole("button", { name: "Add Eid al-Adha" })
+      await user.click(add)
+
+      expect(await screen.findByText("Eid al-Adha is added: 27 May – 1 June 2026, 6 days.")).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Eid al-Adha", first: "2026-05-27", length: 6 })
+      await waitFor(() => expect(first).toHaveValue("2026-05-26"))
+      expect(length).toHaveValue(4)
+      expect(add).toHaveFocus()
+    })
+
+    it("says when nothing was added because every day is a holiday already", async () => {
+      const { user } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/holiday-proposals": { body: { added: [], skipped: ["2026-02-22"] } },
+      }))
+
+      await user.click(within(await lineOf("Founding Day")).getByRole("button", { name: "Add Founding Day" }))
+
+      expect(await screen.findByText("Founding Day is not added: 22 February 2026 is already a holiday.")).toBeInTheDocument()
+    })
+
+    it("shows the API's refusal beside the field, with focus on it", async () => {
+      const { user } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/holiday-proposals": refusal(["length"], "This runs past 2076, the last year the calendar covers."),
+      }))
+
+      const fitr = await lineOf("Eid al-Fitr")
+      await user.click(within(fitr).getByRole("button", { name: "Add Eid al-Fitr" }))
+
+      const length = within(fitr).getByLabelText("Days of Eid al-Fitr")
+      await waitFor(() => expect(length).toHaveAccessibleDescription("This runs past 2076, the last year the calendar covers."))
+      expect(length).toHaveFocus()
+      expect(length).toHaveAttribute("aria-invalid", "true")
+    })
+
+    it.each([
+      ["First day", "2027-01-02", "This is not in 2026. Go to that year to add it."],
+      ["Days", "15", "Enter a number of days from 1 to 14."],
+      ["Days", "0", "Enter a number of days from 1 to 14."],
+    ])("refuses a %s of %s on the page, before asking the API", async (field, value, words) => {
+      const { user, calls } = start("/holidays?year=2026", asCno(year2026()))
+
+      const fitr = await lineOf("Eid al-Fitr")
+      const input = within(fitr).getByLabelText(`${field} of Eid al-Fitr`)
+      await user.clear(input)
+      await user.type(input, value)
+      await user.click(within(fitr).getByRole("button", { name: "Add Eid al-Fitr" }))
+
+      await waitFor(() => expect(input).toHaveAccessibleDescription(words))
+      expect(calls.some((call) => call.method === "POST")).toBe(false)
+    })
+
+    it("reads the proposals again after a holiday is entered by hand", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/public-holidays": { status: 201, body: { id: "h2", date: "2026-02-22", name: "Founding Day" } },
+      }))
+
+      await user.type(await screen.findByLabelText("Date"), "2026-02-22")
+      await user.type(screen.getByLabelText("Name"), "Founding Day")
+      await user.click(screen.getByRole("button", { name: "Add holiday" }))
+
+      await screen.findByText("Founding Day is added.")
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/holiday-proposals?year=2026")).toHaveLength(2))
+    })
+
+    it("reads the proposals again after a Ramadan is confirmed, since Eid al-Fitr follows it", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadans/1447": { body: CARD_1447 } }))
+
+      await user.click(await screen.findByRole("button", { name: "Confirm Ramadan 1447" }))
+
+      await screen.findByText(/Ramadan 1447 is confirmed/)
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/holiday-proposals?year=2026")).toHaveLength(2))
+    })
+  })
+
   it("another role reads and can change nothing", async () => {
     const { calls } = start("/holidays?year=2026", { ...session(NURSE), ...year2026() })
 
@@ -2475,6 +2712,8 @@ describe("the holidays and Ramadan page", () => {
     expect(screen.queryByLabelText("Date")).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: /Ramadan 1447/ })).not.toBeInTheDocument()
     expect(calls.some((call) => call.url.startsWith("/api/hospital/ramadans"))).toBe(false)
+    expect(screen.queryByRole("heading", { name: "Proposed by the calendar" })).not.toBeInTheDocument()
+    expect(calls.some((call) => call.url.startsWith("/api/hospital/holiday-proposals"))).toBe(false)
   })
 })
 
@@ -6427,6 +6666,21 @@ describe("the roster page", () => {
       expect(screen.getByText("3 June: skill need: 2026-06-03 N has 0 holding ICU, needs 1 (1 short)")).toBeInTheDocument()
     })
 
+    it("says the month's Ramadan days and public holidays changed since the solve, and still offers Submit", async () => {
+      const draft = { ...DRAFT, changes: [
+        { hospital_id: "", full_name: "", what: "ramadan_days" }, { hospital_id: "", full_name: "", what: "public_holidays" },
+        { hospital_id: "h1", full_name: "Amal Saleh", what: "leave" },
+      ] }
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft } } }))
+
+      const changes = await screen.findByRole("alert")
+      expect(changes).toHaveTextContent("This draft was solved before these changes:")
+      expect(within(changes).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+        "The Ramadan days of June 2026 changed since this draft was solved",
+        "The public holidays of June 2026 changed since this draft was solved", "Amal Saleh: leave or dates changed"])
+      expect(screen.getByRole("button", { name: "Submit for approval" })).toBeEnabled()
+    })
+
     it("offers no editing in a month that is over, and says why", async () => {
       const over = { ...DRAFT, editor: { ...EDITOR, refusal: "This month is over, so its draft cannot change." } }
       start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: over } } }))
@@ -7440,6 +7694,16 @@ describe("the roster page", () => {
       expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument()
     })
 
+    it("tells an approver the month's Ramadan days changed since it was submitted", async () => {
+      const changes = [{ hospital_id: "", full_name: "", what: "ramadan_days" }, { hospital_id: "", full_name: "", what: "public_holidays" }]
+      start("/unit-roster?unit=u1&month=2026-06", approver({ [`GET ${UNIT}/roster?month=2026-06`]: { body: {
+        ...FOR_APPROVER, submitted: { ...WAITING, new_since: [changes[0]] }, draft: { ...FOR_APPROVER.draft, changes },
+      } } }))
+
+      expect(await screen.findByText(/^The Ramadan days of June 2026 changed/)).toHaveTextContent(", since it was submitted")
+      expect(screen.getByText(/^The public holidays of June 2026 changed/)).not.toHaveTextContent("since it was submitted")
+    })
+
     it("approves after asking, and moves focus to where it now stands", async () => {
       const { user, calls } = start("/unit-roster?unit=u1&month=2026-06", approver({
         [`GET ${UNIT}/roster?month=2026-06`]: { body: FOR_APPROVER },
@@ -7940,6 +8204,20 @@ describe("the notification bell", () => {
     const [approver, manager] = await screen.findAllByRole("link", { name: "Open the roster" })
     expect(approver).toHaveAttribute("href", "/unit-roster?unit=u9&month=2026-12")
     expect(manager).toHaveAttribute("href", "/roster?month=2026-12")
+  })
+
+  it("shows a manager that a month's dates changed, leading to their roster of it", async () => {
+    const text = "Carla CNO changed the Ramadan days of March 2027. Check the ER roster for that month: it was planned on the dates before."
+    start("/notifications", {
+      ...session(NURSE),
+      "GET /api/notifications": { body: { unread: 1, items: [
+        { ...NOTE, event: "month_dates_changed", text, link: { page: "roster", month: "2027-03", unit_id: null } },
+      ] } },
+    })
+
+    const [item] = within(await screen.findByRole("list", { name: "Notifications, newest first" })).getAllByRole("listitem")
+    expect(item).toHaveTextContent(text)
+    expect(within(item).getByRole("link", { name: "Open the roster" })).toHaveAttribute("href", "/roster?month=2027-03")
   })
 
   it("marks them all read, and the bell follows", async () => {

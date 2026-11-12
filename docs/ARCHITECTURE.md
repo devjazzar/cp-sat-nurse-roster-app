@@ -195,21 +195,30 @@ a forbidden succession names, cannot be retired, and the refusal names the units
 
 **Leave type**: name, active flag. Every type counts the same for hours.
 
-**Skill** (catalogue): name (unique in any case of letters), expires, required to work, lets a nurse precept, active flag.
-The CNO keeps it and every role reads it, the System Admin included, since it names no one. Never deleted, only retired:
-nurses' records of it and past rosters keep it. The name may be renamed: each rename is recorded (old name, new name, by whom
-and when), and no other skill may take a name a skill used to hold, as for a shift's code, so that an old name in a stored
-solve input still means one skill. A change goes to the audit log with its values (`skill.created`, `skill.changed`). Turning
-`expires` on is refused, naming the nurses, while a current record of the skill has no expiry; turning it off is allowed, and
-the expiries recorded stay, counting for nothing until it is on again. Retiring it is refused, naming the units, while a live
-unit's skill need names it; a new name is carried through every unit's skill needs in the same transaction, archived units
-too, each changed unit audited as `unit_rules.changed` (ticket 34). The live skills marked required to work are a solve
-input's `required_skills`; a retired one bars nobody. A nurse holding a skill marked as letting a nurse precept, unexpired on
-the day of assigning, may be assigned as a preceptor (ticket 55); the mark is read then only, so clearing it while a nurse
-precepts by that skill is allowed and takes no preceptor away (ticket 53).
+**Skill** (catalogue): name (unique in any case of letters), kind (a skill, a certificate or a licence), issuing body (free
+text, at most 100 characters, may be empty), expires, required to work, lets a nurse precept, active flag. A licence always
+expires: a licence with `expires` off is refused, and a check constraint holds it in the database. Changing an entry to a
+licence is refused beside its kind, naming the nurses, while a current record of it has no expiry; changing away from
+licence is free. Every other rule here treats every kind alike, the skill needs included; the Skills page lists the entries
+under Skills, Certificates and Licences. The CNO keeps it and every role reads it, the System Admin included, since it names
+no one. Never deleted, only retired: nurses' records of it and past rosters keep it. The name may be renamed: each rename is
+recorded (old name, new name, by whom and when), and no other skill may take a name a skill used to hold, as for a shift's
+code, so that an old name in a stored solve input still means one skill. A change goes to the audit log with its values
+(`skill.created`, `skill.changed`). Turning `expires` on is refused, naming the nurses, while a current record of the skill
+has no expiry; turning it off is allowed, and the expiries recorded stay, counting for nothing until it is on again.
+Retiring it is refused, naming the units, while a live unit's skill need names it; a new name is carried through every
+unit's skill needs in the same transaction, archived units too, each changed unit audited as `unit_rules.changed` (ticket
+34). The live skills marked required to work are a solve input's `required_skills`; a retired one bars nobody. A nurse
+holding a skill marked as letting a nurse precept, unexpired on the day of assigning, may be assigned as a preceptor (ticket
+55); the mark is read then only, so clearing it while a nurse precepts by that skill is allowed and takes no preceptor away
+(ticket 53).
 
 **Public holiday**: date, name. **Ramadan days**: per month, the CNO's fixed dates or range,
-else derived from the Umm al-Qura calendar.
+else derived from the Umm al-Qura calendar. A write that moves a month's days, Ramadan's or a holiday's (the per-month fix, "Use
+the calendar", a Ramadan confirmed, a holiday created, moved or removed), tells the manager of every unit with a roster in that
+month, draft, submitted or approved, once a month and never the CNO who made it (`month_dates_changed`, ticket 46); one that
+leaves the days as they were (fixing a month to the calendar's own days, a holiday renamed) tells nobody. Nothing else moves:
+approved cells, versions and pins stay, and the next solve or re-plan reads the days as they stand.
 
 **Unit**: name (unique among units not archived), archived flag, manager (a user; none once
 archived), the unit rules (every field of the solver's `department` block but its name, which is
@@ -282,8 +291,9 @@ solve an approved month again. A submitted one takes no pin either. Leave may st
 the grid keeps its shift and the approval sees the broken rule. An approved roster of a month not over is edited by its manager
 cell by cell, each save a new version (below).
 
-**Submission**: one sending of a draft for a decision: who submitted it and when, what the draft was warned of then, and
-the decision, by whom, when and, for a rejection, the comment the manager reads. Nothing is deleted, so every comment is
+**Submission**: one sending of a draft for a decision: who submitted it and when, what the draft was warned of then (the
+month's nurses, and since ticket 46 its Ramadan days and public holidays, null on a submission from before, which compares
+none), and the decision, by whom, when and, for a rejection, the comment the manager reads. Nothing is deleted, so every comment is
 kept, which the audit log cannot hold, since a comment may name a nurse or their leave.
 
 **Roster version**: the roster's full grid (nurse × date → shift code or off) with who,
@@ -421,7 +431,9 @@ backup time and retention, close time.
   opened, and a rename is carried). The stale-draft warning then compares with the restored solve's input. The draft grid is
   editable by hand: each edit is a pin, the grid it would make is checked as the manager edits, and edits are saved
   together. Every solve and every restore puts the pins that count on top of its roster, so a draft never disagrees with a
-  pin; a pin saved since the input was stored, and a pin so put on top, warns like other changes since. Saving while a solve
+  pin; a pin saved since the input was stored, and a pin so put on top, warns like other changes since. So do the month's
+  Ramadan days and public holidays when they differ from the input's, as changes of the month's with no nurse (ticket 46);
+  they block nothing, and do not make a re-plan outdated. Saving while a solve
   of the month is queued or running is allowed and warned of. The solve's own cost holds only for the month it was given, so
   a draft edited or out of date is costed and checked again on the month as it stands. Submitting freezes the draft until
   the decision.

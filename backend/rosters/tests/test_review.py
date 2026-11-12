@@ -11,7 +11,7 @@ import pytest
 from accounts.models import Role, User
 from audit.models import AuditEntry
 from conftest import post
-from hospital.models import HospitalSettings, LeaveType, Shift
+from hospital.models import HospitalSettings, LeaveType, PublicHoliday, Shift
 from nurses import membership
 from nurses.models import NurseProfile
 from rosters.drafts import FROZEN
@@ -877,3 +877,93 @@ class TestSkills:
         assert seen["approve_refusal"].startswith("This roster breaks")
         assert refused(approve(carla, er)) == seen["approve_refusal"]
         assert roster(er).state == RosterState.SUBMITTED
+
+
+def fix_ramadan(cno, month, *days):
+    """The CNO fixes the month's Ramadan days to these, through the per-month fix."""
+    response = cno.put(f"/api/hospital/ramadan/{month}", {"dates": [f"{month}-{day:02d}" for day in days]},
+                       content_type="application/json")
+    assert response.status_code == 200, response.content
+
+
+def add_holiday(cno, month, day, name="A holiday") -> str:
+    response = post(cno, "/api/hospital/public-holidays", {"date": f"{month}-{day:02d}", "name": name})
+    assert response.status_code == 201, response.content
+    return response.json()["id"]
+
+
+def month_level(changes) -> list[str]:
+    return [change["what"] for change in changes if not change["hospital_id"]]
+
+
+class TestTheMonthsDates:
+    """The month's Ramadan days and public holidays join what a draft is warned of since its solve, and a submitted roster since
+    its submit (ticket 46): each the list a solve or the submit was given against the month as it stands, with no nurse. Nothing
+    blocks. June 2026 has no Ramadan day by the calendar; the 13th is a Saturday, on which a holiday changes no headcount."""
+
+    def test_a_draft_is_warned_after_a_ramadan_change_and_still_submits(self, mona, carla, er, solver):
+        solved(mona, er, solver)
+        fix_ramadan(carla, MONTH, 13, 14)
+
+        month = month_of(mona, er)
+
+        assert month_level(month["draft"]["changes"]) == ["ramadan_days"]
+        assert {"hospital_id": "", "full_name": "", "what": "ramadan_days"} in month["draft"]["changes"]
+        assert month["submit_refusal"] is None
+        assert ok(submit(mona, er))["state"] == "submitted"
+
+    def test_a_draft_is_warned_after_a_holiday_change_and_still_submits(self, mona, carla, er, solver):
+        solved(mona, er, solver)
+        add_holiday(carla, MONTH, 13)
+
+        month = month_of(mona, er)
+
+        assert month_level(month["draft"]["changes"]) == ["public_holidays"]
+        assert month["submit_refusal"] is None
+        assert ok(submit(mona, er))["state"] == "submitted"
+
+    def test_a_draft_is_not_warned_when_the_dates_are_as_they_were(self, mona, carla, er, solver):
+        """Fixing the month to the calendar's own days (none), and a holiday of another month, move nothing here."""
+        add_holiday(carla, MONTH, 13, "Before")
+        solved(mona, er, solver)
+        fix_ramadan(carla, MONTH)
+        add_holiday(carla, "2026-07", 4)
+        holiday = PublicHoliday.objects.get(date=dt.date(2026, 6, 13))
+        response = carla.put(f"/api/hospital/public-holidays/{holiday.pk}", {"date": "2026-06-13", "name": "Renamed"},
+                             content_type="application/json")
+        assert response.status_code == 200, response.content
+
+        assert month_of(mona, er)["draft"]["changes"] == []
+
+    def test_a_submitted_roster_shows_the_change_since_it_was_submitted(self, mona, carla, dina, er, solver):
+        submitted(mona, er, solver)
+        assert month_of(dina, er)["submitted"]["new_since"] == []
+
+        fix_ramadan(carla, MONTH, 13)
+        add_holiday(carla, MONTH, 13)
+
+        seen = month_of(dina, er)
+        assert [(c["hospital_id"], c["what"]) for c in seen["submitted"]["new_since"]] == [
+            ("", "ramadan_days"), ("", "public_holidays")]
+        assert month_level(seen["draft"]["changes"]) == ["ramadan_days", "public_holidays"]
+        assert seen["approve_refusal"] is None
+        assert ok(dina.get("/api/rosters/submitted"))[0]["changed_since"] is True
+
+    def test_a_change_the_manager_was_warned_of_is_not_new_since_the_submit(self, mona, carla, dina, er, solver):
+        solved(mona, er, solver)
+        fix_ramadan(carla, MONTH, 13)
+
+        ok(submit(mona, er))
+
+        seen = month_of(dina, er)
+        assert seen["submitted"]["new_since"] == []
+        assert month_level(seen["draft"]["changes"]) == ["ramadan_days"]
+        assert Submission.objects.get().dates_at_submit == {"ramadan_days": ["2026-06-13"], "public_holidays": []}
+
+    def test_a_submission_from_before_the_dates_were_recorded_compares_no_dates(self, mona, carla, dina, er, solver):
+        submitted(mona, er, solver)
+        Submission.objects.update(dates_at_submit=None)
+
+        fix_ramadan(carla, MONTH, 13)
+
+        assert month_of(dina, er)["submitted"]["new_since"] == []

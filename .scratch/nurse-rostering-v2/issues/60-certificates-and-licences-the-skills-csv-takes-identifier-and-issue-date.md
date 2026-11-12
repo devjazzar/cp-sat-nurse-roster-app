@@ -15,3 +15,6 @@
 - [ ] Tests at the agreed seams: the backend API suite beside ticket 36's import tests, and the frontend's app-level suite (six runs at once); the OpenAPI document and the generated client regenerated if the preview's shape changed
 
 ## Comments
+
+**From ticket 58 (2026-11-12).** A catalogue entry's kind is `hospital.models.Skill.kind` (`Skill.Kind.LICENCE` for a
+licence); the import preview can group by it with `byKind` in `frontend/src/lib/skill-kinds.ts`, as the Skills page does.

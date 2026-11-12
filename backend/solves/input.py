@@ -236,8 +236,13 @@ def _skill_rules(solve_input: dict) -> tuple:
             general.get("weights", {}).get("skill_shortfall", 0))
 
 
+# The month's own dates, each a change of the month's with no hospital ID when its list differs (ticket 46). The same two
+# names as `notifications.sending.MonthDates`, the notification's, and the roster API's `DraftChange.what`.
+MONTH_DATES = ("ramadan_days", "public_holidays")
+
+
 def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.datetime | None = None,
-                  assembled: Assembled | None = None) -> list[dict]:
+                  assembled: Assembled | None = None, month_dates: bool = False) -> list[dict]:
     """What has changed since this input was stored that the draft was not solved for: a gender, a nurse's credited days,
     who is in the month, the pins that count, her preferences (an input stored before them had none), or her skills as the
     month sees them (one stored in version 1 had none); and, as a change of the unit's with no hospital ID, its skill needs,
@@ -248,6 +253,11 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
     from a projected carry-over, and the close worked out the real one. A re-plan's end does not ask this, so a close never makes
     a re-plan outdated (ADR 0009).
 
+    With `month_dates`, also the month's Ramadan days and its public holidays, each a change with no hospital ID, compared only
+    when the input holds that list (a submission from before ticket 46 recorded none). The draft and the submitted roster ask
+    this; a re-plan's end does not, so a date changed while it ran leaves its roster to go in force, as the user's spec has
+    nothing else move: the manager is told, and re-plans again.
+
     `assembled` is the month as `assemble(unit, month)` reads it now, when the caller has it already."""
     assembled = assembled or assemble(unit, month)
     now = {row["id"]: row for row in assembled.nurses}
@@ -256,6 +266,9 @@ def changes_since(solve_input: dict, unit: Unit, month: dt.date, *, since: dt.da
     solved = {row["id"]: row for row in named_now["nurses"]}
     if "department" in solve_input and _skill_rules(named_now) != _skill_rules(assembled.input):
         changes.append({"hospital_id": "", "what": "skills"})
+    if month_dates:
+        changes += [{"hospital_id": "", "what": key} for key in MONTH_DATES
+                    if key in solve_input and sorted(solve_input[key]) != sorted(assembled.input[key])]
     for hospital_id in sorted(solved | now):
         before, after = solved.get(hospital_id), now.get(hospital_id)
         if before is None:
