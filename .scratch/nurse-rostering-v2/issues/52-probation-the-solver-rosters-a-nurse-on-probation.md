@@ -133,3 +133,6 @@ the cutoff as well. The fixes were small; no second run. No adversarial review, 
 **Things later tickets should know.**
 - **55:** a note on ticket 55 says what to write into the solve input, the refusals, and the explanation gap.
 - **56:** headcounts the app works out itself must leave her out with the solver's reading (`problem.counted`).
+
+**Merged on 2026-11-12:** `main` fast-forwarded from `d759f0d` to `4faa2f0`; both workflows (backend, solver, frontend, image,
+browser checks) green on `50156ad`, the last code commit; what follows it is this ticket's markdown only (`[skip ci]`).
