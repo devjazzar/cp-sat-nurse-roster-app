@@ -1128,7 +1128,7 @@
             }
           }
         },
-        "description": "A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back.",
+        "description": "A rename, a change of kind, issuing body or a mark, and a retire alike: `active` off retires it, on brings it back.",
         "tags": [
           "hospital"
         ],
@@ -8222,6 +8222,19 @@
             "title": "Name",
             "type": "string"
           },
+          "kind": {
+            "enum": [
+              "skill",
+              "certificate",
+              "licence"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "issuing_body": {
+            "title": "Issuing Body",
+            "type": "string"
+          },
           "expires": {
             "title": "Expires",
             "type": "boolean"
@@ -8250,6 +8263,8 @@
         "required": [
           "id",
           "name",
+          "kind",
+          "issuing_body",
           "expires",
           "required_to_work",
           "lets_a_nurse_precept",
@@ -8267,6 +8282,22 @@
             "maxLength": 100,
             "minLength": 1,
             "title": "Name",
+            "type": "string"
+          },
+          "kind": {
+            "description": "A skill (an ability), a certificate (a degree, a course) or a licence (permits a nurse to practise). Every kind is read alike, but a licence always expires.",
+            "enum": [
+              "skill",
+              "certificate",
+              "licence"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "issuing_body": {
+            "description": "Who issues it, as free text; empty when no one does.",
+            "maxLength": 100,
+            "title": "Issuing Body",
             "type": "string"
           },
           "expires": {
@@ -8292,6 +8323,8 @@
         },
         "required": [
           "name",
+          "kind",
+          "issuing_body",
           "expires",
           "required_to_work",
           "lets_a_nurse_precept",

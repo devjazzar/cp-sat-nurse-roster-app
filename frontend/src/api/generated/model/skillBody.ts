@@ -4,6 +4,7 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
+import type { SkillBodyKind } from './skillBodyKind';
 
 export interface SkillBody {
   /**
@@ -12,6 +13,13 @@ export interface SkillBody {
      * @maxLength 100
      */
   name: string;
+  /** A skill (an ability), a certificate (a degree, a course) or a licence (permits a nurse to practise). Every kind is read alike, but a licence always expires. */
+  kind: SkillBodyKind;
+  /**
+     * Who issues it, as free text; empty when no one does.
+     * @maxLength 100
+     */
+  issuing_body: string;
   /** Every nurse who holds it has an expiry for it, the last day it counts. */
   expires: boolean;
   /** From the day after its expiry, a nurse holding it works no shift. */

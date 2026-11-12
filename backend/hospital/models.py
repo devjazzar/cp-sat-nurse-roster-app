@@ -75,10 +75,18 @@ class LeaveType(models.Model):
 
 class Skill(models.Model):
     """A row of the skill catalogue. `name` is what nurses' records, unit rules and solve inputs call it. Never deleted,
-    only retired: nurses' records of it and past rosters keep it."""
+    only retired: nurses' records of it and past rosters keep it. Every kind is read by the same rules, but a licence
+    always expires."""
+
+    class Kind(models.TextChoices):
+        SKILL = "skill"  # The plain kind: an ability, a course card.
+        CERTIFICATE = "certificate"  # A degree, a diploma, a course certificate.
+        LICENCE = "licence"  # Permits a nurse to practise: the SCFHS registration.
 
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
     name = models.CharField(max_length=100)
+    kind = models.CharField(max_length=11, choices=Kind, default=Kind.SKILL)
+    issuing_body = models.CharField(max_length=100, blank=True, default="")  # Free text; may be empty.
     expires = models.BooleanField()  # Every nurse's record of it carries an expiry.
     required_to_work = models.BooleanField()  # From the day after its expiry, a nurse holding it works no shift.
     # A nurse holding it, unexpired on the day of assigning, may be assigned as a preceptor (ticket 55). Checked then only.
@@ -87,7 +95,11 @@ class Skill(models.Model):
 
     class Meta:
         ordering = [Lower("name")]
-        constraints = [models.UniqueConstraint(Lower("name"), name="hospital_skill_name_any_case")]
+        constraints = [
+            models.UniqueConstraint(Lower("name"), name="hospital_skill_name_any_case"),
+            models.CheckConstraint(condition=~models.Q(kind="licence") | models.Q(expires=True),
+                                   name="hospital_skill_a_licence_expires"),
+        ]
 
 
 class SkillRename(models.Model):

@@ -292,10 +292,15 @@ def _safe_in_a_file(value: str) -> str:
 
 
 SkillName = Annotated[Name, AfterValidator(_safe_in_a_file)]
+SkillKind = Literal["skill", "certificate", "licence"]
+IssuingBody = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100), AfterValidator(no_nul)]
 
 
 class SkillBody(StrictSchema):
     name: SkillName = Field(description="What nurses' records, unit rules and solve inputs call it.")
+    kind: SkillKind = Field(description="A skill (an ability), a certificate (a degree, a course) or a licence (permits a "
+                                        "nurse to practise). Every kind is read alike, but a licence always expires.")
+    issuing_body: IssuingBody = Field(description="Who issues it, as free text; empty when no one does.")
     expires: bool = Field(description="Every nurse who holds it has an expiry for it, the last day it counts.")
     required_to_work: bool = Field(description="From the day after its expiry, a nurse holding it works no shift.")
     lets_a_nurse_precept: bool = Field(description="A nurse holding it, unexpired, may be assigned as a preceptor. Checked "
@@ -317,6 +322,8 @@ class SkillRenameSchema(Schema):
 class SkillSchema(Schema):
     id: UUID
     name: str
+    kind: SkillKind
+    issuing_body: str
     expires: bool
     required_to_work: bool
     lets_a_nurse_precept: bool
@@ -329,13 +336,14 @@ class SkillSchema(Schema):
 
 
 def _skill_fields(skill: Skill) -> dict:
-    return {"name": skill.name, "expires": skill.expires, "required_to_work": skill.required_to_work,
+    return {"name": skill.name, "kind": skill.kind, "issuing_body": skill.issuing_body, "expires": skill.expires, "required_to_work": skill.required_to_work,
             "lets_a_nurse_precept": skill.lets_a_nurse_precept, "active": skill.active}
 
 
 def _write_skill(skill: Skill, body: SkillBody) -> None:
-    skill.name, skill.expires, skill.required_to_work, skill.lets_a_nurse_precept, skill.active = (
-        body.name, body.expires, body.required_to_work, body.lets_a_nurse_precept, body.active)
+    (skill.name, skill.kind, skill.issuing_body, skill.expires, skill.required_to_work, skill.lets_a_nurse_precept,
+     skill.active) = (body.name, body.kind, body.issuing_body, body.expires, body.required_to_work,
+                      body.lets_a_nurse_precept, body.active)
     # The constraint still decides should anything ever write without the catalogue's lock.
     save_unless_taken(skill, "name", f"{body.name} is already a skill")
 
@@ -354,9 +362,16 @@ def _refuse_a_taken_name(name: str, skill_id: UUID | None) -> None:
 NAMED_AT_MOST = 3
 
 
-def _refuse_records_without_expiry(skill: Skill) -> None:
+def _refuse_a_licence_that_does_not_expire(body: SkillBody) -> None:
+    # The constraint `hospital_skill_a_licence_expires` holds it in the database too.
+    if body.kind == Skill.Kind.LICENCE and not body.expires:
+        refuse((("expires",), "A licence always expires."))
+
+
+def _refuse_records_without_expiry(skill: Skill, field: str = "expires", why: str = "") -> None:
     """Turning `expires` on would leave a record dateless, an unknown the solver cannot model: refused, naming a few of the
-    nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`)."""
+    nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`).
+    A change to licence turns it on, so it is refused the same way, beside the kind."""
     names = list(NurseSkill.objects.current().filter(skill=skill, expiry__isnull=True)
                  .order_by(Lower("nurse__user__full_name"), "nurse_id").values_list("nurse__user__full_name", flat=True))
     if not names:
@@ -365,8 +380,8 @@ def _refuse_records_without_expiry(skill: Skill) -> None:
         who = f"{', '.join(names[:NAMED_AT_MOST])} and {len(names) - NAMED_AT_MOST} more"
     else:
         who = " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 1 else names)
-    refuse((("expires",), f"{who} {'hold' if len(names) > 1 else 'holds'} {skill.name} with no expiry. "
-                          "Take it off them first, then record it again with its expiry."))
+    refuse(((field,), f"{who} {'hold' if len(names) > 1 else 'holds'} {skill.name} with no expiry{why}. "
+                      "Take it off them first, then record it again with its expiry."))
 
 
 @router.get("/skills", response=list[SkillSchema], operation_id="listSkills")
@@ -379,6 +394,7 @@ def list_skills(request) -> list[Skill]:
 def create_skill(request, body: SkillBody) -> tuple[int, Skill]:
     with transaction.atomic():
         HospitalSettings.load(for_update=True)  # One writer at a time, so a taken or old name cannot slip through.
+        _refuse_a_licence_that_does_not_expire(body)
         _refuse_a_taken_name(body.name, None)
         skill = Skill()
         _write_skill(skill, body)
@@ -388,14 +404,18 @@ def create_skill(request, body: SkillBody) -> tuple[int, Skill]:
 
 @router.put("/skills/{skill_id}", response=SkillSchema, auth=cno, operation_id="updateSkill")
 def update_skill(request, skill_id: UUID, body: SkillBody) -> Skill:
-    """A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back."""
+    """A rename, a change of kind, issuing body or a mark, and a retire alike: `active` off retires it, on brings it back."""
     with transaction.atomic():
         HospitalSettings.load(for_update=True)
         skill = get_object_or_404(Skill, pk=skill_id)
         old, new = differing(_skill_fields(skill), body.model_dump())
         if not new:
             return skill
-        if new.get("expires"):
+        _refuse_a_licence_that_does_not_expire(body)
+        if new.get("kind") == Skill.Kind.LICENCE:
+            # Ticket 59 adds the second refusal here: a current record with no identifier.
+            _refuse_records_without_expiry(skill, "kind", ", and a licence always expires")
+        elif new.get("expires"):
             _refuse_records_without_expiry(skill)
         if new.get("active") is False:
             units = units_needing(skill.name)

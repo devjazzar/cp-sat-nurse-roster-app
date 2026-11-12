@@ -878,6 +878,8 @@ export const UpdateLeaveTypeResponse = zod.object({
 export const ListSkillsResponseItem = zod.object({
   "id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']),
+  "issuing_body": zod.string(),
   "expires": zod.boolean(),
   "required_to_work": zod.boolean(),
   "lets_a_nurse_precept": zod.boolean(),
@@ -896,10 +898,14 @@ export const ListSkillsResponse = zod.array(ListSkillsResponseItem)
  */
 export const createSkillBodyNameMax = 100;
 
+export const createSkillBodyIssuingBodyMax = 100;
+
 
 
 export const CreateSkillBody = zod.object({
   "name": zod.string().min(1).max(createSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('A skill (an ability), a certificate (a degree, a course) or a licence (permits a nurse to practise). Every kind is read alike, but a licence always expires.'),
+  "issuing_body": zod.string().max(createSkillBodyIssuingBodyMax).describe('Who issues it, as free text; empty when no one does.'),
   "expires": zod.boolean().describe('Every nurse who holds it has an expiry for it, the last day it counts.'),
   "required_to_work": zod.boolean().describe('From the day after its expiry, a nurse holding it works no shift.'),
   "lets_a_nurse_precept": zod.boolean().describe('A nurse holding it, unexpired, may be assigned as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already assigned.'),
@@ -909,6 +915,8 @@ export const CreateSkillBody = zod.object({
 export const CreateSkillResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']),
+  "issuing_body": zod.string(),
   "expires": zod.boolean(),
   "required_to_work": zod.boolean(),
   "lets_a_nurse_precept": zod.boolean(),
@@ -922,7 +930,7 @@ export const CreateSkillResponse = zod.object({
 
 
 /**
- * A rename, a change of either flag and a retire alike: `active` off retires it, on brings it back.
+ * A rename, a change of kind, issuing body or a mark, and a retire alike: `active` off retires it, on brings it back.
  * @summary Update Skill
  */
 export const UpdateSkillParams = zod.object({
@@ -931,10 +939,14 @@ export const UpdateSkillParams = zod.object({
 
 export const updateSkillBodyNameMax = 100;
 
+export const updateSkillBodyIssuingBodyMax = 100;
+
 
 
 export const UpdateSkillBody = zod.object({
   "name": zod.string().min(1).max(updateSkillBodyNameMax).describe('What nurses\' records, unit rules and solve inputs call it.'),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('A skill (an ability), a certificate (a degree, a course) or a licence (permits a nurse to practise). Every kind is read alike, but a licence always expires.'),
+  "issuing_body": zod.string().max(updateSkillBodyIssuingBodyMax).describe('Who issues it, as free text; empty when no one does.'),
   "expires": zod.boolean().describe('Every nurse who holds it has an expiry for it, the last day it counts.'),
   "required_to_work": zod.boolean().describe('From the day after its expiry, a nurse holding it works no shift.'),
   "lets_a_nurse_precept": zod.boolean().describe('A nurse holding it, unexpired, may be assigned as a preceptor. Checked when a preceptor is assigned only, so turning it off changes no preceptor already assigned.'),
@@ -944,6 +956,8 @@ export const UpdateSkillBody = zod.object({
 export const UpdateSkillResponse = zod.object({
   "id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']),
+  "issuing_body": zod.string(),
   "expires": zod.boolean(),
   "required_to_work": zod.boolean(),
   "lets_a_nurse_precept": zod.boolean(),
