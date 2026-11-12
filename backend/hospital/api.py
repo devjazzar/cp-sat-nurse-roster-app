@@ -18,7 +18,7 @@ router = Router(tags=["hospital"])
 MAX_DAILY_HOURS = 24
 MAX_HOURS = 10 ** 6
 MAX_WEIGHT = 10 ** 6
-OVERTIME_SHARE_ABOVE_OVERTIME = "Cannot be above the weight of nurse overtime, or the solver could lower this cost by adding overtime."
+OVERTIME_SHARE_ABOVE_OVERTIME = "Cannot be above Nurse overtime, or the solver could lower this cost by adding overtime."
 
 
 def refuse(*errors: tuple[tuple, str]) -> None:

@@ -158,7 +158,7 @@ function AttributesForm({ unitId, nurse, shifts, isOwn, onCancel, onDone }: Form
             readOnly={locked} registration={form.register("night_balance", asNumber)} error={errors.night_balance} />
           <FormField label="Weekend fairness balance (shifts)" type="number" inputMode="decimal" step="any" description="Weekend days above their fair share so far this year, or below zero, under it."
             readOnly={locked} registration={form.register("friday_balance", asNumber)} error={errors.friday_balance} />
-          <FormField label="Overtime above or below their fair share (hours)" type="number" inputMode="decimal" step="any" description="Hours of overtime above their share of the unit's overtime so far this year, or below zero, under it."
+          <FormField label="Overtime above or below their overtime share (hours)" type="number" inputMode="decimal" step="any" description="Hours of overtime above their share of the unit's overtime so far this year, or below zero, under it."
             readOnly={locked} registration={form.register("overtime_balance", asNumber)} error={errors.overtime_balance} />
         </FieldGroup>
       </FieldSet>

@@ -810,8 +810,8 @@ const RULES = {
   dept_overtime_cap: 400,
   weights: {
     night_rest: 5, dept_overtime: 1, nurse_overtime: 1, nurse_shortfall: 1, avoidable_shortfall: 1000, fair_day: 1,
-    fair_night: 1, fair_weekend: 1, score_deficit: 2, score_spread: 1, excess_weekend: 6, excess_full_run: 4, shift_switch: 8,
-    undesired_day: 2, desired_day: 1, change: 3, skill_shortfall: 0,
+    fair_night: 1, fair_weekend: 1, overtime_above_share: 1, score_deficit: 2, score_spread: 1, excess_weekend: 6,
+    excess_full_run: 4, shift_switch: 8, undesired_day: 2, desired_day: 1, change: 3, skill_shortfall: 0,
   },
 }
 const WEIGHT_COUNT = Object.keys(RULES.weights).length
@@ -877,6 +877,60 @@ describe("the hospital rules page", () => {
 
     await screen.findByText("Saved.")
     expect(put(calls).weights).toEqual({ ...RULES.weights, excess_full_run: 0 })
+  })
+
+  it("the price of an hour of overtime above a fair share is a weight like the others, and 0 switches it off", async () => {
+    const { user, calls } = start("/hospital-rules", asCno(RULES_STATE, saves))
+
+    const share = within(await screen.findByRole("region", { name: "Weights" })).getByLabelText("Overtime away from the fair share")
+    expect(share).toHaveValue(1)
+    expect(share).toHaveAccessibleDescription(
+      "Each hour of overtime a nurse works above their fair share of the unit's overtime, beyond the unit's free hours. At most the weight of Nurse overtime, so that adding overtime never lowers this cost.")
+    await user.clear(share)
+    await user.type(share, "0")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).weights).toEqual({ ...RULES.weights, overtime_above_share: 0 })
+  })
+
+  it("refuses an overtime share weight above Nurse overtime beside it, saying why, and sends nothing", async () => {
+    const { user, calls } = start("/hospital-rules", asCno(RULES_STATE, saves))
+
+    const weights = within(await screen.findByRole("region", { name: "Weights" }))
+    const share = weights.getByLabelText("Overtime away from the fair share")
+    await user.clear(share)
+    await user.type(share, "2")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("Cannot be above Nurse overtime, or the solver could lower this cost by adding overtime.")).toBeInTheDocument()
+    expect(share).toHaveAttribute("aria-invalid", "true")
+    expect(share).toHaveFocus()
+    expect(calls.some((call) => call.method === "PUT")).toBe(false)
+
+    const overtime = weights.getByLabelText("Nurse overtime")
+    await user.clear(overtime)
+    await user.type(overtime, "2")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).weights).toEqual({ ...RULES.weights, nurse_overtime: 2, overtime_above_share: 2 })
+  })
+
+  it("puts the API's refusal of an overtime share weight beside it", async () => {
+    const { user } = start("/hospital-rules", asCno(RULES_STATE, {
+      "PUT /api/hospital/rules": {
+        status: 422,
+        body: { detail: [{ loc: ["body", "body", "weights", "overtime_above_share"],
+          msg: "Value error, Cannot be above Nurse overtime, or the solver could lower this cost by adding overtime.", type: "value_error" }] },
+      },
+    }))
+
+    await screen.findByText(FLAG)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("Cannot be above Nurse overtime, or the solver could lower this cost by adding overtime.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Overtime away from the fair share")).toHaveAttribute("aria-invalid", "true")
   })
 
   it("the price of a nurse short of a skill need is a weight like the others", async () => {
@@ -4774,6 +4828,9 @@ const UNIT_RULES = {
   fair_weekends: true,
   carry_fairness: true,
   carry_cap: 2,
+  share_overtime: true,
+  overtime_tolerance: 12,
+  overtime_carry_cap: 12,
   max_consecutive_shifts: 3,
   double_cycle_rest: 2,
   max_weekends: 3,
@@ -5173,6 +5230,83 @@ describe("the unit rules page", () => {
     expect(router.state.location.search).toEqual({ unit: "icu" })
   })
 
+  it("the overtime share's three rules sit in the fairness group beside the weekend spread, with their help, and save", async () => {
+    const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+    const fairness = within(await screen.findByRole("region", { name: "Fairness" }))
+    const share = fairness.getByRole("checkbox", { name: "Share overtime evenly" })
+    const tolerance = fairness.getByLabelText("Overtime tolerance (hours)")
+    const carryCap = fairness.getByLabelText("Most a month's overtime share can move (hours)")
+    expect(share).toBeChecked()
+    expect(share).toHaveAccessibleDescription("Overtime is spread among the unit's nurses in proportion to the hours each owes.")
+    expect(tolerance).toHaveValue(12)
+    expect(tolerance).toHaveAccessibleDescription("How many hours of overtime a nurse may work above their fair share before it starts to cost.")
+    expect(carryCap).toHaveValue(12)
+    expect(carryCap).toHaveAccessibleDescription("The limit on how far what is carried can move a nurse's overtime share in one month.")
+    expect(fairness.getByRole("checkbox", { name: "Carry fairness between months" })).toHaveAccessibleDescription(
+      "Nights, weekend days and overtime above or below a nurse's fair share so far move this month's fair share.")
+    const order = [fairness.getByRole("checkbox", { name: "Spread weekend days fairly" }), share, tolerance,
+      fairness.getByRole("checkbox", { name: "Carry fairness between months" }), fairness.getByLabelText("Most a month's share can move (shifts)"), carryCap]
+    for (const [before, after] of order.slice(0, -1).map((field, index) => [field, order[index + 1]]))
+      expect(before.compareDocumentPosition(after)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    await user.click(share)
+    await user.clear(tolerance)
+    await user.type(tolerance, "8")
+    await user.clear(carryCap)
+    await user.type(carryCap, "744")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await screen.findByText("Saved.")
+    expect(put(calls).rules).toEqual({ ...UNIT_RULES, share_overtime: false, overtime_tolerance: 8, overtime_carry_cap: 744 })
+  })
+
+  it.each([["745", "Between 0 and 744."], ["2.5", "Enter a whole number."], ["-1", "Between 0 and 744."]])(
+    "refuses %s hours of overtime tolerance beside the field and sends nothing", async (typed, says) => {
+      const { user, calls } = start("/unit-rules", asManager(UNIT_RULES_STATE, saves))
+
+      const tolerance = await screen.findByLabelText("Overtime tolerance (hours)")
+      await user.clear(tolerance)
+      await user.type(tolerance, typed)
+      await user.click(screen.getByRole("button", { name: "Save" }))
+
+      expect(await screen.findByText(says)).toBeInTheDocument()
+      expect(tolerance).toHaveAttribute("aria-invalid", "true")
+      expect(tolerance).toHaveFocus()
+      expect(calls.some((call) => call.method === "PUT")).toBe(false)
+    })
+
+  it("puts the API's refusal of the most an overtime share can move beside the field", async () => {
+    const { user } = start("/unit-rules", asManager(UNIT_RULES_STATE, {
+      "PUT /api/units/er/rules": {
+        status: 422,
+        body: { detail: [{ type: "less_than_equal", loc: ["body", "body", "rules", "overtime_carry_cap"], msg: "Input should be less than or equal to 744" }] },
+      },
+    }))
+
+    await screen.findByText(FLAG)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText("Input should be less than or equal to 744")).toBeInTheDocument()
+    expect(screen.getByLabelText("Most a month's overtime share can move (hours)")).toHaveAttribute("aria-invalid", "true")
+  })
+
+  it.each([["CNO", ME_CNO], ["Deputy CNO", ME_DEPUTY]])("the %s reads the overtime share's three rules and can change none", async (_, me) => {
+    start("/unit-rules", {
+      ...session(me),
+      "GET /api/units": { body: [ER_UNIT] },
+      "GET /api/units/er/rules": { body: { ...UNIT_RULES_STATE, rules: { ...UNIT_RULES, share_overtime: false, overtime_tolerance: 8, overtime_carry_cap: 30 } } },
+    })
+
+    const fairness = within(await screen.findByRole("region", { name: "Fairness" }))
+    expect(fairness.getByText("Share overtime evenly").nextElementSibling).toHaveTextContent(/^Off$/)
+    expect(fairness.getByText("Overtime tolerance (hours)").nextElementSibling).toHaveTextContent(/^8$/)
+    expect(fairness.getByText("Most a month's overtime share can move (hours)").nextElementSibling).toHaveTextContent(/^30$/)
+    expect(fairness.getByText("Overtime is spread among the unit's nurses in proportion to the hours each owes.")).toBeInTheDocument()
+    expect(fairness.queryAllByRole("spinbutton")).toEqual([])
+    expect(fairness.queryAllByRole("checkbox")).toEqual([])
+  })
+
   it("the CNO reads the most full runs beside the longest run, and not at a longest run of 1", async () => {
     const { user } = start("/unit-rules", {
       ...session(ME_CNO),
@@ -5367,9 +5501,9 @@ describe("the rostering attributes page", () => {
     await user.click(await screen.findByRole("button", { name: "Set attributes of Amal Saleh" }))
     expect(screen.getByText(/Their first month has closed, so these can no longer change/)).toBeInTheDocument()
     expect(screen.getByLabelText("Hours balance (hours)")).toHaveAttribute("readonly")
-    expect(screen.getByLabelText("Overtime above or below their fair share (hours)")).toHaveAttribute("readonly")
+    expect(screen.getByLabelText("Overtime above or below their overtime share (hours)")).toHaveAttribute("readonly")
     await user.type(screen.getByLabelText("Hours balance (hours)"), "9")
-    await user.type(screen.getByLabelText("Overtime above or below their fair share (hours)"), "9")
+    await user.type(screen.getByLabelText("Overtime above or below their overtime share (hours)"), "9")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     await screen.findByText("The rostering attributes of Amal Saleh are saved.")
@@ -5392,7 +5526,7 @@ describe("the rostering attributes page", () => {
     await user.type(screen.getByLabelText("Overtime this year (hours)"), "40")
     await user.clear(screen.getByLabelText("Weekend fairness balance (shifts)"))
     await user.type(screen.getByLabelText("Weekend fairness balance (shifts)"), "-2.5")
-    const overtime = screen.getByLabelText("Overtime above or below their fair share (hours)")
+    const overtime = screen.getByLabelText("Overtime above or below their overtime share (hours)")
     expect(overtime).toHaveValue(6.25)
     expect(overtime).toHaveAccessibleDescription("Hours of overtime above their share of the unit's overtime so far this year, or below zero, under it.")
     await user.clear(overtime)
@@ -5432,20 +5566,20 @@ describe("the rostering attributes page", () => {
     await user.type(screen.getByLabelText("Score"), "2")
     await user.clear(screen.getByLabelText("Hours balance (hours)"))
     await user.type(screen.getByLabelText("Hours balance (hours)"), "1.5")
-    await user.clear(screen.getByLabelText("Overtime above or below their fair share (hours)"))
-    await user.type(screen.getByLabelText("Overtime above or below their fair share (hours)"), "1000001")
+    await user.clear(screen.getByLabelText("Overtime above or below their overtime share (hours)"))
+    await user.type(screen.getByLabelText("Overtime above or below their overtime share (hours)"), "1000001")
     await user.click(screen.getByRole("button", { name: "Save" }))
     expect(await screen.findByText("Between 0 and 1.")).toBeInTheDocument()
     expect(screen.getByText("Enter a whole number of hours.")).toBeInTheDocument()
-    expect(screen.getByLabelText("Overtime above or below their fair share (hours)")).toHaveAccessibleDescription(/Between -1000000 and 1000000\./)
+    expect(screen.getByLabelText("Overtime above or below their overtime share (hours)")).toHaveAccessibleDescription(/Between -1000000 and 1000000\./)
     expect(calls.some((call) => call.method === "PUT")).toBe(false)
 
     await user.clear(screen.getByLabelText("Score"))
     await user.type(screen.getByLabelText("Score"), "0.5")
     await user.clear(screen.getByLabelText("Hours balance (hours)"))
     await user.type(screen.getByLabelText("Hours balance (hours)"), "1")
-    await user.clear(screen.getByLabelText("Overtime above or below their fair share (hours)"))
-    await user.type(screen.getByLabelText("Overtime above or below their fair share (hours)"), "-1000000")
+    await user.clear(screen.getByLabelText("Overtime above or below their overtime share (hours)"))
+    await user.type(screen.getByLabelText("Overtime above or below their overtime share (hours)"), "-1000000")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     expect(await screen.findByText("A is not one of this unit's shifts.")).toBeInTheDocument()
@@ -6436,6 +6570,19 @@ describe("the roster page", () => {
     expect(region.getByText("Full run above the most").parentElement).toHaveTextContent("8")
     expect(region.getByText(/2 × 4/)).toHaveTextContent("full run above the maximum")
     expect(region.getByText("Amal Saleh: h1: 5 full runs of 3 shifts, max 3")).toBeInTheDocument()
+  })
+
+  it("names overtime above a fair share by its weight, with each nurse's overtime, share and hours priced in the solver's words", async () => {
+    const rules = [{
+      rule: "overtime_above_share", penalty: 3, weight: 1, amount: 3, counted_in: "hour of overtime above the share",
+      largest: [{ hospital_id: "h1", full_name: "Amal Saleh", date: null, amount: 3, text: "h1: 20 h overtime, share 4.7 h, 3 h priced" }], others: 0,
+    }]
+    start("/roster", manager({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: DRAFT } }, [`GET ${UNIT}/solve-history/${SOLVE_ID}`]: { body: { ...RESULT, rules } } }))
+
+    const region = within(await screen.findByRole("region", { name: "Penalties per rule" }))
+    expect(region.getByText("Overtime away from the fair share").parentElement).toHaveTextContent("3")
+    expect(region.getByText(/3 × 1/)).toHaveTextContent("hour of overtime above the share")
+    expect(region.getByText("Amal Saleh: h1: 20 h overtime, share 4.7 h, 3 h priced")).toBeInTheDocument()
   })
 
   it("does not repeat a date the solver's words already hold", async () => {

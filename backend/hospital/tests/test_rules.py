@@ -330,7 +330,7 @@ def test_an_overtime_share_weight_above_the_hour_of_overtimes_is_refused_beside_
 
     assert refused_fields(response) == {("weights", "overtime_above_share")}
     assert response.json()["detail"][0]["msg"] == (
-        "Value error, Cannot be above the weight of nurse overtime, or the solver could lower this cost by adding overtime.")
+        "Value error, Cannot be above Nurse overtime, or the solver could lower this cost by adding overtime.")
     assert HospitalSettings.load().rules["weights"]["overtime_above_share"] == 1
 
 
