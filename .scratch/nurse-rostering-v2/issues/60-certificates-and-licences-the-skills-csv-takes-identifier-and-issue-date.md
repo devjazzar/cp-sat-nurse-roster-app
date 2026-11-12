@@ -84,7 +84,8 @@ no change to `deploy/compose.yaml`, the `Dockerfile`, the solver or any dependen
    new columns. The nurse import's template and the staff list are untouched (`test_the_nurse_import_template_names_no_skill`,
    `test_the_staff_list_holds_no_skills`, both run).
 7. **Tests**: 22 new or rewritten in `backend/nurses/tests/test_skills_import.py` (the headers, every problem, unchanged against
-   each kind of renewal, the token, confirm, the audit), and three in the app-level "importing skills" block. OpenAPI and the
+   each kind of renewal, the token, confirm, the audit), and in the app-level "importing skills" block two new tests and two
+   changed (12 in all). OpenAPI and the
    client regenerated (`SkillImportRow` gained six fields).
 
 Also: `docs/ARCHITECTURE.md` section 8's skills CSV paragraph. `nurses.skills.Identifier` moved from `skills_api.py` so the
@@ -121,6 +122,9 @@ spec using the suite's `signIn`, deleted after; the stack taken down. As Carla, 
 - **An identifier another line of the file would free is still refused**, whatever the order: the file is judged against the
   records as they stand, as two renewals by hand would be, and a swap inside one file could otherwise meet the database's partial
   unique constraint mid-save as a 500.
+- **The record's rules are judged once a line has no other problem:** a licence without its identifier, an identifier another
+  nurse holds and the issue date's two refusals (`problems_with`) show after the line's other problems are corrected, as ticket
+  59 had them; the cells' own problems (the identifier's length, a malformed date, an in-file repeat) show at once.
 - **"Other lines"** heads the lines that have no kind, so a problem line is never dropped by the grouping.
 - **The licence's words name the column and the template**, one wording for both headers, since a line does not know its header.
 
