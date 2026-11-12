@@ -76,7 +76,7 @@ dependency, compose or Dockerfile change. The app writes neither field until tic
   is off, while she is off on day 3, when q works D": the nurse, the day, her preceptor's shift and hers; each match carries her id
   and the day, so `/validate`'s rules and violations, and the result's `violations`, carry them per nurse.
 - **Tests and contract.** The service test's copy of the sample (`with_faten`: a fifth nurse, Faten, on probation, Amal her
-  preceptor) solves OPTIMAL-or-better with no violation: Faten works no N, is on D or off on every day Amal works D, D's 1..1 is
+  preceptor) solves with no violation: Faten works no N, is on D or off on every day Amal works D, D's 1..1 is
   met by exactly one counted nurse every day while Faten works D beside one, her hours within 197..219, her three balances 0;
   `/validate` names her violation with its date; `/precheck` names her without a preceptor; an unknown preceptor is a 422
   "request: nurses[4].preceptor: 'Zaid' is not another nurse of the input". Every solve in `test_probation.py` checks that the
