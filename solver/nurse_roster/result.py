@@ -167,7 +167,7 @@ def nurse_accounting(p: Problem, assignment: list[list[int]], analysis: Analysis
     need = needed_history(dep, g)
     hours = [sum(g.shift_hours[sh[v]] for v in row if v >= 0) for row in assignment]
     overtime = [max(0, h - p.required_hours(n)) if g.hours_rule_enabled else 0 for n, h in zip(p.nurses, hours)]
-    unit_ot, owed = sum(overtime), F.overtime_owed(p)
+    unit_ot, owed = F.unit_overtime(p, overtime), F.overtime_owed(p)   # her own overtime is outside the unit's
     nurses = {}
     for n, row, hrs, ot in zip(p.nurses, assignment, hours, overtime):
         required = p.required_hours(n)

@@ -16,7 +16,8 @@ from dataclasses import asdict, dataclass, field
 
 from ortools.sat.python import cp_model
 
-from .problem import Problem, barred_days, preference_factor, skill_holders, superseding
+from .problem import (Problem, barred_days, counted, followable_candidates, preceptor_of, preference_factor,
+                      skill_holders, superseding)
 from . import fairness as F
 from .explain import Analysis, explain
 from .rules import active, soft_ids, weight
@@ -130,13 +131,12 @@ def build_model(p: Problem) -> RosterModel:
         rest_long = range(R_rest + 1, min(hi, T - 1) + 1)
     ot_vars = []                        # one per nurse while the hours rule is on, in the nurses' order
     ot_caps = []
-    total_ot_cap = 0
     counts = F.fair_shifts(p)
     share = F.share_m(p)                                     # thousandths of demand per fair shift
     fri_per = F.friday_slots_m(p)                            # the Friday share's per-problem part
     tol = round(dep.fair_tolerance * 1000)                   # in thousandths of a shift
-    allowed = [set(nu.allowed_shifts) if nu.allowed_shifts is not None else set(shifts)
-               for nu in p.nurses]
+    allowed = [set(p.allowed(nu)) for nu in p.nurses]        # a nurse on probation's: no night shift
+    staff = counted(p)                                       # who counts toward a shift (not on probation)
 
     bar = rule("skill_expired")                              # once: its test scans every nurse
     for n, nurse in enumerate(p.nurses):
@@ -198,7 +198,6 @@ def build_model(p: Problem) -> RosterModel:
                 m.add_max_equality(ot, [total_h - req, 0])     # never raised with the shortfall to move the shares
             ot_vars.append(ot)
             ot_caps.append(cap)
-            total_ot_cap += cap
             pen["nurse_overtime"][0].append(ot)
             pen["nurse_shortfall"][0].append(short)
             if rule("avoidable_shortfall"):
@@ -312,7 +311,7 @@ def build_model(p: Problem) -> RosterModel:
                 pen["excess_full_run"][0].append(ex)
 
         # Friday fairness: |fridays − fair share + carried balance| beyond tolerance
-        if rule("fair_weekend") and weekend_days:
+        if rule("fair_weekend") and weekend_days and not nurse.on_probation:   # she has no Friday share
             fc = Sum([on[d].Not() for d in weekend_days])
             fri_exp = F.friday_expected_m(p, nurse, fri_per)   # prorated for leave, thousandths
             target = fri_exp - 100 * F.adj_tenths(nurse.friday_balance, p)
@@ -338,9 +337,9 @@ def build_model(p: Problem) -> RosterModel:
                     pen[key][0].append(dev)
 
     # ---- per day / per anchor shift ------------------------------------------
-    tl = [n for n, nu in enumerate(p.nurses) if nu.team_leader]
-    males = [n for n, nu in enumerate(p.nurses) if nu.gender == "M"]
-    females = [n for n, nu in enumerate(p.nurses) if nu.gender != "M"]
+    tl = [n for n in staff if p.nurses[n].team_leader]       # a nurse on probation counts toward nothing
+    males = [n for n in staff if p.nurses[n].gender == "M"]
+    females = [n for n in staff if p.nurses[n].gender != "M"]
     thr_wd, thr_we = round(dep.score_target * 100), round(dep.score_target_weekend * 100)
     score100 = [round(nu.score * 100) for nu in p.nurses]
     balance = rule("score_spread") and dep.score_balance_mode == "spread"
@@ -358,8 +357,8 @@ def build_model(p: Problem) -> RosterModel:
             if not (rule("headcount") and free):               # rule, and any headcount may occur
                 lo, hi = 0, N
             t = P + d
-            pure = [x[n][t][a] for n in range(N)]
-            present = pure + [x[n][t][e] for e in extra for n in range(N)]
+            pure = [x[n][t][a] for n in staff]
+            present = pure + [x[n][t][e] for e in extra for n in staff]
             if rule("headcount") and free:
                 m.add_linear_constraint(Sum(present), lo, hi)
             if rule("team_leader") and free:
@@ -369,16 +368,17 @@ def build_model(p: Problem) -> RosterModel:
                 m.add_bool_or([x[n][t][a] for n in females])
             thr = thr_we if weekend[d] else thr_wd             # Friday shifts have their own target
             band_hi = band_we if weekend[d] else band_wd
+            scores = [score100[n] for n in staff]              # in the order of `pure`
             if thr > 0 and rule("score_deficit"):                # soft: avg score >= target
                 deficit = m.new_int_var(0, 100 * hi, f"sd{hc.shift}{d}")
-                m.add(deficit >= WSum(pure, [thr - sc for sc in score100]))  # max(0, thr*h - sum)
+                m.add(deficit >= WSum(pure, [thr - sc for sc in scores]))  # max(0, thr*h - sum)
                 pen["score_deficit"][0].append(deficit)
             if band:                                           # soft: avg <= band_hi (linear)
                 excess = m.new_int_var(0, 100 * hi, f"sx{hc.shift}{d}")
-                m.add(excess >= WSum(pure, [sc - band_hi for sc in score100]))
+                m.add(excess >= WSum(pure, [sc - band_hi for sc in scores]))
                 pen["score_spread"][0].append(excess)
             if balance:                                        # avg_lo <= sum/h <= avg_hi (0.01 units)
-                total = WSum(pure, score100)                   # linearised by enumerating the
+                total = WSum(pure, scores)                     # linearised by enumerating the
                 hvars = []                                     # pure headcount h (0 = no shift)
                 for h in range(0, (min(hi, N) if dep.headcount_enabled else N) + 1):
                     b = nb(f"h{hc.shift}{d}_{h}")
@@ -406,9 +406,11 @@ def build_model(p: Problem) -> RosterModel:
                     pen["skill_need"][0].append(short)
 
     # ---- department overtime (soft) --------------------------------------------
-    if rule("dept_overtime") and ot_vars:
-        ex = m.new_int_var(0, total_ot_cap, "dept_ot_excess")   # includes already-recorded excess
-        m.add(ex >= Sum(ot_vars) - g.dept_overtime_cap)
+    unit_ot_vars = [ot_vars[n] for n in staff] if ot_vars else []   # her rounding overtime is her own record
+    unit_ot_cap = sum(ot_caps[n] for n in staff) if ot_vars else 0
+    if rule("dept_overtime") and unit_ot_vars:
+        ex = m.new_int_var(0, unit_ot_cap, "dept_ot_excess")    # includes already-recorded excess
+        m.add(ex >= Sum(unit_ot_vars) - g.dept_overtime_cap)
         pen["dept_overtime"][0].append(ex)
 
     # ---- overtime share (soft): each nurse's overtime above her target, beyond the tolerance ----
@@ -419,12 +421,12 @@ def build_model(p: Problem) -> RosterModel:
     # balance held above the tolerance (a plain upper bound p <= ot would make such a month infeasible).
     owed = F.overtime_owed(p) if rule("overtime_above_share") and ot_vars else 0
     if owed > 0:
-        unit_ot = m.new_int_var(0, total_ot_cap, "unit_ot")
-        m.add(unit_ot == Sum(ot_vars))
+        unit_ot = m.new_int_var(0, unit_ot_cap, "unit_ot")
+        m.add(unit_ot == Sum(unit_ot_vars))
         scale, tol = 100 * owed, dep.overtime_tolerance
         for n, nurse in enumerate(p.nurses):
             r = p.required_hours(nurse)
-            if r == 0:                                         # she owes none: no share, never priced
+            if r == 0 or nurse.on_probation:                   # she owes none, or is on probation: no share
                 continue
             adj = F.overtime_adj_100(p, nurse)
             priced = m.new_int_var(0, ot_caps[n], f"ots{n}")
@@ -434,6 +436,26 @@ def build_model(p: Problem) -> RosterModel:
                 m.add(priced >= ot_vars[n]).only_enforce_if(whole)
                 floor.only_enforce_if(whole.Not())
             pen["overtime_above_share"][0].append(priced)
+
+    # ---- following (hard; ADR 0014 of the app): `validate._following` says it in full. On each day the rule judges,
+    # fol is whether her preceptor works a shift she is allowed (a followable day): then a shift of hers is his, and a
+    # followable day she is off sets `missed`, which forbids her any judged day that is not followable. Nothing here
+    # binds the preceptor: she can always be off.
+    if rule("following"):
+        for n, nurse in enumerate(p.nurses):
+            q = preceptor_of(p, nurse)
+            if q is None:
+                continue
+            mine = [idx[s] for s in shifts if s in allowed[n]]
+            missed = nb(f"fm{n}")
+            for d in followable_candidates(p, nurse):
+                t = P + d
+                fol = nb(f"fo{n}_{d}")
+                m.add(fol == Sum([x[q][t][s] for s in mine]))
+                for s in mine:
+                    m.add_bool_or([x[n][t][s].Not(), fol.Not(), x[q][t][s]])
+                m.add_bool_or([fol.Not(), off[n][t].Not(), missed])
+                m.add_bool_or([missed.Not(), fol, off[n][t]])
 
     # ---- night/day switches: changes between night work and any other work -----------
     # last_n[t] remembers whether the most recent worked shift up to day t was the night

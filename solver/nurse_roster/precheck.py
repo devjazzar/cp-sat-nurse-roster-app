@@ -107,8 +107,8 @@ def precheck(p: Problem) -> list[str]:
     N, D = len(p.nurses), p.days
     shift_h = {s: g.shift_hours[s] for s in dep.shifts}
     K, R = dep.max_consecutive_shifts, dep.double_cycle_rest
-    allowed = {n.id: set(n.allowed_shifts) if n.allowed_shifts is not None else set(dep.shifts)
-               for n in p.nurses}
+    allowed = {n.id: set(p.allowed(n)) for n in p.nurses}   # a nurse on probation's: no night shift
+    staff = [n for n in p.nurses if not n.on_probation]     # who counts toward a shift: every supply below
     anchors = dep.headcounts if dep.headcount_enabled else []
     cut = p.planning_from                                     # elapsed days are facts: their demand
     free = range(cut, D)                                      # is met by whatever happened
@@ -146,8 +146,8 @@ def precheck(p: Problem) -> list[str]:
     # (only shifts some nurse may work count, as in the fairness share)
     cover = F.coverage(p) if anchors else {}
     demand_min = -(-demand_min // max(1, max(cover.values(), default=1)))
-    cap_max = sum(most_shifts(n) for n in p.nurses)
-    cap_min = sum(min(fewest(n), D) for n in p.nurses)
+    cap_max = sum(most_shifts(n) for n in staff)
+    cap_min = sum(min(fewest(n), D) for n in staff)
     if cap_max < demand_min:
         issues.append(f"capacity: headcount needs at least {demand_min} shifts but staff can give "
                       f"at most {cap_max} even with full overtime")
@@ -160,10 +160,10 @@ def precheck(p: Problem) -> list[str]:
     slots = len(free) * len(dep.headcounts)                   # anchor shifts still to staff
     groups = []
     if dep.require_team_leader:
-        groups.append(("team leader", [n for n in p.nurses if n.team_leader]))
+        groups.append(("team leader", [n for n in staff if n.team_leader]))
     if dep.require_both_genders:
-        groups += [("male", [n for n in p.nurses if n.gender == "M"]),
-                   ("female", [n for n in p.nurses if n.gender == "F"])]
+        groups += [("male", [n for n in staff if n.gender == "M"]),
+                   ("female", [n for n in staff if n.gender == "F"])]
     for label, members in groups:
         can = sum(most_shifts(n) for n in members)
         if can < slots:
@@ -172,7 +172,7 @@ def precheck(p: Problem) -> list[str]:
 
     # ---- per-shift eligibility -------------------------------------------------------
     for hc in dep.headcounts:
-        able = [n for n in p.nurses if hc.shift in allowed[n.id]]
+        able = [n for n in staff if hc.shift in allowed[n.id]]
         if dep.require_team_leader and not any(n.team_leader for n in able):
             issues.append(f"{hc.shift}: no team leader can work it")
         if dep.require_both_genders:
@@ -180,7 +180,7 @@ def precheck(p: Problem) -> list[str]:
                 if not any(n.gender == sex for n in able):
                     issues.append(f"{hc.shift}: no {sex} nurse can work it")
         covering = [hc.shift] + list(hc.also_counts)
-        able_any = [n for n in p.nurses if allowed[n.id] & set(covering)]
+        able_any = [n for n in staff if allowed[n.id] & set(covering)]
         need = max(((hc.weekend_min if p.is_weekend(d) else hc.weekday_min) for d in free), default=0)
         if dep.headcount_enabled and len(able_any) < need:        # over the days the month has
             issues.append(f"{hc.shift}: only {len(able_any)} nurses may work it"
@@ -188,7 +188,7 @@ def precheck(p: Problem) -> list[str]:
 
     # ---- per day: leave clustering against the day's demand (free days only) -----------
     for d in free:
-        here = [n for n in p.nurses if d not in off_days(n)]
+        here = [n for n in staff if d not in off_days(n)]
         today = {n.id: ({n.pinned[d]} if n.pinned.get(d) else allowed[n.id]) for n in here}   # pins fix the shift
         need = -(-sum(hc.weekend_min if p.is_weekend(d) else hc.weekday_min for hc in anchors)
                  // max(1, max(cover.values(), default=1)))
@@ -234,7 +234,7 @@ def precheck(p: Problem) -> list[str]:
         mins = {d: k.minimum(p.is_weekend(d)) for d in free}
         if not any(mins.values()):
             continue
-        holders = [n for n in p.nurses if any(holds_skill(n, k.skill, d) for d in free)]
+        holders = [n for n in staff if any(holds_skill(n, k.skill, d) for d in free)]
         if not holders:
             issues.append(f"{name}: no nurse holds {k.skill} on any free day" + priced)
             continue
@@ -272,6 +272,12 @@ def precheck(p: Problem) -> list[str]:
             if s not in governed:                             # `cover` drops unusable shifts
                 issues.append(f"{s}: no headcount names it (as anchor or also_counts), so any number "
                               f"of nurses may work it on any day")
+
+    # ---- a nurse on probation with no preceptor: nothing to follow (ADR 0014 of the app) -------
+    for n in p.nurses:
+        if n.on_probation and n.preceptor is None:
+            issues.append(f"{n.id}: on probation with no preceptor, so she follows no one: she is rostered on freely "
+                          f"placed day shifts, counted toward nothing")
 
     # ---- per-nurse: history depth, and can the owed shifts fit in the available days? --
     need_h = needed_history(dep, g)

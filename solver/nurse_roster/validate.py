@@ -8,8 +8,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .problem import (Nurse, Problem, barred_days, expired_required, expiry_words, preference_factor, skill_holders,
-                      superseding)
+from .problem import (Nurse, Problem, barred_days, expired_required, expiry_words, followable_candidates,
+                      preceptor_of, preference_factor, skill_holders, superseding)
 from . import fairness as F
 from .rules import HARD, RULES, Match, active, level, soft_ids, weight
 
@@ -49,7 +49,8 @@ class Ctx:
     allowed: list[set[str]]
     F: int                         # planning cutoff: month days before it are facts
     past_hrs: list[int]            # hours worked before the cutoff per nurse
-    pure: dict[tuple[int, int], list[int]] = field(default_factory=dict)   # (anchor, day) -> nurses
+    staff: list[int] = field(default_factory=list)                         # the counted nurses (problem.counted)
+    pure: dict[tuple[int, int], list[int]] = field(default_factory=dict)   # (anchor, day) -> counted nurses
 
 
 def _ctx(p: Problem, a: list[list[int]]) -> Ctx:
@@ -68,10 +69,10 @@ def _ctx(p: Problem, a: list[list[int]]) -> Ctx:
                {(idx[x], idx[y]) for x, y in p.successions() if x in idx and y in idx},
                idx.get(dep.night_shift), idx.get(dep.day_shift),
                [sum(hours[s] for s in a[n] if s >= 0) for n in range(N)],
-               [set(nu.allowed_shifts) if nu.allowed_shifts is not None else set(shifts)
-                for nu in p.nurses],
+               [set(p.allowed(nu)) for nu in p.nurses],
                p.planning_from,
-               [sum(hours[s] for s in a[n][:p.planning_from] if s >= 0) for n in range(N)])
+               [sum(hours[s] for s in a[n][:p.planning_from] if s >= 0) for n in range(N)],
+               [n for n, nu in enumerate(p.nurses) if not nu.on_probation])
 
 
 def count_switches(seq: list[int], H: int, NI: int | None, stop: int, last: bool | None = None) -> int:
@@ -132,7 +133,7 @@ def rest_owed_after(owed: int, seq: list[str], night: str, day: str, R: int) -> 
 def _pure(c: Ctx, ai: int, d: int) -> list[int]:
     key = (ai, d)
     if key not in c.pure:
-        c.pure[key] = [n for n in range(c.N) if c.a[n][d] == ai]
+        c.pure[key] = [n for n in c.staff if c.a[n][d] == ai]   # a nurse on probation counts toward nothing
     return c.pure[key]
 
 
@@ -174,7 +175,8 @@ def _hours_bounds(c: Ctx) -> list[Match]:
         hrs, req, cap = c.hrs[n], p.required_hours(nu), p.overtime_cap(nu)
         if hrs > req + cap:                                   # a past alone over the cap is a fact,
             past = c.past_hrs[n]                              # as long as the free days add nothing
-            out.append(Match(nu.id, None, 1, f"overtime: {nu.id} {hrs - req} > cap {cap}",
+            under = " (on probation: under one shift)" if nu.on_probation else ""
+            out.append(Match(nu.id, None, 1, f"overtime: {nu.id} {hrs - req} > cap {cap}{under}",
                              elapsed=past > req + cap and hrs == past))
     return out
 
@@ -216,7 +218,7 @@ def _headcount(c: Ctx) -> list[Match]:
         extra = {c.idx[s] for s in hc.also_counts if s in c.idx}
         for d in range(c.D):
             lo, hi = (hc.weekend_min, hc.weekend_max) if p.is_weekend(d) else (hc.weekday_min, hc.weekday_max)
-            present = len(_pure(c, ai, d)) + sum(1 for n in range(c.N) if c.a[n][d] in extra)
+            present = len(_pure(c, ai, d)) + sum(1 for n in c.staff if c.a[n][d] in extra)
             if not lo <= present <= hi:
                 out.append(Match(None, d, 1, f"headcount: day {d} {hc.shift} = {present}, want {lo}..{hi}",
                                  elapsed=d < c.F))
@@ -353,7 +355,7 @@ def _avoidable_shortfall(c: Ctx) -> list[Match]:
 
 
 def _dept_overtime(c: Ctx) -> list[Match]:
-    total = sum(max(0, c.hrs[n] - c.p.required_hours(nu)) for n, nu in enumerate(c.p.nurses))
+    total = F.unit_overtime(c.p, [max(0, c.hrs[n] - c.p.required_hours(nu)) for n, nu in enumerate(c.p.nurses)])
     cap = c.p.general.dept_overtime_cap
     return [Match(None, None, total - cap, f"department overtime {total} h, cap {cap}")] if total > cap else []
 
@@ -396,7 +398,8 @@ def _fair_weekend(c: Ctx) -> list[Match]:
     if not c.weekend_days:
         return out
     tol, per = round(p.department.fair_tolerance * 1000), F.friday_slots_m(p)
-    for n, nu in enumerate(p.nurses):
+    for n in c.staff:                                         # a nurse on probation has no Friday share
+        nu = p.nurses[n]
         fc = sum(1 for d in c.weekend_days if c.a[n][d] >= 0)
         target = F.friday_expected_m(p, nu, per) - 100 * F.adj_tenths(nu.friday_balance, p)
         amt = max(0, _ceil100(1000 * fc - target - tol), _ceil100(target - 1000 * fc - tol))
@@ -430,7 +433,7 @@ def _overtime_above_share(c: Ctx) -> list[Match]:
     """Each nurse's overtime above her overtime share's target, beyond the tolerance (`fairness.overtime_priced`)."""
     out, p = [], c.p
     overtime = [max(0, c.hrs[n] - p.required_hours(nu)) for n, nu in enumerate(p.nurses)]
-    total, owed = sum(overtime), F.overtime_owed(p)
+    total, owed = F.unit_overtime(p, overtime), F.overtime_owed(p)
     for n, nu in enumerate(p.nurses):
         amt = F.overtime_priced(p, nu, overtime[n], total, owed)
         if amt > 0:
@@ -438,6 +441,37 @@ def _overtime_above_share(c: Ctx) -> list[Match]:
             target = f", target {share - adj / 100:.1f} h after the carried balance" if adj else ""
             out.append(Match(nu.id, None, amt, f"{nu.id}: {overtime[n]} h overtime, share {share:.1f} h{target}, "
                                                f"{amt} h priced"))
+    return out
+
+
+def _following(c: Ctx) -> list[Match]:
+    """A nurse on probation and her preceptor (ADR 0014 of the app). Her followable days are the days the rule judges
+    (`followable_candidates`: not pinned, not on leave, not barred) on which her preceptor works a shift she is allowed.
+    On one she works her preceptor's shift or is off, never another; and once one is left off, she works no judged
+    day that is not followable (her hours held what they could beside her preceptor). Pins and elapsed days are facts,
+    never judged, so no match is elapsed."""
+    out, p = [], c.p
+    for n, nu in enumerate(p.nurses):
+        q = preceptor_of(p, nu)
+        if q is None:
+            continue
+        mine, theirs, qid = c.a[n], c.a[q], nu.preceptor
+        name = lambda v: c.shifts[v] if v >= 0 else "off"
+        days = followable_candidates(p, nu)
+        followable = [d for d in days if theirs[d] >= 0 and c.shifts[theirs[d]] in c.allowed[n]]
+        for d in followable:
+            if mine[d] >= 0 and mine[d] != theirs[d]:
+                out.append(Match(nu.id, d, 1, f"following: {nu.id} works {name(mine[d])} on day {d}, her preceptor "
+                                              f"{qid} works {name(theirs[d])}"))
+        missed = [d for d in followable if mine[d] < 0]
+        if missed:
+            first, fset = missed[0], set(followable)
+            for d in days:
+                if d not in fset and mine[d] >= 0:
+                    doing = f"works {name(theirs[d])}" if theirs[d] >= 0 else "is off"
+                    out.append(Match(nu.id, d, 1, f"following: {nu.id} works {name(mine[d])} on day {d}, when her "
+                                                  f"preceptor {qid} {doing}, while she is off on day {first}, when "
+                                                  f"{qid} works {name(theirs[first])}"))
     return out
 
 
@@ -554,6 +588,7 @@ CHECKS: dict[str, Callable[[Ctx], list[Match]]] = {
     "excess_weekend": _excess_weekend, "excess_full_run": _excess_full_run,
     "undesired_day": _undesired_day, "desired_day": _desired_day,
     "pin": _pin, "change": _change, "skill_expired": _skill_expired, "skill_need": _skill_need,
+    "following": _following,
 }
 assert set(CHECKS) == set(RULES), "every registered rule needs a validator check"
 

@@ -69,6 +69,12 @@ for the same reason: `department.share_overtime` (absent = false, the rule off),
 0), `general.weights.overtime_above_share` (absent = 0) and a nurse's `overtime_balance`, the hours
 her overtime has stood above (+) or below (-) her overtime share so far this year (absent = 0; a
 carried value, as `preferences_not_kept` is). The rule: `fairness.overtime_priced`.
+
+Probation (2026-11-12, ticket 52 of the app; ADR 0014) adds two nurse fields, optional in either version for the
+same reason: `on_probation` (absent = false) and `preceptor`, the id of another nurse of the input she follows
+(absent or null = none). Refused: a preceptor that is not another nurse of the input, one herself on probation, one
+named by two nurses, and a preceptor on a nurse not on probation. What they mean: `problem.counted`,
+`Problem.allowed`, `Problem.overtime_cap` and the `following` rule (`validate._following`).
 """
 from __future__ import annotations
 
@@ -95,7 +101,7 @@ _NURSE_REQUIRED = ("id", "gender", "team_leader", "score", "ramadan_reduced", "b
 _KINDS = (None, "night", "day")
 _NURSE_DATES = ("leave", "undesired_days", "desired_days")
 _NURSE_OPTIONAL = _NURSE_DATES + ("pinned", "allowed_shifts", "previous", "preferences_not_kept", "overtime_balance",
-                                  "skills")
+                                  "skills", "on_probation", "preceptor")
 # the fields version 2 adds, with the values a version-1 request is read with (no skills)
 _V2_GENERAL = {"required_skills": []}
 _V2_WEIGHTS = {"skill_shortfall": 0}
@@ -169,6 +175,7 @@ def load_request(raw: object) -> Request:
         n = _nurse(month, nd, f"request: nurses[{i}]", shifts, renames)
         nurses.append(n)
         ids.append(n["id"])
+    _preceptors(nurses)
     settings = _settings(raw["solver"])
     published = _published(month, raw.get("published"), ids, shifts) if "published" in raw else None
     replan = None
@@ -350,7 +357,36 @@ def _nurse(month: MonthInfo, nd: object, where: str, shifts: list[str] | None,
         n["overtime_balance"] = balance
     if "skills" in nd:
         n["skills"] = _skills(month, nd["skills"], f"{where}.skills")
+    if "on_probation" in nd:
+        if not isinstance(nd["on_probation"], bool):
+            raise ValueError(f"{where}.on_probation: must be true or false, got {nd['on_probation']!r}")
+        n["on_probation"] = nd["on_probation"]
+    if "preceptor" in nd:
+        q = nd["preceptor"]
+        if q is not None and not isinstance(q, str):
+            raise ValueError(f"{where}.preceptor: must be a nurse id or null, got {q!r}")
+        n["preceptor"] = q
     return n
+
+
+def _preceptors(nurses: list[dict]) -> None:
+    """Each preceptor named is another nurse of the input, not herself on probation, named by one nurse only, and only
+    for a nurse on probation (the problem checks the same by id, for a problem file)."""
+    by_id = {n["id"]: n for n in nurses}
+    precepting: dict[str, int] = {}
+    for i, n in enumerate(nurses):
+        q, where = n.get("preceptor"), f"request: nurses[{i}].preceptor"
+        if q is None:
+            continue
+        if not n.get("on_probation", False):
+            raise ValueError(f"{where}: {q!r} is named for a nurse not on probation")
+        if q == n["id"] or q not in by_id:
+            raise ValueError(f"{where}: {q!r} is not another nurse of the input")
+        if by_id[q].get("on_probation", False):
+            raise ValueError(f"{where}: {q!r} is herself on probation")
+        if q in precepting:
+            raise ValueError(f"{where}: {q!r} already precepts nurses[{precepting[q]}] (one nurse on probation each)")
+        precepting[q] = i
 
 
 def _skills(month: MonthInfo, raw: object, where: str) -> dict[str, int | None]:
