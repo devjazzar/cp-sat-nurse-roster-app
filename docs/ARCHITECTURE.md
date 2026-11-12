@@ -185,8 +185,12 @@ a forbidden succession names, cannot be retired, and the refusal names the units
 
 **Leave type**: name, active flag. Every type counts the same for hours.
 
-**Skill** (catalogue): name (unique in any case of letters), expires, required to work, lets a nurse precept, active flag.
-The CNO keeps it and every role reads it, the System Admin included, since it names no one. Never deleted, only retired:
+**Skill** (catalogue): name (unique in any case of letters), kind (a skill, a certificate or a licence), issuing body (free
+text, at most 100 characters, may be empty), expires, required to work, lets a nurse precept, active flag. A licence always
+expires: a licence with `expires` off is refused, and a check constraint holds it in the database. Changing an entry to a
+licence is refused beside its kind, naming the nurses, while a current record of it has no expiry; changing away from licence
+is free. Every other rule here treats every kind alike, the skill needs included; the Skills page lists the entries under
+Skills, Certificates and Licences. The CNO keeps it and every role reads it, the System Admin included, since it names no one. Never deleted, only retired:
 nurses' records of it and past rosters keep it. The name may be renamed: each rename is recorded (old name, new name, by whom
 and when), and no other skill may take a name a skill used to hold, as for a shift's code, so that an old name in a stored
 solve input still means one skill. A change goes to the audit log with its values (`skill.created`, `skill.changed`). Turning

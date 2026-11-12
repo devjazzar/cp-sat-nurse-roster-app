@@ -1949,23 +1949,23 @@ describe("the leave types page", () => {
 
 // Ticket 32. The CNO keeps the skill catalogue; every other role reads it, and the System Admin has no link to it.
 describe("the skills page", () => {
-  const ICU = { id: "k1", name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
-  const BLS = { id: "k2", name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
+  const ICU = { id: "k1", name: "ICU", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
+  const BLS = { id: "k2", name: "BLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
   const listed = { "GET /api/hospital/skills": { body: [BLS, ICU] } }
   const rowOf = async (name: string) => (await screen.findByText(name)).closest("tr") as HTMLElement
-  /** The "Lets a nurse precept" column, the fourth. */
-  const precepts = async (name: string) => within(await rowOf(name)).getAllByRole("cell")[3]
+  /** The "Lets a nurse precept" column, the fifth. */
+  const precepts = async (name: string) => within(await rowOf(name)).getAllByRole("cell")[4]
 
   it("lists the catalogue for the CNO, with both flags and a skill's former names", async () => {
     const renamed = { ...BLS, name: "Basic life support", renames: [{ old_name: "BLS", new_name: "Basic life support", at: "2026-11-05T10:00:00+03:00" }] }
     start("/skills", asCno({ "GET /api/hospital/skills": { body: [renamed, { ...ICU, active: false }] } }))
 
     const table = await screen.findByRole("table")
-    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Expires", "Required to work", "Lets a nurse precept", "Status", "Actions"])
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Issuing body", "Expires", "Required to work", "Lets a nurse precept", "Status", "Actions"])
     const bls = await rowOf("Basic life support")
     expect(within(bls).getByText(/until 2026-11-05/)).toHaveTextContent("Was BLS until 2026-11-05")
-    expect(within(bls).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 5)).toEqual(["Yes", "Yes", "No", "Active"])
-    expect(within(await rowOf("ICU")).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 5)).toEqual(["No", "No", "No", "Retired"])
+    expect(within(bls).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 6)).toEqual(["", "Yes", "Yes", "No", "Active"])
+    expect(within(await rowOf("ICU")).getAllByRole("cell").map((cell) => cell.textContent).slice(1, 6)).toEqual(["", "No", "No", "No", "Retired"])
   })
 
   it("adds a skill with both flags and empties the form", async () => {
@@ -1984,7 +1984,7 @@ describe("the skills page", () => {
     await user.click(screen.getByRole("button", { name: "Add skill" }))
 
     expect(await screen.findByText("ACLS is added.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "ACLS", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true })
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "ACLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true })
     expect(screen.getByLabelText("Name")).toHaveValue("")
     expect(screen.getByLabelText("Expires")).not.toBeChecked()
   })
@@ -2022,7 +2022,7 @@ describe("the skills page", () => {
     await user.click(screen.getByRole("button", { name: "Save skill" }))
 
     expect(await screen.findByText("Basic life support is saved.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Basic life support", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: false })
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "Basic life support", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: false })
     expect(screen.getByRole("heading", { name: "Add a skill" })).toBeInTheDocument()
     await waitFor(() => expect(edit).toHaveFocus())
   })
@@ -2047,14 +2047,14 @@ describe("the skills page", () => {
     await user.click(mark)
     await user.click(screen.getByRole("button", { name: "Save skill" }))
     expect(await screen.findByText("BLS is saved.")).toBeInTheDocument()
-    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "BLS", expires: true, required_to_work: true, lets_a_nurse_precept: true, active: true })
+    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "BLS", kind: "skill", issuing_body: "", expires: true, required_to_work: true, lets_a_nurse_precept: true, active: true })
 
     await user.click(screen.getByRole("button", { name: "Edit ICU" }))
     expect(screen.getByLabelText("Lets a nurse precept")).toBeChecked()
     await user.click(screen.getByLabelText("Lets a nurse precept"))
     await user.click(screen.getByRole("button", { name: "Save skill" }))
     expect(await screen.findByText("ICU is saved.")).toBeInTheDocument()
-    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "ICU", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true })
+    expect(calls.filter((call) => call.method === "PUT").at(-1)?.body).toEqual({ name: "ICU", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true })
   })
 
   it("adds a skill that lets a nurse precept", async () => {
@@ -2068,8 +2068,89 @@ describe("the skills page", () => {
     await user.click(screen.getByRole("button", { name: "Add skill" }))
 
     expect(await screen.findByText("Preceptor course is added.")).toBeInTheDocument()
-    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Preceptor course", expires: false, required_to_work: false, lets_a_nurse_precept: true, active: true })
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Preceptor course", kind: "skill", issuing_body: "", expires: false, required_to_work: false, lets_a_nurse_precept: true, active: true })
     expect(screen.getByLabelText("Lets a nurse precept")).not.toBeChecked()
+  })
+
+  // Ticket 58. Each entry is a skill, a certificate or a licence, and names the body that issues it.
+  const DEGREE = { id: "k3", name: "BSc Nursing", kind: "certificate", issuing_body: "King Saud University", expires: false, required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
+  const SCFHS = { id: "k4", name: "SCFHS registration", kind: "licence", issuing_body: "Saudi Commission for Health Specialties", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
+  const namesIn = (group: HTMLElement) => within(group).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[0].textContent)
+
+  it("groups the catalogue under Skills, Certificates and Licences, each with its entries and their issuing bodies", async () => {
+    start("/skills", asCno({ "GET /api/hospital/skills": { body: [DEGREE, BLS, ICU, SCFHS] } }))
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getAllByRole("rowgroup").slice(1).map((group) => within(group).getAllByRole("row")[0].textContent)).toEqual(["Skills", "Certificates", "Licences"])
+    expect(namesIn(within(table).getByRole("rowgroup", { name: "Skills" }))).toEqual(["BLS", "ICU"])
+    expect(namesIn(within(table).getByRole("rowgroup", { name: "Certificates" }))).toEqual(["BSc Nursing"])
+    expect(namesIn(within(table).getByRole("rowgroup", { name: "Licences" }))).toEqual(["SCFHS registration"])
+    expect(within(await rowOf("SCFHS registration")).getAllByRole("cell")[1]).toHaveTextContent("Saudi Commission for Health Specialties")
+  })
+
+  it("leaves out a heading that has no entries", async () => {
+    start("/skills", asCno({ "GET /api/hospital/skills": { body: [SCFHS, ICU] } }))
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getByRole("rowgroup", { name: "Skills" })).toBeInTheDocument()
+    expect(within(table).getByRole("rowgroup", { name: "Licences" })).toBeInTheDocument()
+    expect(within(table).queryByRole("rowgroup", { name: "Certificates" })).not.toBeInTheDocument()
+  })
+
+  it("adds a licence with its issuing body, Expires on and fixed while the kind is licence", async () => {
+    const { user, calls } = start("/skills", asCno({
+      ...listed,
+      "POST /api/hospital/skills": ({ body }: { body: unknown }) => ({ status: 201, body: { ...(body as object), id: "k4", renames: [] } }),
+    }))
+
+    const kind = await screen.findByLabelText("Kind")
+    expect(kind).toHaveValue("skill")
+    expect(kind).toHaveAccessibleDescription(/A licence permits a nurse to practise and always expires/)
+    expect(screen.getByLabelText("Issuing body")).toHaveAccessibleDescription(/Saudi Commission for Health Specialties/)
+    await user.type(screen.getByLabelText("Name"), "SCFHS registration")
+    await user.selectOptions(kind, "Licence")
+    expect(screen.getByLabelText("Expires")).toBeChecked()
+    expect(screen.getByLabelText("Expires")).toBeDisabled()
+    expect(screen.getByLabelText("Expires")).toHaveAccessibleDescription(/A licence always expires/)
+    await user.type(screen.getByLabelText("Issuing body"), "Saudi Commission for Health Specialties")
+    await user.click(screen.getByLabelText("Required to work"))
+    await user.click(screen.getByRole("button", { name: "Add skill" }))
+
+    expect(await screen.findByText("SCFHS registration is added.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "SCFHS registration", kind: "licence", issuing_body: "Saudi Commission for Health Specialties", expires: true, required_to_work: true, lets_a_nurse_precept: false, active: true })
+    expect(screen.getByLabelText("Kind")).toHaveValue("skill")
+    expect(screen.getByLabelText("Expires")).toBeEnabled()
+  })
+
+  it("frees Expires again when the kind changes away from licence", async () => {
+    const { user, calls } = start("/skills", asCno({
+      "GET /api/hospital/skills": { body: [SCFHS] },
+      "PUT /api/hospital/skills/k4": ({ body }: { body: unknown }) => ({ body: { ...SCFHS, ...(body as object) } }),
+    }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit SCFHS registration" }))
+    expect(screen.getByLabelText("Kind")).toHaveValue("licence")
+    expect(screen.getByLabelText("Expires")).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText("Kind"), "Certificate")
+    expect(screen.getByLabelText("Expires")).toBeEnabled()
+    expect(screen.getByLabelText("Expires")).toBeChecked()
+    await user.click(screen.getByLabelText("Expires"))
+    await user.click(screen.getByRole("button", { name: "Save skill" }))
+
+    expect(await screen.findByText("SCFHS registration is saved.")).toBeInTheDocument()
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({ name: "SCFHS registration", kind: "certificate", issuing_body: "Saudi Commission for Health Specialties", expires: false, required_to_work: true, lets_a_nurse_precept: false, active: true })
+  })
+
+  it("shows a refused change to licence beside the kind", async () => {
+    const words = "Amal Saleh holds ICU with no expiry, and a licence always expires. Take it off them first, then record it again with its expiry."
+    const { user } = start("/skills", asCno({ ...listed, "PUT /api/hospital/skills/k1": refusal(["kind"], words) }))
+
+    await user.click(await screen.findByRole("button", { name: "Edit ICU" }))
+    await user.selectOptions(screen.getByLabelText("Kind"), "Licence")
+    await user.click(screen.getByRole("button", { name: "Save skill" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Kind")).toHaveFocus())
+    expect(screen.getByLabelText("Kind")).toHaveAccessibleDescription(expect.stringContaining(words))
   })
 
   it("cancelling an edit changes nothing", async () => {
@@ -2103,6 +2184,9 @@ describe("the skills page", () => {
 
     expect(await screen.findByText("BLS")).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Lets a nurse precept" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Issuing body" })).toBeInTheDocument()
+    expect(screen.getByRole("rowgroup", { name: "Skills" })).toBeInTheDocument()
+    expect(screen.queryByLabelText("Kind")).not.toBeInTheDocument()
     expect(await precepts("BLS")).toHaveTextContent("Yes")
     expect(await precepts("ICU")).toHaveTextContent("No")
     expect(screen.getByText(/checked only when a preceptor is assigned/)).toBeInTheDocument()
