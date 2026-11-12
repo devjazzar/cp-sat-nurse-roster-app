@@ -117,9 +117,9 @@ class NurseSkillQuerySet(models.QuerySet):
 
 class NurseSkill(models.Model):
     """A skill a nurse holds, with its expiry, the last day it counts, where the catalogue says the kind expires. The CNO's
-    to record, renew and take off. A renewal or a removal ends the row rather than rewriting or deleting it, as leave does,
-    because the audit log may hold neither the skill nor the date (the System Admin reads it), so this is the only record of
-    what was there. Only `current()` rows mean anything to anyone. On the profile, not a placement, so a transfer carries it.
+    and the Deputy CNO's to record, renew and take off. A renewal or a removal ends the row rather than rewriting or deleting
+    it, as leave does, because the audit log may hold neither the skill nor the date (the System Admin reads it), so this is
+    the only record of what was there. Only `current()` rows mean anything to anyone. On the profile, not a placement, so a transfer carries it.
     The expiry stays as recorded when the CNO turns the kind's `expires` off, and counts for nothing until it is on again."""
 
     id = models.UUIDField(primary_key=True, db_default=UUID7(), editable=False)
