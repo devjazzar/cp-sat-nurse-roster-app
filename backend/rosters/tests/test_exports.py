@@ -302,7 +302,8 @@ class TestThePrintSheet:
         assert [day["date"] for day in answer["days"]] == DATES
         assert answer["shifts"] == [{"code": "D", "display_name": "Day", "hours": 12},
                                     {"code": "N", "display_name": "Night", "hours": 12}]
-        assert answer["rows"][0] == {"hospital_id": "Amal", "full_name": "Amal", "shifts": AMAL, "hours": 204, "counts": [6, 11]}
+        assert answer["rows"][0] == {"hospital_id": "Amal", "full_name": "Amal", "shifts": AMAL, "hours": 204, "counts": [6, 11],
+                                    "on_probation": False, "preceptor_name": None}
         assert [[row["hospital_id"], row["full_name"], *row["shifts"], str(row["hours"]), *map(str, row["counts"])]
                 for row in answer["rows"]] == csv_rows(export(mona, er, 1))[1:]
 

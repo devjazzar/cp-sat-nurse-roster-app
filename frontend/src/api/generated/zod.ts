@@ -2639,6 +2639,8 @@ export const GetRosterMonthResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -2863,6 +2865,8 @@ export const SaveDraftPinsResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -3043,6 +3047,8 @@ export const SaveRosterVersionResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -3265,6 +3271,8 @@ export const SubmitRosterResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -3427,6 +3435,8 @@ export const ApproveRosterResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -3591,6 +3601,8 @@ export const RejectRosterResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -3719,8 +3731,10 @@ export const GetRosterVersionSheetResponse = zod.object({
   "full_name": zod.string(),
   "shifts": zod.array(zod.string()).describe('One for each of `days`: the shift\'s code, or empty for a day not worked, leave included.'),
   "hours": zod.int().describe('Hours of the shifts on this row.'),
-  "counts": zod.array(zod.int()).describe('How many of each of `shifts` this row works, in that order.')
-})).describe('Everyone on the version, by name.'),
+  "counts": zod.array(zod.int()).describe('How many of each of `shifts` this row works, in that order.'),
+  "on_probation": zod.boolean().describe('On probation in this month, as the version was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the version was planned. Null when she is not on probation, or no preceptor was in force for her.')
+})).describe('Everyone on the version, by name: the counted nurses, then those on probation.'),
   "mine": zod.union([zod.array(zod.object({
   "date": zod.iso.date(),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('The reader\'s own day. `outside` is before their start date or after their end date.')
@@ -4076,6 +4090,8 @@ export const GetSolveResultResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -4223,6 +4239,8 @@ export const RestoreSolveResultResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "cells": zod.array(zod.object({
   "shift": zod.string().describe('The shift\'s code. Empty for a day not worked.'),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('`outside` is before a start date or after an end date, credited like leave.')
@@ -5837,8 +5855,10 @@ export const GetMyRosterResponse = zod.object({
   "rows": zod.array(zod.object({
   "hospital_id": zod.string(),
   "full_name": zod.string(),
+  "on_probation": zod.boolean().describe('On probation in this month, as the roster was planned: the row is one of the last, under the "On probation" heading.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the roster was planned. Null when she is not on probation, or no preceptor was in force for her.'),
   "shifts": zod.array(zod.string()).describe('One for each of `days`: the shift\'s code, or empty for a day not worked.')
-}).describe('A name and a shift a day, and nothing else: a day of leave and a day off are both `""`.')).describe('Everyone on the roster, the reader too, by name.'),
+}).describe('A name, whether she is on probation and with which preceptor, and a shift a day, and nothing else: a day of leave and a\nday off are both `""`.')).describe('Everyone on the roster, the reader too, by name: the counted nurses, then those on probation.'),
   "mine": zod.union([zod.array(zod.object({
   "date": zod.iso.date(),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('The reader\'s own day. `outside` is before their start date or after their end date.')
@@ -5885,8 +5905,10 @@ export const GetMyRosterSheetResponse = zod.object({
   "full_name": zod.string(),
   "shifts": zod.array(zod.string()).describe('One for each of `days`: the shift\'s code, or empty for a day not worked, leave included.'),
   "hours": zod.int().describe('Hours of the shifts on this row.'),
-  "counts": zod.array(zod.int()).describe('How many of each of `shifts` this row works, in that order.')
-})).describe('Everyone on the version, by name.'),
+  "counts": zod.array(zod.int()).describe('How many of each of `shifts` this row works, in that order.'),
+  "on_probation": zod.boolean().describe('On probation in this month, as the version was planned: the row is one of the last, under the "On probation" heading, and counts toward no total.'),
+  "preceptor_name": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name, as the version was planned. Null when she is not on probation, or no preceptor was in force for her.')
+})).describe('Everyone on the version, by name: the counted nurses, then those on probation.'),
   "mine": zod.union([zod.array(zod.object({
   "date": zod.iso.date(),
   "kind": zod.enum(['shift', 'off', 'leave', 'outside']).describe('The reader\'s own day. `outside` is before their start date or after their end date.')
@@ -5929,7 +5951,12 @@ export const GetMyMonthResponse = zod.object({
   "count": zod.int()
 })).describe('Each shift they work, in the catalogue\'s order.')
 }),zod.null()]).describe('Null when the reader has no row on it, such as a nurse due to start, or when the month as it stands no longer has them.')
-}),zod.null()]).describe('Null until that unit\'s roster of the month is approved, and for a month before `first_month`.')
+}),zod.null()]).describe('Null until that unit\'s roster of the month is approved, and for a month before `first_month`.'),
+  "probation": zod.union([zod.object({
+  "last_day": zod.iso.date().describe('Her probation\'s last day, as it stands.'),
+  "preceptor": zod.union([zod.string(),zod.null()]).describe('Her preceptor\'s full name in this month, as it stands. Null while none is assigned.')
+}),zod.null()]).optional().describe('The reader\'s own probation, when they are on probation in this month. Null for anyone else.'),
+  "precepts": zod.union([zod.string(),zod.null()]).optional().describe('The full name of the nurse on probation the reader precepts in this month, as it stands. Null for anyone else.')
 })
 
 

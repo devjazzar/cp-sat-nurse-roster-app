@@ -21,7 +21,7 @@ export interface RosterSheet {
   made_at: string;
   days: GridDay[];
   shifts: SheetShiftOut[];
-  /** Everyone on the version, by name. */
+  /** Everyone on the version, by name: the counted nurses, then those on probation. */
   rows: SheetRowOut[];
   /** On a nurse's own sheet, their own row, one for each of `days`, which may say leave. Null on anyone else's sheet, and when they are not on it. */
   mine?: MyDay[] | null;

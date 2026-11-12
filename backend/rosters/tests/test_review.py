@@ -629,7 +629,7 @@ class TestTheNursesView:
         seen = mine(nurses_of_er("Amal"))["roster"]
 
         assert set(seen) == {"approved_at", "version", "days", "shifts", "rows", "mine"}
-        assert [set(row) for row in seen["rows"]] == [{"hospital_id", "full_name", "shifts"}] * 4
+        assert [set(row) for row in seen["rows"]] == [{"hospital_id", "full_name", "on_probation", "preceptor_name", "shifts"}] * 4
         assert len(seen["days"]) == 30
         badr = next(row for row in seen["rows"] if row["hospital_id"] == "Badr")
         assert badr["shifts"] == [SOUND[MONTH]["roster"]["Badr"][f"{MONTH}-{day:02d}"] for day in range(1, 31)]

@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1
  */
 import type { MyMonthInForce } from './myMonthInForce';
+import type { MyProbation } from './myProbation';
 
 export interface MyMonth {
   month: string;
@@ -14,4 +15,8 @@ export interface MyMonth {
   unit: string | null;
   /** Null until that unit's roster of the month is approved, and for a month before `first_month`. */
   roster: MyMonthInForce | null;
+  /** The reader's own probation, when they are on probation in this month. Null for anyone else. */
+  probation?: MyProbation | null;
+  /** The full name of the nurse on probation the reader precepts in this month, as it stands. Null for anyone else. */
+  precepts?: string | null;
 }

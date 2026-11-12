@@ -186,6 +186,7 @@ export * from './myPreferenceRowKind';
 export * from './myPreferenceRowOutcome';
 export * from './myPreferenceRowState';
 export * from './myPreferences';
+export * from './myProbation';
 export * from './myRequestRow';
 export * from './myRequestRowState';
 export * from './myRequests';

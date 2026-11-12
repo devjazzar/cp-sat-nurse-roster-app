@@ -11787,6 +11787,23 @@
             "title": "Full Name",
             "type": "string"
           },
+          "on_probation": {
+            "description": "On probation in this month, as the grid was planned: the row is one of the last, under the \"On probation\" heading, and counts toward no total.",
+            "title": "On Probation",
+            "type": "boolean"
+          },
+          "preceptor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Her preceptor's full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her.",
+            "title": "Preceptor Name"
+          },
           "cells": {
             "items": {
               "$ref": "#/components/schemas/GridCell"
@@ -11798,6 +11815,8 @@
         "required": [
           "hospital_id",
           "full_name",
+          "on_probation",
+          "preceptor_name",
           "cells"
         ],
         "title": "GridRow",
@@ -12657,7 +12676,7 @@
             "type": "array"
           },
           "rows": {
-            "description": "Everyone on the version, by name.",
+            "description": "Everyone on the version, by name: the counted nurses, then those on probation.",
             "items": {
               "$ref": "#/components/schemas/SheetRowOut"
             },
@@ -12723,6 +12742,23 @@
             },
             "title": "Counts",
             "type": "array"
+          },
+          "on_probation": {
+            "description": "On probation in this month, as the version was planned: the row is one of the last, under the \"On probation\" heading, and counts toward no total.",
+            "title": "On Probation",
+            "type": "boolean"
+          },
+          "preceptor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Her preceptor's full name, as the version was planned. Null when she is not on probation, or no preceptor was in force for her.",
+            "title": "Preceptor Name"
           }
         },
         "required": [
@@ -12730,7 +12766,9 @@
           "full_name",
           "shifts",
           "hours",
-          "counts"
+          "counts",
+          "on_probation",
+          "preceptor_name"
         ],
         "title": "SheetRowOut",
         "type": "object"
@@ -17401,7 +17439,7 @@
         "type": "object"
       },
       "ColleagueRow": {
-        "description": "A name and a shift a day, and nothing else: a day of leave and a day off are both `\"\"`.",
+        "description": "A name, whether she is on probation and with which preceptor, and a shift a day, and nothing else: a day of leave and a\nday off are both `\"\"`.",
         "properties": {
           "hospital_id": {
             "title": "Hospital Id",
@@ -17410,6 +17448,23 @@
           "full_name": {
             "title": "Full Name",
             "type": "string"
+          },
+          "on_probation": {
+            "description": "On probation in this month, as the roster was planned: the row is one of the last, under the \"On probation\" heading.",
+            "title": "On Probation",
+            "type": "boolean"
+          },
+          "preceptor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Her preceptor's full name, as the roster was planned. Null when she is not on probation, or no preceptor was in force for her.",
+            "title": "Preceptor Name"
           },
           "shifts": {
             "description": "One for each of `days`: the shift's code, or empty for a day not worked.",
@@ -17423,6 +17478,8 @@
         "required": [
           "hospital_id",
           "full_name",
+          "on_probation",
+          "preceptor_name",
           "shifts"
         ],
         "title": "ColleagueRow",
@@ -17498,7 +17555,7 @@
             "type": "array"
           },
           "rows": {
-            "description": "Everyone on the roster, the reader too, by name.",
+            "description": "Everyone on the roster, the reader too, by name: the counted nurses, then those on probation.",
             "items": {
               "$ref": "#/components/schemas/ColleagueRow"
             },
@@ -17697,6 +17754,29 @@
               }
             ],
             "description": "Null until that unit's roster of the month is approved, and for a month before `first_month`."
+          },
+          "probation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MyProbation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reader's own probation, when they are on probation in this month. Null for anyone else."
+          },
+          "precepts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The full name of the nurse on probation the reader precepts in this month, as it stands. Null for anyone else.",
+            "title": "Precepts"
           }
         },
         "required": [
@@ -17743,6 +17823,34 @@
           "hours"
         ],
         "title": "MyMonthInForce",
+        "type": "object"
+      },
+      "MyProbation": {
+        "properties": {
+          "last_day": {
+            "description": "Her probation's last day, as it stands.",
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "preceptor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Her preceptor's full name in this month, as it stands. Null while none is assigned.",
+            "title": "Preceptor"
+          }
+        },
+        "required": [
+          "last_day",
+          "preceptor"
+        ],
+        "title": "MyProbation",
         "type": "object"
       },
       "ShiftCount": {

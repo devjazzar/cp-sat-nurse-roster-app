@@ -9,5 +9,9 @@ import type { GridCell } from './gridCell';
 export interface GridRow {
   hospital_id: string;
   full_name: string;
+  /** On probation in this month, as the grid was planned: the row is one of the last, under the "On probation" heading, and counts toward no total. */
+  on_probation: boolean;
+  /** Her preceptor's full name, as the grid was planned. Null when she is not on probation, or no preceptor was in force for her. */
+  preceptor_name: string | null;
   cells: GridCell[];
 }

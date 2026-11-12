@@ -140,7 +140,8 @@ class TestWhichMonths:
     def test_a_manager_with_no_nurse_profile_has_no_unit(self, mona, er, solver, carla):
         approved_june(mona, er, solver, carla)
 
-        assert month(mona) == {"month": "2026-06", "first_month": "2026-05", "unit": None, "roster": None}
+        assert month(mona) == {"month": "2026-06", "first_month": "2026-05", "unit": None, "roster": None,
+                               "probation": None, "precepts": None}
 
     @pytest.mark.parametrize("role", [Role.CNO, Role.DEPUTY_CNO, Role.SYSTEM_ADMIN])
     def test_other_roles_are_refused(self, role, client_of):

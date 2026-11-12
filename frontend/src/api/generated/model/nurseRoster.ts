@@ -14,7 +14,7 @@ export interface NurseRoster {
   version: number;
   days: GridDay[];
   shifts: NurseShift[];
-  /** Everyone on the roster, the reader too, by name. */
+  /** Everyone on the roster, the reader too, by name: the counted nurses, then those on probation. */
   rows: ColleagueRow[];
   /** The reader's own row, one for each of `days`. Null when they are not on it. */
   mine: MyDay[] | null;

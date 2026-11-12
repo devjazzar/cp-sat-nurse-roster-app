@@ -14,4 +14,8 @@ export interface SheetRowOut {
   hours: number;
   /** How many of each of `shifts` this row works, in that order. */
   counts: number[];
+  /** On probation in this month, as the version was planned: the row is one of the last, under the "On probation" heading, and counts toward no total. */
+  on_probation: boolean;
+  /** Her preceptor's full name, as the version was planned. Null when she is not on probation, or no preceptor was in force for her. */
+  preceptor_name: string | null;
 }
