@@ -10,7 +10,6 @@ so a record and a change of the skill's `expires` or `active` cannot pass each o
 from __future__ import annotations
 
 import datetime as dt
-from typing import Annotated
 from uuid import UUID
 
 from django.db import transaction
@@ -18,27 +17,24 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Field, Router, Schema, Status
 from ninja.errors import HttpError
-from pydantic import AfterValidator, StringConstraints
 
 from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
 from hospital.api import refuse
-from hospital.catalogue_api import IsoDate, no_nul
+from hospital.catalogue_api import IsoDate
 from hospital.models import HospitalSettings, Skill, SkillKind
 from nurses import membership
 from nurses.api import Body, UnitName
 from nurses.expiries import HORIZON, ExpiryState, expiries
 from nurses.models import NurseProfile, NurseSkill
-from nurses.skills import NurseSkillRow, as_rows, carried, end_record, problems_with, record_anew, skills_of
+from nurses.skills import Identifier, NurseSkillRow, as_rows, carried, end_record, problems_with, record_anew, skills_of
 from units.scope import HOSPITAL_WIDE, units_in_scope
 
 router = Router(tags=["nurses"])
 cno = SignedIn(Role.CNO)
 
 
-Identifier = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100), AfterValidator(no_nul),
-                      AfterValidator(lambda value: value or None)]
 IDENTIFIER = "The number or code its issuing body gave it, trimmed; required on a licence, empty otherwise when there is none."
 ISSUE_DATE = "When it was issued: not after the expiry or today. Read by nothing; the expiry is what a roster reads."
 

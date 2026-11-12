@@ -14,7 +14,7 @@ from hospital.models import HospitalSettings, Skill, SkillRename
 from nurses import importing
 from nurses.models import NurseSkill
 from nurses.tests.conftest import NURSES, added
-from nurses.tests.test_skills import change_skill, held, on_nurses_page, recorded
+from nurses.tests.test_skills import change_skill, held, on_nurses_page, recorded, renew
 
 pytestmark = pytest.mark.django_db
 
@@ -100,13 +100,14 @@ def file_refusal(response) -> str:
 
 # ---- the template ---------------------------------------------------------------------------------------------------
 def test_the_template_has_the_exact_columns_and_a_byte_order_mark_for_excel(cno):
+    """Its five columns are tested with the identifier's (ticket 60), below."""
     response = cno.get(TEMPLATE)
 
     assert response.status_code == 200
     assert response["Content-Type"].startswith("text/csv")
     assert 'filename="skills-import-template.csv"' in response["Content-Disposition"]
     assert response["Cache-Control"] == "no-store"
-    assert response.content == codecs.BOM_UTF8 + b'"Hospital ID","Skill","Expiry"\r\n'
+    assert response.content.startswith(codecs.BOM_UTF8 + b'"Hospital ID","Skill","Expiry"')
 
 
 def test_the_template_is_read_as_a_file_with_no_skills_and_writes_no_audit_entry(cno):
@@ -452,33 +453,221 @@ def test_skills_imported_show_where_the_nurse_s_skills_are_read(cno, amal):
     assert held(cno.get(NURSES).json()[0]["skills"]) == {"BLS": "2027-01-01", "ICU": None}
 
 
-# ---- a record's identifier and issue date, until the file takes them (ticket 59; ticket 60 adds the columns) ------------
+# ---- the identifier and the issue date (ticket 60) ------------------------------------------------------------------
+FULL_HEADER = "Hospital ID,Skill,Expiry,Identifier,Issue date"
+
+
+def full_csv_of(*rows) -> str:
+    """A file of the template's five columns; `csv_of` writes last month's three, which every test above reads."""
+    return "\n".join([FULL_HEADER, *rows]) + "\n"
+
+
+def full_problems_of(client, *rows) -> list:
+    body = previewed(client, full_csv_of(*rows))
+    assert body["token"] is None
+    return [[(problem["column"], problem["message"]) for problem in row["problems"]] for row in body["rows"]]
+
+
+def now_held(skill_id) -> tuple:
+    row = NurseSkill.objects.current().get(skill_id=skill_id)
+    return (row.expiry and row.expiry.isoformat(), row.identifier, row.issue_date and row.issue_date.isoformat())
+
+
 @pytest.fixture
 def scfhs(cno) -> str:
-    response = post(cno, SKILLS, {"name": "SCFHS", "kind": "licence", "issuing_body": "", "expires": True,
+    response = post(cno, SKILLS, {"name": "SCFHS", "kind": "licence", "issuing_body": "SCFHS", "expires": True,
                                  "required_to_work": False, "lets_a_nurse_precept": False, "active": True})
     assert response.status_code == 201, response.content
     return response.json()["id"]
 
 
-def test_a_licence_is_not_recorded_from_a_file_with_nowhere_for_its_identifier(cno, amal, scfhs):
-    assert problems_of(cno, "h1,SCFHS,2028-03-31") == [[(
-        "skill", "SCFHS is a licence, so it needs its identifier. Record it on the Nurses page, or remove the line.")]]
+@pytest.fixture
+def bsn(cno) -> str:
+    """A degree: a certificate that does not expire."""
+    response = post(cno, SKILLS, {"name": "BSN", "kind": "certificate", "issuing_body": "King Saud University",
+                                 "expires": False, "required_to_work": False, "lets_a_nurse_precept": False, "active": True})
+    assert response.status_code == 201, response.content
+    return response.json()["id"]
 
 
-def test_a_renewal_from_a_file_carries_the_identifier_and_the_issue_date(cno, amal, scfhs):
+def test_the_template_has_the_five_columns(cno):
+    assert cno.get(TEMPLATE).content == (
+        codecs.BOM_UTF8 + b'"Hospital ID","Skill","Expiry","Identifier","Issue date"\r\n')
+
+
+def test_a_five_column_file_previews_each_row_with_its_identifier_issue_date_and_kind(cno, amal, badr, scfhs, bsn):
+    body = previewed(cno, full_csv_of("h1,SCFHS,2028-03-31, 21-RN-0412 ,2026-04-01", "h2,BSN,,KSU-2019-118,", "h2,ICU,,,"))
+
+    assert body["token"]
+    assert [(r["line"], r["skill"], r["kind"], r["expiry"], r["identifier"], r["issue_date"], r["change"])
+            for r in body["rows"]] == [
+        (2, "SCFHS", "licence", "2028-03-31", "21-RN-0412", "2026-04-01", "record"),
+        (3, "BSN", "certificate", "", "KSU-2019-118", "", "record"),
+        (4, "ICU", "skill", "", "", "", "record"),
+    ]
+
+
+def test_a_line_of_a_five_column_file_has_five_cells(cno, amal):
+    assert full_problems_of(cno, "h1,ICU,") == [
+        [(None, "This line has 3 cells, not 5. Put double quotes around a skill name that has a comma in it.")]]
+
+
+def test_a_header_of_four_columns_is_refused(cno, amal):
+    assert file_refusal(preview(cno, "Hospital ID,Skill,Expiry,Identifier\nh1,ICU,,\n")) == (
+        "The first line must name exactly these columns: Hospital ID, Skill, Expiry, Identifier, Issue date. "
+        "Identifier and Issue date may be left out together. Download the template to start from.")
+
+
+def test_a_licence_needs_its_identifier_under_either_header(cno, amal, scfhs):
+    words = "SCFHS is a licence, so it needs its identifier. Enter it in the Identifier column, as the template has it."
+
+    assert problems_of(cno, "h1,SCFHS,2028-03-31") == [[("identifier", words)]]
+    assert full_problems_of(cno, "h1,SCFHS,2028-03-31, ,2026-04-01") == [[("identifier", words)]]
+
+
+def test_a_licence_held_with_its_identifier_is_still_a_problem_in_last_month_s_file(cno, amal, scfhs):
+    """The file says the whole record, and that file has nowhere to say the number."""
     recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412", "2024-12-15")
 
-    assert confirmed(cno, csv_of("h1,SCFHS,2028-12-31")) == {"recorded": 0, "renewed": 1, "unchanged": 0}
-
-    row = NurseSkill.objects.current().get(skill_id=scfhs)
-    assert (row.expiry.isoformat(), row.identifier, row.issue_date.isoformat()) == ("2028-12-31", "21-RN-0412", "2024-12-15")
-    ended = NurseSkill.objects.get(skill_id=scfhs, removed_at__isnull=False)
-    assert (ended.expiry.isoformat(), ended.identifier) == ("2026-12-31", "21-RN-0412")
+    assert problems_of(cno, "h1,SCFHS,2028-12-31")[0][0][0] == "identifier"
 
 
-def test_a_renewal_from_a_file_to_before_the_issue_date_recorded_is_a_problem(cno, amal, scfhs):
+IDENTIFIER_WORDS = "Enter the identifier as its issuing body gave it, in at most 100 characters."
+
+
+def test_an_identifier_or_issue_date_the_record_s_rules_refuse_is_a_problem_beside_it(cno, amal, bsn):
+    assert full_problems_of(cno, f"h1,BSN,,{'X' * 101},2026-02-30", "h1,ICU,,A\x00B,soon") == [
+        [("identifier", IDENTIFIER_WORDS), ("issue_date", "Use a date as YYYY-MM-DD, between 1925 and 2076.")],
+        [("identifier", IDENTIFIER_WORDS), ("issue_date", "Use a date as YYYY-MM-DD, between 1925 and 2076.")],
+    ]
+
+
+def test_an_issue_date_after_the_expiry_or_after_today_is_a_problem(cno, amal, badr, scfhs, bsn):
+    assert full_problems_of(cno, "h1,SCFHS,2027-01-31,21-RN-0412,2027-02-01", "h2,BSN,,KSU-1,2026-11-06") == [
+        [("issue_date", "The issue date cannot be after the expiry.")],
+        [("issue_date", "The issue date cannot be after today.")],
+    ]
+    assert previewed(cno, full_csv_of("h2,BSN,,KSU-1,2026-11-05"))["token"], "Today is not after today."
+
+
+def test_an_identifier_another_nurse_s_current_record_of_the_entry_holds_is_a_problem(cno, amal, badr, scfhs, bsn):
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412")
+    recorded(cno, amal, bsn, None, "KSU-7")
+
+    assert full_problems_of(cno, "h2,SCFHS,2028-03-31,21-RN-0412,") == [[(
+        "identifier", "Amal Saleh already holds SCFHS with this identifier. Check the number: each one is one nurse's.")]]
+    assert previewed(cno, full_csv_of("h2,SCFHS,2028-03-31,21-rn-0412,", "h2,BSN,,21-RN-0412,"))["token"], (
+        "Compared exactly, and another entry may share it.")
+    assert previewed(cno, full_csv_of("h1,SCFHS,2028-12-31,21-RN-0412,"))["rows"][0]["change"] == "renew", (
+        "Her own record does not count.")
+
+
+def test_an_identifier_of_an_ended_record_is_free(cno, amal, badr, scfhs):
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412")
+    assert renew(cno, amal, scfhs, "2028-12-31", identifier="21-RN-0999").status_code == 200
+
+    assert previewed(cno, full_csv_of("h2,SCFHS,2028-03-31,21-RN-0412,"))["token"]
+
+
+def test_an_identifier_repeated_in_the_file_for_one_entry_on_two_nurses_is_a_problem_on_both_lines(cno, amal, badr, scfhs,
+                                                                                                    bsn):
+    assert full_problems_of(cno, "h1,SCFHS,2028-03-31,21-RN-0412,", "h2,BSN,,21-RN-0412,", "H2,scfhs,2028-03-31,21-RN-0412,"
+                            ) == [
+        [("identifier", "Line 4 gives H2 this identifier for SCFHS too. Check the number: each one is one nurse's.")],
+        [],
+        [("identifier", "Line 2 gives h1 this identifier for SCFHS too. Check the number: each one is one nurse's.")],
+    ]
+
+
+def test_an_identifier_another_row_of_the_file_would_free_is_still_held(cno, amal, badr, scfhs):
+    """Amal's renewal gives up the number her record holds, and Badr's row takes it: the file is judged against the records
+    as they stand, as two renewals by hand would be, so the second is refused whatever the order of the lines."""
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412")
+
+    for rows in [("h1,SCFHS,2028-12-31,21-RN-0999,", "h2,SCFHS,2028-12-31,21-RN-0412,"),
+                 ("h2,SCFHS,2028-12-31,21-RN-0412,", "h1,SCFHS,2028-12-31,21-RN-0999,")]:
+        problems = full_problems_of(cno, *rows)
+        assert sorted(problems, key=len) == [[], [(
+            "identifier", "Amal Saleh already holds SCFHS with this identifier. Check the number: each one is one nurse's.")]]
+
+
+def test_a_row_that_says_what_is_recorded_in_all_three_fields_is_unchanged(cno, amal, scfhs, bsn):
     recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412", "2024-12-15")
+    recorded(cno, amal, bsn, None, "KSU-7", "2019-06-30")
+    content = full_csv_of("h1,SCFHS,2026-12-31,21-RN-0412,2024-12-15", "h1,BSN,,KSU-7,2019-06-30")
 
-    assert problems_of(cno, "h1,SCFHS,2024-12-01") == [[(
-        "expiry", "The issue date cannot be after the expiry. The one recorded is 2024-12-15.")]]
+    assert [row["change"] for row in previewed(cno, content)["rows"]] == ["none", "none"]
+    assert confirmed(cno, content) == {"recorded": 0, "renewed": 0, "unchanged": 2}
+    assert NurseSkill.objects.count() == 2
+
+
+@pytest.mark.parametrize("line, held_now", [
+    ("h1,SCFHS,2028-12-31,21-RN-0412,2024-12-15", ("2028-12-31", "21-RN-0412", "2024-12-15")),
+    ("h1,SCFHS,2026-12-31,21-RN-0999,2024-12-15", ("2026-12-31", "21-RN-0999", "2024-12-15")),
+    ("h1,SCFHS,2026-12-31,21-RN-0412,2026-11-01", ("2026-12-31", "21-RN-0412", "2026-11-01")),
+    ("h1,SCFHS,2026-12-31,21-RN-0412,", ("2026-12-31", "21-RN-0412", None)),
+], ids=["the expiry", "the identifier", "the issue date", "the issue date left empty"])
+def test_a_row_that_differs_in_any_of_the_three_is_a_renewal_ending_the_old_row(cno, amal, scfhs, line, held_now):
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412", "2024-12-15")
+    first = NurseSkill.objects.get()
+
+    row = previewed(cno, full_csv_of(line))["rows"][0]
+    assert (row["change"], row["held_expiry"], row["held_identifier"], row["held_issue_date"]) == (
+        "renew", "2026-12-31", "21-RN-0412", "2024-12-15")
+    assert confirmed(cno, full_csv_of(line)) == {"recorded": 0, "renewed": 1, "unchanged": 0}
+
+    assert now_held(scfhs) == held_now
+    first.refresh_from_db()
+    assert first.removed_at and (first.identifier, first.issue_date.isoformat()) == ("21-RN-0412", "2024-12-15"), (
+        "The ended row keeps what it had.")
+
+
+def test_an_empty_identifier_cell_clears_the_one_recorded_on_a_certificate(cno, amal, bsn):
+    """The file says the whole record: an empty cell is no identifier, as in last month's file, where every one is empty."""
+    recorded(cno, amal, bsn, None, "KSU-7", "2019-06-30")
+
+    assert previewed(cno, csv_of("h1,BSN,"))["rows"][0]["change"] == "renew"
+    assert confirmed(cno, full_csv_of("h1,BSN,,,2019-06-30")) == {"recorded": 0, "renewed": 1, "unchanged": 0}
+    assert now_held(bsn) == (None, None, "2019-06-30")
+
+
+def test_a_renewal_of_a_kind_that_no_longer_expires_keeps_its_date_as_by_hand(cno, amal, catalogue):
+    recorded(cno, amal, catalogue["ACLS"], "2026-12-31")
+    assert change_skill(cno, "ACLS", expires=False).status_code == 200
+
+    assert confirmed(cno, full_csv_of("h1,ACLS,,AHA-55,")) == {"recorded": 0, "renewed": 1, "unchanged": 0}
+
+    assert now_held(catalogue["ACLS"]) == ("2026-12-31", "AHA-55", None)
+
+
+def test_a_renewal_of_the_identifier_by_hand_since_the_preview_is_not_what_was_previewed(cno, amal, scfhs):
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412")
+    content = full_csv_of("h1,SCFHS,2028-12-31,21-RN-0412,")
+    token = previewed(cno, content)["token"]
+    assert renew(cno, amal, scfhs, "2026-12-31", identifier="21-RN-0413").status_code == 200
+
+    response = confirm(cno, content, token)
+
+    assert response.status_code == 409
+    assert response.json()["rows"][0]["held_identifier"] == "21-RN-0413"
+    assert now_held(scfhs) == ("2026-12-31", "21-RN-0413", None)
+
+
+def test_the_token_stands_for_the_identifier_and_the_issue_date(cno, amal, bsn):
+    tokens = {previewed(cno, full_csv_of(line))["token"]
+              for line in ("h1,BSN,,KSU-7,", "h1,BSN,,KSU-8,", "h1,BSN,,KSU-7,2019-06-30")}
+
+    assert len(tokens) == 3
+    assert confirm(cno, full_csv_of("h1,BSN,,KSU-8,"), previewed(cno, full_csv_of("h1,BSN,,KSU-7,"))["token"]
+                   ).status_code == 409
+    assert not NurseSkill.objects.exists()
+
+
+def test_an_import_with_identifiers_is_audited_as_how_many_rows_and_nothing_more(cno, amal, badr, scfhs):
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412", "2024-12-15")
+    AuditEntry.objects.all().delete()
+
+    confirmed(cno, full_csv_of("h1,SCFHS,2028-12-31,21-RN-0412,2026-11-01", "h2,SCFHS,2028-03-31,21-RN-0777,2026-03-01"))
+
+    assert list(AuditEntry.objects.values_list("action", "target", "before", "after")) == [
+        ("nurse.skills_imported", "", None, {"count": 2})]
