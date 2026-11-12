@@ -8,7 +8,12 @@ import { hospitalTime, longDay, monthName } from "@/lib/utils"
 
 export const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
 
-export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
+type MonthDates = "ramadan_days" | "public_holidays"
+
+/** The month's own changes, which come with no hospital ID (ticket 46). */
+const MONTH_DATES_SAY: Record<MonthDates, string> = { ramadan_days: "Ramadan days", public_holidays: "public holidays" }
+
+export const CHANGE_SAYS: Record<Exclude<DraftChange["what"], MonthDates>, string> = {
   gender: "gender was corrected",
   leave: "leave or dates changed",
   joined: "is now in this month but not in this draft",
@@ -17,20 +22,15 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   preferences: "preferences changed",
   skills: "skills changed",
   closed: "the month before has closed since, so this month starts from its closed carry-over, not the projected one",
-  // The month's own, which come with no hospital ID and are worded by `changeSays`.
-  ramadan_days: "the month's Ramadan days changed",
-  public_holidays: "the month's public holidays changed",
 }
 
 /** One line of a draft's changes since its solve, under "This draft was solved before these changes". A change with no
  *  hospital ID is the unit's own (`skills`) or the month's (its Ramadan days or public holidays, ticket 46). */
 export function changeSays(change: DraftChange, month: string): string {
-  if (!change.hospital_id) {
-    if (change.what === "ramadan_days") return `The Ramadan days of ${monthName(month)} changed`
-    if (change.what === "public_holidays") return `The public holidays of ${monthName(month)} changed`
-    return "The skill needs, the skills required to work or the skill shortfall weight changed"
-  }
-  return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[change.what]}`
+  const what = change.what
+  if (what === "ramadan_days" || what === "public_holidays") return `The ${MONTH_DATES_SAY[what]} of ${monthName(month)} changed`
+  if (!change.hospital_id) return "The skill needs, the skills required to work or the skill shortfall weight changed"
+  return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[what]}`
 }
 
 const shiftWord = (code: string) => (code ? code : "a day off")

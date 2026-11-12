@@ -60,6 +60,9 @@ class Names:
         self.nurses = {str(row.pk): row.user.full_name for row in NurseProfile.objects.filter(pk__in=nurse_ids).select_related("user")}
 
 
+MONTH_DATES_SAY = {MonthDates.RAMADAN_DAYS: "Ramadan days", MonthDates.PUBLIC_HOLIDAYS: "public holidays"}
+
+
 def _month_name(month: str) -> str:
     return dt.date.fromisoformat(f"{month}-01").strftime("%B %Y")
 
@@ -230,7 +233,7 @@ def text_of(note: Notification, names: Names) -> str:
         case Event.COVER_STEP:
             return _cover_words(note, names, by)
         case Event.MONTH_DATES_CHANGED:
-            dates = "public holidays" if payload.get("what") == MonthDates.PUBLIC_HOLIDAYS else "Ramadan days"
+            dates = MONTH_DATES_SAY.get(payload.get("what"), "dates")
             return (f"{by} changed the {dates} of {_month_name(payload['month'])}. Check the {unit.name if unit else 'unit'} "
                     "roster for that month: it was planned on the dates before.")
         case Event.PROBATION_ENDING:

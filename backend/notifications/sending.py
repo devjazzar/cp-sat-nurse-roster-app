@@ -126,8 +126,9 @@ class MonthDates(TextChoices):
 
 def month_dates_changed(months: Iterable[dt.date], what: MonthDates, by: User) -> None:
     """To the manager of every unit with a roster in each month, draft, submitted or approved, once a month: its hours may have
-    shifted. Not to whoever made the change, who knows, nor to a manager with no roster in the month. Call it once a write, after
-    its audit entries, with every month the write changed the dates of and none it left as they were."""
+    shifted. Not to whoever made the change, who knows, nor to a manager with no roster in the month. Call it after the audit
+    entry, with each month whose dates the write changed and none it left as they were, and never twice for one month in one
+    write: a holiday moved across months passes both at once, a Ramadan confirmed calls it once a month it fixes."""
     for month in sorted(set(months)):
         for unit in Unit.objects.filter(rosters__month=month, manager__isnull=False).exclude(manager=by).select_related("manager"):
             notify([unit.manager], Event.MONTH_DATES_CHANGED, **_about(unit, month), what=str(what), by=str(by.pk))

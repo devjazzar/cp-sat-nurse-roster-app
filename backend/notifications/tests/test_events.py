@@ -18,7 +18,7 @@ from rosters.models import Roster
 from rosters.tests.test_review import (add_holiday, approve, carla, dina, fix_ramadan, ok, reject, solved, sound,  # noqa: F401
                                         submit)
 from solves import running
-from solves.tests.conftest import job, result_of, started
+from solves.tests.conftest import job, make_sample_unit, result_of, started
 
 pytestmark = pytest.mark.django_db
 
@@ -225,8 +225,6 @@ class TestMonthDatesChanged:
     @pytest.fixture
     def three_rosters(self, mona, er, solver, dina, make_user, client_of):
         """ER's June is a draft, ICU's submitted and PICU's approved; NICU has no roster in June."""
-        from solves.tests.conftest import make_sample_unit
-
         solved(mona, er, solver)
         omar, pia = client_of("omar", Role.UNIT_MANAGER, full_name="Omar"), client_of("pia", Role.UNIT_MANAGER, full_name="Pia")
         icu = make_sample_unit("ICU", User.objects.get(username="omar"), make_user, prefix="I")

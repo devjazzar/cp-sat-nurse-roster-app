@@ -236,7 +236,8 @@ def _skill_rules(solve_input: dict) -> tuple:
             general.get("weights", {}).get("skill_shortfall", 0))
 
 
-# The month's own dates, each a change of the month's with no hospital ID when its list differs (ticket 46).
+# The month's own dates, each a change of the month's with no hospital ID when its list differs (ticket 46). The same two
+# names as `notifications.sending.MonthDates`, the notification's, and the roster API's `DraftChange.what`.
 MONTH_DATES = ("ramadan_days", "public_holidays")
 
 

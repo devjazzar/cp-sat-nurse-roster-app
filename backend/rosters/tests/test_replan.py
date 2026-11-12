@@ -18,8 +18,8 @@ from nurses.models import Placement
 from rosters.drafts import FROZEN
 from rosters.models import PinnedCell, PinOrigin, Roster, RosterState, VersionOrigin
 from solves.replans import A_DRAFT, ACTIVE, MONTH_OVER, NO_ROSTER_YET
-from rosters.tests.test_review import (SOUND, add_holiday, fix_ramadan, approve, approved, carla, dina, month_of, ok, profile, record_leave, refused,  # noqa: F401
-                                       roster, solved, submitted, url)
+from rosters.tests.test_review import (SOUND, add_holiday, approve, approved, carla, dina, fix_ramadan, month_of, ok,  # noqa: F401
+                                       profile, record_leave, refused, roster, solved, submitted, url)
 from rosters.tests.test_versions import changed, in_force_agrees, latest, works_e
 from rosters.tests.test_pins import change_shift, icu, pin
 from requesting.models import PreferenceKind
