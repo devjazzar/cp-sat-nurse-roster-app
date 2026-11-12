@@ -166,6 +166,42 @@ def test_with_the_rule_on_the_months_total_overtime_is_never_above_what_it_is_wi
     assert total(1) == total(0) == 24
 
 
+def ten_in_february(*, w: int, tol: int) -> Problem:
+    """Ticket 51, the user's decision on ticket 49's review: a month larger than `week`. February 2026, 28 days from a Sunday,
+    24 owed at 8 h: 192 h, 16 day shifts of 12 h, a nurse. Ten nurses owe 160 shifts; six to eight on Day every day need at
+    least 168, so 8 extra shifts, 96 h of overtime, are forced, under the cap of 40 h a nurse."""
+    p = week([Nurse(f"n{i}") for i in range(10)], w=w, tol=tol, heads=(6, 8))
+    p.days, p.first_weekday, p.month = 28, 6, "2026-02"
+    return p
+
+
+def overtime(grid: list[list[int]]) -> list[int]:
+    return [max(0, 12 * sum(1 for v in cells if v >= 0) - 192) for cells in grid]
+
+
+def test_on_a_larger_month_the_rule_never_raises_the_total_overtime_with_many_nurses_priced_at_once():
+    """n0 is held to 19 shifts, 36 h over, so 5 more extra shifts are forced on the others: 96 h. With nothing free, at 96 h
+    each share is 9.6 h, n0 is priced 26 h and five others 2 h each. One more extra shift would raise every share to 10.8 h
+    and lower the rule's cost by 1 + 5 - 1 = 5, rounding included, against 12 for the hour of overtime: the solver adds none."""
+    def total(w: int) -> int:
+        p = ten_in_february(w=w, tol=0)
+        sol = pinned(p, [[W if d < 19 else OFF for d in range(28)]] + [[None] * 28] * 9)
+        assert sol.status == "OPTIMAL"
+        return sum(overtime(sol.assignment))
+
+    assert total(1) == total(0) == 96
+
+
+def test_on_a_larger_month_no_nurse_holds_a_second_extra_shift_while_another_holds_none():
+    """With 12 h free the eight forced extra shifts go one each: each share is 9.6 h, so a second would cost 24 - 9.6 - 12."""
+    p = ten_in_february(w=1, tol=12)
+
+    sol = solve(build_model(p), p, time_limit=30, workers=8)
+
+    assert sol.status == "OPTIMAL"
+    assert sorted(overtime(sol.assignment)) == [0, 0] + [12] * 8
+
+
 # ---- the share follows the hours owed; the balance, in and out --------------------------------------
 def february(nurses: list[Nurse], **over) -> Problem:
     """February 2026, 28 days from a Sunday: four Fridays, 24 days owed at 8 h, 192 h a nurse. No headcount: the grids

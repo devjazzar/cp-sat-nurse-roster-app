@@ -694,8 +694,17 @@ owing none, costs nothing. The rule, `overtime_above_share`, is soft only and ac
 hours rule are all on; its match names the nurse, her overtime, her share and the hours priced, and the per-nurse explanation
 carries it. A result's `carry_over` carries her balance for next month, in + overtime − share, moving while the switch and the
 hours rule are on and handed on unchanged otherwise. The chain carries it (`closes.chain.CARRIED`, ticket 50) from her opening
-value, 0 by default, and 0 out of a close stored before it; it resets in January with the other two balances. Until the unit
-rules and the weight reach the solve input (ticket 51) the solver hands every balance on unchanged.
+value, 0 by default, and 0 out of a close stored before it; it resets in January with the other two balances. In the app (ticket
+51) the three are unit rules among the fairness rules, beside the weekend spread: "Share overtime evenly" (on), "Overtime
+tolerance (hours)" (12) and "Most a month's overtime share can move (hours)" (12), every unit starting with them
+(`units.0006_overtime_share`), "Carry fairness between months" governing the carry for overtime too; the weight, "Overtime away
+from the fair share", is the CNO's beside the other weights, 1 by default, 0 switching it off hospital-wide, and refused above
+`nurse_overtime` (the user's decision on ticket 49's review: above it, the solver could lower the rule's cost by adding
+overtime), which is why an installation pricing an hour of overtime below 1 starts with the share weight at that price
+(`hospital.0008_overtime_above_share_weight`). The solver's sample (`four_nurses.json`) carries the three and the weight as a
+unit would. Every new solve, re-plan and close input carries them, as the unit rules and the weights are carried; a stored one
+without them reads as the rule off. Hand edits, swaps, covers and requests are never refused for it; the overtime they give
+enters her balance at the next projection, and no nurse page and no cover's ranking shows it.
 
 Probation changed it again (ticket 52, ADR 0014; the solver's problem schema 8; the solve input's version unchanged). Each nurse
 gains `on_probation` (absent = false) and `preceptor`, the id of another nurse of the input she follows (absent or null = none),
