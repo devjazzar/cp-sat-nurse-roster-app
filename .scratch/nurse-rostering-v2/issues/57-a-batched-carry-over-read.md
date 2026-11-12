@@ -189,3 +189,9 @@ The fixes were small; no second run. No Codex review, by the brief.
 commits (ticket 61's review, the index's wording). The local suites ran on `6b950fe`, before ticket 61's merge; after it,
 `app.test.tsx` (825 passed), `closes/tests/test_close.py`, `nurses/tests/test_skills.py` and `test_attributes.py` (217 passed)
 ran again here. Ticket 61 touched the nurses' skills endpoints and pages, nothing the chain or `assemble` reads.
+
+**Reviewed by the user (2026-11-12):** all four points kept as built.
+- The interface: `Chain.carry_ins(nurses, month)`, keyed by hospital ID, remembered for one request.
+- Leave read in one go too; no per-nurse read is left in an assembly.
+- The repeated name dropped in all five lists that put a name before the solver's words, in the frontend.
+- The timings as recorded (roster 296 → 112 ms, replans/preview 363 → 128 ms, close 380 → 88 ms, Day view 329 → 129 ms).

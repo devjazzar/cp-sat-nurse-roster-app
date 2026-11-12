@@ -202,3 +202,10 @@ small.
   new read.
 - If a per-day total row is wanted, `Sheet.table()` is the one place: skip rows with `on_probation`.
 - The swap and cover refusals of ticket 55 now have the heading they lean on, on My roster.
+
+**Reviewed by the user (2026-11-12):** all five points kept as built.
+- No per-day totals added: no page or file had one to leave her out of.
+- The heading "On probation", with "Preceptor: …" or "No preceptor" under her name.
+- The Day view gets no heading.
+- The files' "On probation" row and "Preceptor" column appear only in months with someone on probation.
+- A month planned before a change may name a different preceptor than My month, with no words saying why.

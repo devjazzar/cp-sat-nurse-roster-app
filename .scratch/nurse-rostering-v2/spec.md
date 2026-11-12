@@ -61,8 +61,7 @@ Tickets 57 and 62 have no blocker and no feature: each may run beside any of the
 Hardening (row 12), added on 2026-11-11 from the security audit, joins the queue; where it goes in the order is the user's
 call. Within it, 63, 67 and 68 can start at once and side by side; the Caddy chain (69 to 72) waits for 62 and 63.
 
-**On `main` (2026-11-12):** 26–55 and 58–72, each with its session's comment and the user's review. **Still to build:**
-56 and 57. Every ticket's `Status:` line says `ready-for-agent` whether built or not; the comments say which.
+**On `main` (2026-11-12):** all of v2, 26–72, each with its session's comment and the user's review. Nothing is left to build. Every ticket's `Status:` line says `ready-for-agent` whether built or not; the comments say which.
 
 ## How a ticket is built
 
