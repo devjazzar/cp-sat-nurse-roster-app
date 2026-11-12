@@ -37,13 +37,19 @@ else the peer (`solver/solver_service/logs.py`). `audit.log.client_ip` keeps no 
   and both finished. That is the setup for timing the 500-row import without the 300-second limit.
 
 **Implemented on 2026-11-12,** on branch `claude/ticket-71-gunicorn-threaded-4064f2` (`256943e`, `1327ea6`, `d631db4`, then
-this comment), from `main` at `3579d76`. Draft pull request
+this comment), from `main` at `3579d76`, with `main`'s `a93f88f` (tickets 45, 46 and 58) merged in. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#18](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/18).
 - `deploy/tests/operations.sh nr-t71`, under the heavy-run lock, on `1327ea6`: all checks passed, the five new ones among them.
   `d631db4` changed only how those checks fail and their names (the review, below); GitHub ran it again.
-- Backend: SUITE_LINE. `makemigrations --check`: no changes. Only a docstring changed in `backend/`. No solver, frontend
+- Backend `pytest` on a throwaway PostgreSQL 18, on `d631db4`: 3331 passed. `makemigrations --check`: no changes. Only a docstring changed in `backend/`. No solver, frontend
   or Playwright file changed, so neither suite ran locally. No migration, no API change.
-- GitHub's two workflows: green on `HEAD_LINE`, the head that reached `main`.
+- GitHub's two workflows: green on `d631db4` (backend after one rerun, below), and the head that reaches `main`, this
+  comment's commit after the merge, was green again before the fast-forward.
+- **A flake, not this ticket's:** the first backend run on `d631db4` failed
+  `ops/tests/test_logs.py::test_the_queues_command_line_logs_what_it_would_print`. Django printed the system-check warning
+  `fields.W161` for `ops.TechnicalSettings.close_time` (`default=time(0, 30)`). Django's check combines a `TimeField`'s
+  default with today and warns when it falls within 10 s of now, so it fires for any run between 00:29:50 and 00:30:10 UTC.
+  The test ran at 00:30:1x. Once a day, any session's run at that minute fails. The rerun passed.
 
 **What the dev stack needs:** `deploy/compose.yaml` (web's command) and `deploy/Caddyfile` changed, so `docker compose up -d
 --build` recreates `web`, and `docker compose restart caddy` is needed for the Caddyfile (a Caddyfile-only change does not
@@ -125,6 +131,9 @@ under the lock. Red first, cheaply: gunicorn's parser on `main`'s command gives 
 refuses. The stack was removed by the script, and nothing of it is left (no container, no volume).
 
 **What was found, and fixed:** nothing in the application. **Findings for you, not fixed:**
+- The daily W161 flake (above): a test that asserts an empty stderr from `manage.py` fails within 10 s of 00:30 UTC.
+  Silencing `fields.W161` for that field, or a callable default, would end it. It belongs to whoever owns `ops`' settings
+  model, not to this ticket.
 - `notifications.pushing.push_service` is one `requests.Session` shared by the worker's four concurrent jobs. That was already
   so before this ticket, and only the push job uses it. `requests` does not promise a `Session` is thread-safe, though
   plain requests with no cookies, as here, are the usual safe case. If a push ever misbehaves under load, one session per
