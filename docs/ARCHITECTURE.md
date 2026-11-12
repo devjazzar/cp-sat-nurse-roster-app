@@ -968,15 +968,22 @@ import's, the probation's last day (both empty unless a probation is not over), 
 to come.
 
 The skills CSV is the same kind of file (`nurses.importing.read_file`: the encodings, 500 lines and 1 MB, in memory),
-of hospital ID, skill and expiry, on its own Import skills page beside the nurse import's: a template, a preview that
-judges every row and says what saving would do with it, and a confirm that sends the file again. A row names a nurse by
-hospital ID, an active one, and a skill by its current name in any case of letters, live; its expiry is a date for a kind
-that expires and empty for one that does not, a date already past accepted as a fact. A skill she does not hold is
-recorded; one she holds takes the row's expiry, ending the old row as a renewal by hand does; one that says what is
-already recorded changes nothing. A nurse and skill twice in a file is a problem on both lines. Confirming is one short
-transaction under the locks every skill write takes, the hospital settings' then the nurses', in which the file is
-judged again: the preview's token stands for each row's nurse, skill (its name and whether it expires), expiry and the
-record a renewal would end, so a renewal by hand since the preview is a different preview and nothing is saved. The audit
+of hospital ID, skill, expiry, identifier and issue date, on its own Import skills page beside the nurse import's: a
+template, a preview that judges every row and says what saving would do with it, and a confirm that sends the file again.
+A file of last month's three columns (no identifier, no issue date) is still read, the two empty on every row; a header of
+four is not. A row names a nurse by hospital ID, an active one, and a skill by its current name in any case of letters,
+live; its expiry is a date for a kind that expires and empty for one that does not, a date already past accepted as a
+fact. Its identifier and issue date keep the rules a record by hand keeps (`nurses.skills.problems_with`): the identifier
+required on a licence, so a licence row in a three-column file is a problem, and not another nurse's current one for the
+entry, among the records as they stand or on another line of the file; the issue date not after the expiry or today. A
+row says the whole record, an empty cell being none. A skill she does not hold is recorded; one she holds that differs
+from her record in the expiry, the identifier or the issue date is renewed, ending the old row as a renewal by hand does
+(a kind that no longer expires keeping its date); one that says what is already recorded changes nothing. A nurse and
+skill twice in a file is a problem on both lines. The preview's lines are grouped under Skills, Certificates and
+Licences. Confirming is one short transaction under the locks every skill write takes, the hospital settings' then the
+nurses', in which the file is judged again: the preview's token stands for each row's nurse, skill (its name, kind and
+whether it expires), expiry, identifier, issue date and the record a renewal would end, so a renewal by hand since the
+preview is a different preview and nothing is saved. The audit
 log has one `nurse.skills_imported` entry with the number of rows and nothing from the file, not even whose skills. The template is its header alone, so it names no skill;
 every cell of every CSV this application writes goes through the staff list's guard against a formula. Neither the nurse
 import's template nor the staff list holds skills.

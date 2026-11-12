@@ -17,11 +17,11 @@ from accounts.models import Role, User
 from accounts.provisioning import UsernameTaken, create_user, new_passwords
 from audit.log import record
 from hospital.api import refuse
-from hospital.models import HospitalSettings
+from hospital.models import HospitalSettings, SkillKind
 from nurses import importing, membership, skills_importing
 from nurses.api import new_profile, probation_of, with_units
 from nurses.models import NurseProfile
-from nurses.skills import carried, record_anew
+from nurses.skills import record_anew
 from nurses.spreadsheets import csv_response
 from units.models import Unit
 
@@ -138,11 +138,16 @@ class SkillImportRow(Schema):
     hospital_id: str
     skill: str
     expiry: str = Field(description="As the file has it.")
+    identifier: str = Field(description="As the file has it, trimmed when it is one; empty in a file of three columns.")
+    issue_date: str = Field(description="As the file has it; empty in a file of three columns.")
     full_name: str = Field(description="The nurse's, when the hospital ID is hers; empty otherwise.")
+    kind: SkillKind | None = Field(description="The catalogue's, when the skill is one; the page groups the rows by it.")
     change: skills_importing.SkillImportChange | None = Field(
-        description="What confirming does with a row that has no problem: records the skill, sets the expiry of the one she "
-                    "holds, or nothing, since the file says what is already recorded.")
+        description="What confirming does with a row that has no problem: records the skill, renews the one she holds with the "
+                    "row's expiry, identifier and issue date, or nothing, since the file says what is already recorded.")
     held_expiry: dt.date | None = Field(description="The expiry a renewal replaces.")
+    held_identifier: str | None = Field(description="The identifier a renewal replaces, or the one recorded.")
+    held_issue_date: dt.date | None = Field(description="The issue date a renewal replaces, or the one recorded.")
     problems: list[ImportProblem]
 
 
@@ -185,9 +190,8 @@ def _save_skills(request: HttpRequest, lines: list[importing.Line], token: str) 
         for meaning in meanings:
             if meaning.change == skills_importing.SkillImportChange.NONE:
                 continue
-            identifier, issue_date = carried(meaning.held)
-            record_anew(meaning.nurse, meaning.skill, request.user, expiry=meaning.expiry, ending=meaning.held,
-                        identifier=identifier, issue_date=issue_date)
+            record_anew(meaning.nurse, meaning.skill, request.user, expiry=meaning.kept_expiry, ending=meaning.held,
+                        identifier=meaning.identifier, issue_date=meaning.issue_date)
         changes = Counter(meaning.change for meaning in meanings)
         # Who and how many rows, and nothing from the file, not even whose skills: the System Admin reads the log, not the file.
         record("nurse.skills_imported", actor=request.user, request=request, after={"count": len(meanings)})

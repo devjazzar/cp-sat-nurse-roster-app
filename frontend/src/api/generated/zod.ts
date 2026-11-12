@@ -6328,9 +6328,14 @@ export const PreviewSkillsImportResponse = zod.object({
   "hospital_id": zod.string(),
   "skill": zod.string(),
   "expiry": zod.string().describe('As the file has it.'),
+  "identifier": zod.string().describe('As the file has it, trimmed when it is one; empty in a file of three columns.'),
+  "issue_date": zod.string().describe('As the file has it; empty in a file of three columns.'),
   "full_name": zod.string().describe('The nurse\'s, when the hospital ID is hers; empty otherwise.'),
-  "change": zod.union([zod.enum(['record', 'renew', 'none']).describe('What confirming does with a row that has no problem.'),zod.null()]).describe('What confirming does with a row that has no problem: records the skill, sets the expiry of the one she holds, or nothing, since the file says what is already recorded.'),
+  "kind": zod.union([zod.enum(['skill', 'certificate', 'licence']),zod.null()]).describe('The catalogue\'s, when the skill is one; the page groups the rows by it.'),
+  "change": zod.union([zod.enum(['record', 'renew', 'none']).describe('What confirming does with a row that has no problem.'),zod.null()]).describe('What confirming does with a row that has no problem: records the skill, renews the one she holds with the row\'s expiry, identifier and issue date, or nothing, since the file says what is already recorded.'),
   "held_expiry": zod.union([zod.iso.date(),zod.null()]).describe('The expiry a renewal replaces.'),
+  "held_identifier": zod.union([zod.string(),zod.null()]).describe('The identifier a renewal replaces, or the one recorded.'),
+  "held_issue_date": zod.union([zod.iso.date(),zod.null()]).describe('The issue date a renewal replaces, or the one recorded.'),
   "problems": zod.array(zod.object({
   "column": zod.union([zod.string(),zod.null()]),
   "message": zod.string()

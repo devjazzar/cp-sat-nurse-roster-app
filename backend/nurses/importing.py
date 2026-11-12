@@ -107,10 +107,12 @@ class Layout:
     split_by: str  # How to split a file over the limit, ending the sentence: "Split it, by unit for example, and …".
     quote_hint: str  # What to quote when a line's cells do not match the columns.
     optional: int = 0  # How many of the last columns a file may leave out, which then read as empty.
+    together: bool = False  # Whether those columns are left out all together or not at all, as a file of an older template.
 
     def headers(self) -> list[tuple[str, ...]]:
         """The headers a file may have, the fullest first."""
-        return [self.columns[:len(self.columns) - left_out] for left_out in range(self.optional + 1)]
+        left_outs = (0, self.optional) if self.together else range(self.optional + 1)
+        return [self.columns[:len(self.columns) - left_out] for left_out in left_outs]
 
 
 NURSE_FILE = Layout(COLUMNS, "nurse", "nurses", ", by unit for example,", "a name that has a comma in it", OPTIONAL_COLUMNS)
@@ -135,8 +137,13 @@ def _is_the_header(cells: list[str], columns: tuple[str, ...]) -> bool:
 def _reader_after_header(text: str, layout: Layout):
     """The reader past the header, and the columns the header named."""
     columns = layout.columns
-    optional = f" The last {layout.optional} may be left out." if layout.optional > 1 else (
-        f" The last, {columns[-1]}, may be left out." if layout.optional else "")
+    left_out = columns[len(columns) - layout.optional:]
+    if layout.together and layout.optional > 1:
+        optional = f" {', '.join(left_out[:-1])} and {left_out[-1]} may be left out together."
+    elif layout.optional > 1:
+        optional = f" The last {layout.optional} may be left out."
+    else:
+        optional = f" The last, {columns[-1]}, may be left out." if layout.optional else ""
     wrong_columns = FileRefused(f"The first line must name exactly these columns: {', '.join(columns)}.{optional} "
                                 "Download the template to start from.")
     for delimiter in _DELIMITERS:
