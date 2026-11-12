@@ -6,7 +6,9 @@
 #
 # It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; no answer
 # through Caddy framed (ticket 62); no address a client claims in the audit log (ticket 69); JSON lines
-# from web, worker and solver, and the push key pair made at the first start; Caddy holding the body (ticket 70): its version,
+# from web, worker and solver, and the push key pair made at the first start; gunicorn threaded (ticket 71): gthread, 3
+# workers of 4 threads, its default timeout, Caddy's idle time to web under gunicorn's keep-alive, and POSTs at gaps either
+# side of both answered by web; Caddy holding the body (ticket 70): its version,
 # its body timeouts, a body over 2 MB refused, and a login withholding its body not stopping a one-worker web; the worker alone
 # on a network with a way out
 # (ticket 42); the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by
@@ -14,7 +16,8 @@
 # deactivation, password reset, password change and key rotation it undid (ticket 66): by time when the backup it restores is
 # the one a restore took, saying so when there is nothing to list, and finishing when the list cannot be printed; a backup
 # without the throttle's table restored; deploy/reset-admin-password.sh lifting a lockout; the System Admin's health answer
-# and /metrics counting pushes sent and failed; a 1 MiB nurse import file previewed and confirmed through Caddy. Then it
+# and /metrics counting pushes sent and failed; a 1 MiB nurse import file previewed and confirmed through Caddy; a
+# confirmation of 100 nurses on one CPU running past gunicorn's timeout and ending (ticket 71). Then it
 # removes everything it made, unless --keep (the stack stays up, and the line to remove it is printed).
 # TEST_HTTPS_PORT (default 18443) is where Caddy answers on 127.0.0.1. Needs docker, curl, openssl and python3.
 set -euo pipefail
@@ -125,6 +128,62 @@ print(sum(1 for line in sys.stdin if line.strip() and (json.loads(line).get("log
 [[ $made == 1 ]] && pass "prepare logged the push key pair it made at the first start, once" || fail "web logged the push key pair $made times"
 [[ $(sql "SELECT count(*) FROM notifications_pushkeypair") == 1 ]] && pass "and the database holds one pair" || fail "no one push key pair"
 
+# ---- gunicorn runs threaded (ticket 71) --------------------------------------------------------------------------------------
+# What the running gunicorn was given, read by gunicorn's own parser from its command line (PID 1, which `exec` made it) with
+# config/gunicorn.py and any GUNICORN_CMD_ARGS, so no setting can hide in a file the command names: 3 workers of 4 threads,
+# the timeout at gunicorn's own default, and a keep-alive of its own.
+running=$(compose exec -T web python -c '
+import pathlib, sys
+from gunicorn.app.wsgiapp import WSGIApplication
+from gunicorn.config import Config
+argv = pathlib.Path("/proc/1/cmdline").read_bytes().decode().split("\0")[:-1]
+sys.argv = argv[next(i for i, arg in enumerate(argv) if arg.endswith("/gunicorn")):]
+cfg = WSGIApplication().cfg
+print(cfg.worker_class_str, cfg.workers, cfg.threads, cfg.timeout, Config().timeout, cfg.keepalive)') \
+  || fail "web's PID 1 is not gunicorn, or its command line could not be read"
+read -r worker_class workers threads timeout default_timeout keep_alive <<<"$running"
+[[ $worker_class == gthread && $workers == 3 && $threads == 4 && $timeout == "$default_timeout" ]] \
+  && pass "web's gunicorn runs $worker_class: $workers workers of $threads threads, the timeout at gunicorn's default of $timeout s" \
+  || fail "web's gunicorn: worker class $worker_class, $workers workers, $threads threads, timeout $timeout (default $default_timeout)"
+started=$(compose logs --no-log-prefix --no-color web | grep -c '"Using worker: gthread"' || true)
+[[ $started == 1 ]] && pass "and says so as it starts: Using worker: gthread" || fail "web logged 'Using worker: gthread' $started times"
+processes=$(compose exec -T web python -c '
+import os, pathlib
+print(sum(b"config.wsgi" in p.read_bytes() for p in pathlib.Path("/proc").glob("[0-9]*/cmdline") if p.parent.name != str(os.getpid())))')
+[[ $processes == 4 ]] && pass "web runs three gunicorn workers beside its master" || fail "web runs $processes gunicorn processes"
+
+# A gthread worker keeps a connection open for --keep-alive seconds after a response and then closes it (checked once a
+# second, so never sooner). Caddy forgets an idle connection to web before that, so it never sends a request down one gunicorn
+# has just closed, which would answer a POST with 502.
+idle=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | python3 -c '
+import json, sys
+def proxies(node):
+    if isinstance(node, dict):
+        if node.get("handler") == "reverse_proxy":
+            yield node
+        for value in node.values():
+            yield from proxies(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from proxies(value)
+found = list(proxies(json.load(sys.stdin)))
+assert found
+print(" ".join(str(p.get("transport", {}).get("keep_alive", {}).get("idle_timeout", "none")) for p in found))') \
+  || fail "Caddy's adapted configuration has no reverse_proxy"
+python3 -c 'import sys; idle = sys.argv[1].split(); sys.exit(not all(i.isdigit() and int(i) < float(sys.argv[2]) * 10**9 for i in idle))' "$idle" "$keep_alive" \
+  && pass "Caddy keeps an idle connection to web $(( ${idle%% *} / 10**9 )) s, under gunicorn's keep-alive of $keep_alive s" \
+  || fail "Caddy's idle time to web (ns): $idle, against gunicorn's keep-alive of $keep_alive s"
+# Driven: POSTs through Caddy at gaps either side of Caddy's idle time and of gunicorn's keep-alive. Each is refused by web the
+# same way, never with Caddy's 502. Go retries a GET on a reused connection that was closed, which is why these are POSTs.
+answers=""
+for gap in 0.5 1.5 2.5 $(( keep_alive - 1 )).5 $keep_alive.5; do
+  sleep "$gap"
+  answers="$answers $(curl -sk -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$base/api/auth/login")"
+done
+[[ $answers != *502* && $(tr ' ' '\n' <<<"$answers" | sort -u | grep -c .) == 1 ]] \
+  && pass "POSTs through Caddy at gaps of half a second to $keep_alive.5 s are answered by web alike:$answers" \
+  || fail "POSTs through Caddy at spaced gaps answered:$answers"
+
 # ---- Caddy holds the body (ticket 70) ----------------------------------------------------------------------------------------
 # Caddy refuses a body over 2 MB (2,000,000 bytes) and reads the whole body before it opens the request to web, so no web
 # worker waits on a client's body. After the log checks, since it recreates web, and web is put back before anything else.
@@ -152,7 +211,7 @@ over_cap=$(login_of 2000001) at_cap=$(login_of 2000000)
   || fail "a body of 2,000,001 bytes answered $over_cap and one of 2,000,000 $at_cap"
 
 # With web at one worker of one thread (tests/compose.one-worker.yaml), a login whose body never comes would leave nothing to
-# answer anyone if Caddy passed it on: with three workers one held request never shows. One connection, as the audit's.
+# answer anyone if Caddy passed it on: with twelve threads one held request never shows. One connection, as the audit's.
 one_worker_web() { COMPOSE_FILE=$COMPOSE_FILE:tests/compose.one-worker.yaml docker compose up -d --no-deps --wait --quiet-pull web; }
 one_worker_web
 workers=$(compose exec -T web python -c '
@@ -481,5 +540,30 @@ preview_token=$(upload -f "$base/api/nurses/import/preview" | python3 -c 'import
 code=$(upload -o "$work/sheet" -w '%{http_code}' -F "token=$preview_token" "$base/api/nurses/import/confirm")
 saved=$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["rows"]))' "$work/sheet" 2>/dev/null || echo none)
 [[ $code == 201 && $saved == 3 ]] && pass "and confirms: 201, three nurses on the password sheet" || fail "the 1 MiB file's confirm answered $code, rows: $saved"
+
+# ---- a confirmation longer than gunicorn's timeout (ticket 71) ---------------------------------------------------------------
+# Under gthread, gunicorn's timeout is only how long a worker's main loop may go silent: a request may take as long as it takes.
+# With web held to one CPU, 100 nurses' password hashes (about half a second each) keep one confirmation running past it, and
+# it ends with its password sheet. Last, since web stays at one CPU.
+docker update --cpus 1 "$(compose ps -q web)" >/dev/null || fail "web could not be held to one CPU"
+python3 - "$work/import.csv" <<'PY'
+import datetime, sys
+with open(sys.argv[1], "w", newline="") as file:
+    file.write("Hospital ID,Full name,Gender,Unit,Start date\n" + "".join(
+        f"N71-{n},Long Nurse {n},F,Import Ward,{datetime.date.today().isoformat()}\n" for n in range(1, 101)))
+PY
+preview_token=$(upload -f "$base/api/nurses/import/preview" | python3 -c 'import json, sys; print(json.load(sys.stdin)["token"] or "")') \
+  || fail "the preview of 100 nurses failed"
+[[ -n $preview_token ]] || fail "the preview of 100 nurses has problems"
+confirmed=$(upload -o "$work/sheet" -w '%{http_code} %{time_total}' -F "token=$preview_token" "$base/api/nurses/import/confirm") || true
+read -r code seconds <<<"$confirmed"
+seconds=${seconds:-0}
+saved=$(python3 -c 'import json, sys; print(len(json.load(open(sys.argv[1]))["rows"]))' "$work/sheet" 2>/dev/null || echo none)
+python3 -c 'import sys; sys.exit(float(sys.argv[1]) <= float(sys.argv[2]))' "$seconds" "$timeout" \
+  || fail "the confirmation of 100 nurses on one CPU took $seconds s, inside gunicorn's $timeout s: it shows nothing"
+killed=$(compose logs --no-log-prefix --no-color web | grep -c 'WORKER TIMEOUT' || true)
+[[ $code == 201 && $saved == 100 && $killed == 0 ]] \
+  && pass "a confirmation of 100 nurses on one CPU took $seconds s, past gunicorn's $timeout s, and ended: 201, 100 passwords" \
+  || fail "the long confirmation answered $code in $seconds s, rows: $saved; web logged WORKER TIMEOUT $killed times"
 
 echo "# All checks passed."

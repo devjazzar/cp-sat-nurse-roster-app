@@ -49,6 +49,16 @@ Caddy. Nothing bounds a whole request's time: once its body is in, a long nurse 
 runs to its end. The other timeouts are Caddy's defaults (headers 1 minute, idle connections 5 minutes, a stalled write 1
 minute), with no write timeout. Caddy has no rate limit (ADR 0015); the limit on failed logins is the application's.
 
+`web`'s command (`deploy/compose.yaml`, ticket 71): `prepare`, then gunicorn with `--worker-class gthread --workers 3
+--threads 4 --keep-alive 10` and `--timeout` at gunicorn's default. Each of the twelve threads serves one request at a time, so
+a login's hash or a long nurse import's confirmation holds one thread, not a third of the pool. Under `gthread` the timeout is
+only how long a worker's main loop may go silent: no request is killed for its length. A connection from Caddy stays open 10 s
+after an answer, and Caddy closes an idle one to `web` after 2 s (`keepalive` in the Caddyfile's `reverse_proxy`), so it
+never sends a request down one gunicorn has just closed. Database connections: each thread opens at most one and closes it
+at the request's end (no `CONN_MAX_AGE`), so `web` holds at most 12, beside the worker's 9 (ADR 0009), against PostgreSQL's
+100. The application keeps no mutable state in a module that a request changes; the public health answer held five seconds is
+shared by a process's threads under a lock (`ops.public_health`).
+
 Volumes: `pgdata` (PostgreSQL), `backups` (the nightly backups, mounted by `worker` and, read-only, by `web`, and by no other
 service), `caddy_data` (certificates).
 
@@ -873,8 +883,8 @@ nurses and 1 MB. Any other encoding is refused rather than guessed. Previewing s
 confirming sends the file again: it is judged again from the start, and with any problem, or when it no longer means what
 was previewed, nothing is saved and the answer is the preview as it now stands. One password hash takes about half a second
 on purpose, and the passwords may be kept nowhere, so the worker cannot make them and hand them back later. Confirming is
-one long request instead: the hashes first, four at a time and holding no lock, then one transaction. The row limit keeps
-it inside gunicorn's 300-second timeout (the default of 30 would kill it) even on one core. The password sheet is the
+one long request instead: the hashes first, four at a time and holding no lock, then one transaction. It runs in one of
+gunicorn's threads, which no timeout ends (section 2), so 500 rows on one core take what their hashes take. The password sheet is the
 answer to that request and lives only in the page's memory: if the answer is lost after the transaction, the nurses stay and
 their passwords are reset one at a time. Uploads stay in memory and never reach a temporary file. In a
 staff list every cell is quoted, and one a spreadsheet would run as a formula starts with an apostrophe. Its columns are the

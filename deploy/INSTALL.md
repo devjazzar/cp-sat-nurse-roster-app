@@ -66,13 +66,13 @@ These cannot be proven anywhere but on the hospital's own server.
   Authority". If it is not, `docker compose logs caddy` says why (most often port 80 or 443 is not reachable from the
   internet, or the DNS does not point here yet). This has never been proven: no certificate was issued while building, for want
   of a real name.
-- **The 500-row nurse import against gunicorn's timeout.** Confirming an import hashes one password a nurse, about half a
-  second each, four at once, in one request, and gunicorn gives a request 300 seconds (`--timeout 300` in `compose.yaml`).
-  500 rows took 62.5 seconds on 8 cores of a development machine; no hospital server has been measured. Before any real
-  nurse is added, take a backup (`docker compose exec worker python manage.py backup`, which prints its name), import 500
-  made-up nurses from the template on the Nurses page and time the confirmation, then restore that backup
-  (`./restore.sh <name>`), since nothing in the application deletes a nurse. Well under 300 seconds is fine. Near it, keep
-  imports smaller, or raise `--timeout` in `compose.yaml`.
+- **The 500-row nurse import, timed.** Confirming an import hashes one password a nurse, about half a second each, four at
+  once, in one request. Nothing cuts that request short: gunicorn's threads end no request for its length (ticket 71), so
+  there is no limit to stay under, only how long the CNO waits. 500 rows took 62.5 seconds on 8 cores of a development
+  machine; no hospital server has been measured. Before any real nurse is added, take a backup (`docker compose exec worker
+  python manage.py backup`, which prints its name), import 500 made-up nurses from the template on the Nurses page and time
+  the confirmation, then restore that backup (`./restore.sh <name>`), since nothing in the application deletes a nurse. If
+  the wait is too long for the CNO, import unit by unit.
 - **The install checklist** below.
 
 ### The install checklist: what only the hospital's people can check
