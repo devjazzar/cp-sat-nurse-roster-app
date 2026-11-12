@@ -428,9 +428,13 @@ def _holiday_fields(row: PublicHoliday) -> dict:
     return {"date": row.date.isoformat(), "name": row.name}
 
 
+def _save_holiday(row: PublicHoliday) -> None:
+    save_unless_taken(row, "date", f"{row.date.isoformat()} is already a public holiday")
+
+
 def _write_holiday(row: PublicHoliday, body: PublicHolidayBody) -> None:
     row.date, row.name = body.date, body.name
-    save_unless_taken(row, "date", f"{body.date.isoformat()} is already a public holiday")
+    _save_holiday(row)
 
 
 @router.get("/public-holidays", response=list[PublicHolidaySchema], operation_id="listPublicHolidays")
@@ -448,7 +452,7 @@ def _create_holiday(request, day: dt.date, name: str) -> PublicHoliday:
     """The one way a holiday is created, by hand or from a proposal: refused on `date` when the day is one already.
     The caller holds the transaction."""
     row = PublicHoliday(date=day, name=name)
-    save_unless_taken(row, "date", f"{day.isoformat()} is already a public holiday")
+    _save_holiday(row)
     record("public_holiday.created", actor=request.user, target=row.date.isoformat(),
            after=_holiday_fields(row), request=request)
     return row
@@ -686,7 +690,7 @@ def confirm_ramadan(request, hijri_year: int, body: RamadanConfirm) -> dict:
 # from Arafat Day. The public sector's dates come by circular each year, so the CNO may change both before adding.
 EID_DAYS = 4
 LONGEST_HOLIDAY = 14
-FIXED_HOLIDAYS = [("Founding Day", 2, 22), ("National Day", 9, 23)]
+FIXED_HOLIDAYS = {"Founding Day": (2, 22), "National Day": (9, 23)}
 
 
 class HolidayProposal(Schema):
@@ -720,16 +724,17 @@ def _eid_al_fitr_days(year: int) -> list[dt.date]:
 
 
 @router.get("/holiday-proposals", response=list[HolidayProposal], auth=cno, operation_id="listHolidayProposals")
-def list_holiday_proposals(request, filters: Query[YearFilter]) -> list[dict]:
+def list_holiday_proposals(request, filters: Query[YearFilter]) -> list[HolidayProposal]:
     """The Eids and the national days of the year, in date order, each while its first day is not a public holiday.
     Nothing is stored for one: a proposal nobody adds stays."""
     year = filters.year
-    proposals = ([("Eid al-Fitr", day, EID_DAYS) for day in _eid_al_fitr_days(year)]
-                 + [("Eid al-Adha", day, EID_DAYS) for day in calendar_arafat_days(year)]
-                 + [(name, dt.date(year, month, day), 1) for name, month, day in FIXED_HOLIDAYS])
+    proposals = ([HolidayProposal(name="Eid al-Fitr", first=day, length=EID_DAYS) for day in _eid_al_fitr_days(year)]
+                 + [HolidayProposal(name="Eid al-Adha", first=day, length=EID_DAYS) for day in calendar_arafat_days(year)]
+                 + [HolidayProposal(name=name, first=dt.date(year, month, day), length=1)
+                    for name, (month, day) in FIXED_HOLIDAYS.items()])
     entered = set(PublicHoliday.objects.filter(date__year=year).values_list("date", flat=True))
-    return [{"name": name, "first": first, "length": length}
-            for name, first, length in sorted(proposals, key=lambda proposal: proposal[1]) if first not in entered]
+    return sorted((proposal for proposal in proposals if proposal.first not in entered),
+                  key=lambda proposal: proposal.first)
 
 
 @router.post("/holiday-proposals", response=HolidaysAdded, auth=cno, operation_id="addProposedHolidays")

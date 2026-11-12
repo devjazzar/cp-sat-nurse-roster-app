@@ -144,6 +144,8 @@ def test_an_eid_on_new_years_day_after_a_december_ramadan_is_proposed_on_the_new
 
 
 def test_a_year_can_hold_two_of_one_eid(signed_in):
+    """By the Umm al-Qura tables, which no announcement has reached yet: Ramadan 1454 begins on 4 December 2032 and 1455
+    on 23 November 2033; Arafat Day falls in January and December 2039."""
     client = signed_in(Role.CNO)
 
     assert [row["first"] for row in named(client, 2033, "Eid al-Fitr")] == ["2033-01-02", "2033-12-22"]

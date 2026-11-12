@@ -70,6 +70,11 @@ const isOneRun = (dates: string[]) => dates.length > 0 && dates.every((day, inde
 // Unlike the shifts' table, a row's actions here do not stay in view on a narrow screen: two buttons
 // would cover the dates, which are what the row is for.
 
+/** The proposals follow the holidays entered and the Ramadan in force, so every write to either reads them again, in
+ *  every year: a Ramadan can end in the next year, and Eid al-Fitr with it. */
+const readProposalsAgain = (queryClient: ReturnType<typeof useQueryClient>) =>
+  queryClient.invalidateQueries({ queryKey: [getListHolidayProposalsQueryKey()[0]] })
+
 // ---- public holidays ------------------------------------------------------------------------------
 function HolidayForm({ year, row, onDone, onCancel }: { year: number; row: PublicHolidaySchema | null; onDone: (message: string) => void; onCancel: () => void }) {
   const queryClient = useQueryClient()
@@ -89,7 +94,7 @@ function HolidayForm({ year, row, onDone, onCancel }: { year: number; row: Publi
 
   const saved = (message: string) => {
     void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year }) })
-    void queryClient.invalidateQueries({ queryKey: getListHolidayProposalsQueryKey({ year }) })
+    void readProposalsAgain(queryClient)
     onDone(message)
   }
   const refused = (error: unknown) => showServerErrors(form, error)
@@ -137,7 +142,7 @@ function Holidays({ year, mayChange }: { year: number; mayChange: boolean }) {
     remove.mutate({ holidayId: row.id }, {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year }) })
-        void queryClient.invalidateQueries({ queryKey: getListHolidayProposalsQueryKey({ year }) })
+        void readProposalsAgain(queryClient)
         setDone(`${row.name} is removed.`)
         if (editing?.id === row.id) drop()
         focusAfter.current = "field-date" // Where the next holiday would be entered.
@@ -235,10 +240,10 @@ function ProposalLine({ proposal, title, year, onStart, onAdded }: {
   proposal: HolidayProposal; title: string; year: number; onStart: () => void; onAdded: (message: string, gone: boolean) => void
 }) {
   const add = useAddProposedHolidays()
-  const days = `Enter a number of days from 1 to ${LENGTH_MAX}.`
+  const notALength = `Enter a number of days from 1 to ${LENGTH_MAX}.`
   const schema = z.object({
     first: z.iso.date("Enter a date.").refine((date) => date.startsWith(`${year}-`), `This is not in ${year}. Go to that year to add it.`),
-    length: z.number({ error: days }).int(days).min(1, days).max(LENGTH_MAX, days),
+    length: z.number({ error: notALength }).int(notALength).min(1, notALength).max(LENGTH_MAX, notALength),
   })
   const form = useForm<ProposalFields>({ resolver: zodResolver(schema), defaultValues: { first: proposal.first, length: proposal.length } })
   const { errors } = form.formState
@@ -292,7 +297,7 @@ function HolidayProposals({ year, onStart, onDone }: { year: number; onStart: ()
     // An Eid's last days can fall in the next year.
     void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year }) })
     void queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey({ year: year + 1 }) })
-    await queryClient.invalidateQueries({ queryKey: getListHolidayProposalsQueryKey({ year }) })
+    await readProposalsAgain(queryClient)
     if (!gone) return // Focus stays on Add.
     // The line has gone: on to the next one, as a CNO adding them in turn would go, or to the card when none is left.
     const left = queryClient.getQueryData<HolidayProposal[]>(getListHolidayProposalsQueryKey({ year })) ?? []
@@ -374,7 +379,7 @@ function RamadanForm({ state, onDone, onCancel }: { state: RamadanMonth; onDone:
       {
         onSuccess: () => {
           void queryClient.invalidateQueries({ queryKey: getListRamadanMonthsQueryKey({ year }) })
-          void queryClient.invalidateQueries({ queryKey: [getListHolidayProposalsQueryKey()[0]] }) // Eid al-Fitr follows.
+          void readProposalsAgain(queryClient)
           onDone(`The Ramadan dates of ${name} are fixed.`)
         },
         onError: (error) => showServerErrors(form, error, ([field]) => (field === "dates" ? "days" : String(field))),
@@ -485,7 +490,7 @@ function RamadanCardForm({ card, onStart, onDone }: { card: RamadanCard; onStart
         // A confirmation can write into the next or the previous year, so every year's lists are read again.
         void queryClient.invalidateQueries({ queryKey: [getListRamadanMonthsQueryKey()[0]] })
         void queryClient.invalidateQueries({ queryKey: [getListRamadansQueryKey()[0]] })
-        void queryClient.invalidateQueries({ queryKey: [getListHolidayProposalsQueryKey()[0]] })
+        void readProposalsAgain(queryClient)
         onDone(next.first && next.last ? `${name} is confirmed: ${dateRange(next.first, next.last)}.` : `${name} is confirmed.`)
       },
       onError: (error) => showServerErrors(form, error),
@@ -546,7 +551,7 @@ function Ramadan({ year, mayChange }: { year: number; mayChange: boolean }) {
     unfix.mutate({ month: state.month }, {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getListRamadanMonthsQueryKey({ year }) })
-        void queryClient.invalidateQueries({ queryKey: [getListHolidayProposalsQueryKey()[0]] })
+        void readProposalsAgain(queryClient)
         setDone(`${monthName(state.month)} follows the calendar again.`)
         if (editing?.month === state.month) drop()
         focusAfter.current = `fix-${state.month}` // The button that opened the question goes with the fixed dates.
