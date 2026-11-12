@@ -19,15 +19,18 @@ export const Route = createFileRoute("/_signed-in/my-roster")({
 })
 
 /** The grid the page draws. A colleague's cell is a shift or nothing, as the answer has it: there is no leave to show for one.
- *  The reader's own row comes first, with what their own days were. */
+ *  The reader's own row comes first among the counted nurses, or among those on probation when they are, with what their own
+ *  days were; the rows on probation stay last, under their heading. */
 function asGrid(roster: NurseRoster, me: string): GridView {
-  const own = roster.rows.filter((row) => row.hospital_id === me)
-  const others = roster.rows.filter((row) => row.hospital_id !== me)
+  const ownFirst = (rows: NurseRoster["rows"]) => [...rows.filter((row) => row.hospital_id === me), ...rows.filter((row) => row.hospital_id !== me)]
+  const ordered = [...ownFirst(roster.rows.filter((row) => !row.on_probation)), ...ownFirst(roster.rows.filter((row) => row.on_probation))]
   return {
     days: roster.days,
     shifts: roster.shifts,
-    rows: [...own, ...others].map((row) => ({
+    rows: ordered.map((row) => ({
       hospital_id: row.hospital_id,
+      on_probation: row.on_probation,
+      preceptor_name: row.preceptor_name,
       full_name: row.hospital_id === me ? `${row.full_name || row.hospital_id} (you)` : row.full_name,
       cells: row.shifts.map((code, index) => ({
         shift: code,

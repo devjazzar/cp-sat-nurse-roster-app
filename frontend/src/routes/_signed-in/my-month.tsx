@@ -10,7 +10,7 @@ import { MyRequestsCard } from "@/components/my-requests"
 import { RecordsTable } from "@/components/nurse-skills"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { dayRange, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
+import { dayRange, fullDay, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
 import { onlyFor } from "@/session"
 
 const searchSchema = z.object({ month: monthInAddress })
@@ -83,6 +83,38 @@ function Hours({ answer }: { answer: MyMonth }) {
   )
 }
 
+/** Her probation, or the nurse on probation the reader precepts, in the month shown and as it stands now (ADR 0014). Nothing for
+ *  anyone else. */
+function ProbationCard({ answer }: { answer: MyMonth }) {
+  const month = monthName(answer.month)
+  if (answer.probation) {
+    const { last_day, preceptor } = answer.probation
+    return (
+      <Card>
+        <CardHeader><CardTitle><h3>Probation</h3></CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <p>You are on probation in {month}. Its last day is {fullDay(last_day)}.</p>
+          <p>{preceptor
+            ? `Your preceptor is ${preceptor}. You work beside them on their day shifts, and work no night shift.`
+            : "No preceptor is assigned to you yet. Your unit manager chooses one; until then your day shifts are placed on their own."}</p>
+          <p className="text-sm text-muted-foreground">On the roster your row is under On probation: a shift is fully staffed without you.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+  if (answer.precepts) {
+    return (
+      <Card>
+        <CardHeader><CardTitle><h3>Precepting</h3></CardTitle></CardHeader>
+        <CardContent>
+          <p>In {month} you precept {answer.precepts}, a nurse on probation, who works beside you on your day shifts.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+  return null
+}
+
 /** Not of a month: what she holds today, with the last day each counts, so she knows what to renew and when. */
 function MySkillsCard() {
   const skills = useGetMySkills()
@@ -115,6 +147,7 @@ function MyMonthPage() {
       <h1 className="text-xl font-medium">My month</h1>
       <p className="text-muted-foreground">Your hours and shifts in the approved roster, {user.role === Role.staff_nurse ? "your requests and preferences, " : ""}your skills and your leave. Only you, your manager, the CNO and the Deputy CNO can see your leave's type: colleagues see a day off.</p>
       {shown && <MonthNav month={shown} link={(next, label) => <Link to="/my-month" search={{ month: next }} className={MONTH_LINK}>{label}</Link>} />}
+      {mine.data && <ProbationCard answer={mine.data} />}
       <Card>
         <CardHeader><CardTitle><h3>Hours and shifts</h3></CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-2">

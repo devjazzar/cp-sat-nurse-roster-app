@@ -1,6 +1,7 @@
-import type { ReactNode } from "react"
+import { type ReactNode, useId } from "react"
 
 import type { RosterSheet } from "@/api/generated/model"
+import { ON_PROBATION, preceptorLine } from "@/components/roster-grid"
 import { Button } from "@/components/ui/button"
 import { asDate, cn, hospitalTime, monthName, scrollableRegion } from "@/lib/utils"
 
@@ -9,7 +10,9 @@ import { asDate, cn, hospitalTime, monthName, scrollableRegion } from "@/lib/uti
  *
  *  On A4 landscape (`@page roster` in index.css) a 31-day month fits across one page: the columns are fixed and share the width,
  *  so nothing is cut off at the right. Rows that do not fit go on to the next page, never split, and the header row repeats at
- *  the top of each, as a table's head does in print. Each row carries its own name, so no page needs another to be read. */
+ *  the top of each, as a table's head does in print. Each row carries its own name, so no page needs another to be read. Nurses on
+ *  probation come last, as the server orders them, in a row group of their own under the "On probation" heading, each with her
+ *  preceptor's name under her own. */
 
 // Two letters, so Saturday and Sunday, and Tuesday and Thursday, are told apart in a column a few millimetres wide.
 const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" })
@@ -25,6 +28,28 @@ const OWN_DAY = { leave: "L", outside: "·", off: "", shift: "" } as const
 export function SheetTable({ sheet, me }: { sheet: RosterSheet; me?: string }) {
   const label = `${sheet.unit} roster, ${monthName(sheet.month)}, version ${sheet.version}`
   const region = scrollableRegion(label)
+  const headingId = useId()
+  const counted = sheet.rows.filter((row) => !row.on_probation)
+  const onProbation = sheet.rows.filter((row) => row.on_probation)
+  const width = 2 + sheet.days.length + sheet.shifts.length
+  const drawRow = (row: RosterSheet["rows"][number]) => {
+    const own = row.hospital_id === me && sheet.mine ? sheet.mine : null
+    return (
+      <tr key={row.hospital_id} className="break-inside-avoid">
+        <th scope="row" className="border p-1 text-start font-normal wrap-anywhere">
+          {row.full_name || row.hospital_id}{own ? " (you)" : ""}
+          {row.on_probation && <><span className="sr-only">, </span><span className="block text-muted-foreground print:text-current">{preceptorLine(row.preceptor_name)}</span></>}
+        </th>
+        {row.shifts.map((code, index) => (
+          <td key={sheet.days[index].date} className={cn("border p-0 text-center", shaded(sheet.days[index]))}>
+            {code || (own ? OWN_DAY[own[index].kind] : "")}
+          </td>
+        ))}
+        <td className="border p-0.5 text-center">{row.hours}</td>
+        {row.counts.map((count, index) => <td key={sheet.shifts[index].code} className="border p-0.5 text-center">{count}</td>)}
+      </tr>
+    )
+  }
   return (
     <div {...region} className={cn(region.className, "overflow-x-auto print:overflow-visible")}>
       <table className="roster-sheet w-full min-w-[60rem] table-fixed border-collapse text-xs tabular-nums print:min-w-0 print:text-[7pt]">
@@ -49,25 +74,15 @@ export function SheetTable({ sheet, me }: { sheet: RosterSheet; me?: string }) {
             ))}
           </tr>
         </thead>
-        <tbody>
-          {sheet.rows.map((row) => {
-            const own = row.hospital_id === me && sheet.mine ? sheet.mine : null
-            return (
-              <tr key={row.hospital_id} className="break-inside-avoid">
-                <th scope="row" className="border p-1 text-start font-normal wrap-anywhere">
-                  {row.full_name || row.hospital_id}{own ? " (you)" : ""}
-                </th>
-                {row.shifts.map((code, index) => (
-                  <td key={sheet.days[index].date} className={cn("border p-0 text-center", shaded(sheet.days[index]))}>
-                    {code || (own ? OWN_DAY[own[index].kind] : "")}
-                  </td>
-                ))}
-                <td className="border p-0.5 text-center">{row.hours}</td>
-                {row.counts.map((count, index) => <td key={sheet.shifts[index].code} className="border p-0.5 text-center">{count}</td>)}
-              </tr>
-            )
-          })}
-        </tbody>
+        <tbody>{counted.map(drawRow)}</tbody>
+        {onProbation.length > 0 && (
+          <tbody aria-labelledby={headingId}>
+            <tr className="break-inside-avoid break-after-avoid">
+              <th id={headingId} scope="rowgroup" colSpan={width} className="border bg-muted p-1 text-start font-medium print:[print-color-adjust:exact]">{ON_PROBATION}</th>
+            </tr>
+            {onProbation.map(drawRow)}
+          </tbody>
+        )}
       </table>
     </div>
   )
@@ -94,6 +109,7 @@ export function SheetPage({ sheet, me, back }: { sheet: RosterSheet; me?: string
       <p className="text-sm print:text-[7pt]">
         {sheet.shifts.map((shift) => `${shift.code}: ${shift.display_name}, ${shift.hours} hours`).join(". ")}{sheet.shifts.length ? ". " : ""}
         An empty cell is a day not worked. Hours are those of the shifts on the row.
+        {sheet.rows.some((row) => row.on_probation) ? ` ${ON_PROBATION}: works beside their preceptor and is not counted toward any shift.` : ""}
         {ownLeave ? " L: your leave. My month counts your leave as worked in your hours; these hours count shifts only." : ""}{ownOutside ? " ·: before your start date or after your end date." : ""}
       </p>
     </div>

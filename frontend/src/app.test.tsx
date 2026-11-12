@@ -6874,6 +6874,24 @@ describe("the roster page", () => {
       expect(screen.getByText(/Edited by hand since. Cost 15 on the month as it stands, against 12 as solved./)).toBeInTheDocument()
     })
 
+    it("puts a nurse on probation last, under its own heading with her preceptor's name, and the arrows pass over it (ticket 56)", async () => {
+      const faten = { hospital_id: "h3", full_name: "Faten Ali", on_probation: true, preceptor_name: "Amal Saleh", cells: DAYS.map(() => ({ shift: "D", kind: "shift" })) }
+      const { user } = start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft: { ...DRAFT, rows: [...DRAFT.rows, faten] } } } }))
+
+      const grid = within(await screen.findByRole("region", { name: "Draft of ER, June 2026" }))
+      const group = within(grid.getByRole("rowgroup", { name: "On probation" }))
+      expect(group.getByRole("rowheader", { name: /^Faten Ali,\s?Preceptor: Amal Saleh$/ })).toBeInTheDocument()
+      expect(group.queryByRole("rowheader", { name: "Badr Noor" })).not.toBeInTheDocument()
+      expect(grid.getByRole("grid")).toHaveAttribute("aria-rowcount", "5")
+      expect(screen.getByRole("list", { name: "What the cells mean" })).toHaveTextContent("On probation: works beside their preceptor and is not counted toward any shift")
+
+      ;(await cellNamed("Badr Noor, 1 June: Night")).focus()
+      await user.keyboard("{ArrowDown}")
+      expect(await cellNamed("Faten Ali, 1 June: Day")).toHaveFocus()
+      await user.keyboard("{ArrowUp}")
+      expect(await cellNamed("Badr Noor, 1 June: Night")).toHaveFocus()
+    })
+
     it("is one stop for Tab, moved through by the arrow keys, and Escape gives focus back to the cell", async () => {
       const { user } = start("/roster", editing())
 
@@ -8580,6 +8598,31 @@ describe("a nurse's roster page", () => {
     expect(screen.getByText("Approved 2026-05-16 12:00:00.")).toBeInTheDocument()
   })
 
+  it("shows a nurse on probation last, under its own heading with her preceptor's name (ticket 56)", async () => {
+    const rows = [...ROSTER.rows, { hospital_id: "f1", full_name: "Faten Ali", on_probation: true, preceptor_name: "Amal Saleh", shifts: ["D", "", ""] }]
+    start("/my-roster", reading({ ...NO_ROSTER_YET, roster: { ...ROSTER, rows } }))
+
+    const grid = await screen.findByRole("region", { name: "Roster of ER, December 2026" })
+    const group = within(within(grid).getByRole("rowgroup", { name: "On probation" }))
+    expect(group.getByRole("rowheader", { name: /^Faten Ali,\s?Preceptor: Amal Saleh$/ })).toBeInTheDocument()
+    expect(group.queryByRole("rowheader", { name: "Hana Ali (you)" })).not.toBeInTheDocument()
+    const faten = within(group.getByRole("rowheader", { name: /Faten Ali/ }).closest("tr") as HTMLElement).getAllByRole("cell")
+    expect(faten.map((cell) => cell.getAttribute("title"))).toEqual(["Faten Ali, 1 December: Day", "Faten Ali, 2 December: Off", "Faten Ali, 3 December: Off"])
+  })
+
+  it("keeps a reader on probation under the heading, first of its rows, with no preceptor yet", async () => {
+    const rows = [
+      { ...ROSTER.rows[0] },
+      { hospital_id: "f1", full_name: "Faten Ali", on_probation: true, preceptor_name: "Amal Saleh", shifts: ["D", "", ""] },
+      { ...ROSTER.rows[1], on_probation: true, preceptor_name: null },
+    ]
+    start("/my-roster", reading({ ...NO_ROSTER_YET, roster: { ...ROSTER, rows } }))
+
+    const grid = await screen.findByRole("region", { name: "Roster of ER, December 2026" })
+    const group = within(within(grid).getByRole("rowgroup", { name: "On probation" }))
+    expect(group.getAllByRole("rowheader").map((row) => row.textContent)).toEqual(["On probation", "Hana Ali (you), No preceptor", "Faten Ali, Preceptor: Amal Saleh"])
+  })
+
   it("says there is no roster yet, and offers no month before this one", async () => {
     start("/my-roster", reading({ ...NO_ROSTER_YET, month: "2026-11" }))
 
@@ -8779,6 +8822,36 @@ describe("a nurse's own month", () => {
     expect(screen.getByRole("link", { name: "See it under My roster" })).toHaveAttribute("href", "/my-roster?month=2026-11")
   })
 
+  it("tells a nurse on probation her preceptor and her probation's last day (ticket 56)", async () => {
+    start("/my-month", mine({ ...IN_FORCE, probation: { last_day: "2026-11-30", preceptor: "Amal Saleh" }, precepts: null }))
+
+    const card = (await screen.findByRole("heading", { level: 3, name: "Probation" })).closest("[data-slot=card]") as HTMLElement
+    expect(within(card).getByText("You are on probation in November 2026. Its last day is Monday, 30 November 2026.")).toBeInTheDocument()
+    expect(within(card).getByText("Your preceptor is Amal Saleh. You work beside them on their day shifts, and work no night shift.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Precepting" })).not.toBeInTheDocument()
+  })
+
+  it("says when no preceptor is assigned yet", async () => {
+    start("/my-month", mine({ ...NO_HOURS_YET, probation: { last_day: "2026-12-31", preceptor: null }, precepts: null }))
+
+    expect(await screen.findByText(/No preceptor is assigned to you yet\. Your unit manager chooses one/)).toBeInTheDocument()
+  })
+
+  it("tells a preceptor the nurse on probation they are paired with", async () => {
+    start("/my-month", mine({ ...IN_FORCE, probation: null, precepts: "Faten Ali" }))
+
+    expect(await screen.findByText("In November 2026 you precept Faten Ali, a nurse on probation, who works beside you on your day shifts.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Probation" })).not.toBeInTheDocument()
+  })
+
+  it("says nothing of probation to anyone else", async () => {
+    start("/my-month", mine({ ...IN_FORCE, probation: null, precepts: null }))
+
+    await screen.findByText(/From version 2 of the ER roster/)
+    expect(screen.queryByRole("heading", { name: "Probation" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Precepting" })).not.toBeInTheDocument()
+  })
+
   it("shows a closed month's figures as what really happened", async () => {
     start("/my-month?month=2026-10", mine({ ...IN_FORCE, month: "2026-10", first_month: "2026-10", roster: { ...IN_FORCE.roster, closed: true } },
       { ...LEAVE, month: "2026-10" }))
@@ -8903,6 +8976,27 @@ describe("printing and downloading a roster version", () => {
     await user.click(screen.getByRole("button", { name: "Print" }))
 
     expect(print).toHaveBeenCalled()
+  })
+
+  it("prints a nurse on probation last, under its own heading with her preceptor's name (ticket 56)", async () => {
+    const rows = [...SHEET.rows, { hospital_id: "f1", full_name: "Faten Ali", shifts: ["", "D", ""], hours: 12, counts: [1, 0], on_probation: true, preceptor_name: "Amal Saleh" }]
+    start("/roster/print?unit=u1&month=2026-06&version=2", asManager({ [`GET ${UNIT}/roster/sheet`]: { body: { ...SHEET, rows } } }))
+
+    const table = await screen.findByRole("table", { name: "ER roster, June 2026, version 2" })
+    const group = within(table).getByRole("rowgroup", { name: "On probation" })
+    const [heading, faten] = within(group).getAllByRole("row")
+    expect(heading).toHaveTextContent(/^On probation$/)
+    expect([within(faten).getByRole("rowheader").textContent, ...within(faten).getAllByRole("cell").map((cell) => cell.textContent)])
+      .toEqual(["Faten Ali, Preceptor: Amal Saleh", "", "D", "", "12", "1", "0"])
+    expect(screen.getByText(/On probation: works beside their preceptor and is not counted toward any shift\./)).toBeInTheDocument()
+  })
+
+  it("prints no heading with nobody on probation", async () => {
+    start("/roster/print?unit=u1&month=2026-06&version=2", asManager({ [`GET ${UNIT}/roster/sheet`]: { body: SHEET } }))
+
+    const table = await screen.findByRole("table", { name: "ER roster, June 2026, version 2" })
+    expect(within(table).getAllByRole("rowgroup")).toHaveLength(2)  // the head and the counted nurses
+    expect(screen.queryByText(/On probation/)).not.toBeInTheDocument()
   })
 
   it("says when the version printed is not the roster in force, and leads an approver back to the unit's roster", async () => {

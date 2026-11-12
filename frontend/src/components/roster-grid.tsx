@@ -1,6 +1,6 @@
 import { tableFeatures, useTable, type ColumnDef } from "@tanstack/react-table"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import type { GridCell, GridRow, GridShift, GridView } from "@/api/generated/model"
 import { asDate, cn, readableOn, scrollableRegion } from "@/lib/utils"
@@ -10,6 +10,9 @@ const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "
 const longDay = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
 
 const NURSE_HEADER = "Nurse"
+/** The heading her rows sit under (ADR 0014): she works beside her preceptor and counts toward no shift. */
+export const ON_PROBATION = "On probation"
+export const preceptorLine = (name: string | null) => name ? `Preceptor: ${name}` : "No preceptor"
 const ROW_HEIGHT = 33
 /** A unit's usual month fits in the page, where the browser's find and a screen reader see all of it. Past this, only the rows
  *  in view are drawn, and `aria-rowcount` still says how many there are. */
@@ -88,7 +91,9 @@ function Cell({ cell, shifts, title }: { cell: GridCell; shifts: Map<string, Gri
 }
 
 /** A grid's nurses across its dates. Nurse names stay in view while it scrolls, and on a phone it scrolls sideways. With `editing`
- *  it is one stop for Tab, whose arrows move between cells and whose Enter or Space opens the cell's editor. */
+ *  it is one stop for Tab, whose arrows move between cells and whose Enter or Space opens the cell's editor. Nurses on probation
+ *  come last (the server orders them so) in a row group of their own under the "On probation" heading, each with her preceptor's
+ *  name; the arrows pass over the heading. */
 export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate }: { grid: GridView; label: string; editing?: GridEditing; extraShifts?: GridShift[]; markedDate?: string }) {
   const scroller = useRef<HTMLDivElement>(null)
   /** The date the Day view opened it on: its column scrolled into view once, and its header marked. */
@@ -119,8 +124,19 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
     overscan: 8,
   })
   const items = windowed ? virtualizer.getVirtualItems() : rows.map((_, index) => ({ index, start: index * ROW_HEIGHT, end: (index + 1) * ROW_HEIGHT }))
-  const before = windowed ? (items[0]?.start ?? 0) : 0
-  const after = windowed ? virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0) : 0
+  /** The first row on probation, where the heading goes; -1 with nobody on probation. */
+  const firstApart = grid.rows.findIndex((row) => row.on_probation)
+  const apart = firstApart >= 0
+  const counted = items.filter(({ index }) => !apart || index < firstApart)
+  const onProbation = items.filter(({ index }) => apart && index >= firstApart)
+  const headingDrawn = onProbation[0]?.index === firstApart
+  // The heading is no row of the virtualizer's, so in a windowed grid its height joins the spacer on whichever side it is off.
+  const headingAbove = apart && (items[0]?.index ?? 0) > firstApart
+  const headingBelow = apart && (items.at(-1)?.index ?? 0) < firstApart
+  const before = windowed ? (items[0]?.start ?? 0) + (headingAbove ? ROW_HEIGHT : 0) : 0
+  const after = windowed ? virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0) + (headingBelow ? ROW_HEIGHT : 0) : 0
+  const spacer = (height: number) => height > 0 && <tr aria-hidden="true"><td style={{ height }} colSpan={grid.days.length + 1} /></tr>
+  const headingId = useId()
 
   const region = scrollableRegion(label)
   const cellId = (row: number, col: number) => `cell-${row}-${col}`
@@ -153,11 +169,39 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
     setActive(clamped)
   }
 
+  const drawRow = (index: number): ReactNode => {
+    const row = rows[index]
+    const [nurse, ...cells] = row.getAllCells()
+    const name = nurse.getValue() as string
+    return (
+      <tr key={row.id} ref={windowed ? virtualizer.measureElement : undefined} data-index={index} aria-rowindex={index + 2 + (apart && index >= firstApart ? 1 : 0)} style={{ height: ROW_HEIGHT }}>
+        {/* Wraps rather than truncates: a name has to be reachable whole, and a title is not by keyboard. Narrower on a phone,
+            so a week of days shows beside it at 360 px (ticket 23). */}
+        <th scope="row" className="sticky start-0 z-10 max-w-28 border-b sm:max-w-48 bg-background px-2 py-1 text-start font-normal wrap-anywhere">
+          {name}
+          {row.original.on_probation && <><span className="sr-only">, </span><span className="block text-xs text-muted-foreground">{preceptorLine(row.original.preceptor_name)}</span></>}
+        </th>
+        {cells.map((cell, col) => {
+          const title = `${name}, ${longDay.format(asDate(cell.column.id))}`
+          if (!editing) return <Cell key={cell.id} cell={cell.getValue() as GridCell} shifts={shifts} title={title} />
+          const hospitalId = row.original.hospital_id
+          const date = cell.column.id
+          return (
+            <EditableCell key={cell.id} id={cellId(index, col)} cell={cell.getValue() as GridCell} shifts={shifts} title={title}
+              marks={editing.marks(hospitalId, date)} focusable={active.row === index && active.col === col}
+              onOpen={(button) => { setActive({ row: index, col }); editing.onOpen(hospitalId, date, button) }}
+              onKeyDown={(event) => move(event, index, col)} />
+          )
+        })}
+      </tr>
+    )
+  }
+
   // `relative` keeps each cell's screen-reader text inside the scroller, or the whole page scrolls sideways.
   return (
     <div ref={scroller} {...region}
       className={cn(region.className, "relative overflow-auto border", windowed && "max-h-[70svh]")}>
-      <table role={editing ? "grid" : undefined} aria-label={editing ? label : undefined} aria-rowcount={rows.length + 1}
+      <table role={editing ? "grid" : undefined} aria-label={editing ? label : undefined} aria-rowcount={rows.length + 1 + (apart ? 1 : 0)}
         className="w-max border-separate border-spacing-0 text-sm">
         <thead className="sticky top-0 z-20 bg-background">
           <tr aria-rowindex={1}>
@@ -181,33 +225,24 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
           </tr>
         </thead>
         <tbody>
-          {before > 0 && <tr aria-hidden="true"><td style={{ height: before }} colSpan={grid.days.length + 1} /></tr>}
-          {items.map(({ index }) => {
-            const row = rows[index]
-            const [nurse, ...cells] = row.getAllCells()
-            const name = nurse.getValue() as string
-            return (
-              <tr key={row.id} ref={windowed ? virtualizer.measureElement : undefined} data-index={index} aria-rowindex={index + 2} style={{ height: ROW_HEIGHT }}>
-                {/* Wraps rather than truncates: a name has to be reachable whole, and a title is not by keyboard. Narrower on a phone,
-                    so a week of days shows beside it at 360 px (ticket 23). */}
-                <th scope="row" className="sticky start-0 z-10 max-w-28 border-b sm:max-w-48 bg-background px-2 py-1 text-start font-normal wrap-anywhere">{name}</th>
-                {cells.map((cell, col) => {
-                  const title = `${name}, ${longDay.format(asDate(cell.column.id))}`
-                  if (!editing) return <Cell key={cell.id} cell={cell.getValue() as GridCell} shifts={shifts} title={title} />
-                  const hospitalId = row.original.hospital_id
-                  const date = cell.column.id
-                  return (
-                    <EditableCell key={cell.id} id={cellId(index, col)} cell={cell.getValue() as GridCell} shifts={shifts} title={title}
-                      marks={editing.marks(hospitalId, date)} focusable={active.row === index && active.col === col}
-                      onOpen={(button) => { setActive({ row: index, col }); editing.onOpen(hospitalId, date, button) }}
-                      onKeyDown={(event) => move(event, index, col)} />
-                  )
-                })}
-              </tr>
-            )
-          })}
-          {after > 0 && <tr aria-hidden="true"><td style={{ height: after }} colSpan={grid.days.length + 1} /></tr>}
+          {spacer(before)}
+          {counted.map(({ index }) => drawRow(index))}
+          {onProbation.length === 0 && spacer(after)}
         </tbody>
+        {onProbation.length > 0 && (
+          <tbody aria-labelledby={headingDrawn ? headingId : undefined}>
+            {headingDrawn && (
+              <tr aria-rowindex={firstApart + 2} style={{ height: ROW_HEIGHT }}>
+                <th id={headingId} scope="rowgroup" colSpan={grid.days.length + 1} className="border-b bg-muted px-0 py-1 text-start font-medium">
+                  {/* Sticky, so the heading stays in view while the grid scrolls sideways on a phone. */}
+                  <span className="sticky start-0 px-2">{ON_PROBATION}</span>
+                </th>
+              </tr>
+            )}
+            {onProbation.map(({ index }) => drawRow(index))}
+            {spacer(after)}
+          </tbody>
+        )}
       </table>
     </div>
   )
@@ -227,6 +262,7 @@ export function GridLegend({ grid, editable = false }: { grid: GridView; editabl
       <li className="flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex size-6 items-center justify-center rounded-sm border text-xs">·</span>Before their start date or after their end date</li>
       <li className="flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex size-6 rounded-sm border" />Off</li>
       <li>Hol: a public holiday</li>
+      {grid.rows.some((row) => row.on_probation) && <li>{ON_PROBATION}: works beside their preceptor and is not counted toward any shift</li>}
       {editable && <li className="flex items-center gap-1.5"><span aria-hidden="true" className="relative inline-flex size-6 rounded-sm border"><span className="absolute end-0.5 top-0.5 size-1.5 rounded-full bg-current" /></span>Pinned</li>}
       {editable && <li className="flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex size-6 rounded-sm border outline-2 -outline-offset-4 outline-dashed" />Changed, not saved yet</li>}
     </ul>
