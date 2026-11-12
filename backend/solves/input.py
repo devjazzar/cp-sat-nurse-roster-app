@@ -96,13 +96,12 @@ def assemble(unit: Unit, month: dt.date, *, time_limit: int = 1, chain=None, fac
                   .prefetch_related(current_skills(), "placements", "preceptor_assignments__preceptor__user")
                   .order_by("user__username"))
     preferred = _preferred(unit, month)
-    serving = [nurse for nurse in nurses if not membership.no_longer_serving(nurse)]
+    serving = []
+    for nurse in nurses:
+        (assembled.left_out if membership.no_longer_serving(nurse) else serving).append(nurse)
     carried_in, recorded_leave = chain.carry_ins(serving, month), leave_of(serving, month)
     in_the_month = []
-    for nurse in nurses:
-        if membership.no_longer_serving(nurse):
-            assembled.left_out.append(nurse)
-            continue
+    for nurse in serving:
         placement = membership.placement_in(nurse, month)
         leave, recorded, outside = _credited(nurse, month, recorded_leave.get(nurse.pk, []))
         pinned = pins.counted.get(nurse.user.username)

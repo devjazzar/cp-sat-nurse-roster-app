@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { plainRefusal } from "@/lib/server-errors"
+import { ownWords } from "@/lib/solve-words"
 import { hospitalTime, longDay, monthAfter, monthName, scrollableRegion } from "@/lib/utils"
 
 /** The manager's view of a month's close and of each nurse's carry-over (ticket 21): what the month starts from, what it hands
@@ -78,7 +79,7 @@ function Closed({ closed }: { closed: ClosedMonth }) {
             <p className="text-sm">Its recorded facts broke {closed.facts_broke.length === 1 ? "a hard rule" : `${closed.facts_broke.length} hard rules`}. A close reports these and never refuses them: they happened.</p>
             <ul className="list-disc pl-5 text-sm">
               {closed.facts_broke.map((fact, index) => (
-                <li key={index}>{[fact.full_name || fact.hospital_id, fact.date && longDay(fact.date)].filter(Boolean).join(", ") || "The unit"}: {fact.text}</li>
+                <li key={index}>{[fact.full_name || fact.hospital_id, fact.date && longDay(fact.date)].filter(Boolean).join(", ") || "The unit"}: {ownWords(fact)}</li>
               ))}
             </ul>
           </>

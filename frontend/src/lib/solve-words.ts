@@ -69,12 +69,16 @@ export const ruleName = (rule: string) => RULE_LABELS.get(rule) ?? rule
 /** A difference with its sign, a true minus for a fall. */
 export const signed = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "0")
 
-/** A line of the solver's about a nurse, or the unit when it names none: who, and when if its words do not say (most hold the
- * date already), then the solver's own words. Those about a nurse begin with her id, which the name before them already says,
+/** The solver's own words on a line about a nurse. Those about her begin with her id, which the name before them already says,
  * so that is left out (the user's decision, ticket 51's review): "Amal Saleh: 20 h overtime", not "Amal Saleh: Amal: 20 h
  * overtime". Only her own id is, so words that begin with another's stay whole. */
-export function solverLine(row: { full_name: string; hospital_id?: string | null; date?: string | null; text: string }): string {
-  const who = `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}`
+export function ownWords(row: { hospital_id?: string | null; text: string }): string {
   const own = row.hospital_id ? `${row.hospital_id}: ` : null
-  return `${who}: ${own && row.text.startsWith(own) ? row.text.slice(own.length) : row.text}`
+  return own && row.text.startsWith(own) ? row.text.slice(own.length) : row.text
+}
+
+/** A line of the solver's about a nurse, or the unit when it names none: who, and when if its words do not say (most hold the
+ * date already), then its own words (`ownWords`). */
+export function solverLine(row: { full_name: string; hospital_id?: string | null; date?: string | null; text: string }): string {
+  return `${row.full_name || row.hospital_id || "The unit"}${row.date && !row.text.includes(row.date) ? `, ${shortDay(row.date)}` : ""}: ${ownWords(row)}`
 }

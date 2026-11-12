@@ -339,7 +339,6 @@ function Hours({ nurses }: { nurses: ComparedHours[] }) {
   )
 }
 
-
 function Grouped({ id, title, groups, none, note }: { id: string; title: string; groups: ViolationGroups; none: string; note?: string }) {
   const parts: [string, Violation[]][] = [["In both", groups.both], ["Only in the older", groups.only_older], ["Only in the newer", groups.only_newer]]
   const empty = parts.every(([, rows]) => rows.length === 0)

@@ -55,21 +55,23 @@ def queries_counted(django_assert_max_num_queries):
 def every_batched_read_is_the_one_at_a_time_read(request, monkeypatch):
     """Ticket 57: every batched read of the chain in these tests, of any month a test or the months before it ask, answers for
     each nurse exactly what the chain read one nurse at a time answered (`one_at_a_time`), source, month and year included, on
-    a reading of its own. The reads the reference makes for the months before are not checked again inside it."""
+    a reading of its own. Inside the reference, the months a projection steps through are read one nurse at a time too."""
     if "queries_counted" in request.fixturenames:
         return
     batched, checking = Chain.carry_ins, []
 
     def checked(self, nurses, month):
+        nurses = list(nurses)
+        if checking:
+            return {nurse.user.username: one_at_a_time(self, nurse, month) for nurse in nurses}
         answer = batched(self, nurses, month)
-        if not checking:
-            checking.append(True)
-            try:
-                reference = Chain(project=self.project)
-                for nurse in nurses:
-                    assert answer[nurse.user.username] == one_at_a_time(reference, nurse, month), (nurse.user.username, month)
-            finally:
-                checking.pop()
+        checking.append(True)
+        try:
+            reference = Chain(project=self.project)
+            for nurse in nurses:
+                assert answer[nurse.user.username] == one_at_a_time(reference, nurse, month), (nurse.user.username, month)
+        finally:
+            checking.pop()
         return answer
     monkeypatch.setattr(Chain, "carry_ins", checked)
 
@@ -629,15 +631,16 @@ class TestTheBatchedRead:
             assert len(assemble(er, JULY).nurses) == 9
 
     def test_a_close_reads_each_nurses_carry_over_once_for_both_columns(self, june, er, mona, monkeypatch):
-        """June approved and not closed: the projection's assembly of June and the `into` column share one reading, so each
-        nurse's carry-over into June is read once."""
+        """June approved and not closed: the projection's assembly of June and the `into` column share one reading, so where
+        each nurse's chain into June starts is read once."""
+        from closes import chain
         reads = []
-        batched = Chain.carry_ins
+        read = chain.latest_closed
 
-        def counted(self, nurses, month):
-            reads.extend((nurse.user.username, month) for nurse in nurses if (nurse.pk, month) not in self._in)
-            return batched(self, nurses, month)
-        monkeypatch.setattr(Chain, "carry_ins", counted)
+        def counted(nurses, before):
+            reads.extend((nurse.user.username, before) for nurse in nurses)
+            return read(nurses, before)
+        monkeypatch.setattr(chain, "latest_closed", counted)
 
         view = close_view(mona, er, "2026-06")
 
@@ -939,4 +942,3 @@ class TestThreeMonths:
         assert before.source == after.source == CarrySource.CLOSED
         assert after.values["previous"] != before.values["previous"]
         assert self.starts(making.latest_close(er, JULY)) == self.starts(july) == carried(june)  # The same start: June's close.
-

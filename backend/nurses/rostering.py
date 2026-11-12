@@ -26,9 +26,9 @@ def leave_dates(nurse: NurseProfile, month: dt.date) -> list[str]:
     return leave_of([nurse], month).get(nurse.pk, [])
 
 
-def leave_of(nurses: list[NurseProfile], month: dt.date) -> dict:
+def leave_of(nurses: list[NurseProfile], month: dt.date) -> dict[int, list[str]]:
     """{nurse id: her `leave_dates`}, for those of `nurses` with leave in the month, in one query (ticket 57)."""
-    found: dict = {}
+    found: dict[int, list[str]] = {}
     for nurse_id, day in Leave.objects.current().in_month(month).filter(nurse__in=nurses).values_list("nurse_id", "date"):
         found.setdefault(nurse_id, []).append(day.isoformat())
     return found

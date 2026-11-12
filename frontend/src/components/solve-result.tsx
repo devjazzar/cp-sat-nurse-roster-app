@@ -5,7 +5,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ruleName, signed, solverLine, stoppedBy } from "@/lib/solve-words"
 import { longDay, scrollableRegion } from "@/lib/utils"
 
-
 /** The level their heading takes depends on what is above: the roster page has the draft's heading and the result's page only its title. */
 const HeadingLevel = createContext<"h2" | "h4">("h4")
 

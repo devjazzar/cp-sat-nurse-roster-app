@@ -76,7 +76,7 @@ def opening(nurse: NurseProfile) -> dict:
             "friday_balance": nurse.friday_balance, "overtime_balance": nurse.overtime_balance, **NO_HISTORY}
 
 
-def _closes_in_force(unit_ids: set, months: set) -> set:
+def _closes_in_force(unit_ids: set[int], months: set[dt.date]) -> set[int]:
     """The ids of the latest close of each of those units' months: closing again replaces what the one before it said, without
     rewriting it."""
     found = {}
@@ -86,14 +86,14 @@ def _closes_in_force(unit_ids: set, months: set) -> set:
     return set(found.values())
 
 
-def latest_closed(nurses: list[NurseProfile], before: dt.date) -> dict:
+def latest_closed(nurses: list[NurseProfile], before: dt.date) -> dict[int, CarryOver]:
     """{nurse id: her carry-over out of the latest month before `before` closed with her in it, from that month's close in
     force}, for those who have one. Three queries, whatever the count of nurses: the rows without their values, the closes in
     force of their months, the values of the rows chosen."""
     rows = list(CarryOver.objects.filter(nurse__in=nurses, source=CarrySource.CLOSED, month__lt=before)
                 .order_by("nurse_id", "-month", "-close__closed_at").values_list("pk", "nurse_id", "unit_id", "month", "close_id"))
-    in_force = _closes_in_force({row[2] for row in rows}, {row[3] for row in rows})
-    chosen = {}
+    in_force = _closes_in_force({unit_id for _, _, unit_id, _, _ in rows}, {month for _, _, _, month, _ in rows})
+    chosen: dict[int, int] = {}
     for pk, nurse_id, _, _, close_id in rows:
         if close_id in in_force:
             chosen.setdefault(nurse_id, pk)
@@ -134,12 +134,12 @@ class Chain:
         reading's, shared. Without a closed month, from her opening values at the first approved roster that holds her, or her
         start: the months before had no roster in this application to carry anything."""
         nurses = list(nurses)
-        todo = list({nurse.pk: nurse for nurse in nurses if (nurse.pk, month) not in self._in}.values())
-        if todo:
-            prefetch_related_objects(todo, "placements")
-            closed = latest_closed(todo, month)
-            first = self._first_rosters([nurse for nurse in todo if nurse.pk not in closed], month)
-            for nurse in todo:
+        unread = list({nurse.pk: nurse for nurse in nurses if (nurse.pk, month) not in self._in}.values())
+        if unread:
+            prefetch_related_objects(unread, "placements")
+            closed = latest_closed(unread, month)
+            first = self._first_rosters([nurse for nurse in unread if nurse.pk not in closed], month)
+            for nurse in unread:
                 self._in[(nurse.pk, month)] = self._walk(nurse, month, closed.get(nurse.pk), first.get(nurse.pk))
         return {nurse.user.username: self._in[(nurse.pk, month)] for nurse in nurses}
 
@@ -172,7 +172,7 @@ class Chain:
         found = self._months[bisect.bisect_left(self._months, step):]
         return found[0] if found and found[0] < month else None
 
-    def _first_rosters(self, nurses: list[NurseProfile], month: dt.date) -> dict:
+    def _first_rosters(self, nurses: list[NurseProfile], month: dt.date) -> dict[int, dt.date]:
         """{nurse id: the first month before `month`, from her start's, with an approved roster of any unit that holds her}, for
         those who have one, in one query. A close's chain projects through none, so reads none."""
         if not (self.project and nurses):
@@ -180,7 +180,7 @@ class Chain:
         held = (Roster.objects.filter(state=RosterState.APPROVED, month__lt=month,
                                       grid__has_any_keys=[nurse.user.username for nurse in nurses])
                 .annotate(ids=_Keys("grid")).order_by("month").values_list("month", "ids"))
-        first = {}
+        first: dict[int, dt.date] = {}
         for roster_month, ids in held:
             ids = set(ids)
             for nurse in nurses:
