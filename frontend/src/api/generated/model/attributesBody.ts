@@ -40,4 +40,10 @@ export interface AttributesBody {
      * @maximum 1000
      */
   friday_balance: number;
+  /**
+     * Hours of overtime above (+) or below (-) their overtime share so far this year.
+     * @minimum -1000000
+     * @maximum 1000000
+     */
+  overtime_balance: number;
 }

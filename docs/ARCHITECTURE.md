@@ -234,7 +234,8 @@ one.
 
 **Nurse profile** (0..1 per user): hospital ID (= username), gender, start date, end date,
 team leader, score, Ramadan-reduced, breastfeeding, opening values (overtime this year, hours balance,
-night and weekend fairness balances; editable until her first month closes), whether a manager has ever saved
+night and weekend fairness balances, and the overtime balance, her overtime above (+) or below (−) her overtime share so far
+this year, in hours within the solver's ±1 000 000, ticket 50; editable until her first month closes), whether a manager has ever saved
 these, which is how a score at the default is told from one somebody looked at. Her skills are rows of their own (below).
 
 **Nurse skill**: nurse, skill, expiry (null for a kind that does not expire), recorded by and when; removed by and when. At
@@ -600,8 +601,9 @@ backup time and retention, close time.
   close reports a barred day worked or a need left short among what the facts broke and never refuses. Nothing rewrites an
   approved roster when an expiry passes or a skill is corrected (ticket 38): the Roster page's check of the month as it stands
   names the rule it now breaks, as for any rule, and the manager edits or re-plans.
-- The carry-over handed into January has overtime-to-date and both fairness balances reset
-  to zero.
+- The carry-over handed into January has overtime-to-date and the three fairness balances (nights, weekend days and the
+  overtime balance) reset to zero. The reset is applied as January's input is built, so December's stored carry-over keeps
+  what December handed on.
 - Days before a nurse's start date and after her end date are credited like leave in every
   solve input: nothing owed, nothing worked, no debt. A transfer takes effect from a chosen
   month; the carry-over follows the nurse.
@@ -682,9 +684,9 @@ beyond the tolerance, is priced in whole hours rounded down and never more than 
 owing none, costs nothing. The rule, `overtime_above_share`, is soft only and active while the unit's switch, the weight and the
 hours rule are all on; its match names the nurse, her overtime, her share and the hours priced, and the per-nurse explanation
 carries it. A result's `carry_over` carries her balance for next month, in + overtime − share, moving while the switch and the
-hours rule are on and handed on unchanged otherwise. The chain passes it through (`closes.chain.CARRIED`), 0 from opening values
-and from a close stored before it; until the unit rules and the weight reach the solve input (ticket 51) the solver hands every
-balance on unchanged. Its opening value and its January reset are ticket 50's.
+hours rule are on and handed on unchanged otherwise. The chain carries it (`closes.chain.CARRIED`, ticket 50) from her opening
+value, 0 by default, and 0 out of a close stored before it; it resets in January with the other two balances. Until the unit
+rules and the weight reach the solve input (ticket 51) the solver hands every balance on unchanged.
 
 ## 7. The worker and the queue (ADR 0006)
 
@@ -714,7 +716,11 @@ minute takes a lock of its own. Jobs:
   after every new roster version and every close, under its own lock, which stores the projected carry-over of an approved
   month and of the unit's approved months after it. Neither calls the solver
   service: the carry-over is worked out in the worker's process by `solver_service.grid`. The chain carries each field of the
-  result's `carry_over` block (`closes.chain.CARRIED`), the count of preferences not kept among them (ticket 30): projected
+  result's `carry_over` block (`closes.chain.CARRIED`), the overtime balance among them (ticket 50): projected from the roster in
+  force, corrected at the close and re-worked at a re-close, carried unchanged through a month with no roster for her, as the
+  night and weekend balances are, out of her opening value at first, reset in January with them, following her across a
+  transfer, and 0 out of a close stored before it existed, nothing worked back through earlier months. So is the count of
+  preferences not kept (ticket 30): projected
   from the roster in force, corrected at the close and re-worked at a re-close, 0 through a month with no roster for her and
   out of her opening values (which have no field for it), not reset in January, and following her across a transfer. It
   remembers one month only, so a nurse's preferences count double in the month after one was not kept, and not after that

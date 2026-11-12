@@ -15,6 +15,7 @@ def nurse_block(nurse: NurseProfile, placement: Placement) -> dict:
             "ramadan_reduced": nurse.ramadan_reduced, "breastfeeding": nurse.breastfeeding,
             "ytd_overtime": nurse.ytd_overtime, "hours_balance": nurse.hours_balance,
             "night_balance": nurse.night_balance, "friday_balance": nurse.friday_balance,
+            "overtime_balance": nurse.overtime_balance,
             "last_shift_kind": None, "rest_owed": 0, "allowed_shifts": placement.allowed_shifts}
 
 

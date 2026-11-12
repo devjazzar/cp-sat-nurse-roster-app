@@ -5091,11 +5091,11 @@ describe("the rostering attributes page", () => {
   const AMAL = {
     id: "n1", hospital_id: "h1", full_name: "Amal Saleh", is_active: true, gender: "F", joins_from: null, leaves_from: null,
     team_leader: true, score: 0.9, ramadan_reduced: false, breastfeeding: true, ytd_overtime: 12, hours_balance: -3, night_balance: 1.5, friday_balance: -0.5,
-    allowed_shifts: ["D"], allowed_shifts_to_check: false, opening_values_locked: false, skills: [],
+    overtime_balance: 6.25, allowed_shifts: ["D"], allowed_shifts_to_check: false, opening_values_locked: false, skills: [],
   }
   const BADR = {
     ...AMAL, id: "n2", hospital_id: "h2", full_name: "Badr Omar", gender: "M", joins_from: "2030-01", team_leader: false, score: 0.8, breastfeeding: false,
-    ytd_overtime: 0, hours_balance: 0, night_balance: 0, friday_balance: 0, allowed_shifts: null, allowed_shifts_to_check: true,
+    ytd_overtime: 0, hours_balance: 0, night_balance: 0, friday_balance: 0, overtime_balance: 0, allowed_shifts: null, allowed_shifts_to_check: true,
   }
   const pageOf = (me: unknown, nurses: unknown[] = [AMAL, BADR], extra = {}) => ({
     ...session(me),
@@ -5112,7 +5112,8 @@ describe("the rostering attributes page", () => {
     const row = within((await screen.findByRole("cell", { name: "Amal Saleh" })).closest("tr")!)
     expect(document.title).toBe("Rostering attributes · Nurse roster")
     expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(
-      ["Amal Saleh", "Set attributes", "h1", "In the unit", "No", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5", "BLSuntil 30 Jun 2027"])
+      ["Amal Saleh", "Set attributes", "h1", "In the unit", "No", "Female", "Yes", "0.9", "D", "No", "Yes", "12", "-3", "1.5", "-0.5", "6.25", "BLSuntil 30 Jun 2027"])
+    expect(screen.getByRole("columnheader", { name: "Overtime balance" })).toBeInTheDocument()
     expect(within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!).getByText("None")).toBeInTheDocument()
     const badr = within(screen.getByRole("cell", { name: "Badr Omar" }).closest("tr")!)
     expect(badr.getByText("Joins from January 2030")).toBeInTheDocument()
@@ -5221,11 +5222,13 @@ describe("the rostering attributes page", () => {
     await user.click(await screen.findByRole("button", { name: "Set attributes of Amal Saleh" }))
     expect(screen.getByText(/Their first month has closed, so these can no longer change/)).toBeInTheDocument()
     expect(screen.getByLabelText("Hours balance (hours)")).toHaveAttribute("readonly")
+    expect(screen.getByLabelText("Overtime above or below their fair share (hours)")).toHaveAttribute("readonly")
     await user.type(screen.getByLabelText("Hours balance (hours)"), "9")
+    await user.type(screen.getByLabelText("Overtime above or below their fair share (hours)"), "9")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     await screen.findByText("The rostering attributes of Amal Saleh are saved.")
-    expect(put(calls).body).toMatchObject({ ytd_overtime: 12, hours_balance: -3, night_balance: 1.5, friday_balance: -0.5 })
+    expect(put(calls).body).toMatchObject({ ytd_overtime: 12, hours_balance: -3, night_balance: 1.5, friday_balance: -0.5, overtime_balance: 6.25 })
   })
 
   it("saves everything, with focus returning to the row's button", async () => {
@@ -5244,12 +5247,18 @@ describe("the rostering attributes page", () => {
     await user.type(screen.getByLabelText("Overtime this year (hours)"), "40")
     await user.clear(screen.getByLabelText("Weekend fairness balance (shifts)"))
     await user.type(screen.getByLabelText("Weekend fairness balance (shifts)"), "-2.5")
+    const overtime = screen.getByLabelText("Overtime above or below their fair share (hours)")
+    expect(overtime).toHaveValue(6.25)
+    expect(overtime).toHaveAccessibleDescription("Hours of overtime above their fair share of the unit's overtime so far this year, or below zero, under it.")
+    await user.clear(overtime)
+    await user.type(overtime, "-7.5")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     expect(await screen.findByText("The rostering attributes of Amal Saleh are saved.")).toHaveAttribute("role", "status")
     expect(put(calls).url).toBe("/api/units/er/nurses/n1/attributes")
     expect(put(calls).body).toEqual({
       team_leader: false, score: 0.61, ramadan_reduced: true, breastfeeding: true, allowed_shifts: ["D", "N"], ytd_overtime: 40, hours_balance: -3, night_balance: 1.5, friday_balance: -2.5,
+      overtime_balance: -7.5,
     })
     await waitFor(() => expect(screen.getByRole("button", { name: "Set attributes of Amal Saleh" })).toHaveFocus())
   })
@@ -5278,15 +5287,20 @@ describe("the rostering attributes page", () => {
     await user.type(screen.getByLabelText("Score"), "2")
     await user.clear(screen.getByLabelText("Hours balance (hours)"))
     await user.type(screen.getByLabelText("Hours balance (hours)"), "1.5")
+    await user.clear(screen.getByLabelText("Overtime above or below their fair share (hours)"))
+    await user.type(screen.getByLabelText("Overtime above or below their fair share (hours)"), "1000001")
     await user.click(screen.getByRole("button", { name: "Save" }))
     expect(await screen.findByText("Between 0 and 1.")).toBeInTheDocument()
     expect(screen.getByText("Enter a whole number of hours.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Overtime above or below their fair share (hours)")).toHaveAccessibleDescription(/Between -1000000 and 1000000\./)
     expect(calls.some((call) => call.method === "PUT")).toBe(false)
 
     await user.clear(screen.getByLabelText("Score"))
     await user.type(screen.getByLabelText("Score"), "0.5")
     await user.clear(screen.getByLabelText("Hours balance (hours)"))
     await user.type(screen.getByLabelText("Hours balance (hours)"), "1")
+    await user.clear(screen.getByLabelText("Overtime above or below their fair share (hours)"))
+    await user.type(screen.getByLabelText("Overtime above or below their fair share (hours)"), "-1000000")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     expect(await screen.findByText("A is not one of this unit's shifts.")).toBeInTheDocument()

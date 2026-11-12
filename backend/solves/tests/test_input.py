@@ -76,7 +76,7 @@ def test_the_solvers_own_sample_as_this_app_holds_it_comes_out_as_the_sample(er,
         row.pop("pinned", None)
         # The chain carries the count of preferences not kept (ticket 28): 0, since none were ever priced.
         row["preferences_not_kept"] = 0
-        # And the overtime balance (ticket 49): 0, her opening values have none until ticket 50.
+        # And the overtime balance (ticket 49): her opening value (ticket 50), 0 by default, as the sample has none.
         row["overtime_balance"] = 0.0
     assert solve_input["nurses"] == expected["nurses"]
     assert (solve_input["version"], solve_input["month"], solve_input["ramadan_days"]) == (2, MONTH, [])
@@ -85,11 +85,24 @@ def test_the_solvers_own_sample_as_this_app_holds_it_comes_out_as_the_sample(er,
 
 
 def test_opening_values_reach_the_solver(er, make_user):
-    nurse_in(er, make_user, "Omar", gender="M", ytd_overtime=12, hours_balance=-8, night_balance=1.5, friday_balance=-0.5)
+    nurse_in(er, make_user, "Omar", gender="M", ytd_overtime=12, hours_balance=-8, night_balance=1.5, friday_balance=-0.5,
+             overtime_balance=-9.75)
 
     row = block(built(er), "Omar")
 
     assert (row["ytd_overtime"], row["hours_balance"], row["night_balance"], row["friday_balance"]) == (12, -8, 1.5, -0.5)
+    assert row["overtime_balance"] == -9.75
+    assert next(nurse for nurse in load_request(built(er).input).problem.nurses if nurse.id == "Omar").overtime_balance == -9.75
+
+
+def test_each_nurses_overtime_balance_comes_from_the_chain(er):
+    """Ticket 50: May's closed balance for Amal, the opening value, 0, for the others."""
+    carried_from_may(er, "Amal", 0, overtime_balance=8.25)
+
+    solve_input = built(er).input
+
+    assert {row["id"]: row["overtime_balance"] for row in solve_input["nurses"]} == {
+        "Amal": 8.25, "Badr": 0.0, "Dana": 0.0, "Emad": 0.0}
 
 
 def test_days_outside_the_dates_are_credited_like_leave_and_listed_once(er, make_user):
@@ -205,14 +218,17 @@ def test_a_raised_weight_can_leave_a_one_shift_unit_for_the_solver_to_refuse(er,
     assert solver_refusal(built(er).input) is not None
 
 
-def carried_from_may(unit, hospital_id, preferences_not_kept) -> None:
-    """As if May had closed with her preferences not kept: a closed carry-over of May, the January test's pattern."""
+def carried_from_may(unit, hospital_id, preferences_not_kept, *, overtime_balance: float | None = None) -> None:
+    """As if May had closed with her preferences not kept, and her overtime balance when given: a closed carry-over of May, the
+    January test's pattern."""
     from closes.models import CarryOver, CarrySource, MonthClose
     may = dt.date(2026, 5, 1)
     close = MonthClose.objects.filter(unit=unit, month=may).first() or MonthClose.objects.create(
         unit=unit, month=may, version=1, input={}, result={})
     values = {"ytd_overtime": 0, "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0, "previous": [],
               "last_shift_kind": None, "rest_owed": 0, "preferences_not_kept": preferences_not_kept}
+    if overtime_balance is not None:
+        values["overtime_balance"] = overtime_balance
     CarryOver.objects.create(nurse=NurseProfile.objects.get(user__username=hospital_id), unit=unit, month=may,
                              source=CarrySource.CLOSED, close=close, values=values)
 

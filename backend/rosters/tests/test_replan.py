@@ -277,6 +277,19 @@ class TestFactsBeforeTheDate:
         assert {row["id"]: row["preferences_not_kept"] for row in solve.input["nurses"]} == {
             "Amal": 2, "Badr": 0, "Dana": 0, "Emad": 0}
 
+    def test_each_nurses_overtime_balance_reaches_a_re_plan_as_it_reaches_a_solve(self, mona, er, in_force):
+        """From the chain (ticket 50): May's closed balance for Amal, the opening value for the others, Dana's set."""
+        carried_from_may(er, "Amal", 0, overtime_balance=-11.5)
+        from nurses.models import NurseProfile
+        NurseProfile.objects.filter(user__username="Dana").update(overtime_balance=4.25)
+
+        solve = Solve.objects.get(pk=started(mona, er)["id"])
+
+        assert {row["id"]: row["overtime_balance"] for row in solve.input["nurses"]} == {
+            "Amal": -11.5, "Badr": 0.0, "Dana": 4.25, "Emad": 0.0}
+        assert {nurse.id: nurse.overtime_balance for nurse in load_request(solve.input).problem.nurses} == {
+            "Amal": -11.5, "Badr": 0.0, "Dana": 4.25, "Emad": 0.0}
+
     def test_the_units_full_run_cap_and_the_hospitals_weight_reach_a_re_plan_as_they_reach_a_solve(self, mona, er, in_force):
         """Ticket 48: the solver prices full runs above the cap in the days it plans again."""
         full_runs_capped(er, 1, 50)

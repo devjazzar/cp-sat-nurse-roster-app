@@ -1614,9 +1614,10 @@ export const ListNurseAttributesResponseItem = zod.object({
   "hours_balance": zod.int(),
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
+  "overtime_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.'),
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
@@ -1668,6 +1669,9 @@ export const updateNurseAttributesBodyNightBalanceMax = 1000;
 export const updateNurseAttributesBodyFridayBalanceMin = -1000;
 export const updateNurseAttributesBodyFridayBalanceMax = 1000;
 
+export const updateNurseAttributesBodyOvertimeBalanceMin = -1000000;
+export const updateNurseAttributesBodyOvertimeBalanceMax = 1000000;
+
 
 
 export const UpdateNurseAttributesBody = zod.object({
@@ -1679,7 +1683,8 @@ export const UpdateNurseAttributesBody = zod.object({
   "ytd_overtime": zod.int().min(updateNurseAttributesBodyYtdOvertimeMin).max(updateNurseAttributesBodyYtdOvertimeMax).describe('Overtime hours this year.'),
   "hours_balance": zod.int().min(updateNurseAttributesBodyHoursBalanceMin).max(updateNurseAttributesBodyHoursBalanceMax).describe('Hours still owed (+) or worked ahead (-).'),
   "night_balance": zod.number().min(updateNurseAttributesBodyNightBalanceMin).max(updateNurseAttributesBodyNightBalanceMax).describe('Night shifts above (+) or below (-) their fair share.'),
-  "friday_balance": zod.number().min(updateNurseAttributesBodyFridayBalanceMin).max(updateNurseAttributesBodyFridayBalanceMax).describe('Weekend days above (+) or below (-) their fair share.')
+  "friday_balance": zod.number().min(updateNurseAttributesBodyFridayBalanceMin).max(updateNurseAttributesBodyFridayBalanceMax).describe('Weekend days above (+) or below (-) their fair share.'),
+  "overtime_balance": zod.number().min(updateNurseAttributesBodyOvertimeBalanceMin).max(updateNurseAttributesBodyOvertimeBalanceMax).describe('Hours of overtime above (+) or below (-) their overtime share so far this year.')
 })
 
 export const UpdateNurseAttributesResponse = zod.object({
@@ -1698,9 +1703,10 @@ export const UpdateNurseAttributesResponse = zod.object({
   "hours_balance": zod.int(),
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
+  "overtime_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.'),
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
@@ -1757,9 +1763,10 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "hours_balance": zod.int(),
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
+  "overtime_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.'),
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
@@ -1816,9 +1823,10 @@ export const SetProbationLengthResponse = zod.object({
   "hours_balance": zod.int(),
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
+  "overtime_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.'),
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
@@ -1867,9 +1875,10 @@ export const ExtendProbationResponse = zod.object({
   "hours_balance": zod.int(),
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
+  "overtime_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.'),
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
@@ -1919,9 +1928,10 @@ export const EndProbationResponse = zod.object({
   "hours_balance": zod.int(),
   "night_balance": zod.number(),
   "friday_balance": zod.number(),
+  "overtime_balance": zod.number(),
   "allowed_shifts": zod.union([zod.array(zod.string()),zod.null()]).describe('In this unit. Empty for any shift it works.'),
   "allowed_shifts_to_check": zod.boolean().describe('A transfer emptied the list, as none of its shifts are worked here.'),
-  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now.'),
+  "opening_values_locked": zod.boolean().describe('Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`, `overtime_balance`) can no longer change, as the carry-over comes from the closes now.'),
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
