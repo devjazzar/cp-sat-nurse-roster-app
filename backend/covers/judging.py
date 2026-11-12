@@ -162,15 +162,15 @@ class CoverMonth(ApprovedMonth):
         if not problem.department.headcount_enabled:
             return None
         index = (self.day - self.month).days
+        # The solver's own reading: a nurse on probation counts toward no headcount (`problem.counted`).
+        uncounted = {row["id"] for row in self.input["nurses"] if row.get("on_probation")}
         for headcount in problem.department.headcounts:
             if headcount.shift != self.shift.code:
                 continue
             high = headcount.weekend_max if problem.is_weekend(index) else headcount.weekday_max
             counted = {self.shift.code, *headcount.also_counts}
-            # The solver's own reading: a nurse on probation counts toward no headcount (`problem.counted`).
-            probation = {row["id"] for row in self.input["nurses"] if row.get("on_probation")}
             present = sum(1 for hospital_id, row in self.roster.grid.items()
-                          if hospital_id not in probation and row.get(self.day.isoformat()) in counted)
+                          if hospital_id not in uncounted and row.get(self.day.isoformat()) in counted)
             if present >= high:
                 return (f"{self.shift.display_name} on {long_date(self.day)} already has {present} of at most {high}, so one "
                         f"more nurse would break its headcount. To change who works it, edit the roster.")

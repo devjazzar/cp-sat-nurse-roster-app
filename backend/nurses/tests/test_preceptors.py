@@ -385,3 +385,59 @@ def test_a_transfer_that_would_carry_her_the_night_shift_alone_empties_her_list_
 
     there = row(omar, icu, layan.pk)
     assert (there["allowed_shifts"], there["allowed_shifts_to_check"]) == (None, True)
+
+
+# ---- from the code review ---------------------------------------------------------------------------------------------------
+def test_the_same_preceptor_chosen_from_an_earlier_month_is_saved(mona, er, layan, amal):
+    assigned(mona, er, layan.pk, amal, "2027-02")
+
+    assigned(mona, er, layan.pk, amal, "2026-12")
+
+    assert preceptors(mona, er, layan.pk) == [("h2", "2026-12", "2027-03")]
+    assert told("h2")[1] == ("From December 2026 you precept Layan Alharbi, a nurse on probation, who works beside you on your "
+                             "day shifts.")  # the months gained: December and January
+
+
+def test_a_preceptor_already_hers_that_month_is_not_told_again(mona, er, layan, amal, cno, precepting):
+    badr = nurse(cno, er, "h3", "Badr Omar")
+    holds(badr, precepting)
+    assigned(mona, er, layan.pk, amal, "2026-12")
+    assigned(mona, er, layan.pk, badr, "2027-03")
+
+    assigned(mona, er, layan.pk, amal, "2027-01")
+
+    # Amal precepts her in January already: what changes is March, which is what each of the three is told.
+    assert preceptors(mona, er, layan.pk) == [("h2", "2026-12", "2027-03")]
+    assert told("h2")[1:] == ["From March 2027 you no longer precept Layan Alharbi.",
+                              "From March 2027 you precept Layan Alharbi, a nurse on probation, who works beside you on your day "
+                              "shifts."]
+    assert told("h3")[-1] == "From March 2027 you no longer precept Layan Alharbi."
+    assert told("h1")[-1] == "From March 2027 your preceptor is Amal Hassan. You work beside them on their day shifts."
+
+
+def test_a_leaving_already_recorded_ends_it_when_assigned(mona, er, icu, layan, amal, cno):
+    assert post(cno, f"{NURSES}/{amal.pk}/transfer", {"unit_id": str(icu.pk), "from_month": "2027-02"}).status_code == 200
+
+    assigned(mona, er, layan.pk, amal, "2026-12")
+
+    assert preceptors(mona, er, layan.pk) == [("h2", "2026-12", "2027-01")]
+
+
+def test_an_end_tells_the_preceptor_she_precepts_her_no_more(mona, er, layan, amal, today):
+    assigned(mona, er, layan.pk, amal, "2026-12")
+    today(2027, 1, 20)
+
+    assert post(mona, f"/api/units/{er.pk}/nurses/{layan.pk}/probation/end", {}).status_code == 200
+
+    assert told("h2")[-1] == "From February 2027 you no longer precept Layan Alharbi."
+
+
+def test_a_transfer_after_her_probation_keeps_a_night_shift_list(mona, omar, er, icu, layan, cno):
+    three_shifts(er)
+    assert mona.put(f"/api/units/{er.pk}/nurses/{layan.pk}/allowed-shifts", {"allowed_shifts": ["A", "N"]},
+                    content_type="application/json").status_code == 200
+
+    assert post(cno, f"{NURSES}/{layan.pk}/transfer", {"unit_id": str(icu.pk), "from_month": "2027-04"}).status_code == 200
+
+    there = row(omar, icu, layan.pk)
+    assert (there["allowed_shifts"], there["allowed_shifts_to_check"]) == (["N"], False)

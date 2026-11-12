@@ -428,6 +428,10 @@ def correct_details(request: HttpRequest, nurse_id: UUID, body: CorrectionBody) 
             nurse.save(update_fields=["on_probation", "probation_months", "probation_ended_in", "probation_notified_for"])
             record("nurse.probation_ticked" if body.on_probation else "nurse.probation_unticked", actor=request.user,
                    target=user.username, request=request, before=was, after=probation.describe(nurse))
+            if not body.on_probation:
+                from nurses.attributes_api import tell_released  # It imports this module.
+
+                tell_released(nurse, dt.date.fromisoformat(was["last_day"]) if was["last_day"] else None)
     return CorrectedNurse(nurse=_row_as_saved(nurse_id), first_placement_extended=extended)
 
 

@@ -191,8 +191,9 @@ class NurseAccounting(Schema):
 class MissedDay(Schema):
     date: dt.date
     shift: str = Field(description="Her preceptor's day shift that day, under the code it has now.")
-    why: Literal["hours", "leave", "pinned", "elapsed", "barred"] = Field(
-        description="`hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; "
+    why: Literal["own_rules", "leave", "pinned", "elapsed", "barred"] = Field(
+        description="`own_rules`: her hours held no more beside her preceptor, or her own rest, run or succession rules kept her "
+                    "off; `leave`: her leave or a day outside her dates; "
                     "`pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; "
                     "`barred`: a required skill of hers had expired.")
 

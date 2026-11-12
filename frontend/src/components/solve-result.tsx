@@ -58,8 +58,8 @@ function Accounting({ nurses, unitCost }: { nurses: NurseAccounting[]; unitCost:
 }
 
 const MISSED_WHY: Record<MissedDayWhy, string> = {
-  hours: "her hours held no more",
-  leave: "she was on leave",
+  own_rules: "her hours, or her own rest and run rules, held no more",
+  leave: "she was on leave or outside her dates",
   pinned: "her cell was pinned, or a request of hers accepted",
   elapsed: "the day was already over",
   barred: "a skill required to work had expired",

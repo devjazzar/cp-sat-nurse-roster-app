@@ -126,11 +126,17 @@ class PreceptorRole(TextChoices):
 
 
 def preceptor_assigned(unit: Unit, nurse, month: dt.date, *, preceptor, released) -> None:
-    """To the nurse on probation and her preceptor from `month`, and to each nurse who precepted her in a month from then and
-    no longer does: once each. Profiles, so a manager with a nurse profile is told as a preceptor."""
+    """To the nurse on probation and her preceptor from `month`, the first month the choice changes, and to each nurse who
+    precepted her in a month from then and no longer does: once each. Profiles, so a manager with a nurse profile is told as
+    a preceptor."""
     about = _about(unit, month) | {"nurse_id": str(nurse.pk), "preceptor_id": str(preceptor.pk)}
     notify([nurse.user], Event.PRECEPTOR_ASSIGNED, **about, role=PreceptorRole.NURSE.value)
     notify([preceptor.user], Event.PRECEPTOR_ASSIGNED, **about, role=PreceptorRole.PRECEPTOR.value)
+    preceptors_released(unit, nurse, month, released)
+
+
+def preceptors_released(unit: Unit, nurse, month: dt.date, released) -> None:
+    """To each nurse who precepts her no more from `month`: another was chosen, or her probation now ends before it."""
     for gone in released:
         notify([gone.user], Event.PRECEPTOR_ASSIGNED, **_about(unit, month), nurse_id=str(nurse.pk), preceptor_id=str(gone.pk),
                role=PreceptorRole.RELEASED.value)

@@ -120,7 +120,7 @@ def transfer(nurse: NurseProfile, unit: Unit, month: dt.date) -> bool:
             allowed, to_check = waiting_there.allowed_shifts, waiting_there.allowed_shifts_to_check
         else:
             allowed, to_check = _carried_allowed_shifts(coming_from, unit)
-        if _night_alone_on_probation(nurse, allowed, unit):
+        if _night_alone_on_probation(nurse, allowed, unit, month):
             # She works no night shift, so it alone would leave her no shift: the list empties and her new unit's manager is
             # asked to look, as for a list with no shift in common (ticket 55).
             allowed, to_check = None, True
@@ -159,13 +159,17 @@ def _unit_placements_from_now_on(unit: Unit) -> QuerySet[Placement]:
     return Placement.objects.filter(Q(pk=in_force) | Q(from_month__gt=this_month()), unit=unit)
 
 
-def _night_alone_on_probation(nurse: NurseProfile, allowed: list[str] | None, unit: Unit, night_shift: str | None = None) -> bool:
-    """Allowed shifts that are the unit's night shift alone, on a nurse whose probation is not over: she works no night shift,
-    so they would leave her none (ADR 0014)."""
+def _night_alone_on_probation(nurse: NurseProfile, allowed: list[str] | None, unit: Unit, from_month: dt.date,
+                              night_shift: str | None = None) -> bool:
+    """Allowed shifts that are the unit's night shift alone, on a placement from `from_month` while she is on probation in one
+    of its months from now on: she works no night shift, so they would leave her none (ADR 0014)."""
     from nurses import probation  # It reads her months through this module.
 
     night = night_shift if night_shift is not None else unit.rules.get("night_shift")
-    return allowed is not None and allowed == [night] and probation.running(nurse)
+    if allowed is None or allowed != [night]:
+        return False
+    last = probation.last_day(nurse)
+    return last is not None and last >= max(from_month, this_month()) and last >= nurse.start_date
 
 
 def stranded_by(unit: Unit, shifts: list[str]) -> list[NurseProfile]:
@@ -185,7 +189,7 @@ def left_night_alone(unit: Unit, shifts: list[str], night_shift: str) -> list[Nu
                   .select_related("nurse__user").order_by("nurse__user__full_name", "pk"))
     left = {placement.nurse.pk: placement.nurse for placement in placements
             if _night_alone_on_probation(placement.nurse, [code for code in placement.allowed_shifts if code in shifts], unit,
-                                         night_shift)}
+                                         placement.from_month, night_shift)}
     return list(left.values())
 
 

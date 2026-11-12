@@ -50,7 +50,7 @@ def probation_months(nurse: NurseProfile) -> list[dt.date]:
 
 @dataclass(frozen=True)
 class Span:
-    """One assignment over the months it is in force, from `first` to `last`."""
+    """One preceptor over the months they precept her, from `first` to `last`; `assignment` is the first of those months'."""
     assignment: PreceptorAssignment
     first: dt.date
     last: dt.date
@@ -65,7 +65,9 @@ def spans(nurse: NurseProfile, since: dt.date) -> list[Span]:
         row = assignment_in(nurse, month, rows)
         if row is None:
             continue
-        if found and found[-1].assignment.pk == row.pk and probation.months_on(found[-1].last, 1) == month:
+        # One preceptor's months run on across two of her assignments, as a choice from a later month makes.
+        if (found and found[-1].assignment.preceptor_id == row.preceptor_id
+                and probation.months_on(found[-1].last, 1) == month):
             found[-1] = Span(row, found[-1].first, month)
         else:
             found.append(Span(row, month, month))
@@ -93,13 +95,25 @@ def qualifies(nurse: NurseProfile, day: dt.date) -> bool:
                for row in tracked(rows))
 
 
+def month_refusal(nurse: NurseProfile, unit: Unit, month: dt.date) -> str | None:
+    """Why this unit's manager cannot choose her preceptor from this month: over, outside her probation, another unit's, or a
+    month whose roster here is approved. None when he can."""
+    name = nurse.user.full_name
+    if month < membership.this_month():
+        return f"{month:%B %Y} is over. A preceptor is chosen from this month or later."
+    if not probation.on_probation_in(nurse, month):
+        return f"{name} is not on probation in {month:%B %Y}: her probation ends on {probation.last_day(nurse):%-d %B %Y}."
+    if membership.unit_in(nurse, month).pk != unit.pk:
+        return f"{name} is not in {unit.name} in {month:%B %Y}, so that unit's manager chooses her preceptor there."
+    if Roster.objects.filter(unit=unit, month=month, state=RosterState.APPROVED).exists():
+        return (f"The roster of {month:%B %Y} is approved, so a preceptor can be chosen from a later month only. To change who "
+                f"works beside her in {month:%B %Y}, edit the roster.")
+    return None
+
+
 def months_to_choose(nurse: NurseProfile, unit: Unit) -> list[dt.date]:
-    """The months a preceptor may be chosen from by this unit's manager: from this month on, while she is on probation and in
-    this unit, and not one whose roster here is approved."""
-    approved = set(Roster.objects.filter(unit=unit, state=RosterState.APPROVED).values_list("month", flat=True))
-    this = membership.this_month()
-    return [month for month in probation_months(nurse)
-            if month >= this and month not in approved and membership.unit_in(nurse, month).pk == unit.pk]
+    """The months `month_refusal` lets this unit's manager choose her preceptor from."""
+    return [month for month in probation_months(nurse) if month_refusal(nurse, unit, month) is None]
 
 
 def name_of(nurse: NurseProfile) -> str:
@@ -139,15 +153,55 @@ def candidates(nurse: NurseProfile, unit: Unit, month: dt.date) -> list[NursePro
     return [candidate for candidate in rostered if why_not(nurse, unit, candidate, month) is None]
 
 
+def first_gained(nurse: NurseProfile, preceptor: NurseProfile, month: dt.date) -> dt.date | None:
+    """The first of her months from this one on that this nurse does not precept her yet: where choosing them from `month`
+    first changes anything. None when they precept her in all of them already."""
+    rows = _rows(nurse)
+    return next((each for each in probation_months(nurse) if each >= month
+                 and ((held := assignment_in(nurse, each, rows)) is None or held.preceptor_id != preceptor.pk)), None)
+
+
 def preceptors_from(nurse: NurseProfile, month: dt.date) -> set:
     """The pks of the nurses who precept her in some month from this one on."""
     return {span.assignment.preceptor_id for span in spans(nurse, month)}
 
 
 def assign(nurse: NurseProfile, unit: Unit, preceptor: NurseProfile, month: dt.date, by: User) -> PreceptorAssignment:
-    """From this month on, whatever was assigned for then or later: a later choice replaces a plan, as a transfer does."""
+    """From this month on, whatever was assigned for then or later: a later choice replaces a plan, as a transfer does. A
+    leaving already recorded, a transfer or an end date of either nurse's, ends it as one recorded later would."""
     nurse.preceptor_assignments.filter(from_month__gte=month).delete()
-    return PreceptorAssignment.objects.create(nurse=nurse, preceptor=preceptor, unit=unit, from_month=month, assigned_by=by)
+    return PreceptorAssignment.objects.create(nurse=nurse, preceptor=preceptor, unit=unit, from_month=month, assigned_by=by,
+                                              until=_last_month_together(nurse, preceptor, unit, month))
+
+
+def _last_month_together(nurse: NurseProfile, preceptor: NurseProfile, unit: Unit, month: dt.date) -> dt.date | None:
+    """The month before the first of her months from `month` that one of the two is not in the unit (a transfer, or the
+    preceptor's end date before it), or None when both are there to her probation's end."""
+    for each in probation_months(nurse):
+        if each < month:
+            continue
+        gone = (membership.unit_in(nurse, each).pk != unit.pk or membership.unit_in(preceptor, each).pk != unit.pk
+                or (preceptor.end_date is not None and preceptor.end_date < each))
+        if gone:
+            return probation.months_on(each, -1)
+    return None
+
+
+def released_by_ending(nurse: NurseProfile, was_last: dt.date | None) -> tuple[dt.date, list[NurseProfile]] | None:
+    """When her probation now ends before `was_last` (an End, a shorter Length, the CNO's untick): its first month no longer on
+    probation, and the nurses who precepted her in one of the months it gave up, to be told they precept her no more."""
+    if was_last is None:
+        return None
+    now = probation.last_day(nurse)
+    first = probation.months_on(now.replace(day=1), 1) if now else nurse.start_date.replace(day=1)
+    rows = list(nurse.preceptor_assignments.select_related("preceptor__user"))
+    month, gone = first, {}
+    while month <= was_last:
+        held = next((row for row in reversed(rows) if row.from_month <= month), None)
+        if held is not None and (held.until is None or month <= held.until):
+            gone[held.preceptor_id] = held.preceptor
+        month = probation.months_on(month, 1)
+    return (first, list(gone.values())) if gone else None
 
 
 def describe(row: PreceptorAssignment | None) -> dict:
@@ -189,8 +243,8 @@ def end_on_leaving(leaver: NurseProfile, gone_from: dt.date, *, staying_in: Unit
 
 
 def clash_if_lasting(nurse: NurseProfile, months: int) -> str | None:
-    """Why her probation cannot be made `months` long: her preceptor in its last month would go on into a month in which he
-    precepts another nurse, and a preceptor has one nurse on probation at a time. An Extend or a Length is her unit manager's
+    """Why her probation cannot be made `months` long: her preceptor in its last month would go on into a month in which they
+    precept another nurse, and a preceptor has one nurse on probation at a time. An Extend or a Length is her unit manager's
     act, so it is refused, and the manager changes one preceptor first."""
     last = probation.last_day(nurse)
     if last is None:

@@ -4009,7 +4009,7 @@ export const GetSolveResultResponse = zod.object({
   "missed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('Her preceptor\'s day shift that day, under the code it has now.'),
-  "why": zod.enum(['hours', 'leave', 'pinned', 'elapsed', 'barred']).describe('`hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired.')
+  "why": zod.enum(['own_rules', 'leave', 'pinned', 'elapsed', 'barred']).describe('`own_rules`: her hours held no more beside her preceptor, or her own rest, run or succession rules kept her off; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired.')
 })).describe('Those she did not, in date order.')
 }).describe('A nurse on probation in the solve (ticket 55, ADR 0014): which of her preceptor\'s day shifts she followed, and which\nnot and why. Worked out from the stored input and roster with the solver\'s own reading, as the explanation is.')).describe('Each nurse on probation in its input, by name. Empty with no roster.'),
   "explained": zod.boolean().describe('False when the solver\'s code could not explain the stored roster.'),
@@ -4156,7 +4156,7 @@ export const RestoreSolveResultResponse = zod.object({
   "missed": zod.array(zod.object({
   "date": zod.iso.date(),
   "shift": zod.string().describe('Her preceptor\'s day shift that day, under the code it has now.'),
-  "why": zod.enum(['hours', 'leave', 'pinned', 'elapsed', 'barred']).describe('`hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired.')
+  "why": zod.enum(['own_rules', 'leave', 'pinned', 'elapsed', 'barred']).describe('`own_rules`: her hours held no more beside her preceptor, or her own rest, run or succession rules kept her off; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired.')
 })).describe('Those she did not, in date order.')
 }).describe('A nurse on probation in the solve (ticket 55, ADR 0014): which of her preceptor\'s day shifts she followed, and which\nnot and why. Worked out from the stored input and roster with the solver\'s own reading, as the explanation is.')).describe('Each nurse on probation in its input, by name. Empty with no roster.'),
   "explained": zod.boolean().describe('False when the solver\'s code could not explain the stored roster.'),

@@ -6583,7 +6583,7 @@ describe("the roster page", () => {
   it("beside the draft, says which of her preceptor's day shifts a nurse on probation did not follow, and why (ticket 55)", async () => {
     const following = [
       { hospital_id: "h3", full_name: "Faten Ali", preceptor: "h1", preceptor_name: "Amal Saleh", followed: 6,
-        missed: [{ date: "2026-06-07", shift: "D", why: "leave" }, { date: "2026-06-10", shift: "D", why: "hours" }] },
+        missed: [{ date: "2026-06-07", shift: "D", why: "leave" }, { date: "2026-06-10", shift: "D", why: "own_rules" }] },
       { hospital_id: "h4", full_name: "Hind Zaki", preceptor: null, preceptor_name: "", followed: 0, missed: [] },
     ]
     start("/roster", manager({
@@ -6594,7 +6594,7 @@ describe("the roster page", () => {
     const panel = await screen.findByRole("region", { name: "Nurses on probation" })
     expect(panel).toHaveTextContent("Faten Ali works beside Amal Saleh, her preceptor, on 6 of their 8 day shifts. Not on:")
     expect(within(panel).getAllByRole("listitem").slice(1, 3).map((item) => item.textContent)).toEqual([
-      "7 June, D: she was on leave", "10 June, D: her hours held no more"])
+      "7 June, D: she was on leave or outside her dates", "10 June, D: her hours, or her own rest and run rules, held no more"])
     expect(panel).toHaveTextContent("Hind Zaki had no preceptor this month, so her day shifts were placed freely.")
   })
 

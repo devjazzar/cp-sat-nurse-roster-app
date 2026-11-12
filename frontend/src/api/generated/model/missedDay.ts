@@ -10,6 +10,6 @@ export interface MissedDay {
   date: string;
   /** Her preceptor's day shift that day, under the code it has now. */
   shift: string;
-  /** `hours`: her hours held no more beside her preceptor; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired. */
+  /** `own_rules`: her hours held no more beside her preceptor, or her own rest, run or succession rules kept her off; `leave`: her leave or a day outside her dates; `pinned`: a pin or an accepted request held her cell; `elapsed`: a day already over in a re-plan; `barred`: a required skill of hers had expired. */
   why: MissedDayWhy;
 }

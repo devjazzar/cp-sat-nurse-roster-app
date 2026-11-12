@@ -46,7 +46,8 @@ def not_followed(solve_input: dict, roster: dict[str, dict[str, str]]) -> list[d
     with the solver's own `Problem` (her allowed shifts less the night shift, her leave, pins, bars and the cutoff). A day her
     preceptor works a shift she is allowed and she does not is one she could have followed. On a valid roster she is then
     off, and the reason is the first that holds: leave (the days outside her dates included), a barred day, a day already over
-    in a re-plan, a pin or an accepted request, or else her hours, which held no more (ADR 0014: hours win over following).
+    in a re-plan, a pin or an accepted request, or else her own rules: her hours held no more (ADR 0014: hours win over
+    following), or her rest, run and succession rules kept her off.
     Nothing when the solver's code no longer reads the input."""
     try:
         problem = load_request(solve_input).problem
@@ -56,23 +57,22 @@ def not_followed(solve_input: dict, roster: dict[str, dict[str, str]]) -> list[d
     for nurse in problem.nurses:
         if not nurse.on_probation:
             continue
-        q = preceptor_of(problem, nurse)
         row = {"nurse": nurse.id, "preceptor": None, "followed": 0, "missed": []}
         found.append(row)
-        if q is None:
+        if preceptor_of(problem, nurse) is None:
             continue
         row["preceptor"] = nurse.preceptor
         allowed, barred = set(problem.allowed(nurse)), set(barred_days(problem, nurse))
         mine, theirs = roster.get(nurse.id, {}), roster.get(nurse.preceptor, {})
         for day, shift in sorted(theirs.items()):
-            d = dt.date.fromisoformat(day).day - 1  # The solver's day index: the month's days from 0.
+            index = dt.date.fromisoformat(day).day - 1  # The solver's: the month's days from 0.
             if shift not in allowed:
                 continue
             if mine.get(day) == shift:
                 row["followed"] += 1
                 continue
-            why = ("leave" if d in nurse.unavailable else "barred" if d in barred else "elapsed" if d < problem.planning_from
-                   else "pinned" if d in nurse.pinned else "hours")
+            why = ("leave" if index in nurse.unavailable else "barred" if index in barred
+                   else "elapsed" if index < problem.planning_from else "pinned" if index in nurse.pinned else "own_rules")
             row["missed"].append({"date": day, "shift": shift, "why": why})
     return found
 

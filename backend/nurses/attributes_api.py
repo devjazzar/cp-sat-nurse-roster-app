@@ -26,7 +26,6 @@ from nurses import membership, preceptors, probation
 from nurses.api import Body, MonthText, Probation, probation_of, with_units
 from nurses.models import Gender, NurseProfile
 from nurses.skills import NurseSkillRow, skills_of
-from rosters.models import Roster, RosterState
 from rosters.pins import outside_allowed, words_for
 from units.models import Unit
 from units.rules import distinct_shifts
@@ -273,6 +272,16 @@ def _save_probation(request, nurse: NurseProfile, action: str, was: dict) -> Non
     nurse.save(update_fields=["probation_months", "probation_ended_in"])
     record(action, actor=request.user, target=nurse.user.username, request=request, before=was,
            after=probation.describe(nurse))
+    tell_released(nurse, dt.date.fromisoformat(was["last_day"]) if was["last_day"] else None)
+
+
+def tell_released(nurse: NurseProfile, was_last: dt.date | None) -> None:
+    """A probation now ending sooner ends her preceptor's assignment with it: each nurse who precepted her in a month it gave
+    up is told, once (story 35). One that runs out by itself tells nobody: nothing was done, and the row says it."""
+    released = preceptors.released_by_ending(nurse, was_last)
+    if released:
+        first, gone = released
+        sending.preceptors_released(membership.unit_in(nurse, first), nurse, first, gone)
 
 
 @router.put("/{unit_id}/nurses/{nurse_id}/probation/length", response=NurseAttributesRow, auth=manager,
@@ -368,20 +377,6 @@ def _preceptor_to_change(request, unit_id: UUID, nurse_id: UUID) -> tuple[Unit, 
     return unit, nurse
 
 
-def _month_refusal(nurse: NurseProfile, unit: Unit, month: dt.date) -> str | None:
-    name = nurse.user.full_name
-    if month < membership.this_month():
-        return f"{month:%B %Y} is over. A preceptor is chosen from this month or later."
-    if not probation.on_probation_in(nurse, month):
-        return f"{name} is not on probation in {month:%B %Y}: her probation ends on {probation.last_day(nurse):%-d %B %Y}."
-    if membership.unit_in(nurse, month).pk != unit.pk:
-        return f"{name} is not in {unit.name} in {month:%B %Y}, so that unit's manager chooses her preceptor there."
-    if Roster.objects.filter(unit=unit, month=month, state=RosterState.APPROVED).exists():
-        return (f"The roster of {month:%B %Y} is approved, so a preceptor can be chosen from a later month only. To change who "
-                f"works beside her in {month:%B %Y}, edit the roster.")
-    return None
-
-
 @router.get("/{unit_id}/nurses/{nurse_id}/preceptor-choices", response=PreceptorChoices, auth=manager,
             operation_id="listPreceptorChoices")
 def list_preceptor_choices(request, unit_id: UUID, nurse_id: UUID, filters: Query[PreceptorMonth]) -> PreceptorChoices:
@@ -395,7 +390,7 @@ def list_preceptor_choices(request, unit_id: UUID, nurse_id: UUID, filters: Quer
     month = filters.month
     chosen = dt.date.fromisoformat(f"{month}-01")
     refusal = None if probation.running(nurse) and nurse.on_probation else f"{nurse.user.full_name} is not on probation."
-    refusal = refusal or _month_refusal(nurse, unit, chosen)
+    refusal = refusal or preceptors.month_refusal(nurse, unit, chosen)
     offered = [] if refusal else preceptors.candidates(nurse, unit, chosen)
     if not refusal and not offered:
         refusal = (f"No nurse of {unit.name} can precept {nurse.user.full_name} from {chosen:%B %Y}: none holds a skill marked "
@@ -416,7 +411,7 @@ def set_preceptor(request, unit_id: UUID, nurse_id: UUID, body: PreceptorBody) -
         # The candidate's row too, in pk order with hers, so two managers cannot give one preceptor two nurses at once.
         locked = NurseProfile.objects.select_for_update(no_key=True).filter(pk__in=[nurse.pk, body.preceptor_id]).order_by("pk")
         list(locked.values_list("pk", flat=True))
-        refusal = _month_refusal(nurse, unit, month)
+        refusal = preceptors.month_refusal(nurse, unit, month)
         if refusal:
             refuse((("from_month",), refusal))
         candidate = NurseProfile.objects.select_related("user").filter(pk=body.preceptor_id).first()
@@ -425,15 +420,16 @@ def set_preceptor(request, unit_id: UUID, nurse_id: UUID, body: PreceptorBody) -
         why = preceptors.why_not(nurse, unit, candidate, month)
         if why:
             refuse((("preceptor_id",), why))
+        gained = preceptors.first_gained(nurse, candidate, month)
+        if gained is None:
+            return _row_as_saved(nurse_id, unit)  # She is theirs in every month from then: nothing to change or tell.
         held = preceptors.assignment_in(nurse, month)
-        before = preceptors.preceptors_from(nurse, month)
-        if before == {candidate.pk}:
-            return _row_as_saved(nurse_id, unit)  # She is already theirs from that month on: nothing to change or tell.
+        before = preceptors.preceptors_from(nurse, gained)
         was = preceptors.describe(held)
         assigned = preceptors.assign(nurse, unit, candidate, month, request.user)
         record("nurse.preceptor_assigned", actor=request.user, target=nurse.user.username, request=request, before=was,
                after=preceptors.describe(assigned))
         released = NurseProfile.objects.select_related("user").filter(pk__in=before - {candidate.pk}).order_by("pk")
-        if candidate.pk not in before or released:
-            sending.preceptor_assigned(unit, nurse, month, preceptor=candidate, released=list(released))
+        # Once each, from the first month that changes: a nurse already hers then is told only of what changed for them.
+        sending.preceptor_assigned(unit, nurse, gained, preceptor=candidate, released=list(released))
     return _row_as_saved(nurse_id, unit)
