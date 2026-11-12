@@ -42,7 +42,9 @@
 
 **Implemented on 2026-11-12,** on branch `claude/ticket-56-probation-what-everyone-sees-e4b838` (`7796c77` the reads, `28ac163`
 the frontend, `e24932c` and `83636a4` the docs, `16e096b` and `9969fd7` the two code reviews' points, `6112cc1` the row header's
-name, then `origin/main` merged with ticket 61), from `main` at `8c83302`. Draft pull request
+name, then `origin/main` merged with tickets 61 and 57), from `main` at `8c83302`. After ticket 57's merge (its batched
+carry-over read builds the input these reads read), the roster, export, My month and probation tests ran again: 98 backend and
+196 frontend passed. Draft pull request
 [devjazzar/cp-sat-nurse-roster-app#32](https://github.com/devjazzar/cp-sat-nurse-roster-app/pull/32).
 - The backend suite ran on a throwaway PostgreSQL 18 container of my own, under the heavy-run lock: **3632 passed**, on
   `9969fd7`'s code (`6112cc1` touched the frontend only).
