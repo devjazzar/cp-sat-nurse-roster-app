@@ -6597,7 +6597,7 @@
             }
           }
         },
-        "description": "A renewal or a correction of the expiry: the row ends and another begins, as leave's does. Saving it as it reads (for a\nkind that no longer expires, with no date, whatever is kept) changes nothing.",
+        "description": "A renewal, or a correction of what it says: the row ends and another begins, as leave's does, with what the body names\nand, carried from the row it ends, what it does not. Saving it as it reads (for a kind that no longer expires, with no\ndate, whatever is kept) changes nothing.",
         "tags": [
           "nurses"
         ],
@@ -9649,7 +9649,7 @@
             "type": "boolean"
           },
           "skills": {
-            "description": "Their current skills, to read: the CNO sets them on the Nurses page.",
+            "description": "Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.",
             "items": {
               "$ref": "#/components/schemas/NurseSkillRow"
             },
@@ -9693,6 +9693,48 @@
         "title": "NurseAttributesRow",
         "type": "object"
       },
+      "NurseSkillDetails": {
+        "description": "What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.",
+        "properties": {
+          "issuing_body": {
+            "description": "The catalogue's: who issues it; empty when no one does.",
+            "title": "Issuing Body",
+            "type": "string"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The number or code the issuing body gave it. Always set on a licence.",
+            "title": "Identifier"
+          },
+          "issue_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was issued. Read by nothing: the expiry is what a roster reads.",
+            "title": "Issue Date"
+          }
+        },
+        "required": [
+          "issuing_body",
+          "identifier",
+          "issue_date"
+        ],
+        "title": "NurseSkillDetails",
+        "type": "object"
+      },
       "NurseSkillRow": {
         "properties": {
           "skill_id": {
@@ -9702,6 +9744,16 @@
           },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "kind": {
+            "description": "The catalogue's: a skill, a certificate or a licence.",
+            "enum": [
+              "skill",
+              "certificate",
+              "licence"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "expires": {
@@ -9731,15 +9783,28 @@
             ],
             "description": "The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.",
             "title": "Expiry"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NurseSkillDetails"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only."
           }
         },
         "required": [
           "skill_id",
           "name",
+          "kind",
           "expires",
           "required_to_work",
           "active",
-          "expiry"
+          "expiry",
+          "details"
         ],
         "title": "NurseSkillRow",
         "type": "object"
@@ -17536,7 +17601,7 @@
             "type": "array"
           },
           "skills": {
-            "description": "Their current skills, the CNO's to set, in the order of their names.",
+            "description": "Their current skills, the CNO's to set, in the order of their names; their details for the CNO only.",
             "items": {
               "$ref": "#/components/schemas/NurseSkillRow"
             },
@@ -18269,17 +18334,46 @@
             ],
             "description": "Required when the skill expires; empty when it does not.",
             "title": "Expiry"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The number or code its issuing body gave it, trimmed; required on a licence, empty otherwise when there is none.",
+            "title": "Identifier"
+          },
+          "issue_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was issued: not after the expiry or today. Read by nothing; the expiry is what a roster reads.",
+            "title": "Issue Date"
           }
         },
         "required": [
           "skill_id",
-          "expiry"
+          "expiry",
+          "identifier",
+          "issue_date"
         ],
         "title": "NewNurseSkillBody",
         "type": "object"
       },
       "NurseSkillChangeBody": {
         "additionalProperties": false,
+        "description": "The one body here where a field left out means something: a renewal carries forward the identifier and the issue date\nit does not name, from the record it ends, so a new expiry alone keeps the licence's number. Null clears one.",
         "properties": {
           "expiry": {
             "anyOf": [
@@ -18292,6 +18386,32 @@
               }
             ],
             "title": "Expiry"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The number or code its issuing body gave it, trimmed; required on a licence, empty otherwise when there is none. Left out, the record's is carried forward.",
+            "title": "Identifier"
+          },
+          "issue_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was issued: not after the expiry or today. Read by nothing; the expiry is what a roster reads. Left out, the record's is carried forward.",
+            "title": "Issue Date"
           }
         },
         "required": [
@@ -18351,6 +18471,16 @@
             "title": "Skill",
             "type": "string"
           },
+          "kind": {
+            "description": "The catalogue's. The list carries no identifier and no issue date.",
+            "enum": [
+              "skill",
+              "certificate",
+              "licence"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
           "state": {
             "$ref": "#/components/schemas/ExpiryState",
             "description": "`expired`: the expiry has passed. `expiring`: it is today or within `horizon_days`. `no_record`: the skill is required to work and she has no record of it."
@@ -18375,6 +18505,7 @@
           "full_name",
           "unit",
           "skill",
+          "kind",
           "state",
           "expiry"
         ],

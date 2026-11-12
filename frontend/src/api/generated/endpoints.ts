@@ -13500,8 +13500,9 @@ export const getRenewNurseSkillUrl = (nurseId: string,
 }
 
 /**
- * A renewal or a correction of the expiry: the row ends and another begins, as leave's does. Saving it as it reads (for a
- * kind that no longer expires, with no date, whatever is kept) changes nothing.
+ * A renewal, or a correction of what it says: the row ends and another begins, as leave's does, with what the body names
+ * and, carried from the row it ends, what it does not. Saving it as it reads (for a kind that no longer expires, with no
+ * date, whatever is kept) changes nothing.
  * @summary Renew Skill
  */
 export const renewNurseSkill = async (nurseId: string,

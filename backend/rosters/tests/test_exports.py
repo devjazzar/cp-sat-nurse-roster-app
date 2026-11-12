@@ -385,3 +385,37 @@ class TestFromAnotherSite:
         approved(mona, carla, er, solver)
 
         assert mona.get(url(er, "/roster/sheet"), {"month": MONTH, "version": 1}, **from_site("cross-site")).status_code == 200
+
+
+class TestNothingOfACertificateOrLicence:
+    """Ticket 59: identifiers, issue dates and expiries reach no file and no notification. Each is taken before a licence and a
+    certificate are recorded on every nurse of the month, with their identifiers and issue dates, and after, and is the same."""
+
+    def test_the_staff_list_the_roster_files_the_print_page_and_the_notifications_are_as_they_were(self, mona, carla, er,
+                                                                                                  solver):
+        from hospital.models import Skill
+        from notifications.models import Notification
+        from nurses.models import NurseProfile
+        approved(mona, carla, er, solver)
+        for name, kind, expires in [("SCFHS", "licence", True), ("BSN", "certificate", False)]:
+            response = post(carla, "/api/hospital/skills", {"name": name, "kind": kind, "issuing_body": "A body",
+                                                           "expires": expires, "required_to_work": False,
+                                                           "lets_a_nurse_precept": False, "active": True})
+            assert response.status_code == 201, response.content
+
+        def taken() -> tuple:
+            return (export(mona, er).content, workbook(export(mona, er, file_format="xlsx")), ok(sheet(mona, er)),
+                    ok(sheet(carla, er)), carla.get("/api/nurses/export").content,
+                    list(Notification.objects.order_by("pk").values()))
+
+        before = taken()
+        for number, nurse in enumerate(NurseProfile.objects.order_by("user__username")):
+            for skill, expiry in [("SCFHS", "2026-06-20"), ("BSN", None)]:
+                response = post(carla, f"/api/nurses/{nurse.pk}/skills", {
+                    "skill_id": str(Skill.objects.get(name=skill).pk), "expiry": expiry,
+                    "identifier": f"{skill}-QX{number}", "issue_date": "2024-06-01"})
+                assert response.status_code == 201, response.content
+        after = taken()
+
+        assert after == before
+        assert all("-QX" not in str(part) and "2024-06-01" not in str(part) for part in after)

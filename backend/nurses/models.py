@@ -124,6 +124,11 @@ class NurseSkill(models.Model):
     nurse = models.ForeignKey(NurseProfile, on_delete=models.PROTECT, related_name="skills")
     skill = models.ForeignKey("hospital.Skill", on_delete=models.PROTECT, related_name="+")
     expiry = models.DateField(null=True, blank=True)
+    # The number or code the issuing body gave her certificate or licence (ticket 59): required on a licence, and unique
+    # among one entry's current records. Read by the CNO, the Deputy CNO and the nurse herself, never in a file, a
+    # notification or an audit entry. The issue date is read by nothing: the expiry is what a roster reads.
+    identifier = models.CharField(max_length=100, null=True, blank=True)
+    issue_date = models.DateField(null=True, blank=True)
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     recorded_at = models.DateTimeField(auto_now_add=True)
     removed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
@@ -135,4 +140,8 @@ class NurseSkill(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["nurse", "skill"], condition=models.Q(removed_at__isnull=True),
                                     name="nurses_one_current_skill_a_nurse"),
+            # Beside the API's check, so two records made at once cannot both pass. Ended rows keep theirs.
+            models.UniqueConstraint(fields=["skill", "identifier"],
+                                    condition=models.Q(removed_at__isnull=True, identifier__isnull=False),
+                                    name="nurses_one_current_identifier_a_skill"),
         ]

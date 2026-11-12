@@ -9,4 +9,8 @@ export interface NewNurseSkillBody {
   skill_id: string;
   /** Required when the skill expires; empty when it does not. */
   expiry: string | null;
+  /** The number or code its issuing body gave it, trimmed; required on a licence, empty otherwise when there is none. */
+  identifier: string | null;
+  /** When it was issued: not after the expiry or today. Read by nothing; the expiry is what a roster reads. */
+  issue_date: string | null;
 }

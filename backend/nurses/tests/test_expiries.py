@@ -7,6 +7,8 @@ import datetime as dt
 import pytest
 
 from accounts.models import Role, User
+from conftest import post
+from hospital.models import Skill
 from nurses.models import NurseProfile
 from nurses.tests.conftest import NURSES, added, make_unit
 from nurses.tests.test_skills import catalogue, change_skill, recorded, transfer  # noqa: F401 (fixtures)
@@ -67,7 +69,7 @@ def test_a_row_names_the_nurse_her_unit_the_skill_its_state_and_date(cno, er, ca
 
     assert expiries(cno) == {"horizon_days": 90, "count": 1, "rows": [
         {"nurse_id": amal, "hospital_id": "h1", "full_name": "Amal Saleh", "unit": {"id": str(er.pk), "name": "ER"},
-         "skill": "BLS", "state": "expiring", "expiry": "2026-11-30"}]}
+         "skill": "BLS", "kind": "skill", "state": "expiring", "expiry": "2026-11-30"}]}
 
 
 def test_the_three_kinds_of_row_oldest_date_first_and_no_record_last(cno, er, catalogue):  # noqa: F811
@@ -217,3 +219,24 @@ def test_the_home_count_is_worked_out_when_read(cno, er, catalogue):  # noqa: F8
     nurse(cno, er, "h3", "Carla Nunes")
 
     assert expiries(cno)["count"] == 2
+
+
+# ---- the kind (ticket 59) ---------------------------------------------------------------------------
+def test_each_row_carries_its_kind_and_no_identifier_or_issue_date(cno, mona, er, catalogue):  # noqa: F811
+    for name, kind in [("SCFHS", "licence"), ("BSN", "certificate")]:
+        response = post(cno, "/api/hospital/skills", {"name": name, "kind": kind, "issuing_body": "", "expires": True,
+                                                     "required_to_work": kind == "certificate",
+                                                     "lets_a_nurse_precept": False, "active": True})
+        assert response.status_code == 201, response.content
+    amal = with_bls(cno, catalogue, er, "h1", "Amal Saleh", "2026-11-30")
+    recorded(cno, amal, str(Skill.objects.get(name="SCFHS").pk), "2026-12-31", "21-RN-0412", "2024-12-15")
+
+    for client in (cno, mona):
+        listed = expiries(client)
+        assert [(row["skill"], row["kind"], row["state"]) for row in listed["rows"]] == [
+            ("BLS", "skill", "expiring"), ("SCFHS", "licence", "expiring"), ("BSN", "certificate", "no_record")]
+        assert listed["count"] == 3
+        assert all(set(row) == {"nurse_id", "hospital_id", "full_name", "unit", "skill", "kind", "state", "expiry"}
+                   for row in listed["rows"])
+        text = client.get(EXPIRIES).content.decode()
+        assert "21-RN-0412" not in text and "2024-12-15" not in text

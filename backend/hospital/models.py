@@ -1,4 +1,5 @@
 import copy
+from typing import Literal
 
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -71,6 +72,10 @@ class LeaveType(models.Model):
     class Meta:
         ordering = [Lower("name")]
         constraints = [models.UniqueConstraint(Lower("name"), name="hospital_leave_type_name_any_case")]
+
+
+# `Skill.Kind` as an API schema names it, one list wherever a kind is read.
+SkillKind = Literal["skill", "certificate", "licence"]
 
 
 class Skill(models.Model):

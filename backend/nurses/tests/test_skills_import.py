@@ -450,3 +450,35 @@ def test_skills_imported_show_where_the_nurse_s_skills_are_read(cno, amal):
     confirmed(cno, csv_of("h1,BLS,2027-01-01", "h1,ICU,"))
 
     assert held(cno.get(NURSES).json()[0]["skills"]) == {"BLS": "2027-01-01", "ICU": None}
+
+
+# ---- a record's identifier and issue date, until the file takes them (ticket 59; ticket 60 adds the columns) ------------
+@pytest.fixture
+def scfhs(cno) -> str:
+    response = post(cno, SKILLS, {"name": "SCFHS", "kind": "licence", "issuing_body": "", "expires": True,
+                                 "required_to_work": False, "lets_a_nurse_precept": False, "active": True})
+    assert response.status_code == 201, response.content
+    return response.json()["id"]
+
+
+def test_a_licence_is_not_recorded_from_a_file_with_nowhere_for_its_identifier(cno, amal, scfhs):
+    assert problems_of(cno, "h1,SCFHS,2028-03-31") == [[(
+        "skill", "SCFHS is a licence, so it needs its identifier. Record it on the Nurses page, or remove the line.")]]
+
+
+def test_a_renewal_from_a_file_carries_the_identifier_and_the_issue_date(cno, amal, scfhs):
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412", "2024-12-15")
+
+    assert confirmed(cno, csv_of("h1,SCFHS,2028-12-31")) == {"recorded": 0, "renewed": 1, "unchanged": 0}
+
+    row = NurseSkill.objects.current().get(skill_id=scfhs)
+    assert (row.expiry.isoformat(), row.identifier, row.issue_date.isoformat()) == ("2028-12-31", "21-RN-0412", "2024-12-15")
+    ended = NurseSkill.objects.get(skill_id=scfhs, removed_at__isnull=False)
+    assert (ended.expiry.isoformat(), ended.identifier) == ("2026-12-31", "21-RN-0412")
+
+
+def test_a_renewal_from_a_file_to_before_the_issue_date_recorded_is_a_problem(cno, amal, scfhs):
+    recorded(cno, amal, scfhs, "2026-12-31", "21-RN-0412", "2024-12-15")
+
+    assert problems_of(cno, "h1,SCFHS,2024-12-01") == [[(
+        "expiry", "The issue date cannot be after the expiry. The one recorded is 2024-12-15.")]]

@@ -25,7 +25,7 @@ export interface NurseRow {
   unit: UnitName | null;
   /** The transfers still to come, soonest first. */
   transfers: ComingTransfer[];
-  /** Their current skills, the CNO's to set, in the order of their names. */
+  /** Their current skills, the CNO's to set, in the order of their names; their details for the CNO only. */
   skills: NurseSkillRow[];
   /** The CNO's tick as it stands, also once her probation is over, for the correction form. */
   on_probation: boolean;

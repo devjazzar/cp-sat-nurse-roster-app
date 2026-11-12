@@ -21,7 +21,7 @@ from hospital.catalogue_api import FIRST_YEAR, LAST_YEAR, IsoDate
 from hospital.models import Skill
 from nurses.importing import HOSPITAL_ID, Layout, Line, Problem, parsed, wrong_cell_count
 from nurses.models import NurseProfile, NurseSkill
-from nurses.skills import counted_expiry
+from nurses.skills import counted_expiry, problems_with
 
 COLUMNS = ("Hospital ID", "Skill", "Expiry")
 SKILLS_FILE = Layout(COLUMNS, "skill", "skills", "", "a skill name that has a comma in it")
@@ -137,7 +137,17 @@ def _judged(line: Line, standing: _Standing) -> Row:
         row.problems.append(Problem("expiry", f"{skill.name} expires. Enter the last day it counts, as YYYY-MM-DD."))
 
     if not row.problems:
-        row.meaning = RowMeaning(nurse, skill, expiry, standing.held.get((nurse.pk, skill.pk)))
+        held = standing.held.get((nurse.pk, skill.pk))
+        # The file has no identifier or issue date yet (ticket 60): a renewal carries the record's, as the API's does, and a
+        # licence, which needs its identifier, is recorded on the Nurses page.
+        found = problems_with(nurse, skill, expiry, held.identifier if held else None, held.issue_date if held else None)
+        for field, words in found:
+            if field == "identifier":
+                row.problems.append(Problem("skill", f"{words} Record it on the Nurses page, or remove the line."))
+            else:
+                row.problems.append(Problem("expiry", f"{words} The one recorded is {held.issue_date.isoformat()}."))
+        if not found:
+            row.meaning = RowMeaning(nurse, skill, expiry, held)
     return row
 
 

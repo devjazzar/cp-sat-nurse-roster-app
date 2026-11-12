@@ -68,18 +68,20 @@ def amal(cno, er, catalogue) -> str:
     return added(cno, er)["nurse"]["id"]
 
 
-def record(client, nurse_id, skill_id, expiry=None):
-    return post(client, f"{NURSES}/{nurse_id}/skills", {"skill_id": skill_id, "expiry": expiry})
+def record(client, nurse_id, skill_id, expiry=None, identifier=None, issue_date=None):
+    return post(client, f"{NURSES}/{nurse_id}/skills", {"skill_id": skill_id, "expiry": expiry, "identifier": identifier,
+                                                        "issue_date": issue_date})
 
 
-def recorded(client, nurse_id, skill_id, expiry=None) -> list[dict]:
-    response = record(client, nurse_id, skill_id, expiry)
+def recorded(client, nurse_id, skill_id, expiry=None, identifier=None, issue_date=None) -> list[dict]:
+    response = record(client, nurse_id, skill_id, expiry, identifier, issue_date)
     assert response.status_code == 201, response.content
     return response.json()
 
 
-def renew(client, nurse_id, skill_id, expiry):
-    return client.put(f"{NURSES}/{nurse_id}/skills/{skill_id}", {"expiry": expiry}, content_type="application/json")
+def renew(client, nurse_id, skill_id, expiry, **named):
+    """`named`: the identifier and the issue date when the renewal names them; left out, they are carried forward."""
+    return client.put(f"{NURSES}/{nurse_id}/skills/{skill_id}", {"expiry": expiry} | named, content_type="application/json")
 
 
 def remove(client, nurse_id, skill_id):
@@ -141,11 +143,12 @@ def test_the_cno_records_a_skill_with_its_expiry_and_one_without(cno, amal, cata
     recorded(cno, amal, catalogue["BLS"], "2027-06-30")
     rows = recorded(cno, amal, catalogue["ICU"])
 
+    no_details = {"issuing_body": "", "identifier": None, "issue_date": None}
     assert rows == [
-        {"skill_id": catalogue["BLS"], "name": "BLS", "expires": True, "required_to_work": True, "active": True,
-         "expiry": "2027-06-30"},
-        {"skill_id": catalogue["ICU"], "name": "ICU", "expires": False, "required_to_work": False, "active": True,
-         "expiry": None},
+        {"skill_id": catalogue["BLS"], "name": "BLS", "kind": "skill", "expires": True, "required_to_work": True,
+         "active": True, "expiry": "2027-06-30", "details": no_details},
+        {"skill_id": catalogue["ICU"], "name": "ICU", "kind": "skill", "expires": False, "required_to_work": False,
+         "active": True, "expiry": None, "details": no_details},
     ]
     row = NurseSkill.objects.get(skill__name="BLS")
     assert row.recorded_by.username == "chief" and row.recorded_at is not None
@@ -333,8 +336,9 @@ def test_a_nurse_reads_her_own_and_nothing_of_a_colleagues(cno, er, amal, catalo
     recorded(cno, colleague, catalogue["ICU"])
     nurse = signed_in_as()
 
-    assert my_skills(nurse) == [{"skill_id": catalogue["BLS"], "name": "BLS", "expires": True, "required_to_work": True,
-                                 "active": True, "expiry": "2027-06-30"}]
+    assert my_skills(nurse) == [{"skill_id": catalogue["BLS"], "name": "BLS", "kind": "skill", "expires": True,
+                                 "required_to_work": True, "active": True, "expiry": "2027-06-30",
+                                 "details": {"issuing_body": "", "identifier": None, "issue_date": None}}]
     assert held(nurse.get(f"{NURSES}/my-skills", {"nurse_id": colleague}).json()) == {"BLS": "2027-06-30"}, "Takes no nurse."
     for path in (NURSES, f"/api/units/{NurseProfile.objects.get(pk=amal).placements.get().unit_id}/nurses"):
         assert nurse.get(path).status_code == 403
@@ -458,3 +462,221 @@ def test_a_refused_write_logs_nothing(cno, amal, catalogue):
     record(cno, amal, catalogue["ICU"], "2027-01-01")
 
     assert not AuditEntry.objects.filter(action="nurse.skills_changed").exists()
+
+
+# ---- a record's identifier and issue date (ticket 59) ------------------------------------------------
+@pytest.fixture
+def papers(cno, catalogue):
+    """SCFHS is a licence, which always expires; BSN a certificate held for good; both name their issuing bodies."""
+    for name, kind, body, expires in [("SCFHS", "licence", "Saudi Commission for Health Specialties", True),
+                                      ("BSN", "certificate", "King Saud University", False)]:
+        response = post(cno, SKILLS, {"name": name, "kind": kind, "issuing_body": body, "expires": expires,
+                                     "required_to_work": False, "lets_a_nurse_precept": False, "active": True})
+        assert response.status_code == 201, response.content
+    return {skill.name: str(skill.pk) for skill in Skill.objects.all()}
+
+
+@pytest.fixture
+def badr(cno, er, amal) -> str:
+    return added(cno, er, "h456", full_name="Badr Ali")["nurse"]["id"]
+
+
+def row_of(rows: list[dict], name: str) -> dict:
+    return next(row for row in rows if row["name"] == name)
+
+
+def details(rows: list[dict]) -> dict[str, tuple]:
+    return {row["name"]: row["details"] and (row["details"]["identifier"], row["details"]["issue_date"]) for row in rows}
+
+
+def current(name: str, nurse_id: str) -> NurseSkill:
+    return NurseSkill.objects.current().get(skill__name=name, nurse_id=nurse_id)
+
+
+def test_the_cno_records_a_licence_with_its_identifier_and_issue_date(cno, amal, papers):
+    rows = recorded(cno, amal, papers["SCFHS"], "2028-03-31", "21-RN-0412", "2026-04-01")
+
+    assert row_of(rows, "SCFHS") == {
+        "skill_id": papers["SCFHS"], "name": "SCFHS", "kind": "licence", "expires": True, "required_to_work": False,
+        "active": True, "expiry": "2028-03-31",
+        "details": {"issuing_body": "Saudi Commission for Health Specialties", "identifier": "21-RN-0412",
+                    "issue_date": "2026-04-01"}}
+
+
+def test_the_identifier_is_trimmed_and_an_empty_one_is_none(cno, amal, papers):
+    recorded(cno, amal, papers["BSN"], None, "  KSU 2019 / 77 ", "2019-06-15")
+    rows = recorded(cno, amal, papers["ICU"], None, "   ")
+
+    assert details(rows) == {"BSN": ("KSU 2019 / 77", "2019-06-15"), "ICU": (None, None)}
+    assert current("ICU", amal).identifier is None
+
+
+def test_an_identifier_of_more_than_100_characters_or_with_a_nul_is_refused(cno, amal, papers):
+    assert refusal(record(cno, amal, papers["BSN"], None, "x" * 101))[0] == "identifier"
+    assert refusal(record(cno, amal, papers["BSN"], None, "12\x0034"))[0] == "identifier"
+    assert held(recorded(cno, amal, papers["BSN"], None, "x" * 100)) == {"BSN": None}
+
+
+def test_a_licence_without_its_identifier_is_refused_and_a_certificate_or_skill_needs_none(cno, amal, papers):
+    assert refusal(record(cno, amal, papers["SCFHS"], "2028-03-31")) == (
+        "identifier", "SCFHS is a licence, so it needs its identifier.")
+    assert not NurseSkill.objects.exists()
+
+    recorded(cno, amal, papers["BSN"])
+    assert held(recorded(cno, amal, papers["BLS"], "2027-06-30")) == {"BLS": "2027-06-30", "BSN": None}
+
+
+def test_an_identifier_another_nurses_current_record_of_the_entry_holds_is_refused_naming_her(cno, amal, badr, papers):
+    recorded(cno, badr, papers["SCFHS"], "2028-03-31", "21-RN-0412")
+
+    assert refusal(record(cno, amal, papers["SCFHS"], "2028-03-31", " 21-RN-0412 ")) == (
+        "identifier", "Badr Ali already holds SCFHS with this identifier. Check the number: each one is one nurse's.")
+    recorded(cno, amal, papers["SCFHS"], "2028-03-31", "21-RN-0413")
+    assert refusal(renew(cno, amal, papers["SCFHS"], "2028-03-31", identifier="21-RN-0412"))[0] == "identifier"
+    assert current("SCFHS", amal).identifier == "21-RN-0413"
+
+
+def test_the_identifier_is_compared_exactly_not_case_folded(cno, amal, badr, papers):
+    recorded(cno, badr, papers["SCFHS"], "2028-03-31", "rn-0412")
+
+    assert held(recorded(cno, amal, papers["SCFHS"], "2028-03-31", "RN-0412")) == {"SCFHS": "2028-03-31"}
+
+
+def test_the_same_identifier_is_allowed_on_another_entry_and_beside_an_ended_record(cno, amal, badr, papers):
+    recorded(cno, badr, papers["BSN"], None, "77")
+    recorded(cno, amal, papers["ICU"], None, "77")
+    recorded(cno, badr, papers["SCFHS"], "2028-03-31", "21-RN-0412")
+    remove(cno, badr, papers["SCFHS"])
+
+    recorded(cno, amal, papers["SCFHS"], "2028-03-31", "21-RN-0412")
+
+    assert NurseSkill.objects.filter(identifier="21-RN-0412").count() == 2
+
+
+def test_the_database_holds_one_current_identifier_an_entry(cno, amal, badr, papers):
+    recorded(cno, badr, papers["BSN"], None, "77")
+    row = current("BSN", badr)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        NurseSkill.objects.create(nurse=NurseProfile.objects.get(pk=amal), skill=row.skill, identifier="77",
+                                  recorded_by=row.recorded_by)
+
+
+def test_an_issue_date_after_the_expiry_or_after_today_is_refused(cno, amal, papers):
+    # Today is 5 November 2026 on the hospital's clock.
+    assert refusal(record(cno, amal, papers["SCFHS"], "2026-12-31", "1", "2027-01-01")) == (
+        "issue_date", "The issue date cannot be after the expiry.")
+    assert refusal(record(cno, amal, papers["BSN"], None, None, "2026-11-06")) == (
+        "issue_date", "The issue date cannot be after today.")
+    assert refusal(record(cno, amal, papers["BLS"], "2026-12-31", None, "2026-11-30")) == (
+        "issue_date", "The issue date cannot be after today.")
+
+    assert details(recorded(cno, amal, papers["BSN"], None, None, "2026-11-05")) == {"BSN": (None, "2026-11-05")}
+    recorded(cno, amal, papers["SCFHS"], "2026-10-31", "1", "2024-11-01")
+    assert refusal(renew(cno, amal, papers["SCFHS"], "2024-10-31"))[0] == "issue_date", "Against the one carried, too."
+
+
+def test_an_issue_date_not_a_date_is_refused_beside_its_field(cno, amal, papers):
+    assert refusal(record(cno, amal, papers["BSN"], None, None, "2026-02-30"))[0] == "issue_date"
+
+
+def test_a_renewal_changes_what_it_names_and_carries_what_it_does_not(cno, amal, papers):
+    recorded(cno, amal, papers["SCFHS"], "2026-12-31", "21-RN-0412", "2024-12-15")
+
+    rows = renew(cno, amal, papers["SCFHS"], "2028-12-31").json()
+    assert (held(rows), details(rows)) == ({"SCFHS": "2028-12-31"}, {"SCFHS": ("21-RN-0412", "2024-12-15")})
+
+    rows = renew(cno, amal, papers["SCFHS"], "2028-12-31", issue_date="2026-11-01").json()
+    assert details(rows) == {"SCFHS": ("21-RN-0412", "2026-11-01")}
+
+    rows = renew(cno, amal, papers["SCFHS"], "2030-12-31", identifier="26-RN-9001", issue_date=None).json()
+    assert (held(rows), details(rows)) == ({"SCFHS": "2030-12-31"}, {"SCFHS": ("26-RN-9001", None)})
+
+    ended = NurseSkill.objects.filter(skill__name="SCFHS", removed_at__isnull=False).order_by("recorded_at", "id")
+    assert [(row.expiry.isoformat(), row.identifier, row.issue_date and row.issue_date.isoformat()) for row in ended] == [
+        ("2026-12-31", "21-RN-0412", "2024-12-15"), ("2028-12-31", "21-RN-0412", "2024-12-15"),
+        ("2028-12-31", "21-RN-0412", "2026-11-01")], "Each ended row keeps what it had."
+
+
+def test_a_renewal_keeps_her_own_identifier_and_cannot_clear_a_licences(cno, amal, papers):
+    recorded(cno, amal, papers["SCFHS"], "2026-12-31", "21-RN-0412")
+
+    assert renew(cno, amal, papers["SCFHS"], "2028-12-31", identifier="21-RN-0412").status_code == 200
+    assert refusal(renew(cno, amal, papers["SCFHS"], "2030-12-31", identifier=None)) == (
+        "identifier", "SCFHS is a licence, so it needs its identifier.")
+    assert refusal(renew(cno, amal, papers["SCFHS"], "2030-12-31", identifier="  ")) == (
+        "identifier", "SCFHS is a licence, so it needs its identifier.")
+
+
+def test_a_record_held_for_good_is_corrected_through_a_renewal(cno, amal, papers):
+    recorded(cno, amal, papers["BSN"])
+
+    rows = renew(cno, amal, papers["BSN"], None, identifier="KSU-77", issue_date="2019-06-15").json()
+
+    assert details(rows) == {"BSN": ("KSU-77", "2019-06-15")}
+    assert NurseSkill.objects.filter(skill__name="BSN").count() == 2
+
+
+def test_a_renewal_saying_what_is_recorded_changes_nothing_and_logs_nothing(cno, amal, papers):
+    recorded(cno, amal, papers["SCFHS"], "2026-12-31", "21-RN-0412", "2024-12-15")
+
+    assert renew(cno, amal, papers["SCFHS"], "2026-12-31", identifier="21-RN-0412 ", issue_date="2024-12-15").status_code == 200
+    assert renew(cno, amal, papers["SCFHS"], "2026-12-31").status_code == 200
+
+    assert NurseSkill.objects.count() == 1
+    assert AuditEntry.objects.filter(action="nurse.skills_changed").count() == 1
+
+
+def test_who_reads_the_identifier_and_the_issue_date(cno, mona, deputy, er, amal, papers):
+    recorded(cno, amal, papers["SCFHS"], "2028-03-31", "21-RN-0412", "2026-04-01")
+    paper = {"SCFHS": ("21-RN-0412", "2026-04-01")}
+
+    def skills_on(client, path):
+        response = client.get(path)
+        assert response.status_code == 200, response.content
+        return next(row for row in response.json() if row["hospital_id"] == "h123")["skills"]
+
+    assert details(skills_on(cno, NURSES)) == paper
+    assert details(skills_on(cno, f"/api/units/{er.pk}/nurses")) == paper
+    assert details(skills_on(deputy, f"/api/units/{er.pk}/nurses")) == paper
+    assert details(my_skills(signed_in_as())) == paper
+    for path in (NURSES, f"/api/units/{er.pk}/nurses"):
+        rows = skills_on(mona, path)
+        assert [(row["kind"], row["name"], row["expiry"], row["details"]) for row in rows] == [
+            ("licence", "SCFHS", "2028-03-31", None)], path
+        assert "21-RN-0412" not in mona.get(path).content.decode()
+
+
+def test_a_manager_reads_no_identifier_from_what_his_writes_answer(cno, mona, er, amal, papers):
+    recorded(cno, amal, papers["SCFHS"], "2028-03-31", "21-RN-0412", "2026-04-01")
+    body = {"team_leader": False, "score": 0.5, "allowed_shifts": None, "ramadan_reduced": False, "breastfeeding": False, "ytd_overtime": 0,
+            "hours_balance": 0, "night_balance": 0.0, "friday_balance": 0.0}
+
+    response = mona.put(f"/api/units/{er.pk}/nurses/{amal}/attributes", body, content_type="application/json")
+
+    assert response.status_code == 200, response.content
+    assert response.json()["skills"][0]["details"] is None
+    response = post(mona, f"{NURSES}/{amal}/reset-password", {})
+    assert response.status_code == 200, response.content
+    assert response.json()["nurse"]["skills"][0]["details"] is None
+
+
+def test_a_manager_with_a_nurse_profile_reads_their_own_identifiers(cno, mona, er, papers):
+    response = post(cno, f"{NURSES}/managers", {"user_id": str(User.objects.get(username="mona").pk), "gender": "F",
+                                                "unit_id": str(er.pk), "start_date": "2026-01-10"})
+    profile = response.json()["id"]
+    recorded(cno, profile, papers["SCFHS"], "2028-03-31", "21-RN-0999")
+
+    assert details(my_skills(mona)) == {"SCFHS": ("21-RN-0999", None)}
+
+
+def test_the_log_names_no_identifier_and_no_issue_date(cno, admin, amal, papers):
+    recorded(cno, amal, papers["SCFHS"], "2026-12-31", "21-RN-0412", "2024-12-15")
+    renew(cno, amal, papers["SCFHS"], "2028-12-31", identifier="26-RN-9001", issue_date="2026-11-01")
+    remove(cno, amal, papers["SCFHS"])
+
+    entries = AuditEntry.objects.filter(action="nurse.skills_changed")
+    assert [(entry.target, entry.before, entry.after) for entry in entries] == [("h123", None, None)] * 3
+    text = admin.get("/api/audit/entries", {"action": "nurse.skills_changed"}).content.decode()
+    for leaked in ("21-RN-0412", "26-RN-9001", "2024-12-15", "2026-11-01", "SCFHS"):
+        assert leaked not in text, leaked

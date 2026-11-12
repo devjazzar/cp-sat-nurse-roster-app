@@ -1620,11 +1620,17 @@ export const ListNurseAttributesResponseItem = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1704,11 +1710,17 @@ export const UpdateNurseAttributesResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1763,11 +1775,17 @@ export const UpdateNurseAllowedShiftsResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1822,11 +1840,17 @@ export const SetProbationLengthResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1873,11 +1897,17 @@ export const ExtendProbationResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -1925,11 +1955,17 @@ export const EndProbationResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, to read: the CNO sets them on the Nurses page.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
   "months": zod.int().describe('Whole calendar months from her start date, a month she joins after the 1st not counted.'),
@@ -5754,11 +5790,17 @@ export const ListNursesResponseItem = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names; their details for the CNO only.'),
   "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
@@ -5817,11 +5859,17 @@ export const CreateNurseResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names; their details for the CNO only.'),
   "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
@@ -5898,11 +5946,17 @@ export const GiveManagerNurseProfileResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names; their details for the CNO only.'),
   "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
@@ -5952,11 +6006,17 @@ export const TransferNurseResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names; their details for the CNO only.'),
   "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
@@ -6005,11 +6065,17 @@ export const SetNurseEndDateResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names; their details for the CNO only.'),
   "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
@@ -6067,11 +6133,17 @@ export const CorrectNurseDetailsResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names; their details for the CNO only.'),
   "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
@@ -6124,11 +6196,17 @@ export const ResetNursePasswordResponse = zod.object({
   "skills": zod.array(zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
-})).describe('Their current skills, the CNO\'s to set, in the order of their names.'),
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
+})).describe('Their current skills, the CNO\'s to set, in the order of their names; their details for the CNO only.'),
   "on_probation": zod.boolean().describe('The CNO\'s tick as it stands, also once her probation is over, for the correction form.'),
   "probation": zod.union([zod.object({
   "last_day": zod.iso.date().describe('Derived from her start date, the length and an early end, never entered.'),
@@ -6282,25 +6360,38 @@ export const RecordNurseSkillParams = zod.object({
   "nurse_id": zod.uuid()
 })
 
+export const recordNurseSkillBodyIdentifierOneMax = 100;
+
+
+
 export const RecordNurseSkillBody = zod.object({
   "skill_id": zod.uuid(),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('Required when the skill expires; empty when it does not.')
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('Required when the skill expires; empty when it does not.'),
+  "identifier": zod.union([zod.string().max(recordNurseSkillBodyIdentifierOneMax),zod.null()]).describe('The number or code its issuing body gave it, trimmed; required on a licence, empty otherwise when there is none.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued: not after the expiry or today. Read by nothing; the expiry is what a roster reads.')
 })
 
 export const RecordNurseSkillResponseItem = zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
 })
 export const RecordNurseSkillResponse = zod.array(RecordNurseSkillResponseItem)
 
 
 /**
- * A renewal or a correction of the expiry: the row ends and another begins, as leave's does. Saving it as it reads (for a
- * kind that no longer expires, with no date, whatever is kept) changes nothing.
+ * A renewal, or a correction of what it says: the row ends and another begins, as leave's does, with what the body names
+ * and, carried from the row it ends, what it does not. Saving it as it reads (for a kind that no longer expires, with no
+ * date, whatever is kept) changes nothing.
  * @summary Renew Skill
  */
 export const RenewNurseSkillParams = zod.object({
@@ -6308,17 +6399,29 @@ export const RenewNurseSkillParams = zod.object({
   "skill_id": zod.uuid()
 })
 
+export const renewNurseSkillBodyIdentifierOneMax = 100;
+
+
+
 export const RenewNurseSkillBody = zod.object({
-  "expiry": zod.union([zod.iso.date(),zod.null()])
-})
+  "expiry": zod.union([zod.iso.date(),zod.null()]),
+  "identifier": zod.union([zod.string().max(renewNurseSkillBodyIdentifierOneMax),zod.null()]).optional().describe('The number or code its issuing body gave it, trimmed; required on a licence, empty otherwise when there is none. Left out, the record\'s is carried forward.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).optional().describe('When it was issued: not after the expiry or today. Read by nothing; the expiry is what a roster reads. Left out, the record\'s is carried forward.')
+}).describe('The one body here where a field left out means something: a renewal carries forward the identifier and the issue date\nit does not name, from the record it ends, so a new expiry alone keeps the licence\'s number. Null clears one.')
 
 export const RenewNurseSkillResponseItem = zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
 })
 export const RenewNurseSkillResponse = zod.array(RenewNurseSkillResponseItem)
 
@@ -6335,10 +6438,16 @@ export const RemoveNurseSkillParams = zod.object({
 export const RemoveNurseSkillResponseItem = zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
 })
 export const RemoveNurseSkillResponse = zod.array(RemoveNurseSkillResponseItem)
 
@@ -6351,10 +6460,16 @@ export const RemoveNurseSkillResponse = zod.array(RemoveNurseSkillResponseItem)
 export const GetMySkillsResponseItem = zod.object({
   "skill_id": zod.uuid(),
   "name": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s: a skill, a certificate or a licence.'),
   "expires": zod.boolean().describe('The catalogue\'s: whether the kind has an expiry.'),
   "required_to_work": zod.boolean().describe('The catalogue\'s: from the day after its expiry, she works no shift.'),
   "active": zod.boolean().describe('False once the CNO has retired the skill. Her record of it stays.'),
-  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.')
+  "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept.'),
+  "details": zod.union([zod.object({
+  "issuing_body": zod.string().describe('The catalogue\'s: who issues it; empty when no one does.'),
+  "identifier": zod.union([zod.string(),zod.null()]).describe('The number or code the issuing body gave it. Always set on a licence.'),
+  "issue_date": zod.union([zod.iso.date(),zod.null()]).describe('When it was issued. Read by nothing: the expiry is what a roster reads.')
+}).describe('What a record says beyond the expiry (ticket 59). Read by the CNO, the Deputy CNO and the nurse herself only.'),zod.null()]).describe('Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only.')
 })
 export const GetMySkillsResponse = zod.array(GetMySkillsResponseItem)
 
@@ -6376,6 +6491,7 @@ export const ListExpiriesResponse = zod.object({
   "name": zod.string()
 }).describe('Her unit today; for a unit manager, his own, which she may be due to join.'),
   "skill": zod.string(),
+  "kind": zod.enum(['skill', 'certificate', 'licence']).describe('The catalogue\'s. The list carries no identifier and no issue date.'),
   "state": zod.enum(['expired', 'expiring', 'no_record']).describe('`expired`: the expiry has passed. `expiring`: it is today or within `horizon_days`. `no_record`: the skill is required to work and she has no record of it.'),
   "expiry": zod.union([zod.iso.date(),zod.null()]).describe('The last day the skill counts. Null for `no_record`.')
 }))

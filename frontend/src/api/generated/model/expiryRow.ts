@@ -4,6 +4,7 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
+import type { ExpiryRowKind } from './expiryRowKind';
 import type { ExpiryState } from './expiryState';
 import type { UnitName } from './unitName';
 
@@ -14,6 +15,8 @@ export interface ExpiryRow {
   /** Her unit today; for a unit manager, his own, which she may be due to join. */
   unit: UnitName;
   skill: string;
+  /** The catalogue's. The list carries no identifier and no issue date. */
+  kind: ExpiryRowKind;
   /** `expired`: the expiry has passed. `expiring`: it is today or within `horizon_days`. `no_record`: the skill is required to work and she has no record of it. */
   state: ExpiryState;
   /** The last day the skill counts. Null for `no_record`. */

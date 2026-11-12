@@ -33,7 +33,7 @@ export interface NurseAttributesRow {
   allowed_shifts_to_check: boolean;
   /** Their first month has closed: the opening values (`ytd_overtime`, `hours_balance`, `night_balance`, `friday_balance`) can no longer change, as the carry-over comes from the closes now. */
   opening_values_locked: boolean;
-  /** Their current skills, to read: the CNO sets them on the Nurses page. */
+  /** Their current skills, to read: the CNO sets them on the Nurses page. Their details for the CNO and the Deputy CNO only. */
   skills: NurseSkillRow[];
   /** Empty when she is not on probation, or it is over. Her unit manager sets its length, extends it and ends it; the CNO ticks it. */
   probation: ProbationOnTheRow | null;

@@ -4,10 +4,14 @@
  * Nurse roster
  * OpenAPI spec version: 1
  */
+import type { NurseSkillDetails } from './nurseSkillDetails';
+import type { NurseSkillRowKind } from './nurseSkillRowKind';
 
 export interface NurseSkillRow {
   skill_id: string;
   name: string;
+  /** The catalogue's: a skill, a certificate or a licence. */
+  kind: NurseSkillRowKind;
   /** The catalogue's: whether the kind has an expiry. */
   expires: boolean;
   /** The catalogue's: from the day after its expiry, she works no shift. */
@@ -16,4 +20,6 @@ export interface NurseSkillRow {
   active: boolean;
   /** The last day it counts. Null for a kind that does not expire, even when a date recorded while it did is kept. */
   expiry: string | null;
+  /** Empty for a reader who may not read them: a unit manager reading a nurse of his unit reads kind, name and expiry only. */
+  details: NurseSkillDetails | null;
 }

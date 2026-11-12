@@ -11,7 +11,7 @@ from hospital.models import FixedRamadanMonth, HospitalSettings, LeaveType, Publ
 from nurses.models import Leave, NurseProfile, Placement
 from nurses.tests.conftest import make_unit
 from requesting.models import Preference, PreferenceKind, PreferenceState, RequestWindow
-from solves.input import assemble, changes_since, solver_refusal
+from solves.input import assemble, assemble_replan, changes_since, solver_refusal
 from solves.tests.conftest import MONTH, SAMPLE, nurse_in
 
 pytestmark = pytest.mark.django_db
@@ -558,3 +558,33 @@ class TestSkillChangesSince:
         holds("Badr", bls, dt.date(2027, 1, 1))
 
         assert changes_since(solved, er, JUNE) == [{"hospital_id": "Badr", "what": "skills"}]
+
+
+class TestCertificatesAndLicences:
+    """Ticket 59: a record's kind, issuing body, identifier and issue date are the catalogue's and the CNO's business, not the
+    solver's. The four-nurse sample's input, a re-plan's and a close's alike, is byte for byte what it was."""
+
+    def test_the_input_is_unchanged_by_kind_issuing_body_identifier_and_issue_date(self, er):
+        from hospital.models import Skill
+        from nurses.models import NurseSkill
+        from nurses.skills import record_anew
+        licence, degree = a_skill("SCFHS", required=True), a_skill("BSN", expires=False, required=True)
+        for number, hospital_id in enumerate(["Amal", "Badr", "Dana", "Emad"]):
+            holds(hospital_id, licence, dt.date(2026, 6, 10 + number))
+            holds(hospital_id, degree)
+
+        def inputs() -> list[str]:
+            return [json.dumps(assembled.input, sort_keys=True)
+                    for assembled in (built(er), assemble(er, JUNE, time_limit=20, facts=True),
+                                      assemble_replan(er, JUNE, dt.date(2026, 6, 15), {}, time_limit=20))]
+
+        before = inputs()
+        Skill.objects.filter(pk=licence.pk).update(kind=Skill.Kind.LICENCE,
+                                                   issuing_body="Saudi Commission for Health Specialties")
+        Skill.objects.filter(pk=degree.pk).update(kind=Skill.Kind.CERTIFICATE, issuing_body="King Saud University")
+        for number, row in enumerate(NurseSkill.objects.current().select_related("nurse", "skill", "recorded_by")):
+            record_anew(row.nurse, row.skill, row.recorded_by, expiry=row.expiry, identifier=f"{row.skill.name}-{number}",
+                        issue_date=dt.date(2024, 6, 1), ending=row)
+
+        assert inputs() == before
+        assert '"SCFHS-' not in before[0] and "2024-06-01" not in inputs()[0]

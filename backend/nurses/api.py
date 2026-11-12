@@ -122,7 +122,8 @@ class NurseRow(Schema):
     unit: UnitName | None = Field(description="The unit this month, empty when it is not the caller's: a nurse due to "
                                               "join a manager's unit is on their list before they arrive.")
     transfers: list[ComingTransfer] = Field(description="The transfers still to come, soonest first.")
-    skills: list[NurseSkillRow] = Field(description="Their current skills, the CNO's to set, in the order of their names.")
+    skills: list[NurseSkillRow] = Field(description="Their current skills, the CNO's to set, in the order of their names; "
+                                                     "their details for the CNO only.")
     on_probation: bool = Field(description="The CNO's tick as it stands, also once her probation is over, for the correction form.")
     probation: Probation | None = Field(description="Empty when she is not on probation, or it is over.")
 
@@ -156,7 +157,8 @@ def _month(day: dt.date) -> str:
 
 
 def _row(nurse: NurseProfile, only_unit: UUID | None = None) -> NurseRow:
-    """`only_unit` is the one unit the caller may name, or None when they may name them all."""
+    """`only_unit` is the one unit the caller may name, a unit manager's, or None for the CNO, who may name them all and
+    alone reads her records' identifiers and issue dates here."""
     def named(unit: Unit) -> UnitName | None:
         return UnitName(id=unit.pk, name=unit.name) if only_unit in (None, unit.pk) else None
 
@@ -168,7 +170,7 @@ def _row(nurse: NurseProfile, only_unit: UUID | None = None) -> NurseRow:
                     unit=named(current.unit),
                     transfers=[ComingTransfer(from_month=_month(placement.from_month), unit=named(placement.unit))
                                for placement in coming],
-                    skills=skills_of(nurse), on_probation=nurse.on_probation,
+                    skills=skills_of(nurse, details=only_unit is None), on_probation=nurse.on_probation,
                     probation=probation_of(nurse))
 
 

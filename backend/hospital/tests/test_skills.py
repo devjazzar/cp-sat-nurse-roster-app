@@ -191,7 +191,8 @@ def test_the_mark_is_cleared_while_a_nurse_holds_the_skill(cno):
     update(cno, "ICU", lets_a_nurse_precept=True)
     nurse_id = added(cno, make_unit("ER"))["nurse"]["id"]
     icu = Skill.objects.get(name="ICU")
-    assert post(cno, f"/api/nurses/{nurse_id}/skills", {"skill_id": str(icu.pk), "expiry": None}).status_code == 201
+    assert post(cno, f"/api/nurses/{nurse_id}/skills", {"skill_id": str(icu.pk), "expiry": None, "identifier": None,
+                                                          "issue_date": None}).status_code == 201
     assert NurseSkill.objects.current().filter(skill=icu).exists()
 
     response = update(cno, "ICU", lets_a_nurse_precept=False)
@@ -251,11 +252,14 @@ def kinds(client) -> dict[str, tuple[str, str]]:
     return {row["name"]: (row["kind"], row["issuing_body"]) for row in client.get(SKILLS).json()}
 
 
-def record_on(cno, skill_name: str, full_name: str, hospital_id: str, unit, expiry: str | None = None) -> None:
+def record_on(cno, skill_name: str, full_name: str, hospital_id: str, unit, expiry: str | None = None,
+              identifier: str | None = None) -> str:
     nurse_id = added(cno, unit, hospital_id, full_name=full_name)["nurse"]["id"]
     skill = Skill.objects.get(name=skill_name)
-    response = post(cno, f"/api/nurses/{nurse_id}/skills", {"skill_id": str(skill.pk), "expiry": expiry})
+    response = post(cno, f"/api/nurses/{nurse_id}/skills", {"skill_id": str(skill.pk), "expiry": expiry,
+                                                            "identifier": identifier, "issue_date": None})
     assert response.status_code == 201, response.content
+    return nurse_id
 
 
 @pytest.mark.django_db(transaction=True)
@@ -342,9 +346,20 @@ def test_the_refusal_names_four_at_most_then_counts_the_rest(cno):
         "Nurse 0, Nurse 1, Nurse 2 and 3 more hold ICU with no expiry")
 
 
-def test_a_change_to_licence_passes_when_every_record_has_its_expiry(cno):
-    # Ticket 59 adds the record's identifier and a second refusal for a record without one; until then the expiry is all.
-    record_on(cno, "BLS", "Amal Saleh", "h1", make_unit("ER"), expiry="2027-06-30")
+def test_a_change_to_licence_is_refused_naming_the_nurses_whose_record_has_no_identifier(cno):
+    er = make_unit("ER")
+    record_on(cno, "BLS", "Amal Saleh", "h1", er, expiry="2027-06-30", identifier="BLS-1")
+    badr = record_on(cno, "BLS", "Badr Ali", "h2", er, expiry="2027-06-30")
+
+    response = update(cno, "BLS", kind="licence", issuing_body="Saudi Commission for Health Specialties")
+
+    assert refused_fields(response) == {("kind",)}
+    assert messages(response) == ["Badr Ali holds BLS with no identifier, and a licence always has one. "
+                                  "Renew it with its identifier on the Nurses page first."]
+    assert kinds(cno)["BLS"] == ("skill", "")
+    renewed = cno.put(f"/api/nurses/{badr}/skills/{Skill.objects.get(name='BLS').pk}",
+                      {"expiry": "2027-06-30", "identifier": "BLS-2"}, content_type="application/json")
+    assert renewed.status_code == 200, renewed.content
 
     response = update(cno, "BLS", kind="licence", issuing_body="Saudi Commission for Health Specialties")
 
@@ -352,7 +367,7 @@ def test_a_change_to_licence_passes_when_every_record_has_its_expiry(cno):
 
 
 def test_a_change_away_from_licence_is_free(cno):
-    record_on(cno, "BLS", "Amal Saleh", "h1", make_unit("ER"), expiry="2027-06-30")
+    record_on(cno, "BLS", "Amal Saleh", "h1", make_unit("ER"), expiry="2027-06-30", identifier="BLS-1")
     update(cno, "BLS", kind="licence")
 
     assert update(cno, "BLS", kind="certificate").status_code == 200

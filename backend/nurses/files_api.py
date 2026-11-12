@@ -20,8 +20,8 @@ from hospital.api import refuse
 from hospital.models import HospitalSettings
 from nurses import importing, membership, skills_importing
 from nurses.api import new_profile, probation_of, with_units
-from nurses.models import NurseProfile, NurseSkill
-from nurses.skills import end_record
+from nurses.models import NurseProfile
+from nurses.skills import record_anew
 from nurses.spreadsheets import csv_response
 from units.models import Unit
 
@@ -185,9 +185,9 @@ def _save_skills(request: HttpRequest, lines: list[importing.Line], token: str) 
         for meaning in meanings:
             if meaning.change == skills_importing.SkillImportChange.NONE:
                 continue
-            if meaning.held is not None:
-                end_record(meaning.held, request.user)
-            NurseSkill.objects.create(nurse=meaning.nurse, skill=meaning.skill, expiry=meaning.expiry, recorded_by=request.user)
+            held = meaning.held
+            record_anew(meaning.nurse, meaning.skill, request.user, expiry=meaning.expiry, ending=held,
+                        identifier=held.identifier if held else None, issue_date=held.issue_date if held else None)
         changes = Counter(meaning.change for meaning in meanings)
         # Who and how many rows, and nothing from the file, not even whose skills: the System Admin reads the log, not the file.
         record("nurse.skills_imported", actor=request.user, request=request, after={"count": len(meanings)})

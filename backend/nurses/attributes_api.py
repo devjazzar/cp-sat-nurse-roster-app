@@ -28,7 +28,7 @@ from nurses.skills import NurseSkillRow, skills_of
 from rosters.pins import outside_allowed, words_for
 from units.models import Unit
 from units.rules import distinct_shifts
-from units.scope import unit_in_scope
+from units.scope import HOSPITAL_WIDE, unit_in_scope
 
 router = Router(tags=["nurses"])
 manager = SignedIn(Role.UNIT_MANAGER)
@@ -104,12 +104,14 @@ class NurseAttributesRow(Schema):
     opening_values_locked: bool = Field(description="Their first month has closed: the opening values (`ytd_overtime`, "
                                                     "`hours_balance`, `night_balance`, `friday_balance`) can no longer change, "
                                                     "as the carry-over comes from the closes now.")
-    skills: list[NurseSkillRow] = Field(description="Their current skills, to read: the CNO sets them on the Nurses page.")
+    skills: list[NurseSkillRow] = Field(description="Their current skills, to read: the CNO sets them on the Nurses page. "
+                                                     "Their details for the CNO and the Deputy CNO only.")
     probation: ProbationOnTheRow | None = Field(description="Empty when she is not on probation, or it is over. Her unit manager sets "
                                                     "its length, extends it and ends it; the CNO ticks it.")
 
 
-def _row(nurse: NurseProfile, unit: Unit) -> NurseAttributesRow:
+def _row(nurse: NurseProfile, unit: Unit, *, details: bool = False) -> NurseAttributesRow:
+    """`details`: the CNO and the Deputy CNO read her records' identifiers and issue dates; her unit's manager does not."""
     current, *coming = membership.from_now_on(nurse)
     here = membership.here_from_now_on(nurse, unit)[0]
     joins = here.from_month if current.unit_id != unit.pk else None
@@ -122,7 +124,7 @@ def _row(nurse: NurseProfile, unit: Unit) -> NurseAttributesRow:
         breastfeeding=nurse.breastfeeding, ytd_overtime=nurse.ytd_overtime, hours_balance=nurse.hours_balance,
         night_balance=nurse.night_balance, friday_balance=nurse.friday_balance,
         allowed_shifts=here.allowed_shifts, allowed_shifts_to_check=here.allowed_shifts_to_check,
-        opening_values_locked=has_closed(nurse), skills=skills_of(nurse),
+        opening_values_locked=has_closed(nurse), skills=skills_of(nurse, details=details),
         probation=_probation_on_the_row(nurse))
 
 
@@ -171,7 +173,8 @@ def _refuse_shifts_outside(unit: Unit, nurse: NurseProfile, allowed: list[str] |
 def list_nurse_attributes(request, unit_id: UUID) -> list[NurseAttributesRow]:
     """Those placed here now or due to join, deactivated or not, as on the manager's list of nurses."""
     unit = unit_in_scope(request.user, unit_id)
-    return [_row(nurse, unit) for nurse in with_units(membership.on_the_list_of(unit))]
+    details = request.user.role in HOSPITAL_WIDE
+    return [_row(nurse, unit, details=details) for nurse in with_units(membership.on_the_list_of(unit))]
 
 
 @router.put("/{unit_id}/nurses/{nurse_id}/attributes", response=NurseAttributesRow, auth=manager,

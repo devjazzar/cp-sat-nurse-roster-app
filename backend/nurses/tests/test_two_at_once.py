@@ -192,3 +192,27 @@ def test_a_dateless_record_made_while_expires_is_turned_on_waits_and_is_refused(
         assert not made.done()
 
     assert made.result(timeout=WAIT_SECONDS).status_code == 422
+
+
+# ---- one identifier on two nurses' records of one entry (ticket 59) ------------------------------------
+@pytest.fixture
+def licence(cno) -> str:
+    response = post(cno, "/api/hospital/skills", {"name": "SCFHS", "kind": "licence", "issuing_body": "",
+                                                  "expires": True, "required_to_work": False,
+                                                  "lets_a_nurse_precept": False, "active": True})
+    assert response.status_code == 201, response.content
+    return response.json()["id"]
+
+
+def test_two_records_of_one_identifier_on_one_entry_at_once_the_second_waits_and_is_refused(cno, monas_unit, nurse,
+                                                                                            licence, pool):
+    badr = added(cno, monas_unit, "h456", full_name="Badr Ali")["nurse"]["id"]
+
+    with transaction.atomic():
+        assert recorded_skill(cno, nurse, licence, "2028-03-31", "21-RN-0412").status_code == 201
+        second = alongside(pool, lambda: recorded_skill(cno, badr, licence, "2028-03-31", "21-RN-0412"))
+        assert not second.done()
+
+    response = second.result(timeout=WAIT_SECONDS)
+    assert response.status_code == 422, response.content
+    assert response.json()["detail"][0]["msg"].startswith("Amal Saleh already holds SCFHS with this identifier.")
