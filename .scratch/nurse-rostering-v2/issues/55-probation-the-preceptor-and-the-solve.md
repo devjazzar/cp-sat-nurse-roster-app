@@ -255,6 +255,11 @@ small.
 - An untick ends assignments for good.
 - Each has a test.
 
+*GitHub's backend job* found the swap scene's real solve gives another June on its machines (the same reproducible settings, a
+different roster), and six tests read its rows. The scene now pins every cell of the June found here, so the solver only confirms
+it; the in-process solve tests assert what the rule holds (every one of Amal's day shifts followed) rather than a count from one
+search (`83e0a5d`).
+
 No Codex review, as the brief says.
 
 **Things later tickets should know.** Comments are left on tickets 56 and 61.
