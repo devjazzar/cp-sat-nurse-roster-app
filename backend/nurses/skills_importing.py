@@ -21,7 +21,7 @@ from hospital.catalogue_api import FIRST_YEAR, LAST_YEAR, IsoDate
 from hospital.models import Skill
 from nurses.importing import HOSPITAL_ID, Layout, Line, Problem, parsed, wrong_cell_count
 from nurses.models import NurseProfile, NurseSkill
-from nurses.skills import counted_expiry, problems_with
+from nurses.skills import carried, counted_expiry, problems_with
 
 COLUMNS = ("Hospital ID", "Skill", "Expiry")
 SKILLS_FILE = Layout(COLUMNS, "skill", "skills", "", "a skill name that has a comma in it")
@@ -140,12 +140,17 @@ def _judged(line: Line, standing: _Standing) -> Row:
         held = standing.held.get((nurse.pk, skill.pk))
         # The file has no identifier or issue date yet (ticket 60): a renewal carries the record's, as the API's does, and a
         # licence, which needs its identifier, is recorded on the Nurses page.
-        found = problems_with(nurse, skill, expiry, held.identifier if held else None, held.issue_date if held else None)
+        identifier, issue_date = carried(held)
+        found = problems_with(nurse, skill, expiry, identifier, issue_date)
+        # Each problem goes beside a column the file has: the identifier's beside the skill, the issue date's beside the
+        # expiry it is judged against.
         for field, words in found:
             if field == "identifier":
                 row.problems.append(Problem("skill", f"{words} Record it on the Nurses page, or remove the line."))
+            elif field == "issue_date":
+                row.problems.append(Problem("expiry", f"{words} The one recorded is {issue_date.isoformat()}."))
             else:
-                row.problems.append(Problem("expiry", f"{words} The one recorded is {held.issue_date.isoformat()}."))
+                row.problems.append(Problem(field, words))
         if not found:
             row.meaning = RowMeaning(nurse, skill, expiry, held)
     return row

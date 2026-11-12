@@ -433,8 +433,8 @@ const needsIdentifier = (name: string) => `${name} is a licence, so it needs its
 
 /** The identifier and the issue date, as the record and the renew forms both ask for them. `of` names the entry, for a form
  *  that sits among others; `licence` marks the identifier required. */
-function PaperFields({ register, errors, licence, of, id }: {
-  register: UseFormRegister<Papers>; errors: FieldErrors<Papers>; licence: boolean; of?: string; id?: string
+function RecordDetailFields({ register, errors, licence, of, id }: {
+  register: UseFormRegister<RecordDetails>; errors: FieldErrors<RecordDetails>; licence: boolean; of?: string; id?: string
 }) {
   const suffix = of ? ` of ${of}` : ""
   return (
@@ -448,11 +448,11 @@ function PaperFields({ register, errors, licence, of, id }: {
   )
 }
 
-const papersSchema = z.object({ expiry: z.string(), identifier: z.string().max(100, "At most 100 characters."), issue_date: z.string() })
-type Papers = z.infer<typeof papersSchema>
+const recordDetailsSchema = z.object({ expiry: z.string(), identifier: z.string().max(100, "At most 100 characters."), issue_date: z.string() })
+type RecordDetails = z.infer<typeof recordDetailsSchema>
 
 /** What a form's fields say, as the API takes them: an empty field is none. */
-const asSent = ({ identifier, issue_date }: Papers) => ({ identifier: identifier.trim() || null, issue_date: issue_date || null })
+const asSent = ({ identifier, issue_date }: RecordDetails) => ({ identifier: identifier.trim() || null, issue_date: issue_date || null })
 
 /** The form that renews one record, under its row: a new expiry, identifier or issue date, or all three, as the body gave
  *  them. What it says already is sent as it is, and the API changes nothing then. */
@@ -461,7 +461,7 @@ function RenewForm({ nurse, skill, onSaid, onDone }: {
 }) {
   const refresh = useRefreshNurses()
   const renew = useRenewNurseSkill()
-  const form = useForm<Papers>({ resolver: zodResolver(papersSchema), defaultValues: {
+  const form = useForm<RecordDetails>({ resolver: zodResolver(recordDetailsSchema), defaultValues: {
     expiry: skill.expiry ?? "", identifier: skill.details?.identifier ?? "", issue_date: skill.details?.issue_date ?? "",
   } })
   const { errors } = form.formState
@@ -500,7 +500,7 @@ function RenewForm({ nurse, skill, onSaid, onDone }: {
           <FormField id={`expiry-${skill.skill_id}`} label={`Expiry of ${skill.name}`} type="date" description={EXPIRY_HINT}
             registration={form.register("expiry")} error={errors.expiry} />
         )}
-        <PaperFields register={form.register} errors={errors} licence={licence} of={skill.name} id={skill.skill_id} />
+        <RecordDetailFields register={form.register} errors={errors} licence={licence} of={skill.name} id={skill.skill_id} />
         <Unexpected error={renew.error} />
         <div className="flex flex-wrap gap-2">
           <Button type="submit" size="sm" disabled={renew.isPending} aria-label={`Save ${skill.name}`}>Save</Button>
@@ -558,7 +558,7 @@ function HeldSkills({ nurse, onSaid, onGone }: { nurse: NurseRow; onSaid: (messa
   )
 }
 
-const newSkillSchema = papersSchema.extend({ skill_id: required("Choose a skill.") })
+const newSkillSchema = recordDetailsSchema.extend({ skill_id: required("Choose a skill.") })
 type NewSkill = z.infer<typeof newSkillSchema>
 
 function RecordSkillForm({ nurse, onSaid }: { nurse: NurseRow; onSaid: (message: string) => void }) {
@@ -613,7 +613,7 @@ function RecordSkillForm({ nurse, onSaid }: { nurse: NurseRow; onSaid: (message:
         {chosen?.expires && (
           <FormField label="Expiry" type="date" description={EXPIRY_HINT} registration={form.register("expiry")} error={errors.expiry} />
         )}
-        {chosen && <PaperFields register={form.register} errors={errors} licence={licence} />}
+        {chosen && <RecordDetailFields register={form.register} errors={errors} licence={licence} />}
         <Unexpected error={record.error} />
         <div><Button type="submit" disabled={record.isPending}>Record skill</Button></div>
       </FieldGroup>

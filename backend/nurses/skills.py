@@ -92,6 +92,11 @@ def problems_with(nurse: NurseProfile, skill: Skill, expiry: dt.date | None, ide
     return problems
 
 
+def carried(held: NurseSkill | None) -> tuple[str | None, dt.date | None]:
+    """The identifier and the issue date a renewal carries forward from the record it ends, when it does not name them."""
+    return (held.identifier, held.issue_date) if held is not None else (None, None)
+
+
 def record_anew(nurse: NurseProfile, skill: Skill, user, *, expiry: dt.date | None, identifier: str | None = None,
                 issue_date: dt.date | None = None, ending: NurseSkill | None = None) -> NurseSkill:
     """A record, or with `ending` a renewal: the old row ends rather than being rewritten (`NurseSkill`), keeping what it had."""

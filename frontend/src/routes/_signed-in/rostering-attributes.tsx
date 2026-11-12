@@ -266,8 +266,8 @@ function NurseTable({ nurses, unitName, mayChange, onEdit, onAskProbation }: {
             <TableCell className="tabular-nums">{nurse.night_balance}</TableCell>
             <TableCell className="tabular-nums">{nurse.friday_balance}</TableCell>
             <TableCell>
-              {/* The CNO and the Deputy CNO read the identifiers and issue dates; the unit's manager reads names and expiries. */}
-              {mayChange || nurse.skills.length === 0
+              {/* The API gives the details to the CNO and the Deputy CNO only; the unit's manager reads names and expiries. */}
+              {!nurse.skills.some((skill) => skill.details)
                 ? <SkillList skills={nurse.skills} />
                 : <RecordsTable skills={nurse.skills} label={`Skills of ${nurse.full_name}`} details scrolls={false} />}
             </TableCell>

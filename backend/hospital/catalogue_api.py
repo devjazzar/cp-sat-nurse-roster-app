@@ -369,9 +369,10 @@ def _refuse_a_licence_that_does_not_expire(body: SkillBody) -> None:
         refuse((("expires",), "A licence always expires."))
 
 
-def _named(skill: Skill, lacking: str) -> str | None:
-    """The nurses whose current record of `skill` has no `lacking`, a few by name and the rest counted, with the verb."""
-    names = list(NurseSkill.objects.current().filter(skill=skill, **{f"{lacking}__isnull": True})
+def _who_holds_it_without(skill: Skill, field: str) -> str | None:
+    """"Amal Saleh and Badr Ali hold": the nurses whose current record of `skill` has no `field` (`expiry`, `identifier`), a
+    few by name and the rest counted, with the verb; None when there are none."""
+    names = list(NurseSkill.objects.current().filter(skill=skill, **{f"{field}__isnull": True})
                  .order_by(Lower("nurse__user__full_name"), "nurse_id").values_list("nurse__user__full_name", flat=True))
     if not names:
         return None
@@ -382,23 +383,21 @@ def _named(skill: Skill, lacking: str) -> str | None:
     return f"{who} {'hold' if len(names) > 1 else 'holds'}"
 
 
-def _refuse_records_without_expiry(skill: Skill, field: str = "expires", why: str = "") -> None:
+def _without_expiry(skill: Skill, why: str = "") -> str | None:
     """Turning `expires` on would leave a record dateless, an unknown the solver cannot model: refused, naming a few of the
     nurses. Off again is allowed, and the dates stay. A nurse's skill write takes the same lock first (`nurses.skills_api`).
     A change to licence turns it on, so it is refused the same way, beside the kind."""
-    who = _named(skill, "expiry")
-    if who:
-        refuse(((field,), f"{who} {skill.name} with no expiry{why}. "
-                          "Take it off them first, then record it again with its expiry."))
+    who = _who_holds_it_without(skill, "expiry")
+    return who and (f"{who} {skill.name} with no expiry{why}. "
+                    "Take it off them first, then record it again with its expiry.")
 
 
-def _refuse_records_without_identifier(skill: Skill) -> None:
+def _without_identifier(skill: Skill) -> str | None:
     """A licence's record always has its identifier (ticket 59), so a change to licence is refused while one has none. A
     renewal on the Nurses page can give it one."""
-    who = _named(skill, "identifier")
-    if who:
-        refuse((("kind",), f"{who} {skill.name} with no identifier, and a licence always has one. "
-                           "Renew it with its identifier on the Nurses page first."))
+    who = _who_holds_it_without(skill, "identifier")
+    return who and (f"{who} {skill.name} with no identifier, and a licence always has one. "
+                    "Renew it with its identifier on the Nurses page first.")
 
 
 @router.get("/skills", response=list[SkillSchema], operation_id="listSkills")
@@ -430,10 +429,13 @@ def update_skill(request, skill_id: UUID, body: SkillBody) -> Skill:
             return skill
         _refuse_a_licence_that_does_not_expire(body)
         if new.get("kind") == Skill.Kind.LICENCE:
-            _refuse_records_without_expiry(skill, "kind", ", and a licence always expires")
-            _refuse_records_without_identifier(skill)
-        elif new.get("expires"):
-            _refuse_records_without_expiry(skill)
+            # Both refusals at once, in one message: the page shows one error beside a field.
+            found = [words for words in (_without_expiry(skill, ", and a licence always expires"), _without_identifier(skill))
+                     if words]
+            if found:
+                refuse((("kind",), " ".join(found)))
+        elif new.get("expires") and (words := _without_expiry(skill)):
+            refuse((("expires",), words))
         if new.get("active") is False:
             units = units_needing(skill.name)
             if units:

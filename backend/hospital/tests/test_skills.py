@@ -320,8 +320,8 @@ def test_a_licence_always_expires(cno):
 
 def test_a_change_to_licence_is_refused_naming_the_nurses_whose_record_has_no_expiry(cno):
     er = make_unit("ER")
-    record_on(cno, "ICU", "Amal Saleh", "h1", er)
-    record_on(cno, "ICU", "Badr Ali", "h2", er)
+    record_on(cno, "ICU", "Amal Saleh", "h1", er, identifier="ICU-1")
+    record_on(cno, "ICU", "Badr Ali", "h2", er, identifier="ICU-2")
     AuditEntry.objects.all().delete()
 
     response = update(cno, "ICU", kind="licence", expires=True)
@@ -578,3 +578,14 @@ def test_only_the_cno_changes_it(signed_in, cno, role):
     assert create(client, name="Preceptor").status_code == 403
     assert update(client, "ICU", name="Intensive care").status_code == 403
     assert names(cno) == ["ACLS", "BLS", "ICU"] and not AuditEntry.objects.exists()
+
+
+def test_a_change_to_licence_names_both_refusals_at_once(cno):
+    record_on(cno, "ICU", "Amal Saleh", "h1", make_unit("ER"))
+
+    response = update(cno, "ICU", kind="licence", expires=True)
+
+    assert refused_fields(response) == {("kind",)}
+    assert messages(response) == ["Amal Saleh holds ICU with no expiry, and a licence always expires. Take it off them first, "
+                                  "then record it again with its expiry. Amal Saleh holds ICU with no identifier, and a "
+                                  "licence always has one. Renew it with its identifier on the Nurses page first."]

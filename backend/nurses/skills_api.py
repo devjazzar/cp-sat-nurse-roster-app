@@ -17,20 +17,20 @@ from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Field, Router, Schema, Status
-from pydantic import AfterValidator, StringConstraints
 from ninja.errors import HttpError
+from pydantic import AfterValidator, StringConstraints
 
 from accounts.authz import SignedIn
 from accounts.models import Role
 from audit.log import record
 from hospital.api import refuse
-from hospital.catalogue_api import IsoDate, SkillKind, no_nul
-from hospital.models import HospitalSettings, Skill
+from hospital.catalogue_api import IsoDate, no_nul
+from hospital.models import HospitalSettings, Skill, SkillKind
 from nurses import membership
 from nurses.api import Body, UnitName
 from nurses.expiries import HORIZON, ExpiryState, expiries
 from nurses.models import NurseProfile, NurseSkill
-from nurses.skills import NurseSkillRow, as_rows, end_record, problems_with, record_anew, skills_of
+from nurses.skills import NurseSkillRow, as_rows, carried, end_record, problems_with, record_anew, skills_of
 from units.scope import HOSPITAL_WIDE, units_in_scope
 
 router = Router(tags=["nurses"])
@@ -70,7 +70,8 @@ def _refuse_expiry(skill: Skill, expiry: dt.date | None) -> None:
         refuse((("expiry",), f"{skill.name} does not expire, so it takes no expiry."))
 
 
-def _refuse_problems(nurse: NurseProfile, skill: Skill, expiry, identifier, issue_date) -> None:
+def _refuse_problems(nurse: NurseProfile, skill: Skill, expiry: dt.date | None, identifier: str | None,
+                     issue_date: dt.date | None) -> None:
     problems = problems_with(nurse, skill, expiry, identifier, issue_date)
     if problems:
         refuse(*(((field,), words) for field, words in problems))
@@ -119,16 +120,18 @@ def renew_skill(request: HttpRequest, nurse_id: UUID, skill_id: UUID, body: Nurs
         nurse = _locked_nurse(nurse_id)
         row = _held(nurse, skill_id)
         skill = row.skill
-        named = body.model_fields_set
-        identifier = body.identifier if "identifier" in named else row.identifier
-        issue_date = body.issue_date if "issue_date" in named else row.issue_date
+        named, (identifier, issue_date) = body.model_fields_set, carried(row)
+        identifier = body.identifier if "identifier" in named else identifier
+        issue_date = body.issue_date if "issue_date" in named else issue_date
         if (body.expiry, identifier, issue_date) == (row.expiry if skill.expires else None, row.identifier, row.issue_date):
             return skills_of(nurse, details=True)
         if not skill.active:
             refuse((("expiry",), f"{skill.name} is retired, so it can no longer be renewed."))
         _refuse_expiry(skill, body.expiry)
         _refuse_problems(nurse, skill, body.expiry, identifier, issue_date)
-        record_anew(nurse, skill, request.user, expiry=body.expiry, identifier=identifier, issue_date=issue_date, ending=row)
+        # A kind that no longer expires keeps the date recorded while it did, as the row it ends kept it.
+        kept = body.expiry if skill.expires else row.expiry
+        record_anew(nurse, skill, request.user, expiry=kept, identifier=identifier, issue_date=issue_date, ending=row)
         _changed(request, nurse)
         return skills_of(nurse, details=True)
 
@@ -182,6 +185,7 @@ def list_expiries(request: HttpRequest) -> Expiries:
         unit = units_in_scope(request.user).first()
         found = [] if unit is None else expiries(membership.on_the_list_of(unit), lambda nurse: unit)
     rows = [ExpiryRow(nurse_id=row.nurse.pk, hospital_id=row.nurse.user.username, full_name=row.nurse.user.full_name,
-                      unit=UnitName(id=row.unit.pk, name=row.unit.name), skill=row.skill, kind=row.kind, state=row.state, expiry=row.expiry)
+                      unit=UnitName(id=row.unit.pk, name=row.unit.name), skill=row.skill, kind=row.kind, state=row.state,
+                      expiry=row.expiry)
             for row in found]
     return Expiries(horizon_days=HORIZON.days, count=len(rows), rows=rows)

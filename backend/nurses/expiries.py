@@ -13,7 +13,7 @@ import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 
-from hospital.models import Skill
+from hospital.models import Skill, SkillKind
 from hospital.rules import required_skills
 from nurses import membership
 from nurses.models import NurseProfile
@@ -34,7 +34,7 @@ class Expiry:
     nurse: NurseProfile
     unit: Unit
     skill: str
-    kind: str  # The catalogue's: `Skill.Kind`.
+    kind: SkillKind
     state: ExpiryState
     expiry: dt.date | None
 

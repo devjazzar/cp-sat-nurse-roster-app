@@ -3126,13 +3126,13 @@ describe("the nurses page", () => {
   describe("the manager's expiries (ticket 37)", () => {
     const expiries = () => screen.getByRole("region", { name: "Expiries of ER" })
 
-    it("lists his own unit's expiries above the nurses, without a unit column", async () => {
+    it("lists his own unit's expiries above the nurses, with the kind and without a unit column", async () => {
       start("/nurses", asManagerHere([AMAL], [UNIT_ER], { "GET /api/nurses/expiries": { body: {
         horizon_days: 90, count: 2, rows: [EXPIRY, { ...EXPIRY, nurse_id: "n3", hospital_id: "h125", full_name: "Dana Ali", state: "no_record", expiry: null }] } } }))
 
       expect(await screen.findByRole("heading", { level: 2, name: "Expiries" })).toBeInTheDocument()
       const row = (await within(await screen.findByRole("region", { name: "Expiries of ER" })).findByRole("cell", { name: "Dana Ali" })).closest("tr") as HTMLElement
-      expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Dana Ali", "h125", "BLS", "No record", "Required to work"])
+      expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["Dana Ali", "h125", "BLS", "Skill", "No record", "Required to work"])
       expect(within(expiries()).getAllByRole("columnheader").map((head) => head.textContent)).toEqual(["Name", "Hospital ID", "Skill", "Kind", "State", "Expiry"])
       expect(within(expiries()).getByRole("cell", { name: "31 Oct 2026" })).toBeInTheDocument()
       // Above the list, which can be sixty nurses long, so it is seen before a solve.
@@ -4034,11 +4034,11 @@ describe("the nurses page", () => {
         required_to_work: true, lets_a_nurse_precept: false, active: true, renames: [] }
       const DEGREE = { id: "s5", name: "BSN", kind: "certificate", issuing_body: "King Saud University", expires: false,
         required_to_work: false, lets_a_nurse_precept: false, active: true, renames: [] }
-      const withPapers = (first: unknown[], extra: Record<string, Handler | Answer> = {}) =>
+      const withDetails = (first: unknown[], extra: Record<string, Handler | Answer> = {}) =>
         withSkills(first, { "GET /api/hospital/skills": { body: [...CATALOGUE, LICENCE, DEGREE] }, ...extra })
 
       it("lists her records under Skills, Certificates and Licences, with the identifier and the issue date", async () => {
-        const { handlers } = withPapers([BLS_HELD, SCFHS_HELD, BSN_HELD])
+        const { handlers } = withDetails([BLS_HELD, SCFHS_HELD, BSN_HELD])
         const { user } = start("/nurses", handlers)
         await openSkills(user)
 
@@ -4054,7 +4054,7 @@ describe("the nurses page", () => {
       })
 
       it("marks the identifier required for a licence and asks for it before recording", async () => {
-        const { handlers, after } = withPapers([])
+        const { handlers, after } = withDetails([])
         const { user, calls } = start("/nurses", { ...handlers, "POST /api/nurses/n1/skills": after([SCFHS_HELD], { status: 201 }) })
         await openSkills(user)
 
@@ -4082,7 +4082,7 @@ describe("the nurses page", () => {
       })
 
       it("shows the API's refusals beside the identifier and the issue date", async () => {
-        const { handlers } = withPapers([], { "POST /api/nurses/n1/skills": { status: 422, body: { detail: [
+        const { handlers } = withDetails([], { "POST /api/nurses/n1/skills": { status: 422, body: { detail: [
           { type: "value_error", loc: ["body", "body", "identifier"], msg: "Badr Omar already holds BSN with this identifier. Check the number: each one is one nurse's." },
           { type: "value_error", loc: ["body", "body", "issue_date"], msg: "The issue date cannot be after today." },
         ] } } })
@@ -4100,7 +4100,7 @@ describe("the nurses page", () => {
 
       it("renews a licence with a new identifier and issue date, its fields filled with what is recorded", async () => {
         const renewed = { ...SCFHS_HELD, details: { ...SCFHS_HELD.details, identifier: "26-RN-9001", issue_date: "2026-11-01" } }
-        const { handlers, after } = withPapers([SCFHS_HELD])
+        const { handlers, after } = withDetails([SCFHS_HELD])
         const { user, calls } = start("/nurses", { ...handlers, "PUT /api/nurses/n1/skills/s4": after([renewed]) })
         await openSkills(user)
 
@@ -4124,7 +4124,7 @@ describe("the nurses page", () => {
       })
 
       it("corrects a certificate held for good through its renewal, which has no expiry", async () => {
-        const { handlers, after } = withPapers([BSN_HELD])
+        const { handlers, after } = withDetails([BSN_HELD])
         const { user, calls } = start("/nurses", { ...handlers, "PUT /api/nurses/n1/skills/s5": after([{ ...BSN_HELD, details: { ...BSN_HELD.details, identifier: "KSU-77" } }]) })
         await openSkills(user)
 
@@ -4138,7 +4138,7 @@ describe("the nurses page", () => {
       })
 
       it("closes a renewal on Cancel and puts focus back on its button", async () => {
-        const { handlers } = withPapers([SCFHS_HELD])
+        const { handlers } = withDetails([SCFHS_HELD])
         const { user, calls } = start("/nurses", handlers)
         await openSkills(user)
 
