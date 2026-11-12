@@ -201,3 +201,11 @@ The stack, its volumes and its image are gone, and the lock is released.
   was sent the same.
 - **A new month-level change** goes in `MONTH_DATES` (`solves/input.py`), `DraftChange.what`, `MonthDates` and the frontend's
   `MONTH_DATES_SAY`.
+
+**Reviewed by the user (2026-11-12):** all six points kept as built.
+- The draft's line keeps the spec's sentence ("… changed since this draft was solved") under its heading.
+- The notification's words as built.
+- A Ramadan confirmed across two months tells a manager with rosters in both once for each month.
+- A re-plan still goes into force when a date changes while it runs; the manager is told and re-plans again.
+- A month already over is told too.
+- The submission's dates are one nullable field holding both lists, with no backfill.
