@@ -64,6 +64,14 @@ defaults that could hide a unit's numbers. Decided 2026-11-03.
   version 3: they change nothing when absent, and the app still writes version 1. A bad value is
   refused with its path (`request: department.max_full_runs must be a whole number within 0..31
   or null, got 32`). The result's `version` stays 1 (its `penalties` gain `excess_full_run`).
+* **Overtime share (2026-11-12, ticket 49 of the app), optional in either version**, as the
+  full runs are: `department.share_overtime` (absent = false), `department.overtime_tolerance` and
+  `department.overtime_carry_cap` (whole hours 0..744, absent = 0), `weights.overtime_above_share`
+  (absent = 0) and a nurse's `overtime_balance` (hours, ±10^6, absent = 0), filled on copies by
+  `request._optional_rules`. A bad value is refused with its path (`request: department.overtime_tolerance
+  must be a whole number of hours within 0..744, got 745`; `request: nurses[0].overtime_balance: must be a
+  number of hours within ±1000000, got True`). The result's `penalties` gain `overtime_above_share` and
+  each nurse's `carry_over` gains `overtime_balance`; its `version` stays 1.
 * The server derives the day count, first weekday and Ramadan days from `month`
   (`calendar.parse_month`). `ramadan_days` has three states: absent/null = derived from the
   Umm al-Qura calendar, `[]` = none, a list of dates = exactly these; a `{"from", "to"}` range
@@ -191,6 +199,10 @@ so code that builds a problem by hand need not name them; `from_dict` still requ
 Schema 6 (2026-11-09) adds full runs: `DepartmentRules.max_full_runs` (0..31, or null for no cap)
 and `Weights.excess_full_run`, both required in a file (defaults null and 0 in Python); a
 version-5 file is refused like any other, while the request takes both as optional (above).
+Schema 7 (2026-11-12) adds the overtime share: `DepartmentRules.share_overtime`, `overtime_tolerance`
+and `overtime_carry_cap` and `Weights.overtime_above_share`, required in a file (Python defaults off
+and 0), and the optional nurse scalar `overtime_balance` (absent = 0, as `preferences_not_kept`); a
+version-6 file is refused like any other.
 * `Nurse`: id, gender, team_leader, score (0–1), ramadan_reduced, breastfeeding, ytd_overtime,
   unavailable days, `allowed_shifts` (None = any; ER: staff 4 and 11 D only, staff 13 N only),
   `previous` = the last days of the previous month (a month, from a result), oldest first, shift
@@ -276,6 +288,39 @@ and the Friday target becomes fair Friday share − balance, each adjustment cla
 the fair share (Friday slots ÷ nurses, tolerance 0.5 shift) instead of a max − min spread.
 The reports give `night_bal_out` / `fri_bal_out` per nurse for next month. Shared arithmetic lives
 in `fairness.py` so model, validator and reports agree.
+
+Overtime share (2026-11-12, ticket 49 of the app; GLOSSARY Overtime share), one soft rule beside
+the two fairness rules above:
+* **`overtime_above_share`**, weight of the same name, unit "hour of overtime above the share", on
+  while `share_overtime` and the hours rule are on. The unit's overtime O is the sum of its nurses'
+  overtime; a nurse's **share** is O × r ÷ R, r the hours she owes (`required_hours`) and R the hours
+  every nurse of the problem owes; her **target** is the share less her `overtime_balance` held within
+  ± `overtime_carry_cap`, when `carry_fairness` is on; her **priced hours** are her overtime above the
+  target beyond `overtime_tolerance`, never more than her overtime. A nurse who owes none has a share
+  of 0 and is not priced, though her overtime counts in O.
+* **Unit and rounding.** The weight is per whole hour, so the priced amount is a whole number of
+  hours: the excess **rounded down** (the target rounded up in her favour), so a part hour is never
+  priced. Exact integer arithmetic, `fairness.overtime_priced`: with S = 100 R and the balance in
+  hundredths of an hour, priced = floor((S (ot − tol) − 100 r O + R adj) ÷ S). The model writes the same
+  floor as `S p ≥ S (ot − tol) − 100 r O + R adj − (S − 1)` with O one variable summing the overtime;
+  her overtime is held to exactly max(worked − owed, 0) while the rule is on (otherwise overtime and
+  shortfall could be raised together to move the shares). The cap at her overtime is an either-or
+  (p ≥ ot, or the floor), added only where her held balance is above the tolerance, the one case the
+  floor can exceed her overtime; a plain upper bound would make such a month infeasible.
+* **Balance out**: in + overtime − share, rounded to hundredths as the shift balances are
+  (`fairness.overtime_balance_out`); it moves while the switch and the hours rule are on, whatever
+  the weight and whether or not the unit carries fairness, as the night balance does; otherwise it
+  is handed on unchanged. Elapsed days count in a re-plan, as for every soft rule. No precheck.
+* **The match** reads "N18: 36 h overtime, share 18.9 h, 5 h priced", with ", target 24.9 h after the
+  carried balance" when the balance moved it; per nurse, no day.
+* **What it cannot promise.** The share rises with O, so h more hours of overtime anywhere lower the
+  priced nurses' excess by h × (their hours owed ÷ R) in all, less than h, plus up to one hour for each
+  priced nurse whose rounded-down excess crosses a whole hour. Exactly, the rule therefore never pays
+  the solver to make overtime while its weight is at most `nurse_overtime`'s (the spec's 1 against
+  ER's 1); the rounding can when many nurses are priced at once and the extra shift is short, and a
+  weight above `nurse_overtime`'s can by up to the difference per hour. It also discounts an hour of
+  overtime that another soft rule wants. The spec's "never above with the rule off" is tested on a
+  forced small month, solved to optimality, not proven in general.
 
 ER, hard: no mixed D/N work blocks — D→N and N→D added to the forbidden successions
 (`no_mixed_blocks`, 2026-10-30).

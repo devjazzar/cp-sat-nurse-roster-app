@@ -648,6 +648,22 @@ switching it off hospital-wide. Every new solve, re-plan and close input carries
 carried; a stored one without them reads as no cap. Hand edits, swaps, covers and requests are never refused for it, and no
 nurse page shows it.
 
+The overtime share changed it again (ticket 49; the solver's problem schema 7; the solve input's version unchanged). The
+department gains `share_overtime` (the unit shares its overtime), `overtime_tolerance` (hours a nurse may stand above her target
+for free) and `overtime_carry_cap` (the most her carried balance moves her target), the two numbers whole hours 0 to 744; the
+weights gain `overtime_above_share`, the price of each whole hour above; each nurse gains `overtime_balance`, the hours her
+overtime has stood above (+) or below (−) her overtime share so far this year. All five are optional in either version, absent
+meaning the rule off, 0 hours and a balance of 0, so every stored solve input and close input still loads and gives what it gave.
+Her share is the month's overtime in the input times the hours she owes over the hours every nurse of the input owes; her target
+is the share less her balance, held within the limit, when the unit carries fairness between months; her overtime above it,
+beyond the tolerance, is priced in whole hours rounded down and never more than her overtime, so a nurse with no overtime, or
+owing none, costs nothing. The rule, `overtime_above_share`, is soft only and active while the unit's switch, the weight and the
+hours rule are all on; its match names the nurse, her overtime, her share and the hours priced, and the per-nurse explanation
+carries it. A result's `carry_over` carries her balance for next month, in + overtime − share, moving while the switch and the
+hours rule are on and handed on unchanged otherwise. The chain passes it through (`closes.chain.CARRIED`), 0 from opening values
+and from a close stored before it; until the unit rules and the weight reach the solve input (ticket 51) the solver hands every
+balance on unchanged. Its opening value and its January reset are ticket 50's.
+
 ## 7. The worker and the queue (ADR 0006)
 
 Procrastinate, with its tables in the application database, run by the `worker` container at

@@ -146,6 +146,7 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `change` | cell that differs from the `published` roster in a re-plan. |
 | `skill_shortfall` | nurse a skill need is short on one shift-day (only when `skill_needs_hard` is false; the rule is `skill_need`). |
 | `excess_full_run` | full run a nurse works above `max_full_runs`. Optional: absent means 0. |
+| `overtime_above_share` | whole hour of a nurse's overtime above her overtime share, beyond `overtime_tolerance` (only while `share_overtime` is on and the hours rule is on). Optional: absent means 0. |
 
 ### 2.3 `department`: the unit's rules
 
@@ -205,6 +206,7 @@ rule off. Only their ratios matter: the solver minimises the weighted sum.
 | `double_cycle_rest` | Hard: cycle, one day off, cycle ⇒ at least this many days off afterwards. |
 | `max_full_runs` | Soft: full runs (exactly `max_consecutive_shifts` worked days in a row, leave ending a run as a day off does) a nurse may work per month before `excess_full_run` applies; a whole number 0..31. Optional: absent or `null` means no cap. A run counts in the month that holds its last day (one begun in the history counts, and so does one ending on the month's last day). Nothing is priced while `max_consecutive_shifts` is 0 or 1. |
 | `max_weekends` | Soft: weekend days a nurse may work per month before `excess_weekend` applies. |
+| `share_overtime`, `overtime_tolerance`, `overtime_carry_cap` | Soft: share the unit's overtime in proportion to the hours each nurse owes. Her **share** is the month's overtime × her hours owed ÷ every nurse's hours owed; her **target** is the share less her `overtime_balance` (held within ± `overtime_carry_cap` hours) when `carry_fairness` is on; her overtime above the target by more than `overtime_tolerance` hours costs `overtime_above_share` per whole hour (a part hour is not priced), never more than her overtime. A nurse who owes no hours has no share and is never priced. The two numbers are whole hours 0..744. Optional: absent means off and 0. Nothing is priced with the hours rule off. |
 | `no_mixed_blocks` | Hard: consecutive worked days are all day shifts or all night shifts. |
 | `max_switches`, `switches_hard` | Day/night switches allowed per month (the month boundary counts); hard, or priced by `shift_switch`. |
 | `skill_needs` | Each: on `shift` (one of the unit's), at least `weekday_min` / `weekend_min` nurses holding `skill` on each weekday / weekend day, counting nurses on exactly that shift (not its `also_counts`) whose skill has not expired that day. Several per unit, but one per shift and skill. `[]`: none. |
@@ -229,7 +231,7 @@ request is refused with a clear message otherwise.
 }
 ```
 
-The twelve scalars are required, `preferences_not_kept` may be left out (absent = 0); the six
+The twelve scalars are required, `preferences_not_kept` and `overtime_balance` may be left out (absent = 0); the six
 lists may be left out (absent = none).
 
 | Field | Meaning |
@@ -243,6 +245,7 @@ lists may be left out (absent = none).
 | `ytd_overtime` | Overtime hours already worked this year (for `overtime_year_cap`). |
 | `hours_balance` | Hours still owed from earlier months (+) or worked ahead (−). Comes from last month's carry-over. |
 | `night_balance`, `friday_balance` | Nights / weekend days above (+) or below (−) her fair share so far this year, in shifts. From the carry-over. |
+| `overtime_balance` | Hours her overtime has stood above (+) or below (−) her overtime share so far this year (a number within ±1 000 000; absent = 0). Moves this month's target when `carry_fairness` is on. From the carry-over: in + overtime − share while `share_overtime` and the hours rule are on, else handed on unchanged. |
 | `last_shift_kind` | `"night"`, `"day"` (any other work) or `null`: the kind of the last shift she worked *before* `previous` begins. The switch rule's memory across any number of off days. From the carry-over; `null` for a new nurse. |
 | `rest_owed` | Off days she still owes to her last night shift *before* `previous` begins; `0` when none. From the carry-over. |
 | `preferences_not_kept` | How many of her `undesired_days` and `desired_days` last month's roster did not keep (a whole number, 0 or more; absent = 0). Above 0, every one of hers this month costs **twice** its weight, whatever the count. From the carry-over; `0` for a new nurse. |
