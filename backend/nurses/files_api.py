@@ -1,5 +1,6 @@
 """The files about nurses: the nurse import (a template, a preview and a confirm) and the staff list, the CNO's; the skills
-import (the same three), the CNO's and the Deputy CNO's (ticket 61), since both record what a nurse holds. Reading a file and judging a nurse import is `nurses.importing`, judging a skills import `nurses.skills_importing`.
+import (the same three), the CNO's and the Deputy CNO's (ticket 61), since both record what a nurse holds.
+Reading a file and judging a nurse import is `nurses.importing`, judging a skills import `nurses.skills_importing`.
 Who belongs where is `nurses.membership`."""
 from __future__ import annotations
 

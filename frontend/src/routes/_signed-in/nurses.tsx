@@ -541,7 +541,7 @@ function NursesPage() {
           <h2 id="expiries" className="text-base font-medium">Expiries</h2>
           <Card>
             <CardContent className="flex flex-col gap-4">
-              <ExpiriesList label={`Expiries of ${held.name}`} showUnit={false} who="The CNO and the Deputy CNO record and renew skills." />
+              <ExpiriesList label={`Expiries of ${held.name}`} showUnit={false} who="The CNO records and renews skills on the Nurses page, and the Deputy CNO on Rostering attributes." />
             </CardContent>
           </Card>
         </section>

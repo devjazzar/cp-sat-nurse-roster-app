@@ -20,7 +20,7 @@ import { shortDay } from "@/lib/utils"
  *  attributes (ticket 61), with the same forms, fields and refusals, since the API's rules are the same for both. */
 
 /** Whose records: a row of either page's list, as it refreshes. */
-type Holder = { id: string; full_name: string; skills: NurseSkillRow[] }
+type NurseWithRecords = { id: string; full_name: string; skills: NurseSkillRow[] }
 
 const COULD_NOT_SAVE = "That did not work. Check your connection and try again."
 const required = (message: string) => z.string().min(1, message)
@@ -66,7 +66,7 @@ const asSent = ({ identifier, issue_date }: RecordDetails) => ({ identifier: ide
 /** The form that renews one record, under the table: a new expiry, identifier or issue date, or all three, as the body gave
  *  them. What it says already is sent as it is, and the API changes nothing then. */
 function RenewForm({ nurse, skill, refresh, onSaid, onDone }: {
-  nurse: Holder; skill: NurseSkillRow; refresh: () => void; onSaid: (message: string) => void; onDone: () => void
+  nurse: NurseWithRecords; skill: NurseSkillRow; refresh: () => void; onSaid: (message: string) => void; onDone: () => void
 }) {
   const renew = useRenewNurseSkill()
   const form = useForm<RecordDetails>({ resolver: zodResolver(recordDetailsSchema), defaultValues: {
@@ -122,7 +122,7 @@ function RenewForm({ nurse, skill, refresh, onSaid, onDone }: {
 
 /** Her records, each to renew or take off. A retired skill only comes off. */
 function HeldSkills({ nurse, refresh, onSaid, onGone }: {
-  nurse: Holder; refresh: () => void; onSaid: (message: string) => void; onGone: () => void
+  nurse: NurseWithRecords; refresh: () => void; onSaid: (message: string) => void; onGone: () => void
 }) {
   const remove = useRemoveNurseSkill()
   const [renewing, setRenewing] = useState<string | null>(null)
@@ -177,7 +177,7 @@ const newSkillSchema = recordDetailsSchema.extend({ skill_id: required("Choose a
 type NewSkill = z.infer<typeof newSkillSchema>
 
 function RecordSkillForm({ nurse, refresh, keepsCatalogue, onSaid }: {
-  nurse: Holder; refresh: () => void; keepsCatalogue: boolean; onSaid: (message: string) => void
+  nurse: NurseWithRecords; refresh: () => void; keepsCatalogue: boolean; onSaid: (message: string) => void
 }) {
   const catalogue = useListSkills()
   const record = useRecordNurseSkill()
@@ -242,7 +242,7 @@ function RecordSkillForm({ nurse, refresh, keepsCatalogue, onSaid }: {
 /** Stays open through each change, which says what it did in the page's status line. Reads her skills from the list as it
  *  refreshes, so a renewal elsewhere on the page shows here. */
 export function SkillsPanel({ nurse, refresh, keepsCatalogue, onSaid, onClose }: {
-  nurse: Holder
+  nurse: NurseWithRecords
   /** Reads the list the page shows again, after every answer, a refusal's too, since it says the page may be out of date. */
   refresh: () => void
   /** The CNO's, who adds to an empty catalogue; the Deputy CNO only reads it (ticket 61). */

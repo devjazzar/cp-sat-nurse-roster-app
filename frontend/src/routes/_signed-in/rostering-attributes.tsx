@@ -325,8 +325,9 @@ function ChosenUnitAttributes({ unit, mayChange, mayRecord, username }: {
   const rules = useGetUnitRules(unit.id)
   const refresh = useRefreshList(unit.id)
   const { editing, start, finish } = useEditing<NurseAttributesRow>()
-  const recordsOf = useEditing<NurseAttributesRow>()
-  const recording = recordsOf.editing && (nurses.data?.find((nurse) => nurse.id === recordsOf.editing?.id) ?? recordsOf.editing)
+  const skillsPanel = useEditing<NurseAttributesRow>()
+  // A second panel, the Deputy CNO's, beside the manager's form above: each role has one of the two.
+  const recording = skillsPanel.editing && (nurses.data?.find((nurse) => nurse.id === skillsPanel.editing?.id) ?? skillsPanel.editing)
   const [done, setDone] = useState("")
   const state = rules.data
   const shifts = state?.rules.shifts ?? []
@@ -364,7 +365,7 @@ function ChosenUnitAttributes({ unit, mayChange, mayRecord, username }: {
         </Card>
       )}
       {recording && (
-        <RecordsPanel key={recording.id} nurse={recording} refresh={refresh} onSaid={setDone} onClose={recordsOf.finish} />
+        <RecordsPanel key={recording.id} nurse={recording} refresh={refresh} onSaid={setDone} onClose={skillsPanel.finish} />
       )}
       {mayChange && questions.dialogs}
       {nurses.data && state && (
@@ -374,7 +375,7 @@ function ChosenUnitAttributes({ unit, mayChange, mayRecord, username }: {
               ? <p>{unit.name} has no nurses yet. The CNO adds them.</p>
               : <NurseTable nurses={nurses.data} unitName={unit.name} mayChange={mayChange} mayRecord={mayRecord}
                   onEdit={(nurse, button) => { setDone(""); start(nurse, button) }}
-                  onRecord={(nurse, button) => { setDone(""); recordsOf.start(nurse, button) }}
+                  onRecord={(nurse, button) => { setDone(""); skillsPanel.start(nurse, button) }}
                   onAskProbation={(action, nurse) => { setDone(""); questions.ask(action, nurse) }} />}
           </CardContent>
         </Card>
@@ -388,7 +389,6 @@ function RosteringAttributesPage() {
   const { unit: inAddress } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const { units, chosen } = useChosenUnit(user, inAddress)
-  const { role } = user
   const mayChange = user.role === Role.unit_manager
   // The Deputy CNO's own flag, never `mayChange`: the probation's actions are the unit manager's alone (tickets 54 and 55).
   const mayRecord = user.role === Role.deputy_cno
@@ -398,7 +398,7 @@ function RosteringAttributesPage() {
       <h1 className="text-xl font-medium">{mayChange && chosen ? `Rostering attributes of ${chosen.name}` : "Rostering attributes"}</h1>
       <p className="text-muted-foreground">
         What the solver needs to know about each nurse, and where each one stands when they are added.
-        {role === Role.cno && " Only the unit's manager can change these. You record skills, certificates and licences on the Nurses page, and the Deputy CNO records them here."}
+        {user.role === Role.cno && " Only the unit's manager can change these. You record skills, certificates and licences on the Nurses page, and the Deputy CNO records them here."}
         {mayRecord && " Only the unit's manager can change these, but for skills, certificates and licences, which you record here and the CNO on the Nurses page."}
         {mayChange && " Gender and whether a nurse is on probation are the CNO's to set, and skills the CNO's and the Deputy CNO's to record; you set how long a probation lasts. Of all this, nurses see only their own skills."}
       </p>
