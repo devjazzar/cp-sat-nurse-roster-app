@@ -144,3 +144,8 @@ run. No Codex review, by the brief.
 - Whoever adds the next opening value: it is listed in `nurses.attributes_api` (body, row, `_row`, `OPENING_VALUES`, the lock's
   description), `closes.chain` (`opening`, `NEW_YEAR` if it resets), `nurses.rostering.nurse_block`, the form's schema,
   defaults and fields, and the table.
+
+**Merged on 2026-11-12:** `main` fast-forwarded to `73bf19b`, the branch's head after merging `main` with tickets 52 (`2bf6bf2`)
+and 72; both workflows green on it (solver, backend, frontend, image, browser checks), as on `2bf6bf2` before it. The local
+suites ran on `79f1939`, before those merges; ticket 52 touched the solver's fairness for nurses on probation (none in these
+tests) and ticket 72 how zod is imported (an alias, nothing in this ticket's files).
