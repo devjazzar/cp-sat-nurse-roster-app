@@ -169,6 +169,16 @@ def test_fixed_and_derived_ramadan_and_only_this_months_holidays(er):
     assert solve_input["ramadan_days"] == ["2026-06-01", "2026-06-02"]
 
 
+def test_a_holiday_added_from_the_calendars_proposals_reaches_the_solver_like_any(er, signed_in):
+    """Arafat Day 1447 is 26 May 2026; a CNO adding Eid al-Adha for eight days runs it into June."""
+    response = signed_in(Role.CNO).post("/api/hospital/holiday-proposals?year=2026",
+                                        {"name": "Eid al-Adha", "first": "2026-05-26", "length": 8},
+                                        content_type="application/json")
+    assert response.status_code == 200, response.content
+
+    assert built(er).input["public_holidays"] == ["2026-06-01", "2026-06-02"]
+
+
 def test_what_the_solver_refuses_is_said_in_its_words(er):
     er.rules["night_shift"] = ""
     er.save()

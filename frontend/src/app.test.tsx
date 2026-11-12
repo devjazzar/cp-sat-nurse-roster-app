@@ -2138,10 +2138,15 @@ describe("the holidays and Ramadan page", () => {
   })
   // Umm al-Qura's Ramadan 1447 runs from 18 February to 19 March 2026.
   const CARD_1447 = { hijri_year: 1447, first: "2026-02-18", last: "2026-03-19", days: 30, source: "derived", calendar_first: "2026-02-18", calendar_last: "2026-03-19" }
-  const year2026 = (march?: unknown, holidays: unknown[] = [NATIONAL], cards: unknown[] = [CARD_1447]) => ({
+  // What the calendar proposes for 2026 beside National Day, entered already: Arafat Day 1447 is 26 May 2026.
+  const FOUNDING = { name: "Founding Day", first: "2026-02-22", length: 1 }
+  const FITR = { name: "Eid al-Fitr", first: "2026-03-19", length: 4 }
+  const ADHA = { name: "Eid al-Adha", first: "2026-05-26", length: 4 }
+  const year2026 = (march?: unknown, holidays: unknown[] = [NATIONAL], cards: unknown[] = [CARD_1447], proposals: unknown[] = [FOUNDING, FITR, ADHA]) => ({
     "GET /api/hospital/public-holidays": { body: holidays },
     "GET /api/hospital/ramadan": { body: months(march) },
     "GET /api/hospital/ramadans": { body: cards },
+    "GET /api/hospital/holiday-proposals": { body: proposals },
   })
   const row = async (name: string) => (await screen.findByRole("cell", { name })).closest("tr") as HTMLElement
 
@@ -2465,6 +2470,154 @@ describe("the holidays and Ramadan page", () => {
     })
   })
 
+  describe("the holidays card", () => {
+    const proposalsCard = async () => (await screen.findByRole("heading", { name: "Proposed by the calendar" })).closest("[data-slot=card]") as HTMLElement
+    const lineOf = async (name: string) => (await screen.findByRole("group", { name })) as HTMLElement
+    /** The proposals as they are read, the first time and after: one list per read, the last one kept. */
+    const reads = (...lists: unknown[][]) => () => ({ body: lists.length > 1 ? lists.shift() : lists[0] })
+
+    it("proposes to the CNO what the calendar gives and the holidays do not hold, each line editable", async () => {
+      const { calls } = start("/holidays?year=2026", asCno(year2026()))
+
+      const card = await proposalsCard()
+      // In date order, as the API gives them.
+      expect(within(card).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Add Founding Day", "Add Eid al-Fitr", "Add Eid al-Adha"])
+      const fitr = await lineOf("Eid al-Fitr")
+      expect(fitr).toHaveTextContent("From Thursday, 19 March 2026, 4 days.")
+      expect(within(fitr).getByLabelText("First day of Eid al-Fitr")).toHaveValue("2026-03-19")
+      expect(within(fitr).getByLabelText("Days of Eid al-Fitr")).toHaveValue(4)
+      expect(within(await lineOf("Founding Day")).getByRole("button", { name: "Add Founding Day" })).toBeInTheDocument()
+      expect(calls.map((call) => call.url)).toContain("/api/hospital/holiday-proposals?year=2026")
+    })
+
+    it("says so when every proposal of the year is entered", async () => {
+      start("/holidays?year=2026", asCno(year2026(undefined, [NATIONAL], [CARD_1447], [])))
+
+      expect(await proposalsCard()).toHaveTextContent("Every holiday the calendar proposes for 2026 is entered.")
+    })
+
+    it("adds a proposal, says what was added and skipped, and the line goes with focus on the next one", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "GET /api/hospital/holiday-proposals": reads([FOUNDING, FITR, ADHA], [FOUNDING, ADHA]),
+        "POST /api/hospital/holiday-proposals": { body: { added: ["2026-03-19", "2026-03-21", "2026-03-22"], skipped: ["2026-03-20"] } },
+      }))
+
+      await user.click(within(await lineOf("Eid al-Fitr")).getByRole("button", { name: "Add Eid al-Fitr" }))
+
+      expect(await screen.findByText("Eid al-Fitr is added on 3 days from 19 March 2026. 20 March 2026 was a holiday already and is left as it was.")).toBeInTheDocument()
+      const post = calls.find((call) => call.method === "POST")
+      expect(post?.url).toBe("/api/hospital/holiday-proposals?year=2026")
+      expect(post?.body).toEqual({ name: "Eid al-Fitr", first: "2026-03-19", length: 4 })
+      await waitFor(() => expect(screen.queryByRole("group", { name: "Eid al-Fitr" })).not.toBeInTheDocument())
+      await waitFor(() => expect(within(screen.getByRole("group", { name: "Eid al-Adha" })).getByLabelText("First day of Eid al-Adha")).toHaveFocus())
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/public-holidays?year=2026")).toHaveLength(2))
+    })
+
+    it("adds the last proposal left, and focus goes to the card", async () => {
+      const { user } = start("/holidays?year=2026", asCno({
+        ...year2026(undefined, [NATIONAL], [CARD_1447], [ADHA]),
+        "GET /api/hospital/holiday-proposals": reads([ADHA], []),
+        "POST /api/hospital/holiday-proposals": { body: { added: ["2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29"], skipped: [] } },
+      }))
+
+      await user.click(within(await lineOf("Eid al-Adha")).getByRole("button", { name: "Add Eid al-Adha" }))
+
+      expect(await screen.findByText("Eid al-Adha is added on 4 days from 26 May 2026.")).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole("heading", { name: "Proposed by the calendar" })).toHaveFocus())
+      expect(await proposalsCard()).toHaveTextContent("Every holiday the calendar proposes for 2026 is entered.")
+    })
+
+    it("adds a proposal with its first day and length changed; the line stays, as the calendar gives it", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/holiday-proposals": { body: { added: ["2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01"], skipped: [] } },
+      }))
+
+      const adha = await lineOf("Eid al-Adha")
+      const first = within(adha).getByLabelText("First day of Eid al-Adha")
+      const length = within(adha).getByLabelText("Days of Eid al-Adha")
+      await user.clear(first)
+      await user.type(first, "2026-05-27")
+      await user.clear(length)
+      await user.type(length, "6")
+      const add = within(adha).getByRole("button", { name: "Add Eid al-Adha" })
+      await user.click(add)
+
+      expect(await screen.findByText("Eid al-Adha is added on 6 days from 27 May 2026.")).toBeInTheDocument()
+      expect(calls.find((call) => call.method === "POST")?.body).toEqual({ name: "Eid al-Adha", first: "2026-05-27", length: 6 })
+      await waitFor(() => expect(first).toHaveValue("2026-05-26"))
+      expect(length).toHaveValue(4)
+      expect(add).toHaveFocus()
+    })
+
+    it("says when nothing was added because every day is a holiday already", async () => {
+      const { user } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/holiday-proposals": { body: { added: [], skipped: ["2026-02-22"] } },
+      }))
+
+      await user.click(within(await lineOf("Founding Day")).getByRole("button", { name: "Add Founding Day" }))
+
+      expect(await screen.findByText("Founding Day adds no day: 22 February 2026 is a holiday already.")).toBeInTheDocument()
+    })
+
+    it("shows the API's refusal beside the field, with focus on it", async () => {
+      const { user } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/holiday-proposals": refusal(["length"], "This runs past 2076, the last year the calendar covers."),
+      }))
+
+      const fitr = await lineOf("Eid al-Fitr")
+      await user.click(within(fitr).getByRole("button", { name: "Add Eid al-Fitr" }))
+
+      const length = within(fitr).getByLabelText("Days of Eid al-Fitr")
+      await waitFor(() => expect(length).toHaveAccessibleDescription("This runs past 2076, the last year the calendar covers."))
+      expect(length).toHaveFocus()
+      expect(length).toHaveAttribute("aria-invalid", "true")
+    })
+
+    it.each([
+      ["First day", "2027-01-02", "This is not in 2026. Go to that year to add it."],
+      ["Days", "15", "Enter a number of days from 1 to 14."],
+      ["Days", "0", "Enter a number of days from 1 to 14."],
+    ])("refuses a %s of %s on the page, before asking the API", async (field, value, words) => {
+      const { user, calls } = start("/holidays?year=2026", asCno(year2026()))
+
+      const fitr = await lineOf("Eid al-Fitr")
+      const input = within(fitr).getByLabelText(`${field} of Eid al-Fitr`)
+      await user.clear(input)
+      await user.type(input, value)
+      await user.click(within(fitr).getByRole("button", { name: "Add Eid al-Fitr" }))
+
+      await waitFor(() => expect(input).toHaveAccessibleDescription(words))
+      expect(calls.some((call) => call.method === "POST")).toBe(false)
+    })
+
+    it("reads the proposals again after a holiday is entered by hand", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({
+        ...year2026(),
+        "POST /api/hospital/public-holidays": { status: 201, body: { id: "h2", date: "2026-02-22", name: "Founding Day" } },
+      }))
+
+      await user.type(await screen.findByLabelText("Date"), "2026-02-22")
+      await user.type(screen.getByLabelText("Name"), "Founding Day")
+      await user.click(screen.getByRole("button", { name: "Add holiday" }))
+
+      await screen.findByText("Founding Day is added.")
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/holiday-proposals?year=2026")).toHaveLength(2))
+    })
+
+    it("reads the proposals again after a Ramadan is confirmed, since Eid al-Fitr follows it", async () => {
+      const { user, calls } = start("/holidays?year=2026", asCno({ ...year2026(), "PUT /api/hospital/ramadans/1447": { body: CARD_1447 } }))
+
+      await user.click(await screen.findByRole("button", { name: "Confirm Ramadan 1447" }))
+
+      await screen.findByText(/Ramadan 1447 is confirmed/)
+      await waitFor(() => expect(calls.filter((call) => call.url === "/api/hospital/holiday-proposals?year=2026")).toHaveLength(2))
+    })
+  })
+
   it("another role reads and can change nothing", async () => {
     const { calls } = start("/holidays?year=2026", { ...session(NURSE), ...year2026() })
 
@@ -2475,6 +2628,8 @@ describe("the holidays and Ramadan page", () => {
     expect(screen.queryByLabelText("Date")).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: /Ramadan 1447/ })).not.toBeInTheDocument()
     expect(calls.some((call) => call.url.startsWith("/api/hospital/ramadans"))).toBe(false)
+    expect(screen.queryByRole("heading", { name: "Proposed by the calendar" })).not.toBeInTheDocument()
+    expect(calls.some((call) => call.url.startsWith("/api/hospital/holiday-proposals"))).toBe(false)
   })
 })
 

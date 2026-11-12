@@ -84,6 +84,20 @@ def calendar_ramadans(year: int) -> list[CalendarRamadan]:
             for run in runs if any(day.year == year for day in run)]
 
 
+def calendar_arafat_days(year: int) -> list[date]:
+    """Every Arafat Day (9 Dhu al-Hijjah) in the Gregorian `year` by the calendar, in date order: one, or two in a year
+    such as 2039. A Hijri year with no day in `year` cannot hold one, so only those overlapping it are asked."""
+    days = []
+    for hijri_year in range(Gregorian(year, 1, 1).to_hijri().year, Gregorian(year, 12, 31).to_hijri().year + 1):
+        try:
+            day = Hijri(hijri_year, 12, 9).to_gregorian()
+        except (ValueError, OverflowError):  # Beyond the calendar's data, at its ends.
+            continue
+        if day.year == year:
+            days.append(date(day.year, day.month, day.day))
+    return days
+
+
 def calendar_ramadan(hijri_year: int) -> CalendarRamadan | None:
     """Ramadan `hijri_year` by the calendar, or None when the calendar's data does not reach it. hijridate only finds
     the Gregorian year; the days are `calendar_ramadans`'."""

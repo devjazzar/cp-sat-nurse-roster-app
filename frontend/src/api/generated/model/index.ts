@@ -6,6 +6,7 @@
  */
 
 export * from './acceptRequestBody';
+export * from './addProposedHolidaysParams';
 export * from './allowedShiftsBody';
 export * from './approval';
 export * from './approveSwapBody';
@@ -113,6 +114,9 @@ export * from './gridViolation';
 export * from './headcountAnswer';
 export * from './headcountRule';
 export * from './health';
+export * from './holidayAdd';
+export * from './holidayProposal';
+export * from './holidaysAdded';
 export * from './hospitalDayAnswer';
 export * from './hospitalHistory';
 export * from './hospitalRules';
@@ -137,6 +141,7 @@ export * from './leaveTypeSchema';
 export * from './lengthBody';
 export * from './lengthChoice';
 export * from './listAuditEntriesParams';
+export * from './listHolidayProposalsParams';
 export * from './listHospitalSolveHistoryParams';
 export * from './listMyCoversParams';
 export * from './listMySwapsParams';
