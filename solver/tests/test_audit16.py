@@ -30,9 +30,9 @@ def test_version_is_written_and_checked(tmp_path):
     p, f = small(), tmp_path / "p.json"
     p.to_json(f)
     raw = json.loads(f.read_text())
-    assert raw["version"] == SCHEMA_VERSION == 7 == p.version and Problem.from_json(f) == p
+    assert raw["version"] == SCHEMA_VERSION == 8 == p.version and Problem.from_json(f) == p
     assert Problem.from_dict(asdict(p)) == p                   # a dict built in code is current
-    for bad in (1, 2, 3, 4, 5, 6, SCHEMA_VERSION + 1, "7", 0, True):     # a prototype file (1, 2) relied on
+    for bad in (1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION + 1, "8", 0, True):     # a prototype file (1, 2) relied on
         raw["version"] = bad                                   # defaults the code no longer has
         with pytest.raises(ValueError, match=f"version must be {SCHEMA_VERSION}"):
             Problem.from_dict(raw)

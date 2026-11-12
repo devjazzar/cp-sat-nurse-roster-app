@@ -72,6 +72,15 @@ defaults that could hide a unit's numbers. Decided 2026-11-03.
   must be a whole number of hours within 0..744, got 745`; `request: nurses[0].overtime_balance: must be a
   number of hours within ±1000000, got True`). The result's `penalties` gain `overtime_above_share` and
   each nurse's `carry_over` gains `overtime_balance`; its `version` stays 1.
+* **Probation (2026-11-12, ticket 52 of the app; ADR 0014), optional in either version**: a nurse's
+  `on_probation` (absent = false) and `preceptor` (the id of the nurse she follows; absent or null =
+  none). Refused with their paths: a type (`request: nurses[1].on_probation: must be true or false,
+  got 'yes'`), and the four preceptor errors, checked after every nurse is read (`request._preceptors`):
+  `request: nurses[2].preceptor: 'nobody' is not another nurse of the input` (her own id included),
+  `... 'Amal' is herself on probation`, `... 'Amal' already precepts nurses[2] (one nurse on probation
+  each)`, `... 'Badr' is named for a nurse not on probation`. The problem checks the same by id. The
+  result's shape is unchanged: `violations` may carry the rule `following`, and her `carry_over`
+  balances read 0.
 * The server derives the day count, first weekday and Ramadan days from `month`
   (`calendar.parse_month`). `ramadan_days` has three states: absent/null = derived from the
   Umm al-Qura calendar, `[]` = none, a list of dates = exactly these; a `{"from", "to"}` range
@@ -181,7 +190,7 @@ is no CSV reader any more. The ER instance (real scores, the three single-shift 
 random generator) lives in `tests/er_fixture.py`, and `tests/fixtures/er_request_2026-03.json`
 is the committed ER request every end-to-end test and benchmark uses.
 
-### Internal problem (`problem.py`; schema 7, everything explicit)
+### Internal problem (`problem.py`; schema 8, everything explicit)
 The solver's own contract, built by the request loader (0-based day indices, derived calendar).
 `Problem.from_dict` / `to_json` round-trip it for tests and debugging; schema 3 (2026-11-03)
 requires every field of the rule objects and every nurse scalar, and refuses versions 1 and 2
@@ -203,6 +212,8 @@ Schema 7 (2026-11-12) adds the overtime share: `DepartmentRules.share_overtime`,
 and `overtime_carry_cap` and `Weights.overtime_above_share`, required in a file (Python defaults off
 and 0), and the optional nurse scalar `overtime_balance` (absent = 0, as `preferences_not_kept`); a
 version-6 file is refused like any other.
+Schema 8 (2026-11-12) adds probation: the optional `Nurse.on_probation` (absent = false) and
+`Nurse.preceptor` (absent = null); a version-7 file is refused like any other.
 * `Nurse`: id, gender, team_leader, score (0–1), ramadan_reduced, breastfeeding, ytd_overtime,
   unavailable days, `allowed_shifts` (None = any; ER: staff 4 and 11 D only, staff 13 N only),
   `previous` = the last days of the previous month (a month, from a result), oldest first, shift
@@ -288,6 +299,39 @@ and the Friday target becomes fair Friday share − balance, each adjustment cla
 the fair share (Friday slots ÷ nurses, tolerance 0.5 shift) instead of a max − min spread.
 The reports give `night_bal_out` / `fri_bal_out` per nurse for next month. Shared arithmetic lives
 in `fairness.py` so model, validator and reports agree.
+
+Probation (2026-11-12, ticket 52 of the app; ADR 0014, GLOSSARY Probation, Nurse on probation,
+Preceptor). Three shared readings, so the model, the validator, the precheck and the result agree:
+* **`problem.counted`**: every nurse but one on probation. Only they count toward a shift: the
+  headcount minimum and maximum (`also_counts` included), the team leader, both genders, the score
+  target and band or spread, and the skill needs (`skill_holders`). Only they take part in the day and
+  night fairness (`fairness.flexible` is false for her), the weekend fairness (the Friday slots are
+  divided among them, and she has no Friday share), the overtime share (`overtime_owed`, and she is
+  never priced) and the unit's overtime totals (`fairness.unit_overtime`: the department cap and the
+  share's O). Her `night_balance`, `friday_balance` and `overtime_balance` go out at 0 whatever came
+  in (`balances_out`, `overtime_balance_out`). Precheck's supply checks read only them.
+* **`Problem.allowed`**: her `allowed_shifts` (or every shift) less the unit's `night_shift` while she
+  is on probation, her own setting kept as it is. An empty result is refused, as is a pin of the
+  night shift on a free day of hers; an elapsed night is a fact. Her shortest and longest shifts
+  (`min_shift_hours`, `max_hours`) read it.
+* **`Problem.overtime_cap`**: for her, the lower of the usual cap and her shortest allowed shift less
+  1 hour, so she works under what she owes plus one shift (12 h shifts, 208 h owed: 18 shifts, 8 h
+  over; 8 h shifts: 26, none). The mirror of `max_shortfall`, which is unchanged: she may end under
+  by less than a shift and carry it. Her overtime is on her own record (`overtime`, `ytd_overtime`,
+  and `nurse_overtime` prices it), outside the department cap and the overtime share.
+* **`following`**, hard, unit "day a nurse on probation is not on her preceptor's day shift, or off
+  it", active while some nurse on probation has a preceptor in the input. The days it judges
+  (`problem.followable_candidates`) are hers not pinned, not on leave (the days outside her dates
+  are leave) and not barred; one is **followable** when her preceptor works on it a shift in her
+  allowed set. On a followable day she works her preceptor's shift or is off; once a followable day
+  is left off, she works no judged day that is not followable (her hours win over following). Model:
+  `fol[d] = Σ x[q][d][s]` over her allowed shifts, `¬x[n][d][s] ∨ ¬fol[d] ∨ x[q][d][s]`, and one
+  literal `missed` with `¬fol[d] ∨ ¬off[n][d] ∨ missed` and `¬missed ∨ fol[d] ∨ off[n][d]`. Nothing
+  binds the preceptor (she can always be off), so the rule alone never makes a month infeasible;
+  her own rest, run and succession rules apply unchanged. Pins and elapsed days are not judged, so
+  the rule has no elapsed match. The words: "following: a works A on day 0, her preceptor q works
+  D", and "following: a works D on day 2, when her preceptor q is off, while she is off on day 3,
+  when q works D". Precheck: "a: on probation with no preceptor, so she follows no one: ...".
 
 Overtime share (2026-11-12, ticket 49 of the app; GLOSSARY Overtime share), one soft rule beside
 the two fairness rules above:

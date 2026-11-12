@@ -387,3 +387,67 @@ def test_validate_prices_overtime_above_a_share_in_the_solvers_words(client, sam
         ("Amal", None, 67, "Amal: 104 h overtime, share 27.4 h, target 24.9 h after the carried balance, 67 h priced")]
     assert rule["level"] == "soft" and rule["weight"] == 1 and rule["weighted"] == 67
     assert v["penalties"]["overtime_above_share"] == 67 and v["nurses"]["Amal"] >= 67
+
+
+# ---- probation ----------------------------------------------------------------------------------
+def with_faten(sample: dict, preceptor: str | None = "Amal") -> dict:
+    """The sample with a fifth nurse, Faten, on probation and precepted by Amal (owes 208 h in June, as Amal does). A copy:
+    the file is also the backend's and the browser checks' sample of a unit's nurses, which carry no probation until
+    ticket 55. The four counted nurses are the sample's, so the month solves as it did."""
+    out = copy.deepcopy(sample)
+    faten = {k: out["nurses"][0][k] for k in ("score", "ramadan_reduced", "ytd_overtime", "hours_balance",
+                                               "last_shift_kind", "rest_owed")}
+    faten.update(id="Faten", gender="F", team_leader=True, breastfeeding=False, night_balance=1.5, friday_balance=-1.0,
+                 overtime_balance=3.0, on_probation=True, preceptor=preceptor)
+    out["nurses"].append(faten)
+    return out
+
+
+def test_the_sample_carries_a_nurse_on_probation_and_her_result_says_she_counted_toward_nothing(client, sample):
+    """D needs exactly one nurse a day: Faten on D beside a counted nurse does not exceed it. She works no night, is on
+    Amal's shift or off every day Amal works D, under 220 h (208 + 12), and her three balances go out at 0."""
+    result = wait_for(client, client.post("/solve", json=with_faten(sample)).json()["job_id"], ended)["result"]
+
+    assert result["ok"] is True and result["violations"] == []
+    roster, dates = result["roster"], sorted(result["roster"]["Faten"])
+    assert "N" not in roster["Faten"].values()
+    assert all(roster["Faten"][d] in ("", "D") for d in dates if roster["Amal"][d] == "D")
+    counted = ("Amal", "Badr", "Dana", "Emad")
+    assert all(sum(roster[n][d] == "D" for n in counted) == 1 for d in dates)
+    assert any(roster["Faten"][d] == "D" for d in dates)                     # beside the one counted nurse
+    faten = result["nurses"]["Faten"]
+    assert faten["required"] == 208 and 197 <= faten["hours_worked"] <= 219
+    assert {k: faten["carry_over"][k] for k in ("night_balance", "friday_balance", "overtime_balance")} == {
+        "night_balance": 0.0, "friday_balance": 0.0, "overtime_balance": 0.0}
+
+
+def test_validate_names_the_nurse_the_day_her_preceptors_shift_and_hers(client, sample):
+    """Amal works D on 1 and 2 June, nobody else works: Faten on D on 1 June follows; off on 2 June she leaves a followable
+    day off, so her D on 3 June, when Amal is off, breaks the rule (days counted from 0)."""
+    req = with_faten(sample)
+    roster = {n["id"]: {f"2026-06-{d:02d}": "" for d in range(1, 31)} for n in req["nurses"]}
+    roster["Amal"].update({"2026-06-01": "D", "2026-06-02": "D"})
+    roster["Faten"].update({"2026-06-01": "D", "2026-06-03": "D"})
+
+    v = client.post("/validate", json={"solve_input": req, "roster": roster}).json()
+
+    assert [x for x in v["violations"] if x["rule"] == "following"] == [
+        {"rule": "following", "nurse": "Faten", "date": "2026-06-03",
+         "text": "following: Faten works D on day 2, when her preceptor Amal is off, while she is off on day 1, when "
+                 "Amal works D"}]
+    rule = next(r for r in v["rules"] if r["id"] == "following")
+    assert rule["level"] == "hard" and [m["nurse"] for m in rule["matches"]] == ["Faten"]
+
+
+def test_precheck_names_a_nurse_on_probation_with_no_preceptor(client, sample):
+    issues = client.post("/precheck", json=with_faten(sample, None)).json()["issues"]
+
+    assert issues == ["Faten: on probation with no preceptor, so she follows no one: she is rostered on freely placed day "
+                      "shifts, counted toward nothing"]
+
+
+def test_a_preceptor_not_in_the_input_is_refused_with_its_path(client, sample):
+    r = client.post("/solve", json=with_faten(sample, "Zaid"))
+
+    assert r.status_code == 422
+    assert r.json()["detail"] == "request: nurses[4].preceptor: 'Zaid' is not another nurse of the input"
