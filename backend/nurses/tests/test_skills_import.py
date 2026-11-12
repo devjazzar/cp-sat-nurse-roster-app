@@ -99,15 +99,14 @@ def file_refusal(response) -> str:
 
 
 # ---- the template ---------------------------------------------------------------------------------------------------
-def test_the_template_has_the_exact_columns_and_a_byte_order_mark_for_excel(cno):
-    """Its five columns are tested with the identifier's (ticket 60), below."""
+def test_the_template_has_the_five_columns_and_a_byte_order_mark_for_excel(cno):
     response = cno.get(TEMPLATE)
 
     assert response.status_code == 200
     assert response["Content-Type"].startswith("text/csv")
     assert 'filename="skills-import-template.csv"' in response["Content-Disposition"]
     assert response["Cache-Control"] == "no-store"
-    assert response.content.startswith(codecs.BOM_UTF8 + b'"Hospital ID","Skill","Expiry"')
+    assert response.content == codecs.BOM_UTF8 + b'"Hospital ID","Skill","Expiry","Identifier","Issue date"\r\n'
 
 
 def test_the_template_is_read_as_a_file_with_no_skills_and_writes_no_audit_entry(cno):
@@ -488,11 +487,6 @@ def bsn(cno) -> str:
                                  "expires": False, "required_to_work": False, "lets_a_nurse_precept": False, "active": True})
     assert response.status_code == 201, response.content
     return response.json()["id"]
-
-
-def test_the_template_has_the_five_columns(cno):
-    assert cno.get(TEMPLATE).content == (
-        codecs.BOM_UTF8 + b'"Hospital ID","Skill","Expiry","Identifier","Issue date"\r\n')
 
 
 def test_a_five_column_file_previews_each_row_with_its_identifier_issue_date_and_kind(cno, amal, badr, scfhs, bsn):

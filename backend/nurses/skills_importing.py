@@ -110,9 +110,9 @@ class Preview:
 class _Standing:
     """What a row is judged against: the file's other lines and the database as it is now."""
     lines_by_key: dict[tuple[str, str], list[int]]
-    # By (skill in lower case, identifier): each line giving the entry that identifier, with its hospital ID as the file has
-    # it, the nurse being the same in any case of letters.
-    lines_by_identifier: dict[tuple[str, str], list[tuple[int, str]]]
+    # By (skill in lower case, identifier): each line giving the entry that identifier, with its nurse's hospital ID in lower
+    # case, as `lines_by_key` has it, and as the file has it, for the words.
+    lines_by_identifier: dict[tuple[str, str], list[tuple[int, str, str]]]
     nurses: dict[str, NurseProfile]  # By hospital ID in lower case.
     skills: dict[str, Skill]  # By name in lower case: unique in any case of letters.
     held: dict[tuple[UUID, UUID], NurseSkill]  # By (nurse, skill).
@@ -183,7 +183,7 @@ def _judged(line: Line, standing: _Standing) -> Row:
                                                   "characters."))
     if identifier is not None and skill is not None:
         given = standing.lines_by_identifier.get((skill.name.lower(), identifier), [])
-        if other := next(((number, whose) for number, whose in given if key and whose.lower() != key[0]), None):
+        if other := next(((number, written) for number, whose, written in given if key and whose != key[0]), None):
             row.problems.append(Problem("identifier", f"Line {other[0]} gives {other[1]} this identifier for {skill.name} too. "
                                                       "Check the number: each one is one nurse's."))
     issue_date = parsed(_DATE, row.issue_date) if row.issue_date else None
@@ -228,12 +228,12 @@ def nurses_named(lines: list[Line]):
 def check(lines: list[Line]) -> Preview:
     """Every row's problems as things stand. It writes nothing and holds no lock."""
     by_key: dict[tuple[str, str], list[int]] = {}
-    by_identifier: dict[tuple[str, str], list[tuple[int, str]]] = {}
+    by_identifier: dict[tuple[str, str], list[tuple[int, str, str]]] = {}
     for line in lines:
         if key := _key(line):
             by_key.setdefault(key, []).append(line.number)
             if identifier := _identifier(line):
-                by_identifier.setdefault((key[1], identifier), []).append((line.number, line.cells[0].strip()))
+                by_identifier.setdefault((key[1], identifier), []).append((line.number, key[0], line.cells[0].strip()))
     nurses = {nurse.user.username.lower(): nurse for nurse in nurses_named(lines).select_related("user")}
     skills = {skill.name.lower(): skill for skill in Skill.objects.all()}
     held = {(row.nurse_id, row.skill_id): row

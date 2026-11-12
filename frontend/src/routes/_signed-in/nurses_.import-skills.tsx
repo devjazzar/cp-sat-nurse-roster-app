@@ -31,7 +31,8 @@ const COLUMN_NAMES: Record<string, string> = {
   issue_date: "Issue date",
 }
 
-const COLUMN_COUNT = 8
+/** The columns after the first two (Line, then Problems or Change), each a field of the row as the file has it. */
+const FILE_COLUMNS = ["Hospital ID", "Nurse", "Skill", "Expiry", "Identifier", "Issue date"]
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const lineCount = (n: number) => count(n, "line", "lines")
@@ -39,11 +40,13 @@ const lineCount = (n: number) => count(n, "line", "lines")
 /** What a renewal changes, each field the line differs in with what was recorded: "was until 31 Dec 2026, identifier
  *  was 21-RN-0412". An empty cell in the file is none, so a line may take an identifier or an issue date off. */
 function renewalWords(row: SkillImportRow) {
+  /** What was recorded, when the line differs from it: its words, or `none` when nothing was. */
+  const was = (inFile: string, held: string | null, words: (held: string) => string, none: string) =>
+    inFile === (held ?? "") ? null : held ? words(held) : none
   const changes = [
-    row.expiry !== (row.held_expiry ?? "") && row.held_expiry && `was until ${shortDay(row.held_expiry)}`,
-    row.identifier !== (row.held_identifier ?? "") && (row.held_identifier ? `identifier was ${row.held_identifier}` : "no identifier before"),
-    row.issue_date !== (row.held_issue_date ?? "")
-      && (row.held_issue_date ? `issue date was ${shortDay(row.held_issue_date)}` : "no issue date before"),
+    was(row.expiry, row.held_expiry, (held) => `was until ${shortDay(held)}`, ""),
+    was(row.identifier, row.held_identifier, (held) => `identifier was ${held}`, "no identifier before"),
+    was(row.issue_date, row.held_issue_date, (held) => `issue date was ${shortDay(held)}`, "no issue date before"),
   ].filter(Boolean)
   return ["Renewal", ...changes].join(", ")
 }
@@ -90,18 +93,13 @@ function RowsTable({ rows, label }: { rows: SkillImportRow[]; label: string }) {
         <TableRow>
           <TableHead>Line</TableHead>
           {hasProblems ? <TableHead>Problems</TableHead> : <TableHead>Change</TableHead>}
-          <TableHead>Hospital ID</TableHead>
-          <TableHead>Nurse</TableHead>
-          <TableHead>Skill</TableHead>
-          <TableHead>Expiry</TableHead>
-          <TableHead>Identifier</TableHead>
-          <TableHead>Issue date</TableHead>
+          {FILE_COLUMNS.map((column) => <TableHead key={column}>{column}</TableHead>)}
         </TableRow>
       </TableHeader>
       {groupsOf(rows).map((group) => (
         <TableBody key={group.kind} aria-labelledby={`${id}-${group.kind}`}>
           <TableRow className="hover:bg-transparent">
-            <TableHead id={`${id}-${group.kind}`} scope="rowgroup" colSpan={COLUMN_COUNT}
+            <TableHead id={`${id}-${group.kind}`} scope="rowgroup" colSpan={FILE_COLUMNS.length + 2}
               className="bg-muted/50 font-medium text-foreground">{group.heading}</TableHead>
           </TableRow>
           {group.rows.map((row) => (
