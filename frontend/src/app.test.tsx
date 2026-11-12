@@ -6880,7 +6880,7 @@ describe("the roster page", () => {
 
       const grid = within(await screen.findByRole("region", { name: "Draft of ER, June 2026" }))
       const group = within(grid.getByRole("rowgroup", { name: "On probation" }))
-      expect(group.getByRole("rowheader", { name: /^Faten Ali,\s?Preceptor: Amal Saleh$/ })).toBeInTheDocument()
+      expect(group.getByRole("rowheader", { name: "Faten Ali, Preceptor: Amal Saleh" })).toBeInTheDocument()
       expect(group.queryByRole("rowheader", { name: "Badr Noor" })).not.toBeInTheDocument()
       expect(grid.getByRole("grid")).toHaveAttribute("aria-rowcount", "5")
       expect(screen.getByRole("list", { name: "What the cells mean" })).toHaveTextContent("On probation: works beside their preceptor and is not counted toward any shift")
@@ -8604,7 +8604,7 @@ describe("a nurse's roster page", () => {
 
     const grid = await screen.findByRole("region", { name: "Roster of ER, December 2026" })
     const group = within(within(grid).getByRole("rowgroup", { name: "On probation" }))
-    expect(group.getByRole("rowheader", { name: /^Faten Ali,\s?Preceptor: Amal Saleh$/ })).toBeInTheDocument()
+    expect(group.getByRole("rowheader", { name: "Faten Ali, Preceptor: Amal Saleh" })).toBeInTheDocument()
     expect(group.queryByRole("rowheader", { name: "Hana Ali (you)" })).not.toBeInTheDocument()
     const faten = within(group.getByRole("rowheader", { name: /Faten Ali/ }).closest("tr") as HTMLElement).getAllByRole("cell")
     expect(faten.map((cell) => cell.getAttribute("title"))).toEqual(["Faten Ali, 1 December: Day", "Faten Ali, 2 December: Off", "Faten Ali, 3 December: Off"])
@@ -8620,7 +8620,7 @@ describe("a nurse's roster page", () => {
 
     const grid = await screen.findByRole("region", { name: "Roster of ER, December 2026" })
     const group = within(within(grid).getByRole("rowgroup", { name: "On probation" }))
-    expect(group.getAllByRole("rowheader").map((row) => row.textContent)).toEqual(["On probation", "Hana Ali (you), No preceptor", "Faten Ali, Preceptor: Amal Saleh"])
+    expect(group.getAllByRole("rowheader").map((row) => row.getAttribute("aria-label") ?? row.textContent)).toEqual(["On probation", "Hana Ali (you), No preceptor", "Faten Ali, Preceptor: Amal Saleh"])
   })
 
   it("says there is no roster yet, and offers no month before this one", async () => {
@@ -8986,7 +8986,7 @@ describe("printing and downloading a roster version", () => {
     const group = within(table).getByRole("rowgroup", { name: "On probation" })
     const [heading, faten] = within(group).getAllByRole("row")
     expect(heading).toHaveTextContent(/^On probation$/)
-    expect([within(faten).getByRole("rowheader").textContent, ...within(faten).getAllByRole("cell").map((cell) => cell.textContent)])
+    expect([within(faten).getByRole("rowheader").getAttribute("aria-label"), ...within(faten).getAllByRole("cell").map((cell) => cell.textContent)])
       .toEqual(["Faten Ali, Preceptor: Amal Saleh", "", "D", "", "12", "1", "0"])
     expect(screen.getByText(/On probation: works beside their preceptor and is not counted toward any shift\./)).toBeInTheDocument()
   })

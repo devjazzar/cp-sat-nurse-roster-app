@@ -175,9 +175,11 @@ export function RosterGrid({ grid, label, editing, extraShifts = [], markedDate 
       <tr key={row.id} ref={windowed ? virtualizer.measureElement : undefined} data-index={index} aria-rowindex={index + 2 + (anyOnProbation && index >= firstOnProbation ? 1 : 0)} style={{ height: ROW_HEIGHT }}>
         {/* Wraps rather than truncates: a name has to be reachable whole, and a title is not by keyboard. Narrower on a phone,
             so a week of days shows beside it at 360 px (ticket 23). */}
-        <th scope="row" className="sticky start-0 z-10 max-w-28 border-b sm:max-w-48 bg-background px-2 py-1 text-start font-normal wrap-anywhere">
+        {/* Her name and her preceptor's read as one, with a comma: a browser parts the two lines with a space only. */}
+        <th scope="row" aria-label={row.original.on_probation ? `${name}, ${preceptorLine(row.original.preceptor_name)}` : undefined}
+          className="sticky start-0 z-10 max-w-28 border-b sm:max-w-48 bg-background px-2 py-1 text-start font-normal wrap-anywhere">
           {name}
-          {row.original.on_probation && <><span className="sr-only">, </span><span className="block text-xs text-muted-foreground">{preceptorLine(row.original.preceptor_name)}</span></>}
+          {row.original.on_probation && <span className="block text-xs text-muted-foreground">{preceptorLine(row.original.preceptor_name)}</span>}
         </th>
         {cells.map((cell, col) => {
           const title = `${name}, ${longDay.format(asDate(cell.column.id))}`

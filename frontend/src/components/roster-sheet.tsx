@@ -36,9 +36,10 @@ export function SheetTable({ sheet, me }: { sheet: RosterSheet; me?: string }) {
     const own = row.hospital_id === me && sheet.mine ? sheet.mine : null
     return (
       <tr key={row.hospital_id} className="break-inside-avoid">
-        <th scope="row" className="border p-1 text-start font-normal wrap-anywhere">
+        <th scope="row" aria-label={row.on_probation ? `${row.full_name || row.hospital_id}${own ? " (you)" : ""}, ${preceptorLine(row.preceptor_name)}` : undefined}
+          className="border p-1 text-start font-normal wrap-anywhere">
           {row.full_name || row.hospital_id}{own ? " (you)" : ""}
-          {row.on_probation && <><span className="sr-only">, </span><span className="block text-muted-foreground print:text-current">{preceptorLine(row.preceptor_name)}</span></>}
+          {row.on_probation && <span className="block text-muted-foreground print:text-current">{preceptorLine(row.preceptor_name)}</span>}
         </th>
         {row.shifts.map((code, index) => (
           <td key={sheet.days[index].date} className={cn("border p-0 text-center", shaded(sheet.days[index]))}>
