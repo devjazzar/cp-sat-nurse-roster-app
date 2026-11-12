@@ -53,6 +53,22 @@ wait_for() {
   for _ in $(seq "$seconds"); do "$@" >/dev/null 2>&1 && return 0; sleep 1; done
   return 1
 }
+# The handlers of one kind (`headers`, `reverse_proxy`) anywhere in an adapted Caddy configuration read on standard input,
+# as a JSON list.
+handlers() {
+  python3 -c '
+import json, sys
+def walk(node):
+    if isinstance(node, dict):
+        if node.get("handler") == sys.argv[1]:
+            yield node
+        for value in node.values():
+            yield from walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from walk(value)
+print(json.dumps(list(walk(json.load(sys.stdin)))))' "$1"
+}
 finish() {
   status=$?
   if [[ $keep == --keep ]]; then
@@ -98,26 +114,13 @@ pass "/, /unit-roster, /favicon.svg, /api/health and /metrics through Caddy: the
 
 # The adapted configuration, as running (no DOMAIN) and as a DOMAIN installation's would be: the policy is set deferred, so it
 # replaces any web sent rather than adding a second; HSTS is set, deferred too, only in the DOMAIN mode's snippet.
-headers_handlers() {
-  python3 -c '
-import json, sys
-def walk(node):
-    if isinstance(node, dict):
-        if node.get("handler") == "headers":
-            yield node["response"]
-        for value in node.values():
-            yield from walk(value)
-    elif isinstance(node, list):
-        for value in node:
-            yield from walk(value)
-print(json.dumps(list(walk(json.loads(sys.stdin.read())))))'
-}
-running=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | headers_handlers)
+running=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | handlers headers)
 domain=$(compose exec -T -e CADDY_SITE=roster.hospital.example -e CADDY_TLS_SNIPPET=self-signed-off caddy \
-  caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | headers_handlers)
+  caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | handlers headers)
 python3 -c '
 import json, sys
-policy, running, domain = sys.argv[1], json.loads(sys.argv[2]), json.loads(sys.argv[3])
+policy = sys.argv[1]
+running, domain = ([handler["response"] for handler in json.loads(found)] for found in sys.argv[2:])
 csp = {"deferred": True, "set": {"Content-Security-Policy": [policy]}}
 hsts = {"deferred": True, "set": {"Strict-Transport-Security": ["max-age=31536000"]}}
 assert running == [csp], running
@@ -190,18 +193,9 @@ print(sum(b"config.wsgi" in p.read_bytes() for p in pathlib.Path("/proc").glob("
 # A gthread worker keeps a connection open for --keep-alive seconds after a response and then closes it (checked once a
 # second, so never sooner). Caddy forgets an idle connection to web before that, so it never sends a request down one gunicorn
 # has just closed, which would answer a POST with 502.
-caddy_idle=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | python3 -c '
+caddy_idle=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | handlers reverse_proxy | python3 -c '
 import json, sys
-def proxies(node):
-    if isinstance(node, dict):
-        if node.get("handler") == "reverse_proxy":
-            yield node
-        for value in node.values():
-            yield from proxies(value)
-    elif isinstance(node, list):
-        for value in node:
-            yield from proxies(value)
-found = list(proxies(json.load(sys.stdin)))
+found = json.load(sys.stdin)
 assert found
 print(" ".join(str(p.get("transport", {}).get("keep_alive", {}).get("idle_timeout", "none")) for p in found))') \
   || fail "Caddy's adapted configuration has no reverse_proxy"

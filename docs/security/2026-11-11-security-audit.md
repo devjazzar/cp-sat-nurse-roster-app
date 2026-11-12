@@ -110,11 +110,12 @@ body cap and read timeout, and threaded gunicorn workers would shrink leads 1 to
   (`.scratch/nurse-rostering-v2/issues/71-gunicorn-runs-threaded-workers.md`), `256943e`: gunicorn's `gthread` workers, 3 of
   4 threads, with the timeout at its default, and Caddy's idle time to `web` (2 s) under gunicorn's keep-alive (10 s).
 - **The HSTS and content security policy note** (`REPORT.md` section 5): **fixed on 2026-11-12** in ticket 72
-  (`.scratch/nurse-rostering-v2/issues/72-hsts-with-a-domain-and-one-content-security-policy.md`), `068adf9`: Caddy sets one
+  (`.scratch/nurse-rostering-v2/issues/72-hsts-with-a-domain-and-one-content-security-policy.md`), `068adf9` and `c38014a`: Caddy sets one
   content security policy on every answer it passes on, deferred so it replaces any `web` sent (`default-src 'self'`, no
   inline script or style, `img-src 'self' data:`, `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`,
   `frame-ancestors 'none'`), and, with `DOMAIN` only, `Strict-Transport-Security: max-age=31536000` without
-  `includeSubDomains` or `preload`. The browser checks reach the app through Caddy and fail on any violation a page reports.
+  `includeSubDomains` or `preload`. The browser checks reach the app through Caddy and fail on any violation a page reports; the one they found, zod's eval
+  probe, is switched off in the app (`c38014a`) rather than allowed.
   Caddy's own error pages carry neither, which was accepted.
 - **Lead 4 and the push hardening notes:** **fixed on 2026-11-11** in ticket 67
   (`.scratch/nurse-rostering-v2/issues/67-ten-devices-a-user-and-a-push-job-that-hands-on.md`), `756f5c5`: at most ten push
@@ -156,7 +157,7 @@ Rejected candidates are listed so the next audit does not spend time on them wit
   its month can still be approved, and if the month after it has already closed, that unit's month close is then
   refused for good. `backend/rosters/review.py`, `backend/closes/making.py`.
 
-`REPORT.md` section 5 lists the hardening notes (HSTS and a content security policy, fixed in ticket 72 (`068adf9`), limits in the Caddyfile,
+`REPORT.md` section 5 lists the hardening notes (HSTS and a content security policy, fixed in ticket 72 (`068adf9`, `c38014a`), limits in the Caddyfile,
 the audit log being append-only by convention only, the application's database role being a superuser, images
 and actions pinned by tag, and others) and the patterns that held up. Its push note (cap the subscriptions, give a push job a
 send budget, align the `auth` key's length, make `pushing.send` never raise) is fixed in ticket 67 (`756f5c5`).

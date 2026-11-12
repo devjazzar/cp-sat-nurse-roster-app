@@ -3,8 +3,6 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 
 import { test as base, devices, expect, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test"
 
-export { expect }
-
 /** A content security policy violation a page reported (ticket 72): what was refused, by which directive, from where. */
 export type PolicyViolation = { page: string; directive: string; blocked: string; source: string; sample: string }
 
