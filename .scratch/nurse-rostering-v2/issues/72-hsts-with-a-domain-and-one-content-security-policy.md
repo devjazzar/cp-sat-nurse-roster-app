@@ -177,3 +177,9 @@ ICU Nurse 01" button. `{ exact: true }` there would end it; it belongs to the co
   need, and name it in the ticket comment.
 - The checks' origin is Caddy: a request over 2 MB is refused there as at a hospital, and `web` is not reachable from the host
   in an e2e stack (`docker compose exec` still is).
+
+**Reviewed by the user (2026-11-12):** all four points kept as built.
+- No widening: zod runs `jitless` through `frontend/src/lib/zod.ts`, never `'unsafe-eval'`.
+- The listener reports one line per violation at the test's end: directive, what was refused, source and line, page.
+- `deploy/INSTALL.md`'s words on HSTS as built.
+- `e2e/tests/desktop/policy.spec.ts` stays, a check rather than a journey.

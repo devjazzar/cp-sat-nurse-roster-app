@@ -184,3 +184,10 @@ checked its labels are in view.
   expiry alone.
 - **61:** noted on 61. `RecordsTable` takes `actions`; the Nurses page's `HeldSkills`, `RenewForm` and `RecordSkillForm` can be
   lifted for the Deputy's row; two lines of page copy still say the CNO alone records.
+
+**Reviewed by the user (2026-11-12):** all five points kept as built.
+- The unit manager reads no identifier or issue date.
+- Rostering attributes' taller rows for the CNO and the Deputy CNO; ticket 61 reconsiders when it adds the Deputy's controls.
+- The skills import's guards ahead of ticket 60.
+- My month's card titled "Skills, certificates and licences".
+- An identifier accepted on a record of any kind; `GLOSSARY.md`'s Identifier now says so.

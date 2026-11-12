@@ -296,7 +296,7 @@ A skill of the kind that permits a nurse to practise, from a body the catalogue 
 _Avoid_: license, registration, permit, licence check
 
 **Identifier**:
-The number or code a body gave a nurse's certificate or licence. Recorded with it, unique among the current records of one catalogue entry, read by the CNO, the Deputy CNO and the nurse herself, and in no file, notification or audit entry.
+The number or code a body gave a nurse's certificate or licence. Required on a licence and optional on a record of any other kind, a plain skill included. Recorded with it, unique among the current records of one catalogue entry, read by the CNO, the Deputy CNO and the nurse herself, and in no file, notification or audit entry.
 _Avoid_: licence number, certificate number, ID (which the hospital ID is), serial
 
 **Expiry**:

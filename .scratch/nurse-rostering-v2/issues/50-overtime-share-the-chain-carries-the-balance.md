@@ -149,3 +149,10 @@ run. No Codex review, by the brief.
 and 72; both workflows green on it (solver, backend, frontend, image, browser checks), as on `2bf6bf2` before it. The local
 suites ran on `79f1939`, before those merges; ticket 52 touched the solver's fairness for nurses on probation (none in these
 tests) and ticket 72 how zod is imported (an alias, nothing in this ticket's files).
+
+**Reviewed by the user (2026-11-12):** points 2 to 5 kept as built; point 1 goes to ticket 51.
+- The label: ticket 51 renames it to the glossary's term, "Overtime above or below their overtime share (hours)".
+- The opening value takes any fraction, bounded at ±1,000,000 hours.
+- The January reset is not stored: December's carry-over keeps its balance, January's input has 0 (ADR 0004).
+- The "Overtime balance" column on the attributes table stays.
+- The balance stays off the Roster page's carry-over table.

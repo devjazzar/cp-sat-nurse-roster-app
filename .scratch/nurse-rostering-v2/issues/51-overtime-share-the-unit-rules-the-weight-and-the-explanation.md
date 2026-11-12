@@ -30,3 +30,7 @@ nurses are priced at once. The user chose: the weights page and API refuse an ov
 overtime's weight (the refusal says why, beside the field), and this ticket's tests hold "with the rule on, the month's total
 overtime is never above what it is with the rule off" on a month larger than ticket 49's small one. Ticket 49's comment
 has the detail.
+
+**From ticket 50's review (the user, 2026-11-12).** Rename the opening value's label on the rostering attributes form from
+"Overtime above or below their fair share (hours)" to the glossary's term, "Overtime above or below their overtime share
+(hours)", with its frontend test.
