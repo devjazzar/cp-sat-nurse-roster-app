@@ -118,6 +118,21 @@ def probation_ending(unit: Unit, nurse_id: UUID, last_month: dt.date) -> None:
     notify([unit.manager], Event.PROBATION_ENDING, **_about(unit, last_month), nurse_id=str(nurse_id))
 
 
+class MonthDates(TextChoices):
+    """Which of a month's own dates changed (ticket 46), as a solve input names them."""
+    RAMADAN_DAYS = "ramadan_days"
+    PUBLIC_HOLIDAYS = "public_holidays"
+
+
+def month_dates_changed(months: Iterable[dt.date], what: MonthDates, by: User) -> None:
+    """To the manager of every unit with a roster in each month, draft, submitted or approved, once a month: its hours may have
+    shifted. Not to whoever made the change, who knows, nor to a manager with no roster in the month. Call it once a write, after
+    its audit entries, with every month the write changed the dates of and none it left as they were."""
+    for month in sorted(set(months)):
+        for unit in Unit.objects.filter(rosters__month=month, manager__isnull=False).exclude(manager=by).select_related("manager"):
+            notify([unit.manager], Event.MONTH_DATES_CHANGED, **_about(unit, month), what=str(what), by=str(by.pk))
+
+
 def month_closed(unit: Unit, month: dt.date, close_id: UUID) -> None:
     """To the unit's manager, when the schedule closes its month: how many hard rules the recorded facts broke is read from the
     close when shown, never kept here, since a broken rule can be a nurse's leave. A manager who closes it again sees it there and

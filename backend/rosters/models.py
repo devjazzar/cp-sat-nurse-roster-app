@@ -79,6 +79,10 @@ class Submission(models.Model):
                                                                "each one's hospital ID, gender, credited days and the pins that "
                                                                "count, and no leave type. What has changed since, which the manager "
                                                                "was not warned of, is compared with this.")
+    dates_at_submit = models.JSONField(null=True, blank=True,
+                                       help_text='The month\'s Ramadan days and public holidays at the submit, as a solve input '
+                                                 'holds them: {"ramadan_days": [...], "public_holidays": [...]}. Null on a '
+                                                 'submission made before they were recorded (ticket 46), which compares none.')
     decision = models.CharField(max_length=8, choices=Decision, blank=True)
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)

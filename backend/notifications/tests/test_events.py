@@ -14,7 +14,9 @@ from nurses.tests.conftest import make_unit
 from solves.tests.conftest import nurse_in
 from units.models import Unit
 from ops.solver_client import SolverRefused
-from rosters.tests.test_review import approve, carla, dina, ok, reject, solved, sound, submit  # noqa: F401
+from rosters.models import Roster
+from rosters.tests.test_review import (add_holiday, approve, carla, dina, fix_ramadan, ok, reject, solved, sound,  # noqa: F401
+                                        submit)
 from solves import running
 from solves.tests.conftest import job, result_of, started
 
@@ -214,3 +216,102 @@ def test_the_system_admin_is_told_of_nothing(mona, er, solver, carla, dina, sign
     assert told(admin) == []
     assert not Notification.objects.filter(user__role=Role.SYSTEM_ADMIN).exists()
     assert Notification.objects.count() > 0
+
+
+class TestMonthDatesChanged:
+    """Ticket 46: the manager of every unit with a roster in a month whose Ramadan days or public holidays changed is told once,
+    whatever its roster's state. Nobody with no roster in it, and never the CNO who made the change."""
+
+    @pytest.fixture
+    def three_rosters(self, mona, er, solver, dina, make_user, client_of):
+        """ER's June is a draft, ICU's submitted and PICU's approved; NICU has no roster in June."""
+        from solves.tests.conftest import make_sample_unit
+
+        solved(mona, er, solver)
+        omar, pia = client_of("omar", Role.UNIT_MANAGER, full_name="Omar"), client_of("pia", Role.UNIT_MANAGER, full_name="Pia")
+        icu = make_sample_unit("ICU", User.objects.get(username="omar"), make_user, prefix="I")
+        solved(omar, icu, solver, prefix="I")
+        ok(submit(omar, icu))
+        picu = make_sample_unit("PICU", User.objects.get(username="pia"), make_user, prefix="P")
+        solved(pia, picu, solver, prefix="P")
+        ok(submit(pia, picu))
+        ok(approve(dina, picu))
+        nadia = client_of("nadia", Role.UNIT_MANAGER, full_name="Nadia")
+        make_unit("NICU", User.objects.get(username="nadia"))
+        Notification.objects.all().delete()
+        return {"ER": mona, "ICU": omar, "PICU": pia, "nobody": nadia}
+
+    def test_every_manager_with_a_roster_in_the_month_is_told_once_of_a_ramadan_change(self, three_rosters, carla, dina):
+        fix_ramadan(carla, "2026-06", 13, 14)
+
+        for unit in ("ER", "ICU", "PICU"):
+            [note] = told(three_rosters[unit])
+            assert note["event"] == "month_dates_changed"
+            assert note["text"] == (f"Carla CNO changed the Ramadan days of June 2026. Check the {unit} roster for that month: "
+                                    "it was planned on the dates before.")
+            assert note["link"] == {"page": "roster", "month": "2026-06", "unit_id": None, "cover_id": None}
+        assert told(three_rosters["nobody"]) == [] and told(carla) == [] and told(dina) == []
+        assert told(as_user("Amal")) == [], "nurses are not told"
+        assert set(Notification.objects.values_list("payload__what", flat=True)) == {"ramadan_days"}
+
+    def test_a_holiday_created_changed_or_removed_tells_them_each_time(self, three_rosters, carla):
+        holiday = add_holiday(carla, "2026-06", 13)
+        changed = carla.put(f"/api/hospital/public-holidays/{holiday}", {"date": "2026-06-20", "name": "A holiday"},
+                            content_type="application/json")
+        assert changed.status_code == 200, changed.content
+        assert carla.delete(f"/api/hospital/public-holidays/{holiday}").status_code == 204
+
+        notes = told(three_rosters["ICU"])
+        assert [note["text"] for note in notes] == ["Carla CNO changed the public holidays of June 2026. Check the ICU roster "
+                                                    "for that month: it was planned on the dates before."] * 3
+        assert len(told(three_rosters["ER"])) == 3 and told(three_rosters["nobody"]) == [] and told(carla) == []
+
+    def test_a_change_that_leaves_the_dates_as_they_were_tells_nobody(self, three_rosters, carla):
+        """Audited, since who decides or a name changed, but no day moved: June has no Ramadan day by the calendar."""
+        fix_ramadan(carla, "2026-06")
+        assert carla.delete("/api/hospital/ramadan/2026-06").status_code == 200
+        holiday = add_holiday(carla, "2026-09", 23, "National Day")
+        renamed = carla.put(f"/api/hospital/public-holidays/{holiday}", {"date": "2026-09-23", "name": "Saudi National Day"},
+                            content_type="application/json")
+        assert renamed.status_code == 200, renamed.content
+        fix_ramadan(carla, "2026-09", 1)
+
+        assert not Notification.objects.exists(), "no roster in September, and June's dates did not move"
+
+    def test_a_holiday_moved_to_another_month_tells_each_month_with_a_roster(self, mona, er, solver, carla):
+        solved(mona, er, solver)
+        solved(mona, er, solver, month="2026-07")
+        Notification.objects.all().delete()
+        holiday = add_holiday(carla, "2026-06", 13)
+        moved = carla.put(f"/api/hospital/public-holidays/{holiday}", {"date": "2026-07-04", "name": "A holiday"},
+                          content_type="application/json")
+        assert moved.status_code == 200, moved.content
+
+        assert [note["link"]["month"] for note in told(mona, "month_dates_changed")] == ["2026-07", "2026-06", "2026-06"]
+
+    def test_a_confirmation_across_two_months_tells_each_once(self, mona, er, solver, carla):
+        """Ramadan 1448 runs from February into March 2027. The scene's sound rosters are of June and July 2026, so its two
+        rosters are moved to those months, which is all this asks of them."""
+        solved(mona, er, solver)
+        solved(mona, er, solver, month="2026-07")
+        Roster.objects.filter(month=dt.date(2026, 6, 1)).update(month=dt.date(2027, 2, 1))
+        Roster.objects.filter(month=dt.date(2026, 7, 1)).update(month=dt.date(2027, 3, 1))
+        Notification.objects.all().delete()
+
+        confirmed = carla.put("/api/hospital/ramadans/1448", {"first": "2027-02-09", "last": "2027-03-09"},
+                              content_type="application/json")
+        assert confirmed.status_code == 200, confirmed.content
+
+        assert sorted(note["link"]["month"] for note in told(mona)) == ["2027-02", "2027-03"]
+        assert told(carla) == []
+
+    def test_confirming_the_calendars_own_dates_tells_nobody(self, mona, er, solver, carla):
+        solved(mona, er, solver)
+        Roster.objects.filter(month=dt.date(2026, 6, 1)).update(month=dt.date(2027, 2, 1))
+        Notification.objects.all().delete()
+
+        confirmed = carla.put("/api/hospital/ramadans/1448", {"first": "2027-02-08", "last": "2027-03-08"},
+                              content_type="application/json")
+        assert confirmed.status_code == 200, confirmed.content
+
+        assert not Notification.objects.exists()

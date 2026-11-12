@@ -6427,6 +6427,20 @@ describe("the roster page", () => {
       expect(screen.getByText("3 June: skill need: 2026-06-03 N has 0 holding ICU, needs 1 (1 short)")).toBeInTheDocument()
     })
 
+    it("says the month's Ramadan days and public holidays changed since the solve, and still offers Submit", async () => {
+      const draft = { ...DRAFT, changes: [
+        { hospital_id: "", full_name: "", what: "ramadan_days" }, { hospital_id: "", full_name: "", what: "public_holidays" },
+        { hospital_id: "h1", full_name: "Amal Saleh", what: "leave" },
+      ] }
+      start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...DRAFTED, draft } } }))
+
+      const changes = await screen.findByRole("alert")
+      expect(changes).toHaveTextContent("This draft was solved before these changes:")
+      expect(within(changes).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+        "The Ramadan days of June 2026 changed", "The public holidays of June 2026 changed", "Amal Saleh: leave or dates changed"])
+      expect(screen.getByRole("button", { name: "Submit for approval" })).toBeEnabled()
+    })
+
     it("offers no editing in a month that is over, and says why", async () => {
       const over = { ...DRAFT, editor: { ...EDITOR, refusal: "This month is over, so its draft cannot change." } }
       start("/roster", editing({ [`GET ${UNIT}/roster`]: { body: { ...EMPTY, draft: over } } }))
@@ -7440,6 +7454,16 @@ describe("the roster page", () => {
       expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument()
     })
 
+    it("tells an approver the month's Ramadan days changed since it was submitted", async () => {
+      const changes = [{ hospital_id: "", full_name: "", what: "ramadan_days" }, { hospital_id: "", full_name: "", what: "public_holidays" }]
+      start("/unit-roster?unit=u1&month=2026-06", approver({ [`GET ${UNIT}/roster?month=2026-06`]: { body: {
+        ...FOR_APPROVER, submitted: { ...WAITING, new_since: [changes[0]] }, draft: { ...FOR_APPROVER.draft, changes },
+      } } }))
+
+      expect(await screen.findByText(/^The Ramadan days of June 2026 changed/)).toHaveTextContent(", since it was submitted")
+      expect(screen.getByText(/^The public holidays of June 2026 changed/)).not.toHaveTextContent("since it was submitted")
+    })
+
     it("approves after asking, and moves focus to where it now stands", async () => {
       const { user, calls } = start("/unit-roster?unit=u1&month=2026-06", approver({
         [`GET ${UNIT}/roster?month=2026-06`]: { body: FOR_APPROVER },
@@ -7940,6 +7964,20 @@ describe("the notification bell", () => {
     const [approver, manager] = await screen.findAllByRole("link", { name: "Open the roster" })
     expect(approver).toHaveAttribute("href", "/unit-roster?unit=u9&month=2026-12")
     expect(manager).toHaveAttribute("href", "/roster?month=2026-12")
+  })
+
+  it("shows a manager that a month's dates changed, leading to their roster of it", async () => {
+    const text = "Carla CNO changed the Ramadan days of March 2027. Check the ER roster for that month: it was planned on the dates before."
+    start("/notifications", {
+      ...session(NURSE),
+      "GET /api/notifications": { body: { unread: 1, items: [
+        { ...NOTE, event: "month_dates_changed", text, link: { page: "roster", month: "2027-03", unit_id: null } },
+      ] } },
+    })
+
+    const [item] = within(await screen.findByRole("list", { name: "Notifications, newest first" })).getAllByRole("listitem")
+    expect(item).toHaveTextContent(text)
+    expect(within(item).getByRole("link", { name: "Open the roster" })).toHaveAttribute("href", "/roster?month=2027-03")
   })
 
   it("marks them all read, and the bell follows", async () => {

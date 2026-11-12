@@ -1,7 +1,7 @@
 import { useGetSolveResult } from "@/api/generated/endpoints"
 import type { Draft, DraftChange, DraftPin, GridCheck, RosterMonth } from "@/api/generated/model"
 import { SolveResultPanels } from "@/components/solve-result"
-import { hospitalTime, longDay } from "@/lib/utils"
+import { hospitalTime, longDay, monthName } from "@/lib/utils"
 
 /** What the roster pages say beside a grid: what changed since its solve, what it breaks, and the pins leave ended or that
  *  count for nothing. The manager's page and the approvers' read the same words. */
@@ -17,11 +17,19 @@ export const CHANGE_SAYS: Record<DraftChange["what"], string> = {
   preferences: "preferences changed",
   skills: "skills changed",
   closed: "the month before has closed since, so this month starts from its closed carry-over, not the projected one",
+  // The month's own, which come with no hospital ID and are worded by `changeSays`.
+  ramadan_days: "the month's Ramadan days changed",
+  public_holidays: "the month's public holidays changed",
 }
 
-/** One line of a draft's changes since its solve. A change with no hospital ID is the unit's own: only `skills` is so far. */
-export function changeSays(change: DraftChange): string {
-  if (!change.hospital_id) return "The skill needs, the skills required to work or the skill shortfall weight changed"
+/** One line of a draft's changes since its solve, under "This draft was solved before these changes". A change with no
+ *  hospital ID is the unit's own (`skills`) or the month's (its Ramadan days or public holidays, ticket 46). */
+export function changeSays(change: DraftChange, month: string): string {
+  if (!change.hospital_id) {
+    if (change.what === "ramadan_days") return `The Ramadan days of ${monthName(month)} changed`
+    if (change.what === "public_holidays") return `The public holidays of ${monthName(month)} changed`
+    return "The skill needs, the skills required to work or the skill shortfall weight changed"
+  }
   return `${change.full_name || change.hospital_id}: ${CHANGE_SAYS[change.what]}`
 }
 

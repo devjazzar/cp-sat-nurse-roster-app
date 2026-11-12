@@ -18,7 +18,7 @@ from nurses.models import Placement
 from rosters.drafts import FROZEN
 from rosters.models import PinnedCell, PinOrigin, Roster, RosterState, VersionOrigin
 from solves.replans import A_DRAFT, ACTIVE, MONTH_OVER, NO_ROSTER_YET
-from rosters.tests.test_review import (SOUND, approve, approved, carla, dina, month_of, ok, profile, record_leave, refused,  # noqa: F401
+from rosters.tests.test_review import (SOUND, add_holiday, fix_ramadan, approve, approved, carla, dina, month_of, ok, profile, record_leave, refused,  # noqa: F401
                                        roster, solved, submitted, url)
 from rosters.tests.test_versions import changed, in_force_agrees, latest, works_e
 from rosters.tests.test_pins import change_shift, icu, pin
@@ -495,6 +495,19 @@ class TestAChangeWhileItWaitsOrRuns:
         solve = replanned(mona, er, solver, *under_way(SWAPPED))
 
         assert solve.replan_outcome == ReplanOutcome.OUTDATED and latest(er).origin == VersionOrigin.SWAP
+
+    def test_a_ramadan_day_or_a_holiday_changed_while_it_runs_still_lets_its_roster_in(self, mona, carla, er, solver,
+                                                                                         in_force):
+        """Ticket 46: the month's dates join what a draft is warned of, not what outdates a re-plan, as the spec has nothing
+        else move. The manager is told of the change and re-plans again if the hours shifted."""
+        def change_the_dates():
+            fix_ramadan(carla, MONTH, 20)
+            add_holiday(carla, MONTH, 20)
+        while_it_runs(solver, change_the_dates)
+
+        solve = replanned(mona, er, solver, *under_way(SWAPPED))
+
+        assert solve.replan_outcome == ReplanOutcome.VERSION and latest(er).origin == VersionOrigin.REPLAN
 
     def test_leave_taking_a_shift_off_leaves_its_roster_out(self, mona, er, solver, in_force):
         """Emad works the 15th in the roster in force and in the re-plan's; the leave took it off as a version."""

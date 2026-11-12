@@ -199,7 +199,11 @@ the day of assigning, may be assigned as a preceptor (ticket 55); the mark is re
 precepts by that skill is allowed and takes no preceptor away (ticket 53).
 
 **Public holiday**: date, name. **Ramadan days**: per month, the CNO's fixed dates or range,
-else derived from the Umm al-Qura calendar.
+else derived from the Umm al-Qura calendar. A write that moves a month's days, Ramadan's or a holiday's (the per-month fix, "Use
+the calendar", a Ramadan confirmed, a holiday created, moved or removed), tells the manager of every unit with a roster in that
+month, draft, submitted or approved, once a month and never the CNO who made it (`month_dates_changed`, ticket 46); one that
+leaves the days as they were (fixing a month to the calendar's own days, a holiday renamed) tells nobody. Nothing else moves:
+approved cells, versions and pins stay, and the next solve or re-plan reads the days as they stand.
 
 **Unit**: name (unique among units not archived), archived flag, manager (a user; none once
 archived), the unit rules (every field of the solver's `department` block but its name, which is
@@ -272,8 +276,9 @@ solve an approved month again. A submitted one takes no pin either. Leave may st
 the grid keeps its shift and the approval sees the broken rule. An approved roster of a month not over is edited by its manager
 cell by cell, each save a new version (below).
 
-**Submission**: one sending of a draft for a decision: who submitted it and when, what the draft was warned of then, and
-the decision, by whom, when and, for a rejection, the comment the manager reads. Nothing is deleted, so every comment is
+**Submission**: one sending of a draft for a decision: who submitted it and when, what the draft was warned of then (the
+month's nurses, and since ticket 46 its Ramadan days and public holidays, null on a submission from before, which compares
+none), and the decision, by whom, when and, for a rejection, the comment the manager reads. Nothing is deleted, so every comment is
 kept, which the audit log cannot hold, since a comment may name a nurse or their leave.
 
 **Roster version**: the roster's full grid (nurse × date → shift code or off) with who,
@@ -411,7 +416,9 @@ backup time and retention, close time.
   opened, and a rename is carried). The stale-draft warning then compares with the restored solve's input. The draft grid is
   editable by hand: each edit is a pin, the grid it would make is checked as the manager edits, and edits are saved
   together. Every solve and every restore puts the pins that count on top of its roster, so a draft never disagrees with a
-  pin; a pin saved since the input was stored, and a pin so put on top, warns like other changes since. Saving while a solve
+  pin; a pin saved since the input was stored, and a pin so put on top, warns like other changes since. So do the month's
+  Ramadan days and public holidays when they differ from the input's, as changes of the month's with no nurse (ticket 46);
+  they block nothing, and do not make a re-plan outdated. Saving while a solve
   of the month is queued or running is allowed and warned of. The solve's own cost holds only for the month it was given, so
   a draft edited or out of date is costed and checked again on the month as it stands. Submitting freezes the draft until
   the decision.

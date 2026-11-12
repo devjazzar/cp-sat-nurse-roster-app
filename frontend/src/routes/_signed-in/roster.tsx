@@ -430,7 +430,7 @@ function DraftCard({ unitId, month, draft, state, label, pending, solving, onSav
         <div role="alert" className="flex flex-col gap-1 rounded-md border border-destructive/40 p-3 text-sm">
           <p className="font-medium">{approved ? "This roster was solved before these changes:" : "This draft was solved before these changes:"}</p>
           <ul className="list-disc ps-5">
-            {draft.changes.map((change) => <li key={change.hospital_id + change.what}>{changeSays(change)}</li>)}
+            {draft.changes.map((change) => <li key={change.hospital_id + change.what}>{changeSays(change, month)}</li>)}
           </ul>
           <p>{approved
             ? "What it now breaks is listed below the grid. Change the cells by hand to put it right: each save is a new version."
