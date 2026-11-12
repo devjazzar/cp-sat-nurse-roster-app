@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { compose, go, journeyStack as on, monthName, toMonth } from "../../../support"
+import { compose, go, journeyStack as on, monthName, test, toMonth } from "../../../support"
 import { alongside, as, notebook, people, SOLVED, UNIT } from "../people"
 
 // Ticket 24: a solve whose solver is gone, on what the desktop journey left. The `solver` service is stopped before the solve

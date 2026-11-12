@@ -1,10 +1,12 @@
 """Shared fairness arithmetic used by the model, the validator and the reports.
 
-Integer units: shares and targets in thousandths of a shift, balances in tenths.
+Integer units: shares and targets in thousandths of a shift, balances in tenths. A nurse on probation takes part in
+none of it (`problem.counted`): she is not flexible, has no Friday share and no overtime share, adds nothing to the
+unit's overtime or to the nurses a share is divided among, and her three balances go out at 0 (ADR 0014 of the app).
 """
 from __future__ import annotations
 
-from .problem import Nurse, Problem, barred_days
+from .problem import Nurse, Problem, barred_days, counted
 
 
 def fair_shifts(p: Problem) -> list[str]:
@@ -44,10 +46,10 @@ def coverage_divisor(p: Problem) -> int:
 def coverage(p: Problem) -> dict[str, int]:
     """Headcounts each shift counts toward, for the shifts some nurse may actually work: an
     `also_counts` entry nobody is allowed to work satisfies nothing and must not lower the
-    people needed (or the fair share)."""
+    people needed (or the fair share). A nurse on probation satisfies no headcount: her shifts are not counted."""
     usable = set()
-    for nu in p.nurses:
-        usable |= set(nu.allowed_shifts) if nu.allowed_shifts is not None else set(p.department.shifts)
+    for n in counted(p):
+        usable |= set(p.allowed(p.nurses[n]))
     cover: dict[str, int] = {}
     for hc in p.department.headcounts:
         for s in [hc.shift] + list(hc.also_counts):
@@ -67,8 +69,8 @@ def weekend_available(p: Problem, nurse: Nurse) -> tuple[int, int]:
 def friday_slots_m(p: Problem) -> float:
     """The problem-wide part of `friday_expected_m` (weekend slots per nurse, thousandths,
     before proration): O(nurses) through `coverage`, so callers looping over nurses pass it
-    in as `per` and pay it once."""
-    dep, n = p.department, max(1, len(p.nurses))
+    in as `per` and pay it once. Divided among the counted nurses: a nurse on probation takes no weekend slot."""
+    dep, n = p.department, max(1, len(counted(p)))
     slots = sum((hc.weekend_min + hc.weekend_max) / 2 for hc in dep.headcounts
                 for d in range(p.days) if p.is_weekend(d)) / coverage_divisor(p)
     return 1000 * slots / n
@@ -90,9 +92,9 @@ def friday_expected_m(p: Problem, nurse: Nurse | None = None, per: float | None 
 
 
 def flexible(p: Problem, nurse: Nurse) -> bool:
-    """True when the nurse may work every fair shift (so a D/N mix can be fair)."""
-    allowed = set(nurse.allowed_shifts) if nurse.allowed_shifts is not None else set(p.department.shifts)
-    return set(fair_shifts(p)) <= allowed
+    """True when the nurse may work every fair shift (so a D/N mix can be fair); never for a nurse on probation, who is
+    left out of the day and night fairness."""
+    return not nurse.on_probation and set(fair_shifts(p)) <= set(p.allowed(nurse))
 
 
 def adj_tenths(balance: float, p: Problem) -> int:
@@ -123,7 +125,10 @@ def balances_out(p: Problem, nurse: Nurse, row: list[int], *, share: dict[str, i
     The night balance moves only when nights are a fair shift for this nurse (otherwise her
     nights have no fair share to compare with); the Friday balance compares her Fridays
     with the expectation prorated for her leave. `share` / `per`: `share_m(p)` and
-    `friday_slots_m(p)` when the caller loops over nurses and has them already."""
+    `friday_slots_m(p)` when the caller loops over nurses and has them already. A nurse on probation carries 0 and 0
+    out, whatever came in: she starts level with her colleagues when it ends."""
+    if nurse.on_probation:
+        return 0.0, 0.0
     dep = p.department
     if share is None:
         share = share_m(p)
@@ -150,8 +155,14 @@ def balances_out(p: Problem, nurse: Nurse, row: list[int], *, share: dict[str, i
 # model (`model.build_model`) and the validator (`validate`) count exactly the same hours.
 
 def overtime_owed(p: Problem) -> int:
-    """R: the hours every nurse of the problem owes this month."""
-    return sum(p.required_hours(nu) for nu in p.nurses)
+    """R: the hours every counted nurse of the problem owes this month (a nurse on probation has no share)."""
+    return sum(p.required_hours(p.nurses[n]) for n in counted(p))
+
+
+def unit_overtime(p: Problem, overtime: list[int]) -> int:
+    """O: the unit's overtime this month, from each nurse's (in the nurses' order): the counted nurses' only. A nurse
+    on probation's rounding overtime is on her own record, outside the department cap and the overtime share."""
+    return sum(overtime[n] for n in counted(p))
 
 
 def overtime_adj_100(p: Problem, nurse: Nurse) -> int:
@@ -174,7 +185,7 @@ def overtime_priced(p: Problem, nurse: Nurse, overtime: int, total: int, owed: i
     at most her overtime; 0 for a nurse who owes no hours (no share) or works no overtime. With
     S = 100 R: floor((S (ot - tol) - 100 r O + R adj) / S), the model's linear form exactly."""
     r = p.required_hours(nurse)
-    if r == 0 or overtime <= 0:
+    if r == 0 or overtime <= 0 or nurse.on_probation:
         return 0
     scale = 100 * owed
     x = scale * (overtime - p.department.overtime_tolerance) - 100 * r * total + owed * overtime_adj_100(p, nurse)
@@ -185,7 +196,9 @@ def overtime_balance_out(p: Problem, nurse: Nurse, overtime: int, total: int, ow
     """Her `overtime_balance` for next month: in + overtime - share, rounded as the shift balances are.
     It moves while the unit's switch and the hospital's hours rule are on, whether or not the unit
     carries fairness and whatever the weight (the price is the hospital's; the record is the unit's),
-    as the night balance moves; otherwise it is handed on unchanged."""
+    as the night balance moves; otherwise it is handed on unchanged. A nurse on probation's is 0 out, whatever came in."""
+    if nurse.on_probation:
+        return 0.0
     if not (p.department.share_overtime and p.general.hours_rule_enabled):
         return nurse.overtime_balance
     return round(nurse.overtime_balance + overtime - overtime_share(p, nurse, total, owed), 2)

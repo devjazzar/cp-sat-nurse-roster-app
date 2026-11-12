@@ -1,8 +1,8 @@
 import { statSync } from "node:fs"
 
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { another, go, signIn, stack } from "../../support"
+import { another, go, signIn, stack, test } from "../../support"
 
 // Ticket 24, from ticket 22: the System Admin's day ends on the health page, where the Backups card lists each backup with its
 // size and time and a Download, and the file comes down whole. Nobody else gets it: another role is refused the file and sent

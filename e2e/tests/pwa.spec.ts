@@ -1,6 +1,6 @@
-import { expect, request, test, type CDPSession, type Page } from "@playwright/test"
+import { expect, request, type CDPSession, type Page } from "@playwright/test"
 
-import { anotherPhone, signIn, stack } from "../support"
+import { anotherPhone, signIn, stack, test } from "../support"
 
 // Ticket 23: the app installs as a progressive web app, and its service worker keeps nothing. These read what Chrome itself
 // reads: the manifest as it parsed it, the worker it registered, and for every response whether it came from the worker or a

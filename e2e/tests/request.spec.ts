@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { expectThumbSized, monthName, shortDay, signIn, stack } from "../support"
+import { expectThumbSized, monthName, shortDay, signIn, stack, test } from "../support"
 
 // Ticket 23: a request made and withdrawn on a phone, on My month of the month whose window the seed opened. Withdrawing puts
 // the stack back as it was, so the check runs again.

@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { anotherPhone, expectThumbSized, signIn, stack } from "../support"
+import { anotherPhone, expectThumbSized, signIn, stack, test } from "../support"
 
 // Ticket 23: a swap proposed on one phone and accepted on another, on the approved month. The seed found the swap sound with the
 // app's own judging: the proposer's shift goes to a colleague who is off that day. The proposer withdraws it at the end, which

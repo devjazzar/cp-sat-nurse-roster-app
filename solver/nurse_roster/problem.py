@@ -30,7 +30,7 @@ MAX_HOURS = 10 ** 6      # overtime caps, YTD overtime, a carried hours balance
 MAX_PARAM = 1000         # rule counts (max in a row, switches), balances, caps
 MAX_REST_DAYS = 7        # night_rest_days: its clause encoding lists every day of the gap, so
                          # the model grows with the square of it; a week is beyond any real rule
-SCHEMA_VERSION = 7       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
+SCHEMA_VERSION = 8       # of the problem JSON. 3 (2026-11-03): every rule, switch and weight is
                          # explicit; no migration from 1 or 2 (they relied on defaults). 4 (2026-11-08):
                          # a nurse's optional `preferences_not_kept` (absent = 0) doubles the price of
                          # her undesired and desired days (ADR 0013); a version-3 file is refused
@@ -46,7 +46,10 @@ SCHEMA_VERSION = 7       # of the problem JSON. 3 (2026-11-03): every rule, swit
                          # (2026-11-12): the overtime share: the department's `share_overtime`,
                          # `overtime_tolerance` and `overtime_carry_cap` and `weights.overtime_above_share`,
                          # required, and a nurse's optional `overtime_balance` (absent = 0); a version-6
-                         # file is refused like any other (the request takes all five as optional)
+                         # file is refused like any other (the request takes all five as optional). 8
+                         # (2026-11-12): probation (ADR 0014 of the app): a nurse's optional `on_probation`
+                         # (absent = false) and `preceptor` (another nurse's id, absent = null); a version-7
+                         # file is refused like any other (the request takes both as optional)
 MAX_FULL_RUNS = 31       # max_full_runs: a month holds at most 31 days
 MAX_OVERTIME_HOURS = 744 # overtime_tolerance, overtime_carry_cap: the hours of a 31-day month
 MAX_SKILLS = 100         # skills a nurse holds, skills required to work, a unit's skill needs
@@ -92,6 +95,10 @@ class Nurse:
                                        # month, -1 = expired before the month (whatever the date). A
                                        # skill not listed is not recorded: it counts toward no need,
                                        # and bars nothing even when required to work (ADR 0010)
+    on_probation: bool = False         # a nurse on probation (ADR 0014 of the app): counts toward nothing about a
+                                       # shift, works no night shift, under one shift of overtime (`overtime_cap`),
+                                       # left out of the fairness and the overtime share (`counted`)
+    preceptor: str | None = None       # the id of the nurse she follows (the following rule); only on probation
 
 
 def holds_skill(nurse: Nurse, skill: str, d: int) -> bool:
@@ -103,8 +110,32 @@ def holds_skill(nurse: Nurse, skill: str, d: int) -> bool:
 
 
 def skill_holders(p: "Problem", skill: str, d: int) -> list[int]:
-    """The nurses (indices) holding `skill` on day d."""
-    return [n for n, nu in enumerate(p.nurses) if holds_skill(nu, skill, d)]
+    """The counted nurses (indices) holding `skill` on day d: a nurse on probation meets no skill need."""
+    return [n for n, nu in enumerate(p.nurses) if holds_skill(nu, skill, d) and not nu.on_probation]
+
+
+def counted(p: "Problem") -> list[int]:
+    """The nurses (indices) who count toward a shift: every nurse but one on probation (ADR 0014 of the app). Only
+    they meet a headcount, a team leader, both genders, a score or a skill need, take part in the day, night and
+    weekend fairness and the overtime share, and make up the unit's overtime totals."""
+    return [n for n, nu in enumerate(p.nurses) if not nu.on_probation]
+
+
+def preceptor_of(p: "Problem", nurse: Nurse) -> int | None:
+    """The index of the nurse she follows, or None (not on probation, or no preceptor in the input)."""
+    if not nurse.on_probation or nurse.preceptor is None:
+        return None
+    return next((n for n, nu in enumerate(p.nurses) if nu.id == nurse.preceptor), None)
+
+
+def followable_candidates(p: "Problem", nurse: Nurse) -> list[int]:
+    """The days the following rule judges for her: not pinned (a pin, an accepted day off and every elapsed day are
+    facts), not on leave (the days outside her dates included) and not barred by an expired required skill. A day of
+    these is followable when her preceptor works on it a shift she is allowed (`Problem.allowed`): the model
+    (`fol`) and the validator (`_following`) both read that set. Elapsed days are pinned (`check`), and left out here
+    by the cutoff as well."""
+    off = set(nurse.unavailable) | set(barred_days(p, nurse))
+    return [d for d in range(p.planning_from, p.days) if d not in nurse.pinned and d not in off]
 
 
 def expiry_words(last: int) -> str:
@@ -319,9 +350,17 @@ class Problem:
         short = max(0, self.required_hours(nurse) - worked_hours)
         return short - self.unused_credit(nurse)
 
+    def allowed(self, nurse: Nurse) -> list[str]:
+        """The shifts she may work: her `allowed_shifts` (null: every shift of the unit), less the unit's night shift
+        while she is on probation, her own setting kept as it is (ADR 0014 of the app). The one reading of it the
+        model, the validator, the fairness, the hours and the precheck share."""
+        base = nurse.allowed_shifts if nurse.allowed_shifts is not None else self.department.shifts
+        if nurse.on_probation:
+            return [s for s in base if s != self.department.night_shift]
+        return list(base)
+
     def min_shift_hours(self, nurse: Nurse) -> int:
-        allowed = nurse.allowed_shifts or self.department.shifts
-        return min(self.general.shift_hours[s] for s in allowed)
+        return min(self.general.shift_hours[s] for s in self.allowed(nurse))
 
     def max_shortfall(self, nurse: Nurse) -> int:
         """Hours a nurse may end under her requirement (carried to next month): less than
@@ -329,10 +368,12 @@ class Problem:
         return self.min_shift_hours(nurse) - 1
 
     def overtime_cap(self, nurse: Nurse) -> int:
+        """The most overtime hours she may work this month (hard). A nurse on probation works less than the hours she
+        owes plus her shortest allowed shift, so her overtime is always under one shift: the mirror of `max_shortfall`."""
         g = self.general
-        if not g.overtime_caps_enabled:
-            return 24 * self.days                # effectively unbounded
-        return max(0, min(g.overtime_month_cap, g.overtime_year_cap - nurse.ytd_overtime))
+        cap = 24 * self.days if not g.overtime_caps_enabled else \
+            max(0, min(g.overtime_month_cap, g.overtime_year_cap - nurse.ytd_overtime))   # unbounded when off
+        return min(cap, self.min_shift_hours(nurse) - 1) if nurse.on_probation else cap
 
     def replan_from(self, day: int) -> int:
         """Mid-month re-solve: days before `day` (0-based) are fact. A cell already pinned is
@@ -386,7 +427,7 @@ class Problem:
         `avoidable_shortfall` penalty (model and validator alike), and the whole shortfall is
         carried over as her debt."""
         h = self.general.shift_hours
-        longest = max(h[s] for s in (nurse.allowed_shifts or self.department.shifts))
+        longest = max(h[s] for s in self.allowed(nurse))
         leave = set(nurse.unavailable) | set(barred_days(self, nurse))   # a barred day holds no shift
         total = 0
         for d in range(self.days):
@@ -441,7 +482,8 @@ class Problem:
     def from_dict(raw: dict, *, check_planning: bool = True) -> "Problem":
         """Every field of the rule objects and every nurse scalar is required: no unit's
         numbers live in the code. Only a nurse's day lists, pins, `allowed_shifts`,
-        `previous`, `last_shift_kind`, `rest_owed`, `preferences_not_kept`, `overtime_balance` and `skills`, a headcount's `also_counts`, and the root's
+        `previous`, `last_shift_kind`, `rest_owed`, `preferences_not_kept`, `overtime_balance`, `skills`, `on_probation` and
+        `preceptor`, a headcount's `also_counts`, and the root's
         holidays, Ramadan days, `published`, `planning_from` and `month` may be absent (absent = none). An explicitly empty
         list stays empty. The result is checked (`check`) so malformed input fails here, not
         in the solver. Every malformed input raises ValueError (never TypeError), with the
@@ -709,6 +751,13 @@ class Problem:
                 for s in allowed:
                     if s not in shifts:
                         raise err(f"{nu.id}: allowed shift {s!r} is not a department shift")
+            if not isinstance(nu.on_probation, bool):
+                raise err(f"{nu.id}: on_probation must be true or false, got {nu.on_probation!r}")
+            if nu.preceptor is not None and not isinstance(nu.preceptor, str):
+                raise err(f"{nu.id}: preceptor must be a nurse id or null, got {nu.preceptor!r}")
+            if nu.on_probation and not self.allowed(nu):
+                raise err(f"{nu.id}: on probation she works no night shift ({dep.night_shift!r}), and her allowed "
+                          f"shifts hold no other")
             # a carried balance is a remainder below one shift of the month that produced it when
             # that month was planned (new shortfalls stay below her own shortest shift,
             # max_shortfall), but the whole debt of a month whose recorded days could not reach
@@ -741,8 +790,10 @@ class Problem:
                     raise err(f"{nu.id}: pinned day {d!r} outside 0..{self.days - 1}")
                 if not isinstance(s, str) or (s != "" and s not in shifts):
                     raise err(f"{nu.id}: pinned shift {s!r} on day {d} is not a department shift")
-                if check_planning and s and d >= self.planning_from and nu.allowed_shifts is not None \
-                        and s not in nu.allowed_shifts:            # an elapsed shift is a fact
+                if check_planning and s and d >= self.planning_from and s not in self.allowed(nu):
+                    if nu.on_probation and s == dep.night_shift:   # an elapsed shift is a fact
+                        raise err(f"{nu.id}: pinned shift {s!r} on day {d} is the night shift, which a nurse on "
+                                  f"probation does not work")
                     raise err(f"{nu.id}: pinned shift {s!r} on day {d} is not in her allowed shifts")
                 if s and d in leave:
                     raise err(f"{nu.id}: day {d} is on leave but pinned to {s!r}")
@@ -776,6 +827,21 @@ class Problem:
                         skill, last = expired_required(self, nu)[0]
                         raise err(f"{nu.id}: day {d} is after the expiry of {skill!r}, required to work, "
                                   f"but pinned to {s!r}")
+        precepting: dict[str, str] = {}                       # preceptor id -> the nurse on probation she precepts
+        by_id = {nu.id: nu for nu in self.nurses}
+        for nu in self.nurses:
+            q = nu.preceptor
+            if q is None:
+                continue
+            if not nu.on_probation:
+                raise err(f"{nu.id}: preceptor {q!r} is named for a nurse not on probation")
+            if q == nu.id or q not in by_id:
+                raise err(f"{nu.id}: preceptor {q!r} is not another nurse of the input")
+            if by_id[q].on_probation:
+                raise err(f"{nu.id}: preceptor {q!r} is herself on probation")
+            if q in precepting:
+                raise err(f"{nu.id}: preceptor {q!r} already precepts {precepting[q]!r} (one nurse on probation each)")
+            precepting[q] = nu.id
 
         need = needed_history(self.department, self.general)
         if need > MAX_HISTORY:                                # a carried history could not hold it
@@ -898,7 +964,7 @@ def _list(v, where: str) -> list:
 _ROOT_OPTIONAL = frozenset({"public_holidays", "ramadan_days", "published", "planning_from", "month"})
 _NURSE_OPTIONAL = frozenset({"unavailable", "undesired_days", "desired_days", "pinned",
                              "allowed_shifts", "previous", "last_shift_kind", "rest_owed",
-                             "preferences_not_kept", "overtime_balance", "skills"})
+                             "preferences_not_kept", "overtime_balance", "skills", "on_probation", "preceptor"})
 
 
 def _require(cls, raw, where: str, *, optional: frozenset | set = frozenset()) -> dict:

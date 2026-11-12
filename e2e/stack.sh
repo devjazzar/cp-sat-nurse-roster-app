@@ -25,7 +25,8 @@
 #   e2e/stack.sh down <project>          remove the containers, volumes, image and e2e/.stack/<project>.* (a journey's notebook
 #                                        among them)
 #
-# E2E_PORT (default 18080) is web over HTTP on 127.0.0.1, the checks' origin; E2E_HTTPS_PORT (default 18443) is Caddy.
+# E2E_PORT (default 18080) is Caddy over plain HTTP on 127.0.0.1, the checks' origin; E2E_HTTPS_PORT (default 18443) is Caddy
+# over HTTPS, as a hospital reaches it.
 # Needs Docker with Compose v2.24 or later, openssl and python3.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)

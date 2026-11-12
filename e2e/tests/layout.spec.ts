@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { expectNoSidewaysScroll, expectThumbSized, monthName, signIn, stack } from "../support"
+import { expectNoSidewaysScroll, expectThumbSized, monthName, signIn, stack, test } from "../support"
 
 // Ticket 23: a staff nurse's pages at phone width (360 px and 320 px, the two projects). Nothing makes the page itself scroll
 // sideways, the header is the name, the bell and a Menu button, and the roster grid scrolls inside its own region with the
