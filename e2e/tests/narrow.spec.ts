@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, type Page } from "@playwright/test"
 
-import { expectNoSidewaysScroll, monthName, signIn, stack } from "../support"
+import { expectNoSidewaysScroll, monthName, signIn, stack, test } from "../support"
 
 // Ticket 24, left by ticket 23: every page at phone width (the `phone-360` and `phone-320` projects). Ticket 23 walked the
 // nurse's, a unit manager's and the System Admin's menus; these walk the CNO's and the Deputy CNO's, and the pages no menu

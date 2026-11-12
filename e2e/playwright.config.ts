@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs"
+
 import { defineConfig, type PlaywrightTestConfig } from "@playwright/test"
 
 import { desktop, has, journeyStack, phone, stack } from "./support"
@@ -33,6 +35,15 @@ const journeyProjects = (): PlaywrightTestConfig["projects"] => [
   { name: "after-journey", use: { ...desktop, baseURL: journeyStack.baseURL }, testMatch: /journey\/after\/.*\.spec\.ts/,
     dependencies: ["journey-desktop"] },
 ]
+
+// Ticket 72: support.ts's `test` watches every page for content security policy violations; a spec taking Playwright's own
+// would run unwatched.
+const tests = new URL("tests/", import.meta.url)
+const unwatched = readdirSync(tests, { recursive: true, encoding: "utf8" }).filter((file) => file.endsWith(".spec.ts"))
+  .filter((file) => /import\s*\{[^}]*\btest\b[^}]*\}\s*from\s*"@playwright\/test"/.test(readFileSync(new URL(file, tests), "utf8")))
+if (unwatched.length) {
+  throw new Error(`Import test from support.ts, not from @playwright/test, so the content security policy is watched: ${unwatched.join(", ")}`)
+}
 
 if (!has.seeded && !has.journey) {
   throw new Error("Set E2E_STACK (a seeded stack) or E2E_JOURNEY_STACK (an --empty one), or both: see e2e/stack.sh")

@@ -1,9 +1,11 @@
 # For e2e/stack.sh only, on top of deploy/compose.yaml: a stack on ports of its own, so it runs beside another.
 #
-# `web` is also published over plain HTTP on 127.0.0.1, without DJANGO_DEBUG. That is the browser checks' origin: a browser
-# treats http://localhost as secure, so the service worker registers there, while it refuses to register one behind Caddy's
-# self-signed certificate whatever Playwright's ignoreHTTPSErrors says. Caddy stays in front on its own port, for checks of
-# what passes through it (headers, /metrics refused).
+# Caddy also answers over plain HTTP on 127.0.0.1, with the site's own handling: its headers (the content security policy of
+# ticket 72), its body limits and its reverse_proxy to web. That is the browser checks' origin: a browser treats
+# http://localhost as secure, so the service worker registers there, while it refuses to register one behind Caddy's
+# self-signed certificate whatever Playwright's ignoreHTTPSErrors says. So every page a check opens carries the policy a
+# hospital's browser gets, and e2e/support.ts fails a check that sees it violated. Caddy's HTTPS port stays, for checks of
+# what passes through it as a hospital reaches it.
 #
 # The checks' clock (ticket 24): E2E_CLOCK_FILE names a file of a number of days that moves the hospital's date for `web` and
 # the worker alike (nurses.membership.today). It is on a volume of its own, mounted here only, written as root in `web` by
@@ -14,13 +16,13 @@ x-clock: &clock
 
 services:
   caddy:
+    environment:
+      CADDY_SITE: "https://, http://:8080"
     ports: !override
       - "127.0.0.1:${E2E_HTTPS_PORT:-18443}:443"
+      - "127.0.0.1:${E2E_PORT:-18080}:8080"
 
   web:
-    networks: [frontend, backend, solver, public]
-    ports:
-      - "127.0.0.1:${E2E_PORT:-18080}:8000"
     environment: *clock
     # Writable for root alone, who owns the volume: `e2e/stack.sh clock` writes it here. The app's user only reads it.
     volumes:

@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { another, expectNoSidewaysScroll, go, monthName, proposeSwap, shortDay, signIn, soundSwap, stack } from "../../support"
+import { another, expectNoSidewaysScroll, go, monthName, proposeSwap, shortDay, signIn, soundSwap, stack, test } from "../../support"
 import { replanTheLargeUnit } from "../replan"
 
 // Ticket 24, left by ticket 23: a unit manager's Requests and Swaps pages, and a re-plan's result, on a 375 px phone (an

@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { another, monthName, proposeSwap, shortDay, signIn, soundSwap, stack } from "../../support"
+import { another, monthName, proposeSwap, shortDay, signIn, soundSwap, stack, test } from "../../support"
 import { replanTheLargeUnit } from "../replan"
 
 // Ticket 24: a large unit, ICU's sixty-four nurses (e2e/seed.py), as its manager and nurses use it. Its draft's grid is long

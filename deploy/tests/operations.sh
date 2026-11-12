@@ -4,11 +4,12 @@
 #
 #   deploy/tests/operations.sh <project> [--keep]
 #
-# It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; no answer
-# through Caddy framed (ticket 62); no address a client claims in the audit log (ticket 69); JSON lines
-# from web, worker and solver, and the push key pair made at the first start; gunicorn threaded (ticket 71): gthread, 3
-# workers of 4 threads, its default timeout, Caddy's idle time to web under gunicorn's keep-alive, and POSTs at gaps either
-# side of both answered by web; Caddy holding the body (ticket 70): its version,
+# It checks, in order: the public health answer through Caddy; /metrics refused through Caddy and answered inside; one
+# content security policy through Caddy, framing by no site, set deferred, and HSTS only in the DOMAIN mode's adapted
+# configuration (tickets 62 and 72); no address a client claims in the audit log (ticket 69); JSON lines from web, worker
+# and solver, and the push key pair made at the first start; gunicorn threaded (ticket 71): gthread, 3 workers of 4 threads,
+# its default timeout, Caddy's idle time to web under gunicorn's keep-alive, and POSTs at gaps either side of both answered
+# by web; Caddy holding the body (ticket 70): its version,
 # its body timeouts, a body over 2 MB refused, and a login withholding its body not stopping a one-worker web; the worker alone
 # on a network with a way out
 # (ticket 42); the browser checks' clock off (ticket 24); a backup taken by the worker's job; the retention jobs; a restore by
@@ -81,15 +82,48 @@ code=$(curl -sk -o /dev/null -w '%{http_code}' "$base/metrics/")
 compose exec -T caddy wget -qO- http://web:8000/metrics | grep -qx 'nurse_roster_database_up 1' \
   && pass "/metrics on the internal network, from Caddy's container straight to web:8000" || fail "/metrics inside"
 
-# Ticket 62: nothing through Caddy may be framed. Caddy says so on every answer, its own /metrics refusal included, and web
-# says it again in its own words.
-for path in / /unit-roster /api/health /metrics; do
+# Tickets 62 and 72: one content security policy through Caddy on every answer, a page, a static file, an API answer and
+# Caddy's own /metrics refusal, framing by no site among it; web says X-Frame-Options: DENY in its own words too. No HSTS
+# without DOMAIN, as here.
+policy="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+for path in / /unit-roster /favicon.svg /api/health /metrics; do
   headers=$(curl -sk -o /dev/null -D - "$base$path" | tr -d '\r')
-  grep -qix "content-security-policy: frame-ancestors 'none'" <<<"$headers" \
-    || fail "$path through Caddy has no frame-ancestors 'none': $headers"
+  policies=$(grep -ic '^content-security-policy:' <<<"$headers" || true)
+  [[ $policies == 1 ]] || fail "$path through Caddy has $policies content security policies: $headers"
+  grep -qixF "content-security-policy: $policy" <<<"$headers" || fail "$path through Caddy has another policy: $headers"
   [[ $path == /metrics ]] || grep -qix 'x-frame-options: DENY' <<<"$headers" || fail "$path through Caddy has no X-Frame-Options: DENY"
+  ! grep -qi '^strict-transport-security:' <<<"$headers" || fail "$path through Caddy without DOMAIN sends HSTS: $headers"
 done
-pass "/, /unit-roster, /api/health and /metrics through Caddy may not be framed"
+pass "/, /unit-roster, /favicon.svg, /api/health and /metrics through Caddy: the one policy, no framing, no HSTS without DOMAIN"
+
+# The adapted configuration, as running (no DOMAIN) and as a DOMAIN installation's would be: the policy is set deferred, so it
+# replaces any web sent rather than adding a second; HSTS is set, deferred too, only in the DOMAIN mode's snippet.
+headers_handlers() {
+  python3 -c '
+import json, sys
+def walk(node):
+    if isinstance(node, dict):
+        if node.get("handler") == "headers":
+            yield node["response"]
+        for value in node.values():
+            yield from walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from walk(value)
+print(json.dumps(list(walk(json.loads(sys.stdin.read())))))'
+}
+running=$(compose exec -T caddy caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | headers_handlers)
+domain=$(compose exec -T -e CADDY_SITE=roster.hospital.example -e CADDY_TLS_SNIPPET=self-signed-off caddy \
+  caddy adapt --config /etc/caddy/Caddyfile 2>/dev/null | headers_handlers)
+python3 -c '
+import json, sys
+policy, running, domain = sys.argv[1], json.loads(sys.argv[2]), json.loads(sys.argv[3])
+csp = {"deferred": True, "set": {"Content-Security-Policy": [policy]}}
+hsts = {"deferred": True, "set": {"Strict-Transport-Security": ["max-age=31536000"]}}
+assert running == [csp], running
+assert sorted(map(json.dumps, domain)) == sorted(map(json.dumps, [csp, hsts])), domain' "$policy" "$running" "$domain" \
+  && pass "the adapted configuration: the policy set deferred; HSTS max-age=31536000, deferred, with DOMAIN alone" \
+  || fail "the adapted configuration's headers: running $running, with DOMAIN $domain"
 
 # Ticket 69: the audit log's address is the one Caddy worked out, whatever a client claims. With TRUSTED_PROXIES empty, as
 # here, Caddy believes no X-Forwarded-For and replaces any X-Client-IP; gunicorn drops X_Client_IP, the same WSGI key.

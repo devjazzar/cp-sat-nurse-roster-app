@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, type Page } from "@playwright/test"
 
-import { go, monthName, signIn, stack } from "../../support"
+import { go, monthName, signIn, stack, test } from "../../support"
 
 // Ticket 24: every role's own pages on a desktop, and what the approvers and a manager with a nurse profile read, on the seeded
 // stack. Nothing here changes it.

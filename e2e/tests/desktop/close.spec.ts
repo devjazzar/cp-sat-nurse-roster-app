@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, type Page } from "@playwright/test"
 
-import { fire, monthName, signIn, stack } from "../../support"
+import { fire, monthName, signIn, stack, test } from "../../support"
 
 // Ticket 24, from ticket 21: the manager's month ends on the Roster page's "Carry-over and month close" card. The seed approved
 // ER's last month and left it open; the hourly catch-up, run now by the stack's own worker, closes it on the schedule's account

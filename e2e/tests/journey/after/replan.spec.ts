@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 
-import { go, monthName } from "../../../support"
+import { go, monthName, test } from "../../../support"
 import { alongside, as, notebook, openFromRosters, people, SOLVED } from "../people"
 
 // Ticket 24: a re-plan that changes the roster in force, and the Deputy CNO reading it, on what the desktop journey left. Leave

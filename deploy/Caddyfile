@@ -1,6 +1,6 @@
 # Caddy in front of the application. compose.yaml works out both variables from DOMAIN.
 #
-# With DOMAIN, the site is that name and `self-signed-off` adds nothing, so Caddy does what it
+# With DOMAIN, the site is that name and `self-signed-off` adds only HSTS, so Caddy does what it
 # does for a public name: it obtains and renews a Let's Encrypt certificate.
 # Without DOMAIN, the site answers on any name or IP with a self-signed certificate from Caddy's
 # own local authority, issued on demand for whatever name the browser used.
@@ -27,7 +27,12 @@
 	}
 }
 
+# The DOMAIN mode (ticket 72): every answer tells the browser to reach this name over HTTPS alone for a year, renewed with
+# each answer. Only the name itself: no includeSubDomains, as the hospital's other names under it are not ours, and no
+# preload, which would outlive the installation. A self-signed installation never sends it, as a browser that took it from
+# an address or a name with an untrusted certificate would refuse the site with no way past the warning.
 (self-signed-off) {
+	header >Strict-Transport-Security "max-age=31536000"
 }
 
 (self-signed) {
@@ -38,8 +43,12 @@
 
 {$CADDY_SITE} {
 	import {$CADDY_TLS_SNIPPET}
-	# No page of the app may be framed, by any site (ticket 62); web also answers X-Frame-Options: DENY.
-	header Content-Security-Policy "frame-ancestors 'none'"
+	# One content security policy on every answer passed on (ticket 72), deferred so that it replaces any web sent: never
+	# two. Only the app's own scripts, styles, images and connections, and images from data: URLs; no plugins, no <base>,
+	# forms posting only here, and no page framed by any site (ticket 62's line; web also answers X-Frame-Options: DENY).
+	# Widen it only where the browser checks show the built app needs it (e2e/support.ts fails a test that sees a
+	# violation). Caddy's own error pages, such as the 502 while web restarts, carry none.
+	header >Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 	# The metrics answer with no sign-in, for a Prometheus on the internal network only (backend/ops/metrics.py).
 	@metrics path /metrics /metrics/*
 	respond @metrics 404

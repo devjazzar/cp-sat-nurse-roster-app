@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, type Page } from "@playwright/test"
 
-import { addDays, daysBetween, fire, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, moveClock, proposeSwap, shortDay, soundSwap } from "../../../support"
+import { addDays, daysBetween, fire, go, hospitalToday, journeyStack as on, longDay, monthAfter, monthName, moveClock, proposeSwap, shortDay, soundSwap, test } from "../../../support"
 import { alongside, as, nameOf, notebook, people, UNIT } from "../people"
 
 // Ticket 24: what happens by date alone, on what the desktop journey left. The checks' clock (`e2e/stack.sh clock`, the
