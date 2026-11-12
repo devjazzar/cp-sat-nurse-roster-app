@@ -26,3 +26,7 @@ ticket 61)" once built.
 - **The Deputy's view:** it must keep no probation action. When the Deputy gets skill controls, give the row a separate flag for them rather than turning `mayChange` on, or the probation buttons appear too. The Deputy CNO only reads a probation (section 3's new rows).
 - **Focus:** after a probation answer, focus goes to the row's "Set attributes" button, by its id `attributes-<nurse id>` (`editButtonId`). Keep that id if the row's buttons change.
 - **Tests:** the app-level tests "the CNO / the Deputy CNO reads it and has no action" assert that the row has no button at all for those roles. Ticket 61 will have to narrow that assertion to the probation buttons.
+
+**From ticket 58 (2026-11-12).** The catalogue's write endpoints (`createSkill`, `updateSkill`) stay `auth=cno`; ticket 58
+added `kind` and `issuing_body` to them and changed no role. The Rostering attributes row can group a nurse's records with
+`byKind` in `frontend/src/lib/skill-kinds.ts` once ticket 59 gives a record its kind.

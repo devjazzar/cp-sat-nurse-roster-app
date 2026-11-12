@@ -151,7 +151,8 @@ function SkillsTable({ skills, onEdit }: { skills: SkillSchema[]; onEdit?: (skil
                 <span className="font-medium">{skill.name}</span>
                 <FormerNames skill={skill} />
               </TableCell>
-              <TableCell>{skill.issuing_body}</TableCell>
+              {/* A body's name may be long: it wraps rather than pushing the marks out of sight. */}
+              <TableCell className="min-w-40 whitespace-normal">{skill.issuing_body}</TableCell>
               <TableCell>{yesNo(skill.expires)}</TableCell>
               <TableCell>{yesNo(skill.required_to_work)}</TableCell>
               <TableCell>{yesNo(skill.lets_a_nurse_precept)}</TableCell>
