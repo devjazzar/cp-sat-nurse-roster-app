@@ -2,6 +2,8 @@
 
 The agreed design is `docs/ARCHITECTURE.md`; read it and `GLOSSARY.md` before changing anything.
 
+Building a ticket, or running the main session's routine over ticket sessions: `docs/guides/local-development.md`.
+
 ## Agent skills
 
 ### Issue tracker

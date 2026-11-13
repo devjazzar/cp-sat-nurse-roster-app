@@ -135,8 +135,8 @@ One ticket at a time, each in a session of its own, in its own worktree, cut fro
 
 1. **The main session starts the ticket session**, nested under it: it fast-forwards its checkout to `origin/main`, then
    `start_session` with `use_worktree: true`, `source_branch: main`, the model and effort you named, and the **full brief**
-   of appendix A. The brief tells the session to read everything it names, answer in three lines or fewer, and write no
-   code until your command arrives.
+   of appendix A, written with `scripts/ticket-brief.py` from the ticket's asks and seams. The brief tells the session to
+   read everything it names, answer in three lines or fewer, and write no code until your command arrives.
 2. **The main session gives you a paste-ready prompt** in a fenced block (and keeps a copy in its scratchpad):
 
    ```
@@ -307,6 +307,9 @@ comments named.
   proves something did *not* happen.
 - **Six parallel runs must pass.** A test that passes alone and fails under load has found an ordering bug or a
   timing assumption. Fix the cause (ticket 24: the component), or the assertion's wait, never by a longer timeout.
+- **No test leans on which roster the solver picks.** CP-SAT may return a different optimal roster on another machine
+  (ticket 55's swaps tests passed here and failed on GitHub). Assert that the rules hold, or fix the cells the test needs
+  with the scripted solver or locked cells, never one solved row as it happened to come out.
 - **Backend tests wait on nothing that ticks.** A stop is asked for once the row shows a roster; the queue's order is forced
   on real connections, not raced.
 - **Playwright checks drive the real stack**: real solver, real worker, the hourly jobs fired now by `stack.sh fire`, the
@@ -360,32 +363,37 @@ fail if the committed document does not match the export.
 
 ## Appendix A: the brief a ticket session gets
 
-The main session writes it and starts the session with it (section 4.4); this is what it must contain. `<base>` is
-`main`'s head the worktree is cut from.
+The main session writes it with `scripts/ticket-brief.py`, which fills this block in, and starts the session with it
+(section 4.4). The `{name}` fields are what the script fills: `{base}` is `main`'s head the worktree is cut from,
+`{asks}` and `{seams}` the two parts the main session writes for each ticket.
 
 ```
-You are the ticket session for ticket NN, `.scratch/<release>/issues/NN-<slug>.md`: <its title>.
+You are the ticket session for ticket {NN}, `{path}`: {title}.
 
 ## First, now
 Read everything under "What to read", then answer in three lines or fewer: the title, the blockers met, anything that
-stops you. Write no code. The user will paste `/implement-spec Ticket: NN, ...`, a skill only they can invoke; when it
+stops you. Write no code. The user will paste `/implement-spec Ticket: {NN}, ...`, a skill only they can invoke; when it
 arrives, follow it with the house rules below. Where the skill and this brief disagree, this brief wins.
 
 ## Where to work
-- You are in your own git worktree on your own branch, cut from `main` at `<base>`. This branch is the integration branch:
+- You are in your own git worktree on your own branch, cut from `main` at `{base}`. This branch is the integration branch:
   commit here, one ticket only.
 - Push your branch to `origin` after your first commit and open a **draft pull request** against `main` on
   `devjazzar/cp-sat-nurse-roster-app` (`gh pr create --draft --fill`); keep pushing as you go. GitHub Actions runs on it:
   the three suites, the image, six frontend runs at once, and the browser checks (`e2e/ci.sh`). Do not run `e2e/ci.sh` on
   this machine; run the Playwright files you changed on your scratch stack.
 - If `main` moves, merge `origin/main` into your branch. Never rebase, never force-push.
-- Never touch the main checkout (`<main checkout path>`) or its `main`.
+- Never touch the main checkout (`{main}`) or its `main`.
+- {peers}; merge `origin/main` in as it moves.
 
 ## The merge, then the report
 1. Commit the ticket comment, push, and `gh pr checks <number> --watch` until both workflows are green on your head.
 2. `git fetch origin && git merge-base --is-ancestor origin/main HEAD && git push origin HEAD:refs/heads/main`: a
    fast-forward of `main` on `origin` to your green head. If it is refused, `main` moved: merge `origin/main` in, push, wait
    for green on the new head, and try again (no new run is needed when all `main` gained is `[skip ci]` markdown commits).
+   In that `[skip ci]`-only case, push the merge commit straight to `main` and not to your branch first: a branch push in
+   the same moment starts a pull request run for a pull request already merged, whose image job fails on its cache write
+   (ticket 53's did).
 3. `git push origin --delete <branch>`. The pull request turns merged by itself.
 4. Report (below). Do not refresh the dev stack; the main session does.
 
@@ -393,16 +401,15 @@ arrives, follow it with the house rules below. Where the skill and this brief di
 The `advisor` tool where one is needed. Give it the code and the question, not your conclusion.
 
 ## What to read
-1. The ticket and every comment. 2. The spec, `.scratch/<release>/specs/<feature>.md`: it is decided, build it as written.
-3. `docs/ARCHITECTURE.md`, `GLOSSARY.md`, `docs/adr/`. 4. The previous ticket's comment, the latest model of a write-up.
+1. The ticket and every comment. 2. The spec, `{spec}`: it is decided, build it as written.
+3. `docs/ARCHITECTURE.md`, `GLOSSARY.md`, `docs/adr/`. 4. Ticket {prev}'s comment, the latest model of a write-up.
 5. `docs/guides/local-development.md`, appendices A and B.
 
 ## What the ticket asks, to answer one by one in your ticket comment
-<the criteria, grouped, with the decisions already taken; what earlier tickets' comments and reviews left for this one;
-mark what the spec leaves open as **Worth your review**>
+{asks}
 
 ## Test seams (agreed with the user)
-<the seams from the spec, by name>
+{seams}
 
 ## How to work
 - `tdd` at those seams. Typecheck and single test files regularly; the full suites once at the end, locally: backend
@@ -411,23 +418,29 @@ mark what the spec leaves open as **Worth your review**>
   confirm they match the export. The whole browser suite and the six parallel frontend runs are GitHub's, on your pull request.
 - Frontend tests follow ticket 11's comment: no raised timeouts, no fake timers with `start`, no wait that proves something
   did not happen. CI runs six `npm test` at once: a test that passes alone and fails there has found a real bug.
-- When done: `code-review` against `<base>`. Fix what it finds or say why not. No Codex review.
+- **The code review, required before the ticket comment:** when the code is done and the suites pass, run the
+  `code-review` skill (`/code-review`) against `{base}`, both its Standards and its Spec reviews. Fix every finding or say
+  in the ticket comment why not, under its own heading "The code review", one line per finding with what you did. If the
+  fixes were more than small, run it again on the result. No Codex review.
 - Hold the screens against `better-interface`, `better-writing`, `better-accessibility` by hand.
-- Drive the real thing on your own scratch compose project (`e2e/stack.sh up nr-tNN`). Remove only what you created.
+- Drive the real thing on your own scratch compose project (`e2e/stack.sh up nr-t{NN}`). Remove only what you created.
 - One heavy local run at a time across all sessions (the user's rule, 2026-11-09): the full backend `pytest`, the full
-  solver suite, the full frontend `npm test`, and bringing up or driving a scratch compose stack (Playwright included) need
-  the lock; typechecks and single test files do not, and GitHub's checks are not limited. Take it in the background,
-  `until mkdir "$HOME/.cache/nurse-roster-heavy.lock" 2>/dev/null; do sleep 30; done; echo "ticket-NN $(date)" > "$HOME/.cache/nurse-roster-heavy.lock/owner"`,
-  and release it the moment that work ends, success or failure, with your stack down: `rm -rf "$HOME/.cache/nurse-roster-heavy.lock"`.
-  Never hold it while waiting on GitHub, never remove another session's, and ask the session that started you about one
-  older than two hours.
+  solver suite, the full frontend `npm test`, and bringing up or driving a scratch compose stack (Playwright included) run
+  under `scripts/heavy-run.sh ticket-{NN} <command>`, with `run_in_background` on the Bash call. It waits for the lock,
+  runs the command and releases the lock when the command ends, success or failure; put a stack's up, its checks and its
+  down in one command (`bash -c '...'`). Typechecks and single test files need no lock, and GitHub's checks are not limited.
+  `scripts/heavy-run.sh --status` says who holds it. Never remove another session's lock; ask the session that started you
+  about one held by hand for over two hours. Keep each run short and lean on GitHub's runs where you can.
+- **Never sit idle.** Whenever you wait (GitHub's checks, the lock, a suite), keep a background wait armed that wakes you,
+  and act the moment it does; when you take the lock, use it at once. When GitHub fails a check, read its log and fix it
+  without being asked. The main session watches and will nudge a session that stalls.
 
 ## Ticket comment
-Appendix B, in the style of ticket NN-1's: what was driven and how; what was NOT checked; the decisions you took;
+Appendix B, in the style of ticket {prev}'s: what was driven and how; what was NOT checked; the decisions you took;
 **Worth your review**; what later tickets should know. Tick only the criteria you met.
 
 ## Scope
-Ticket NN only. Start nothing else. Where a later ticket owns something, leave a comment on it.
+Ticket {NN} only. Start nothing else. Where a later ticket owns something, leave a comment on it.
 
 ## Credentials and the stacks
 - The dev stack, project `nurse-roster`, is the user's and holds their data. Do not touch it at all.
@@ -479,3 +492,7 @@ For when a new main session has to pick the routine up:
 4. Tell you the ticket is on `main`, and bring the **Worth your review** points, numbered, each with a recommendation.
 5. Append `**Reviewed by the user (date):** …` to the ticket; commit on `main` with `[skip ci]` and push at once.
 6. Every few tickets: remove the worktrees and local branches that are on `main`.
+7. While ticket sessions run, keep `scripts/watch-tickets.sh <prs…>` running in the background (`HEARTBEAT=1500` suits
+   three sessions). On each wake: the sessions' state (`list_sessions` with `linked`), their checks, and
+   `scripts/heavy-run.sh --status`; nudge a session that is idle while its checks are green or failing, naming the failing
+   test; fix breakage on `main` that is no ticket's; then start the watcher again.
