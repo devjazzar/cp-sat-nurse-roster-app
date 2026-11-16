@@ -5,7 +5,7 @@ description = "The vendored CP-SAT nurse rostering package and the HTTP service 
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "fastapi>=0.162,<0.163",
+    "fastapi>=0.162.2,<0.163",
     "hijridate>=2.6.0,<3",
     "ortools>=9.15.6755,<9.16",
     "uvicorn>=0.54,<0.55",
