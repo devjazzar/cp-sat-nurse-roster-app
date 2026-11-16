@@ -10,7 +10,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- the Python environment: the backend and the solver -------------------------------------
-FROM python:3.14-slim-trixie AS python
+FROM python:3.15-slim-trixie AS python
 COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_NO_DEV=1 UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
@@ -25,7 +25,7 @@ COPY solver/solver_service/ solver/solver_service/
 RUN uv sync --frozen --all-packages --no-editable
 
 # ---- the image ------------------------------------------------------------------------------
-FROM python:3.14-slim-trixie
+FROM python:3.15-slim-trixie
 # The worker's nightly backup runs `pg_dump`, which refuses a server newer than itself, and Debian's own client is 17: the
 # PostgreSQL project's repository has the server's version.
 RUN apt-get update \
